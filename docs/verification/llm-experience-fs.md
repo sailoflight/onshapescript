@@ -121,3 +121,27 @@ reference does not document. Full run log: `live/README.md` (15 experiments,
   before any upload: it catches structural errors (hard) and flags body symbols
   the server would silently accept at save (`qDoesNotExist`, `NotARealType`).
 
+### Instantiation layer (live, 5 features POSTed into Part Studios)
+
+- **Body errors surface as `featureStatus=ERROR` on the `POST
+  .../features` call.** Features whose bodies call an undefined function
+  (`qDoesNotExist`), annotate an undefined type (`NotARealType`), pass a
+  scalar to `opExtrude`, or mix units all return ERROR at instantiation even
+  though the save (signature) layer accepted them. So: signature pass + spec
+  ≠ working body; only instantiation proves the body.
+- **ERROR carries no detail.** The POST response `featureState` contains only
+  `featureStatus` — no message, no line, no symbol. The feature is still saved
+  into the Part Studio (it appears in `GET .../features`) and `featureStates`
+  entries do not surface the message either. An agent cannot read the actual
+  compile/runtime error text from the API; it must infer it.
+- **A valid signature AND a syntactically valid body can still ERROR at
+  runtime.** The three-layer probe (valid `defineFeature`, `qCreatedBy` +
+  `opExtrude` body) returned ERROR on first instantiation because
+  `qCreatedBy(id, EntityType.BODY)` finds no body yet and `opExtrude` gets an
+  empty query. `featureStatus=ERROR` alone cannot distinguish a body compile
+  error from a runtime/empty-query error — treat ERROR as "the body did not
+  complete", then reason about why.
+- This is why instantiation is the real cost: ~5 calls per feature
+  (upload 3-4 + create Part Studio 1 + POST feature 1), and it is the only
+  layer that exercises the body.
+

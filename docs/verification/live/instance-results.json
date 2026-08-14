@@ -1,0 +1,53 @@
+{
+  "startLedger": 198,
+  "endLedger": 223,
+  "callsSpent": 25,
+  "budget": 100,
+  "results": [
+    {
+      "file": "01-three-layer.fs",
+      "question": "does a valid body actually instantiate (featureStatus OK), or does qCreatedBy(id) find nothing and error?",
+      "signatureOk": true,
+      "instantiation": {
+        "ok": false,
+        "detail": "featureStatus=ERROR"
+      }
+    },
+    {
+      "file": "02-definition-must-be-map.fs",
+      "question": "opExtrude(context, id, 5) accepted at save \u2014 what error at instantiation?",
+      "signatureOk": true,
+      "instantiation": {
+        "ok": false,
+        "detail": "featureStatus=ERROR"
+      }
+    },
+    {
+      "file": "05-units-mismatch.fs",
+      "question": "5*mm + 2 accepted at save \u2014 what error at instantiation?",
+      "signatureOk": true,
+      "instantiation": {
+        "ok": false,
+        "detail": "featureStatus=ERROR"
+      }
+    },
+    {
+      "file": "08-unknown-function.fs",
+      "question": "qDoesNotExist in body accepted at save \u2014 body compile error at instantiation?",
+      "signatureOk": true,
+      "instantiation": {
+        "ok": false,
+        "detail": "featureStatus=ERROR"
+      }
+    },
+    {
+      "file": "15-unknown-type.fs",
+      "question": "var x is NotARealType accepted at save \u2014 body compile error at instantiation?",
+      "signatureOk": true,
+      "instantiation": {
+        "ok": false,
+        "detail": "featureStatus=ERROR"
+      }
+    }
+  ]
+}
