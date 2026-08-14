@@ -9,7 +9,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
-from onshape_fs_mcp import fs_reference
+from onshape_fs_mcp import fs_reference, onshape_api_reference
 from onshape_fs_mcp.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
 from onshape_fs_mcp.operations import (
     check_model,
@@ -98,6 +98,12 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
     result = fs_reference.check_version(
         target=arguments.get("target"), live_version=live_version
     )
+    try:
+        result["onshapeApiSpecVersion"] = onshape_api_reference.spec_version()
+    except Exception as error:
+        result["onshapeApiSpecVersion"] = {
+            "note": f"REST API spec not indexed: {type(error).__name__}: {error}"
+        }
     if arguments.get("check_latest"):
         try:
             latest = fs_reference.fetch_latest_mirror_version()
@@ -114,7 +120,9 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _update_reference(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
-    return fs_reference.update_reference()
+    return fs_reference.update_reference(
+        include_onshape_api=bool(arguments.get("include_onshape_api", False))
+    )
 
 
 def _local_state(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -228,10 +236,20 @@ TOOLS: list[dict[str, Any]] = [
             "standard library from the mirror, then rebuild index.json / guide.json / quick.json. "
             "Returns only a compact change summary (version before/after, counts and sample names of "
             "added/removed/changed functions) so the caller does not have to hold the delta in context - "
-            "afterwards all fs_* lookup tools serve the fresh corpus. This performs network downloads and "
-            "overwrites files under reference/, so it requires confirm_mutation=true."
+            "afterwards all fs_* lookup tools serve the fresh corpus. With include_onshape_api it also "
+            "re-fetches the live Onshape REST API OpenAPI spec and rebuilds the onshape_api_* indexes "
+            "(that fetch needs onshape-credentials.json; without it the REST part is skipped with a note). "
+            "This performs network downloads and overwrites files under reference/, so it requires "
+            "confirm_mutation=true."
         ),
-        "inputSchema": object_schema({"confirm_mutation": mutating_confirmation()}, ["confirm_mutation"]),
+        "inputSchema": object_schema({
+            "confirm_mutation": mutating_confirmation(),
+            "include_onshape_api": {
+                "type": "boolean",
+                "default": False,
+                "description": "Also refresh the Onshape REST API OpenAPI spec (needs credentials).",
+            },
+        }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
     },
     {
@@ -348,7 +366,65 @@ TOOLS: list[dict[str, Any]] = [
             "function": {"type": "string", "description": "Optional; extract the definition window for this function."},
         }, ["module"]),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },    {
+    },
+    # --- Onshape REST API reference tools (local, offline) -----------------
+    {
+        "name": "onshape_api_list_tags",
+        "description": (
+            "List every domain group (tag) in the Onshape REST API with its one-line description: "
+            "Account, Assembly, Document, Element, FeatureStudio, PartStudio, ... Use it to orient "
+            "before onshape_api_search so you can narrow by tag. Local and offline (reads the vendored "
+            "OpenAPI index); reports the REST API spec version it describes."
+        ),
+        "inputSchema": object_schema(),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_api_search",
+        "description": (
+            "Keyword search across every Onshape REST API endpoint (method + path + operationId + "
+            "summary + description), ranked by match strength. Returns method, path, operationId, and "
+            "summary so you can pick the endpoint that does what you want, then drill in with "
+            "onshape_api_endpoint. Optionally filter to one tag (see onshape_api_list_tags). Local and "
+            "offline."
+        ),
+        "inputSchema": object_schema({
+            "query": {"type": "string", "description": "e.g. 'list document elements', 'create part studio', 'get mass properties'."},
+            "tag": {"type": "string", "description": "Optional tag filter (case-insensitive, e.g. 'Document')."},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+        }, ["query"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_api_endpoint",
+        "description": (
+            "Return the full definition of one Onshape REST API operation: method, path, operationId, "
+            "summary, description, every parameter (name, location path/query/header, required, type, "
+            "enum/default, description), and the response status codes with their schema references. "
+            "Pass method to pick one operation on a path; without it, the path's methods are listed. "
+            "Schema references in parameters/responses (e.g. 'BTDocumentElementInfo') are looked up "
+            "with onshape_api_schema. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "path": {"type": "string", "description": "Exact endpoint path, e.g. '/documents/d/{did}/{wvm}/{wvmid}/elements'."},
+            "method": {"type": "string", "description": "Optional: get / post / put / delete / patch. Omit to list methods on the path."},
+        }, ["path"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_api_schema",
+        "description": (
+            "Return a schema definition from the Onshape REST API (a response or request type, e.g. "
+            "BTDocumentElementInfo, BTMassProperties, BTObjectId): its type, description, required "
+            "fields, and each property with its type/ref/description. Use it after onshape_api_endpoint "
+            "tells you a parameter or response references this schema. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "name": {"type": "string", "description": "Schema name, e.g. 'BTDocumentElementInfo'."},
+        }, ["name"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
         "name": "onshape_get_project_state",
         "description": (
             "Read the project's non-secret Onshape document/workspace/element configuration and report "
@@ -569,6 +645,22 @@ HANDLERS: dict[str, ToolHandler] = {
     "fs_library_source": lambda arguments: fs_reference.library_source(
         module=arguments["module"],
         function=arguments.get("function"),
+    ),
+    # Onshape REST API reference tools (local, offline)
+    "onshape_api_list_tags": lambda _: onshape_api_reference.list_tags(),
+    "onshape_api_search": lambda arguments: {
+        "results": onshape_api_reference.search(
+            query=arguments["query"],
+            tag=arguments.get("tag"),
+            limit=arguments.get("limit", 20),
+        ),
+    },
+    "onshape_api_endpoint": lambda arguments: onshape_api_reference.get_endpoint(
+        path=arguments["path"],
+        method=arguments.get("method"),
+    ),
+    "onshape_api_schema": lambda arguments: onshape_api_reference.get_schema(
+        name=arguments["name"],
     ),
 }
 

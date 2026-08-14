@@ -62,7 +62,7 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 21)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 25)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -165,6 +165,82 @@ class McpServerTest(unittest.TestCase):
         self.assertTrue(all(m["category"] == "Math" for m in modules))
         quick = responses[4]["result"]["structuredContent"]
         self.assertTrue(quick["text"].startswith("# FeatureScript quick reference"))
+
+    def test_onshape_api_reference_tools(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_list_tags",
+                    "arguments": {},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_search",
+                    "arguments": {"query": "list document elements", "limit": 3},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_endpoint",
+                    "arguments": {
+                        "path": "/documents/d/{did}/{wvm}/{wvmid}/elements",
+                        "method": "get",
+                    },
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_schema",
+                    "arguments": {"name": "BTDocumentElementInfo"},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        tags = responses[0]["result"]["structuredContent"]
+        self.assertEqual(tags["count"], 42)
+        self.assertTrue(tags["specVersion"])
+        search = responses[1]["result"]["structuredContent"]["results"]
+        self.assertTrue(search)
+        self.assertIn("getElementsInDocument", {r["operationId"] for r in search})
+        endpoint = responses[2]["result"]["structuredContent"]
+        self.assertEqual(endpoint["method"], "GET")
+        self.assertEqual(endpoint["operationId"], "getElementsInDocument")
+        self.assertTrue(endpoint["parameters"])
+        schema = responses[3]["result"]["structuredContent"]
+        self.assertEqual(schema["name"], "BTDocumentElementInfo")
+        self.assertEqual(schema["type"], "object")
+        self.assertTrue(schema["properties"])
+
+    def test_check_version_reports_rest_spec_version(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_check_version",
+                    "arguments": {},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        content = responses[0]["result"]["structuredContent"]
+        rest = content["onshapeApiSpecVersion"]
+        self.assertEqual(rest["status"] if isinstance(rest, dict) and "status" in rest else None, None)
+        self.assertTrue(rest["specVersion"])
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([

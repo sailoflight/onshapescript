@@ -17,14 +17,14 @@ docs/                  server and tool documentation
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (21)
+## MCP tools (25)
 
 **FeatureScript reference — local, offline** (the core value):
 
 | Tool | Purpose |
 |---|---|
-| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health and an optional latest-version probe (`check_latest`) |
-| `fs_update_reference` | Re-fetch the official docs + std library and rebuild the indexes; returns a compact change summary (version before/after, added/removed/changed counts). Mutating: requires `confirm_mutation=true` |
+| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health, the REST API spec version, and an optional latest-version probe (`check_latest`) |
+| `fs_update_reference` | Re-fetch the official docs + std library and rebuild the indexes; returns a compact change summary (version before/after, added/removed/changed counts). Optionally also refreshes the REST API spec (`include_onshape_api`). Mutating: requires `confirm_mutation=true` |
 | `fs_quick_reference` | The curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call |
 | `fs_list_modules` | Standard library modules grouped by category |
 | `fs_list_functions` | Functions/types/constants/predicates with signatures, filtered |
@@ -33,6 +33,16 @@ tests/                 offline protocol tests (no Onshape contact)
 | `fs_search` | Ranked keyword search across the whole reference and the guide |
 | `fs_guide_section` | FeatureScript language guide pages/sections as plain text |
 | `fs_library_source` | Real standard library implementation source for a module/function |
+
+**Onshape REST API reference — local, offline** (the Onshape REST surface, served
+from the live OpenAPI definition vendored under `reference/onshape-api/`):
+
+| Tool | Purpose |
+|---|---|
+| `onshape_api_list_tags` | The 42 REST domain groups (Account, Assembly, Document, FeatureStudio, PartStudio, ...) with descriptions |
+| `onshape_api_search` | Ranked keyword search across every REST endpoint (method/path/operationId/summary) |
+| `onshape_api_endpoint` | Full definition of one operation: parameters, responses, schema references |
+| `onshape_api_schema` | A REST response/request schema (e.g. `BTDocumentElementInfo`) and its properties |
 
 **Onshape REST — inspect and validate your FeatureScript** (existing tools, kept):
 read-only `onshape_get_project_state`, `onshape_get_parameter_set`,
@@ -47,7 +57,7 @@ See `docs/mcp-server.md` for the complete catalog, security boundary, and tests.
 ## The vendored reference
 
 `scripts/fetch_reference.py` downloads, and `scripts/build_fsdoc_index.py`
-indexes, the official material into `reference/`:
+indexes, the official FeatureScript material into `reference/`:
 
 - `reference/fsdoc/` — the FsDoc pages from `cad.onshape.com` (function/type
   reference, language guide, tutorial) plus `index.json` (every function, type,
@@ -60,6 +70,13 @@ indexes, the official material into `reference/`:
 - `reference/quick-reference.md` — a curated, distilled cheat-sheet synthesized
   from the docs (served by `fs_quick_reference`).
 
+`scripts/fetch_onshape_api.py` downloads the **live** Onshape REST API OpenAPI
+definition from `https://cad.onshape.com/api/openapi` (authenticated) into
+`reference/onshape-api/openapi.json`, and `scripts/build_onshape_api_index.py`
+flattens it into `api_index.json` (302 endpoints, 1226 schemas) +
+`api_quick.json` for the `onshape_api_*` tools. Because it is pulled live from
+the server, it always reflects the running deployment — no stale snapshot.
+
 Everything prose-shaped is a JSON index; the large source stays as files read
 on demand. Both indexes record the source sha256 so `fs_check_version` can
 report when a re-fetch left them stale.
@@ -69,6 +86,8 @@ Re-sync after an upstream change:
 ```bash
 python3 scripts/fetch_reference.py
 python3 scripts/build_fsdoc_index.py
+python3 scripts/fetch_onshape_api.py      # needs onshape-credentials.json
+python3 scripts/build_onshape_api_index.py
 ```
 
 See `docs/fs-assistant.md` for usage guidance and the tool workflows.

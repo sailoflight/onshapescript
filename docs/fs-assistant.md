@@ -80,6 +80,11 @@ you *whether* to update before paying for the download.
   staleness checks (each page's sha256 is recorded in `guide.json`).
 - `reference/std-library/<module>.fs` — the standard library source, mirrored
   from `github.com/javawizard/onshape-std-library-mirror` (MIT).
+- `reference/onshape-api/openapi.json` — the **live** Onshape REST API OpenAPI
+  definition, pulled from `https://cad.onshape.com/api/openapi` (authenticated),
+  so it always describes the running deployment. `api_index.json` /
+  `api_quick.json` flatten it (302 endpoints, 1226 schemas, 42 tags) for the
+  `onshape_api_*` tools.
 
 The indexes record `librarySha256` / per-page `sha256` so you can tell whether
 the docs and indexes are in sync. Rebuild after re-fetching:
@@ -127,6 +132,16 @@ fs_guide_section(page="feature-types", section="precondition")
 
 fs_library_source(module="primitives", function="fCylinder")
   -> the definition window from the real std library source
+
+onshape_api_search(query="list document elements")
+  -> {method: GET, path: /documents/d/{did}/{wvm}/{wvmid}/elements,
+      operationId: getElementsInDocument, summary, score}
+
+onshape_api_endpoint(path="/documents/d/{did}/{wvm}/{wvmid}/elements", method="get")
+  -> every parameter (did, wvm with its enum, ...) and the response schema ref
+
+onshape_api_schema(name="BTDocumentElementInfo")
+  -> properties of the response type referenced by the endpoint above
 ```
 
 ## Disambiguation

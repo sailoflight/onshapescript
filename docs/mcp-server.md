@@ -43,8 +43,8 @@ or the network. They are the primary FeatureScript lookup tools. See
 
 | Tool | Behavior |
 |---|---|
-| `fs_check_version` | Reports the vendored reference version (parsed from the std library) and warns `docs-behind` when a `target` and/or the Feature Studio `include_live` version is newer. Also verifies the JSON indexes are consistent with the raw pages. With `check_latest` it probes the mirror (one small network call) for the newest version. |
-| `fs_update_reference` | Mutating (requires `confirm_mutation=true`): re-fetches the FsDoc pages + std library and rebuilds the indexes. Returns a bounded change summary (version before/after, added/removed/changed counts) so the delta never needs to live in the caller's context. |
+| `fs_check_version` | Reports the vendored reference version (parsed from the std library) and warns `docs-behind` when a `target` and/or the Feature Studio `include_live` version is newer. Also verifies the JSON indexes are consistent with the raw pages and reports `onshapeApiSpecVersion` (the vendored REST API spec version + health). With `check_latest` it probes the mirror (one small network call) for the newest version. |
+| `fs_update_reference` | Mutating (requires `confirm_mutation=true`): re-fetches the FsDoc pages + std library and rebuilds the indexes; with `include_onshape_api` it also refreshes the REST API OpenAPI spec (needs credentials). Returns a bounded change summary (version before/after, added/removed/changed counts) so the delta never needs to live in the caller's context. |
 | `fs_quick_reference` | Returns the curated distilled cheat-sheet (`reference/quick-reference.md`), small enough to load in one call for orientation. |
 | `fs_list_modules` | Lists standard library modules grouped by category (optional filter). |
 | `fs_list_functions` | Lists functions/types/constants/predicates with signatures and summaries, filtered by module/category/kind/prefix. |
@@ -53,6 +53,26 @@ or the network. They are the primary FeatureScript lookup tools. See
 | `fs_search` | Ranked keyword search across the entire reference and the guide (`kind=guide`). |
 | `fs_guide_section` | One FsDoc guide page, or a section of it, as plain text with fenced code blocks. |
 | `fs_library_source` | The real standard library implementation source, optionally the window around one function. |
+
+### Onshape REST API reference tools — local and offline
+
+These answer questions about the Onshape REST API surface from the live OpenAPI
+definition vendored under `reference/onshape-api/`. Like the FeatureScript
+tools they are offline; only `fs_check_version`/`fs_update_reference` (above)
+and the Onshape REST tools touch the network.
+
+| Tool | Behavior |
+|---|---|
+| `onshape_api_list_tags` | The 42 REST domain groups (Account, Assembly, Document, FeatureStudio, PartStudio, ...) with descriptions; reports the spec version they describe. |
+| `onshape_api_search` | Ranked keyword search over every REST endpoint (method/path/operationId/summary), optional tag filter. |
+| `onshape_api_endpoint` | Full definition of one operation: parameters (name, path/query/header, required, type, enum/default, description), response codes and their schema references. |
+| `onshape_api_schema` | A response/request schema (e.g. `BTDocumentElementInfo`) and its properties/required fields. |
+
+`fs_check_version` also reports `onshapeApiSpecVersion` (the vendored REST API
+spec version + index health), and `fs_update_reference` accepts
+`include_onshape_api: true` to refresh the REST spec alongside the FeatureScript
+reference — that re-fetch needs onshape-credentials.json and is skipped with a
+note when it is absent.
 
 ### Local and read-only
 
@@ -112,7 +132,7 @@ python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/br
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 21-tool discovery;
+- MCP initialization and 25-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

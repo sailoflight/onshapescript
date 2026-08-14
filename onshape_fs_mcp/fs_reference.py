@@ -682,17 +682,32 @@ def reference_change_summary(
     }
 
 
-def update_reference(timeout: int = 600) -> dict[str, Any]:
+def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> dict[str, Any]:
     """Fetch the latest docs and rebuild the JSON indexes (mutates reference/).
 
     Returns a bounded change summary so the caller does not have to hold the
     delta in context; afterwards the query functions serve the fresh corpus.
+
+    With include_onshape_api, also re-fetches the live Onshape REST API OpenAPI
+    spec and rebuilds its indexes. That fetch needs onshape-credentials.json;
+    without it the REST part is skipped with a note.
     """
     import subprocess
     import sys
 
     old_functions = _load_index().get("functions", [])
     before = current_versions()
+    api_before: Any = None
+    api_notes: list[str] = []
+    if include_onshape_api:
+        from onshape_fs_mcp import onshape_api_reference
+        try:
+            api_before = onshape_api_reference.spec_version().get("specVersion")
+        except Exception as error:
+            api_notes.append(
+                "onshape-api before-check failed: "
+                f"{type(error).__name__}: {error}"
+            )
     fetch = subprocess.run(
         [sys.executable, "scripts/fetch_reference.py", "--quiet"],
         cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
@@ -701,6 +716,36 @@ def update_reference(timeout: int = 600) -> dict[str, Any]:
         [sys.executable, "scripts/build_fsdoc_index.py"],
         cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
     )
+    api_after: Any = None
+    if include_onshape_api:
+        from onshape_fs_mcp import onshape_api_reference
+        fetch_api = subprocess.run(
+            [sys.executable, "scripts/fetch_onshape_api.py", "--quiet"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+        )
+        build_api = subprocess.run(
+            [sys.executable, "scripts/build_onshape_api_index.py"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+        )
+        if fetch_api.returncode != 0:
+            api_notes.append(
+                "fetch_onshape_api.py exited nonzero (REST spec not refreshed, "
+                "needs onshape-credentials.json): " + fetch_api.stderr.strip()[:200]
+            )
+        if build_api.returncode != 0:
+            api_notes.append(
+                "build_onshape_api_index.py exited nonzero: "
+                + build_api.stderr.strip()[:200]
+            )
+        reload()
+        onshape_api_reference.reload()
+        try:
+            api_after = onshape_api_reference.spec_version().get("specVersion")
+        except Exception as error:
+            api_notes.append(
+                "onshape-api after-check failed: "
+                f"{type(error).__name__}: {error}"
+            )
     reload()
     new_functions = _load_index().get("functions", [])
     after = current_versions()
@@ -719,13 +764,21 @@ def update_reference(timeout: int = 600) -> dict[str, Any]:
         or changes["removedCount"] > 0
         or changes["changedCount"] > 0
     )
-    return {
+    result: dict[str, Any] = {
         "versionBefore": before.get("vendoredVersion"),
         "versionAfter": after.get("vendoredVersion"),
         "updated": updated,
         "changes": changes,
         "notes": notes,
     }
+    if include_onshape_api:
+        result["onshapeApiVersionBefore"] = api_before
+        result["onshapeApiVersionAfter"] = api_after
+        result["onshapeApiUpdated"] = (
+            api_before is not None and api_after is not None and api_before != api_after
+        )
+        result["notes"].extend(api_notes)
+    return result
 
 
 def quick_reference() -> dict[str, Any]:
