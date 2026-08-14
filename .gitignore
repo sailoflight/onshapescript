@@ -1,4 +1,5 @@
 onshape-credentials.json
+config/api-usage.json
 __pycache__/
 *.pyc
 temp/

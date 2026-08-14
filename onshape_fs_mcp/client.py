@@ -36,6 +36,15 @@ OUTPUTS_DIR = Path(os.environ.get(
 ))
 PREVIEW_DIR = OUTPUTS_DIR / "previews"
 REPORT_DIR = OUTPUTS_DIR / "reports"
+# Local API-usage ledger. Onshape has no public "query my quota" endpoint, so we
+# passively bookkeep: every 2xx/3xx counts toward the annual limit (per the
+# official docs) and every response's X-Rate-Limit-Remaining header is captured.
+# This costs zero extra API calls. A 402 response is the server's signal that the
+# annual limit is exhausted.
+USAGE_PATH = Path(os.environ.get(
+    "ONSHAPE_API_USAGE",
+    ROOT / "config" / "api-usage.json",
+))
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -53,6 +62,56 @@ class OnshapeClient:
         else:
             raw = f"{credentials['accessKey']}:{credentials['secretKey']}".encode()
             self.authorization = "Basic " + base64.b64encode(raw).decode()
+        self.usage_path = USAGE_PATH
+        self._usage = self._load_usage()
+
+    def _load_usage(self) -> dict[str, Any]:
+        if self.usage_path.is_file():
+            try:
+                return json.loads(self.usage_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return {
+            "consumed": 0,
+            "calls": [],
+            "lastRateLimitRemaining": None,
+            "lastRetryAfter": None,
+            "last402At": None,
+        }
+
+    def _record_usage(
+        self,
+        method: str,
+        path: str,
+        status: int | None,
+        headers: Any,
+    ) -> None:
+        """Bookkeep one API call. 2xx/3xx count toward the annual limit (4xx/5xx
+        do not, per the official docs); capture rate-limit headers when present.
+        Never raises: bookkeeping must not break a request."""
+        usage = self._usage
+        if status is not None and status < 400:
+            usage["consumed"] = int(usage.get("consumed", 0)) + 1
+        remaining = headers.get("x-rate-limit-remaining") if headers else None
+        if remaining is not None:
+            usage["lastRateLimitRemaining"] = str(remaining)
+        retry_after = headers.get("retry-after") if headers else None
+        if retry_after is not None:
+            usage["lastRetryAfter"] = str(retry_after)
+        if status == 402:
+            usage["last402At"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        usage.setdefault("calls", []).append({
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "method": method,
+            "path": path,
+            "status": status,
+        })
+        usage["calls"] = usage["calls"][-100:]
+        try:
+            self.usage_path.parent.mkdir(parents=True, exist_ok=True)
+            self.usage_path.write_text(json.dumps(usage, indent=1), encoding="utf-8")
+        except OSError:
+            pass
 
     def request(
         self,
@@ -79,6 +138,7 @@ class OnshapeClient:
             try:
                 with urllib.request.urlopen(request, timeout=timeout) as response:
                     payload = response.read()
+                    self._record_usage(method, path, response.status, response.headers)
                     if not payload:
                         return {"httpStatus": response.status}
                     content_type = response.headers.get("content-type", "")
@@ -91,6 +151,7 @@ class OnshapeClient:
                     details = json.loads(payload)
                 except json.JSONDecodeError:
                     details = {"message": payload[:4000]}
+                self._record_usage(method, path, error.code, getattr(error, "headers", None))
                 if error.code != 429 and error.code < 500:
                     raise RuntimeError(
                         f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
@@ -102,6 +163,7 @@ class OnshapeClient:
                 last_error = error
             if attempt < 3:
                 time.sleep(2 ** attempt)
+        self._record_usage(method, path, None, None)
         raise RuntimeError(f"Onshape request failed after retries: {last_error}")
 
 

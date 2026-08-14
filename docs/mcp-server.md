@@ -82,6 +82,7 @@ onshape-credentials.json and is skipped with a note when it is absent.
 | Tool | Behavior |
 |---|---|
 | `onshape_get_project_state` | Reads non-secret local state and credential-file presence. It never reads or returns credential values. |
+| `onshape_api_quota` | Reports the local API-quota budget: configured annual limit, calls consumed (passive ledger of 2xx/3xx responses), remaining, and how many validation-pipeline runs fit. Zero network cost — no extra API call. |
 | `onshape_get_parameter_set` | Reads the maintained detailed or simplified parameter map. |
 | `onshape_build_parameter_payload` | Converts local values into explicit Onshape custom-feature parameter blocks. |
 
@@ -105,7 +106,16 @@ constructed or a remote request is sent.
 | `onshape_upload_feature_studio` | Overwrites configured Feature Studio contents and compiles the feature spec. |
 | `onshape_create_validation_part_studio` | Creates a cloud Part Studio; by default updates local `partStudioId`. |
 | `onshape_instantiate_feature` | Adds a custom feature to a Part Studio. Repeated calls add additional features. |
-| `onshape_run_validation_pipeline` | Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call. |
+| `onshape_run_validation_pipeline` | Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call. Before mutating it checks the local API-quota budget (~15 calls with render, ~10 without) and blocks with the shortfall if the annual limit would be exceeded. |
+
+The quota ledger (`config/api-usage.json`, gitignored) is passive: every 2xx/3xx
+response counts toward the annual limit and each response's
+`X-Rate-Limit-Remaining` header is captured — **zero extra API calls**, because
+Onshape has no public quota-query endpoint. Configure the annual budget in
+`config/onshape-state.json` under `apiQuota` (`{"accountType": "professional"}`
+maps to the official 5000/year, or set `{"annualLimit": N}` directly). A 402
+response is the server's real "annual limit exhausted" signal. Without an
+`apiQuota` config the tools degrade to rate-limit-only reporting.
 
 The confirmation field is defense in depth for autonomous MCP clients. It does
 not replace the MCP host's own approval UI. Configure the host to ask before
@@ -135,7 +145,7 @@ python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/br
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 27-tool discovery;
+- MCP initialization and 28-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

@@ -59,14 +59,26 @@ class McpServerTest(unittest.TestCase):
                     "arguments": {"name": "preview"},
                 },
             },
+            {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_quota",
+                    "arguments": {},
+                },
+            },
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 27)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 28)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
         self.assertIs(parameters["detailedStrands"], False)
+        quota = responses[4]["result"]["structuredContent"]["quota"]
+        self.assertIn("configured", quota)
+        self.assertIn("consumed", quota)
         self.assertNotIn("accessKey", json.dumps(responses))
         self.assertNotIn("secretKey", json.dumps(responses))
 
@@ -307,6 +319,46 @@ class McpServerTest(unittest.TestCase):
         single = responses[3]["result"]["structuredContent"]
         self.assertEqual(single["count"], 1)
         self.assertEqual(single["errorCodes"][0]["code"], 429)
+
+    def test_api_quota_accounting_and_preflight(self) -> None:
+        from pathlib import Path
+        import tempfile
+        from onshape_fs_mcp import client as client_module
+        from onshape_fs_mcp import operations
+
+        # Passive ledger: 2xx counts, 4xx/402 do not; headers captured.
+        tmp = Path(tempfile.mkdtemp()) / "usage.json"
+        cl = object.__new__(client_module.OnshapeClient)
+        cl.usage_path = tmp
+        cl._usage = cl._load_usage()
+        cl._record_usage("GET", "/api/foo", 200, {"x-rate-limit-remaining": "4998"})
+        cl._record_usage("GET", "/api/foo", 404, {})
+        cl._record_usage("GET", "/api/foo", 402, {})
+        self.assertEqual(cl._usage["consumed"], 1)
+        self.assertEqual(cl._usage["lastRateLimitRemaining"], "4998")
+        self.assertTrue(cl._usage["last402At"])
+        self.assertEqual(len(cl._usage["calls"]), 3)
+
+        # Configured budget: preflight blocks when the run would exhaust it.
+        cl2 = object.__new__(client_module.OnshapeClient)
+        cl2.state = {"apiQuota": {"accountType": "professional"}}
+        cl2._usage = {"consumed": 4990, "calls": []}
+        usage = operations.api_usage(cl2)
+        self.assertTrue(usage["configured"])
+        self.assertEqual(usage["annualLimit"], 5000)
+        self.assertEqual(usage["remaining"], 10)
+        self.assertEqual(usage["estimatedPipelineRuns"]["withRender"], 0)
+        pre = operations.preflight_run(client=cl2)
+        self.assertFalse(pre["canProceed"])
+        self.assertIn("insufficient", pre["blockedReason"])
+
+        # Unconfigured: no annual budget -> proceed, with a note.
+        cl3 = object.__new__(client_module.OnshapeClient)
+        cl3.state = {"apiQuota": {}}
+        cl3._usage = {"consumed": 0, "calls": []}
+        pre3 = operations.preflight_run(client=cl3)
+        self.assertTrue(pre3["canProceed"])
+        self.assertIn("No annual quota configured", pre3["details"]["note"])
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([

@@ -56,6 +56,28 @@ Current snapshot: REST API **1.219.86205**, 302 operations, 1226 schemas,
   partly implicit in the spec, worth a distilled cheat-sheet.
 - `Changelog` (`/docs/changelog/`) to judge what changed between REST versions.
 
+## API-quota budgeting
+
+Onshape has **no public quota-query endpoint** (verified against the full
+OpenAPI spec), so the budget is built passively at zero extra API cost:
+
+- Every response is ledgered in `config/api-usage.json` (gitignored): 2xx/3xx
+  count toward the annual limit, 4xx/5xx do not, and the `X-Rate-Limit-Remaining`
+  header is captured each time. A 402 response is the server's real
+  "annual limit exhausted" signal.
+- Configure the budget in `config/onshape-state.json`:
+  `"apiQuota": {"accountType": "professional"}` maps to the official annual
+  limit (enterprise 10000 / professional 5000 / standard 2500), or
+  `{"annualLimit": N}` directly.
+- `onshape_api_quota` reports configured limit, consumed, remaining, and how
+  many validation-pipeline runs fit (15 calls with render, 10 without).
+- `onshape_run_validation_pipeline` runs a preflight check before mutating and
+  blocks with the shortfall if the budget would be exhausted. `render_previews:
+  false` halves the cost.
+
+The ledger is an estimate — other clients and UI usage also consume the server
+limit — so treat it as a budget guardrail, with 402 as the authoritative signal.
+
 ## Updating
 
 ```bash

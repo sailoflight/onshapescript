@@ -17,7 +17,7 @@ docs/                  server and tool documentation
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (27)
+## MCP tools (28)
 
 **FeatureScript reference — local, offline** (the core value):
 
@@ -48,11 +48,14 @@ from the live OpenAPI definition plus the official auth/error docs):
 
 **Onshape REST — inspect and validate your FeatureScript** (existing tools, kept):
 read-only `onshape_get_project_state`, `onshape_get_parameter_set`,
-`onshape_build_parameter_payload`, `onshape_list_document_elements`,
+`onshape_build_parameter_payload`, `onshape_api_quota` (API-quota budget,
+zero network cost), `onshape_list_document_elements`,
 `onshape_get_feature_studio_status`, `onshape_check_model`,
 `onshape_render_preview`; mutating (require `confirm_mutation=true`)
 `onshape_upload_feature_studio`, `onshape_create_validation_part_studio`,
-`onshape_instantiate_feature`, `onshape_run_validation_pipeline`.
+`onshape_instantiate_feature`, `onshape_run_validation_pipeline` — the pipeline
+checks the API-quota budget first (~15 calls with render, ~10 without) and
+blocks if the annual limit would be exceeded.
 
 See `docs/mcp-server.md` for the complete catalog, security boundary, and tests.
 See `docs/onshape-api.md` for the REST reference data, coverage, and gaps.
@@ -125,6 +128,14 @@ Non-secret state (`config/onshape-state.json`) and credentials
 (`onshape-credentials.json`, gitignored) configure which Onshape document the
 REST tools target. `ONSHAPE_STATE`, `ONSHAPE_CREDENTIALS`,
 `ONSHAPE_PARAMETERS_DIR`, and `ONSHAPE_OUTPUTS_DIR` override the paths.
+
+API-quota budgeting: set `"apiQuota"` in `config/onshape-state.json` —
+`{"accountType": "professional"}` maps to the official annual limit
+(enterprise 10000 / professional 5000 / standard 2500) or `{"annualLimit": N}`
+directly. `onshape_api_quota` reports the budget from a passive local ledger
+(`config/api-usage.json`, gitignored) and `onshape_run_validation_pipeline`
+blocks before mutating if the budget is insufficient. This costs zero extra API
+calls — Onshape has no public quota endpoint.
 
 ## Example: Branch Cable Trophy
 

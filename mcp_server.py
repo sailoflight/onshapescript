@@ -12,12 +12,14 @@ from typing import Any, Callable
 from onshape_fs_mcp import fs_reference, onshape_api_reference, onshape_api_docs
 from onshape_fs_mcp.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
 from onshape_fs_mcp.operations import (
+    api_usage,
     check_model,
     create_validation_part_studio,
     feature_studio_status,
     instantiate_feature,
     list_document_elements,
     load_parameter_set,
+    preflight_run,
     public_state,
     render_preview,
     run_validation_pipeline,
@@ -206,6 +208,12 @@ def _instantiate(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
+    preflight = preflight_run(
+        parameter_set=arguments.get("parameter_set", "default"),
+        render=bool(arguments.get("render_previews", True)),
+    )
+    if not preflight["canProceed"]:
+        raise ValueError(preflight["blockedReason"])
     return run_validation_pipeline(
         parameter_set=arguments.get("parameter_set", "default"),
         render=bool(arguments.get("render_previews", True)),
@@ -512,6 +520,20 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     {
+        "name": "onshape_api_quota",
+        "description": (
+            "Report the local API-quota budget: the annual call limit (from apiQuota in "
+            "config/onshape-state.json), calls consumed so far (local ledger of 2xx/3xx responses), the "
+            "remaining budget, and how many full validation-pipeline runs that fits (with and without "
+            "rendering). Also surfaces the latest X-Rate-Limit-Remaining header and any 402 "
+            "(annual-limit-exhausted) signal. Zero network cost: Onshape has no public quota endpoint, so "
+            "this is passive bookkeeping from responses already received - it does not spend API quota. "
+            "Use it before onshape_run_validation_pipeline, which blocks if the budget is insufficient."
+        ),
+        "inputSchema": object_schema(),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
         "name": "onshape_list_document_elements",
         "description": (
             "List elements in the configured Onshape workspace, including names, element types, IDs, and "
@@ -620,7 +642,9 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save "
             "that ID to local project state, instantiate the feature, validate invariants, and optionally render "
-            "five PNG previews. This performs several cloud and local mutations and requires explicit confirmation."
+            "five PNG previews. This performs several cloud and local mutations and requires explicit confirmation. "
+            "Before any call is made it checks the local API-quota budget (~15 calls with render, ~10 without; see "
+            "onshape_api_quota) and blocks with the shortfall if the annual limit would be exceeded."
         ),
         "inputSchema": object_schema({
             "confirm_mutation": mutating_confirmation(),
@@ -634,6 +658,7 @@ TOOLS: list[dict[str, Any]] = [
 
 HANDLERS: dict[str, ToolHandler] = {
     "onshape_get_project_state": _local_state,
+    "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_get_parameter_set": _parameter_set,
     "onshape_build_parameter_payload": _parameter_payload,
     "onshape_list_document_elements": lambda _: {"elements": list_document_elements()},

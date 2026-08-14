@@ -401,6 +401,95 @@ def render_all_previews(
     return results
 
 
+# Official annual API-call limits (see onshape_api_error_codes / limits page).
+ANNUAL_LIMITS = {
+    "enterprise": 10000,   # per full user in company
+    "professional": 5000,  # per user in company
+    "standard": 2500,      # per user
+}
+# Per-run API call estimate for run_validation_pipeline, counted from the
+# actual operations it performs (upload: 4, create: 1, instantiate: 2,
+# check_model: 3, plus 5 render views when render is on).
+PIPELINE_ESTIMATE = {True: 15, False: 10}
+
+
+def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
+    """Report the API-quota budget: configured annual limit, local ledger
+    consumed so far, remaining, and how many pipeline runs fit.
+
+    The ledger is passive (costs zero extra API calls): 2xx/3xx responses count
+    toward the annual limit, and each response's X-Rate-Limit-Remaining header
+    is captured. Onshape has no public quota-query endpoint.
+    """
+    client = client or OnshapeClient()
+    usage = client._usage or {}
+    quota = client.state.get("apiQuota", {}) or {}
+    account_type = quota.get("accountType")
+    annual_limit: int | None = None
+    if quota.get("annualLimit"):
+        annual_limit = int(quota["annualLimit"])
+    elif account_type in ANNUAL_LIMITS:
+        annual_limit = ANNUAL_LIMITS[account_type]
+    consumed = int(usage.get("consumed", 0))
+    result: dict[str, Any] = {
+        "accountType": account_type,
+        "annualLimit": annual_limit,
+        "consumed": consumed,
+        "lastRateLimitRemaining": usage.get("lastRateLimitRemaining"),
+        "lastRetryAfter": usage.get("lastRetryAfter"),
+        "last402At": usage.get("last402At"),
+        "recentCalls": list(reversed((usage.get("calls") or [])[-5:])),
+    }
+    if annual_limit is None:
+        result["configured"] = False
+        result["remaining"] = None
+        result["estimatedPipelineRuns"] = None
+        result["note"] = (
+            'No annual quota configured. Add "apiQuota": {"accountType": '
+            '"professional"} (enterprise/professional/standard) or '
+            '{"annualLimit": N} to config/onshape-state.json to enable the '
+            "annual budget. Rate-limit headers are still captured."
+        )
+    else:
+        result["configured"] = True
+        result["remaining"] = max(0, annual_limit - consumed)
+        result["remainingRatio"] = round(result["remaining"] / annual_limit, 3)
+        result["estimatedPipelineRuns"] = {
+            "withRender": result["remaining"] // PIPELINE_ESTIMATE[True],
+            "withoutRender": result["remaining"] // PIPELINE_ESTIMATE[False],
+        }
+    return result
+
+
+def preflight_run(
+    parameter_set: str = "default",
+    render: bool = True,
+    client: OnshapeClient | None = None,
+) -> dict[str, Any]:
+    """Estimate this pipeline run's API cost and check the annual budget before
+    any mutating call is made."""
+    estimate = PIPELINE_ESTIMATE[bool(render)]
+    usage = api_usage(client)
+    result: dict[str, Any] = {
+        "estimateCalls": estimate,
+        "estimateDescription": (
+            f"~{estimate} API calls (render={'on' if render else 'off'})"
+        ),
+        "canProceed": True,
+        "details": usage,
+    }
+    if usage.get("configured") and usage["remaining"] < estimate:
+        result["canProceed"] = False
+        result["blockedReason"] = (
+            f"Estimated annual API quota is insufficient: ~{estimate} calls "
+            f"needed for this run but only {usage['remaining']} remaining. "
+            "Configure a higher annualLimit, wait for the annual reset, or "
+            "reduce the work (e.g. render_previews=false halves it to "
+            f"{PIPELINE_ESTIMATE[False]})."
+        )
+    return result
+
+
 def run_validation_pipeline(
     parameter_set: str = "default",
     render: bool = True,

@@ -4,5 +4,6 @@
   "workspaceId": "a67fce65f9bd4d2c3a2b37ee",
   "featureStudioId": "605f388f02854906acbfd97d",
   "partStudioId": "0c7862642d02c53c3dd7cd79",
-  "featureScriptFile": "examples/branch-cable-trophy/branchCableTrophyDisplay.fs"
+  "featureScriptFile": "examples/branch-cable-trophy/branchCableTrophyDisplay.fs",
+  "apiQuota": {}
 }
