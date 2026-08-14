@@ -4,4 +4,5 @@ __pycache__/
 *.pyc
 temp/
 examples/branch-cable-trophy/outputs/reports/
+outputs/
 .coverage

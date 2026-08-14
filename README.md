@@ -54,9 +54,10 @@ zero network cost), `onshape_list_document_elements`,
 `onshape_get_feature_studio_status`, `onshape_check_model`,
 `onshape_render_preview`; mutating (require `confirm_mutation=true`)
 `onshape_upload_feature_studio`, `onshape_create_validation_part_studio`,
-`onshape_instantiate_feature`, `onshape_run_validation_pipeline` — the pipeline
-checks the API-quota budget first (~15 calls with render, ~10 without) and
-blocks if the annual limit would be exceeded.
+`onshape_instantiate_feature`, `onshape_run_validation_pipeline` — **every**
+mutating tool preflights against the API-quota budget first (upload ~4 calls,
+create 1, instantiate 2, pipeline ~15 with render / ~10 without) and blocks with
+the shortfall if the annual limit would be exceeded.
 
 See `docs/mcp-server.md` for the complete catalog, security boundary, and tests.
 See `docs/onshape-api.md` for the REST reference data, coverage, and gaps.
@@ -133,9 +134,11 @@ REST tools target. `ONSHAPE_STATE`, `ONSHAPE_CREDENTIALS`,
 API-quota budgeting: set `"apiQuota"` in `config/onshape-state.json` —
 `{"accountType": "professional"}` maps to the official annual limit
 (enterprise 10000 / professional 5000 / standard 2500) or `{"annualLimit": N}`
-directly. `onshape_api_quota` reports the budget from a passive local ledger
-(`config/api-usage.json`, gitignored) and `onshape_run_validation_pipeline`
-blocks before mutating if the budget is insufficient. This costs zero extra API
+directly. Seed it with your real year-to-date usage read from the Onshape UI:
+`{"accountType": "standard", "alreadyConsumed": 119}`; the passive local ledger
+(`config/api-usage.json`, gitignored) adds on top, so `consumed =
+alreadyConsumed + ledgerConsumed`. `onshape_api_quota` reports the budget and
+every mutating tool preflights before spending calls. This costs zero extra API
 calls — Onshape has no public quota endpoint.
 
 ## Example: Branch Cable Trophy

@@ -350,7 +350,19 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(usage["estimatedPipelineRuns"]["withRender"], 0)
         pre = operations.preflight_run(client=cl2)
         self.assertFalse(pre["canProceed"])
-        self.assertIn("insufficient", pre["blockedReason"])
+        self.assertIn("but only 10 remain", pre["blockedReason"])
+
+        # Baseline seeding: alreadyConsumed (real UI usage) is added to the
+        # passive ledger, so consumed = baseline + ledger.
+        cl4 = object.__new__(client_module.OnshapeClient)
+        cl4.state = {"apiQuota": {"accountType": "standard", "alreadyConsumed": 119}}
+        cl4._usage = {"consumed": 25, "calls": []}
+        usage4 = operations.api_usage(cl4)
+        self.assertEqual(usage4["annualLimit"], 2500)
+        self.assertEqual(usage4["baselineConsumed"], 119)
+        self.assertEqual(usage4["ledgerConsumed"], 25)
+        self.assertEqual(usage4["consumed"], 144)
+        self.assertEqual(usage4["remaining"], 2356)
 
         # Unconfigured: no annual budget -> proceed, with a note.
         cl3 = object.__new__(client_module.OnshapeClient)

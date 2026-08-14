@@ -106,16 +106,26 @@ constructed or a remote request is sent.
 | `onshape_upload_feature_studio` | Overwrites configured Feature Studio contents and compiles the feature spec. |
 | `onshape_create_validation_part_studio` | Creates a cloud Part Studio; by default updates local `partStudioId`. |
 | `onshape_instantiate_feature` | Adds a custom feature to a Part Studio. Repeated calls add additional features. |
-| `onshape_run_validation_pipeline` | Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call. Before mutating it checks the local API-quota budget (~15 calls with render, ~10 without) and blocks with the shortfall if the annual limit would be exceeded. |
+| `onshape_run_validation_pipeline` | Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call. |
+
+**Every mutating tool also preflights against the annual quota budget before
+any remote call** — upload ~4 calls, create 1, instantiate 2, pipeline ~15 with
+render / ~10 without. When the configured budget would be exceeded the tool
+blocks with the shortfall instead of spending API calls.
 
 The quota ledger (`config/api-usage.json`, gitignored) is passive: every 2xx/3xx
 response counts toward the annual limit and each response's
 `X-Rate-Limit-Remaining` header is captured — **zero extra API calls**, because
 Onshape has no public quota-query endpoint. Configure the annual budget in
 `config/onshape-state.json` under `apiQuota` (`{"accountType": "professional"}`
-maps to the official 5000/year, or set `{"annualLimit": N}` directly). A 402
-response is the server's real "annual limit exhausted" signal. Without an
-`apiQuota` config the tools degrade to rate-limit-only reporting.
+maps to the official 5000/year, or set `{"annualLimit": N}` directly). Seed it
+with your real year-to-date usage — `{"accountType": "standard",
+"alreadyConsumed": 119}` — read from the Onshape UI (My Account → Developer);
+the local ledger is added on top (`consumed = alreadyConsumed + ledgerConsumed`).
+After any other client spends quota, re-read the UI total and set
+`alreadyConsumed = UI_total - ledgerConsumed` to recalibrate. A 402 response is
+the server's real "annual limit exhausted" signal. Without an `apiQuota` config
+the tools degrade to rate-limit-only reporting.
 
 The confirmation field is defense in depth for autonomous MCP clients. It does
 not replace the MCP host's own approval UI. Configure the host to ask before

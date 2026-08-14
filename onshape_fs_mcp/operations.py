@@ -430,11 +430,16 @@ def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
         annual_limit = int(quota["annualLimit"])
     elif account_type in ANNUAL_LIMITS:
         annual_limit = ANNUAL_LIMITS[account_type]
-    consumed = int(usage.get("consumed", 0))
+    # alreadyConsumed is the server's real year-to-date usage (read from the
+    # Onshape UI's My Account -> Developer), used to seed the passive ledger.
+    baseline = int(quota.get("alreadyConsumed", 0) or 0)
+    consumed = baseline + int(usage.get("consumed", 0))
     result: dict[str, Any] = {
         "accountType": account_type,
         "annualLimit": annual_limit,
+        "baselineConsumed": baseline,
         "consumed": consumed,
+        "ledgerConsumed": int(usage.get("consumed", 0)),
         "lastRateLimitRemaining": usage.get("lastRateLimitRemaining"),
         "lastRetryAfter": usage.get("lastRetryAfter"),
         "last402At": usage.get("last402At"),
@@ -461,6 +466,32 @@ def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
     return result
 
 
+def preflight(
+    estimate_calls: int,
+    label: str,
+    client: OnshapeClient | None = None,
+) -> dict[str, Any]:
+    """Guard any operation estimated at estimate_calls API calls against the
+    annual quota budget. canProceed is False only when a budget is configured
+    and the remaining calls would be exceeded. Zero network cost."""
+    usage = api_usage(client)
+    result: dict[str, Any] = {
+        "estimateCalls": estimate_calls,
+        "label": label,
+        "canProceed": True,
+        "details": usage,
+    }
+    if usage.get("configured") and usage["remaining"] < estimate_calls:
+        result["canProceed"] = False
+        result["blockedReason"] = (
+            f"{label} needs ~{estimate_calls} API calls but only "
+            f"{usage['remaining']} remain in the configured annual budget "
+            f"({usage['annualLimit']}). Raise annualLimit, wait for the annual "
+            "reset, or reduce the work."
+        )
+    return result
+
+
 def preflight_run(
     parameter_set: str = "default",
     render: bool = True,
@@ -469,23 +500,17 @@ def preflight_run(
     """Estimate this pipeline run's API cost and check the annual budget before
     any mutating call is made."""
     estimate = PIPELINE_ESTIMATE[bool(render)]
-    usage = api_usage(client)
-    result: dict[str, Any] = {
-        "estimateCalls": estimate,
-        "estimateDescription": (
-            f"~{estimate} API calls (render={'on' if render else 'off'})"
-        ),
-        "canProceed": True,
-        "details": usage,
-    }
-    if usage.get("configured") and usage["remaining"] < estimate:
-        result["canProceed"] = False
-        result["blockedReason"] = (
-            f"Estimated annual API quota is insufficient: ~{estimate} calls "
-            f"needed for this run but only {usage['remaining']} remaining. "
-            "Configure a higher annualLimit, wait for the annual reset, or "
-            "reduce the work (e.g. render_previews=false halves it to "
-            f"{PIPELINE_ESTIMATE[False]})."
+    result = preflight(
+        estimate,
+        f"validation pipeline (render={'on' if render else 'off'})",
+        client,
+    )
+    result["estimateDescription"] = (
+        f"~{estimate} API calls (render={'on' if render else 'off'})"
+    )
+    if result.get("blockedReason"):
+        result["blockedReason"] += (
+            f" render_previews=false halves the cost to ~{PIPELINE_ESTIMATE[False]}."
         )
     return result
 

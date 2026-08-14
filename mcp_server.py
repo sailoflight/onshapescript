@@ -19,6 +19,7 @@ from onshape_fs_mcp.operations import (
     instantiate_feature,
     list_document_elements,
     load_parameter_set,
+    preflight,
     preflight_run,
     public_state,
     render_preview,
@@ -181,13 +182,21 @@ def _confirm(arguments: dict[str, Any]) -> None:
         raise ValueError("confirm_mutation must be true for this mutating tool")
 
 
+def _preflight_or_raise(estimate_calls: int, label: str) -> None:
+    pre = preflight(estimate_calls, label)
+    if not pre["canProceed"]:
+        raise ValueError(pre["blockedReason"])
+
+
 def _upload(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
+    _preflight_or_raise(4, "upload_feature_studio")
     return upload_feature_studio()
 
 
 def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
+    _preflight_or_raise(1, "create_validation_part_studio")
     return create_validation_part_studio(
         name=arguments.get("name", "Cable trophy model validation"),
         save_to_project_state=bool(arguments.get("save_to_project_state", True)),
@@ -196,6 +205,7 @@ def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _instantiate(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
+    _preflight_or_raise(2, "instantiate_feature")
     overrides = arguments.get("overrides")
     if overrides is not None and not isinstance(overrides, dict):
         raise ValueError("overrides must be an object")
