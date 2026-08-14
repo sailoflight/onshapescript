@@ -155,3 +155,15 @@ the REST tools: its Feature Studio is the configured target. See
 python3 -m unittest discover -s tests -v
 python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/branch-cable-trophy/scripts/*.py
 ```
+
+**Zero-cost syntax guard before any upload**: Onshape compiles FeatureScript
+only on the server, and a syntactically bad upload still costs API quota while
+returning no diagnostics (`featurespecs` comes back empty). Run
+`scripts/fs_local_check.py` first — it validates Feature Studio structure
+(header, `defineFeature` form, bracket balance, dangling annotations) as hard
+errors and flags symbols absent from the vendored std index as warnings:
+
+```bash
+python3 scripts/fs_local_check.py path/to/file.fs        # single file
+python3 scripts/fs_local_check.py docs/verification/live/experiments/  # directory
+```

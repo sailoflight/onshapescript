@@ -111,4 +111,9 @@ reference does not document. Full run log: `live/README.md`.
   Until the mechanism is understood, **run a structural/symbol check locally
   before uploading** (`scripts/fs_local_check.py`) — uploading a syntactically
   bad file wastes quota and returns no diagnostics.
+- **The vendored predicates index is incomplete for `is*`.** Live-checking the
+  experiments flagged `isQuery`, `isString`, `isArray`, and `isType` as absent
+  from the vendored predicates list even though they are real standard-library
+  predicates. Treat a failed `fs_get_function`/symbol lookup on an `is*`
+  predicate as "mirror gap", not "symbol doesn't exist".
 
