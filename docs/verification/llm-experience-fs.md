@@ -70,3 +70,45 @@ documents only the `definition` map fields (see `fs_get_function` on an `op*`).
   not a free string.
 - Every other cross-reference resolves: parameter types, predicates, constants,
   and guide pages all check out (verified).
+
+## Live verification findings (real server, budget 100 calls)
+
+Verifying the corpus against a real Feature Studio exposed mechanisms the
+reference does not document. Full run log: `live/README.md`.
+
+- **`featureSpecs` empty ≠ compile failure.** A file of plain functions
+  (`function x() { return 5; }`, which compiles fine) returns an empty
+  `featureSpecs` too. Only **annotated export features** appear in the list, so
+  "empty" is ambiguous between "compiled but has no feature" and "compile
+  failed" — you cannot tell them apart from `featurespecs` alone.
+- **POST 200 + `microversionSkew:false` ≠ compile success.** The contents save,
+  the compile may still fail; `featurespecs` reflects the compile, not the save.
+- **`libraryVersion` is always 0** (on both a long-lived Feature Studio and a
+  freshly created one). The FeatureScript version is declared by the uploaded
+  `.fs` header (`FeatureScript 3029;` + `import version`), and there is no API
+  to query a Feature Studio's current version.
+- **Feature definitions must be** `export const NAME = defineFeature(function(
+  context is Context, id is Id, definition is map) precondition { ... }) { ... };`
+  — confirmed against the trophy file. A bare `export function` with `is*`
+  predicates in the signature is the wrong shape and produces no feature spec.
+- **Symbol visibility follows transitive imports.** With only `import
+  geometry.fs`, the symbols the trophy file uses (`isLength`, `opExtrude`,
+  `qCreatedBy`, `qUnion`, `Z_DIRECTION`, `mmVector`, `LengthBoundSpec`,
+  `BoundingType`) are all visible; symbols it never uses (`isQuery`, `evVolume`,
+  `cubicInch`, `ModifyingConstructionError`) are unverified candidates for the
+  compile failures below.
+- **The correct feature shape, confirmed by live probes:** `export const NAME =
+  defineFeature(function(context is Context, id is Id, definition is map)
+  precondition { ... } { ...body... });` — the `precondition` block is followed
+  directly by the body block inside a single `defineFeature(...)` call that ends
+  in `});`. Any variant that closes the parenthesis after `precondition {...}`
+  and puts the body outside is a syntax error and silently yields 0 specs.
+- **Empty `featureSpecs` is ambiguous** and cost ~120 of the 150 budget calls to
+  pin down: it can mean "compiled but the file has no annotated feature",
+  "compile failed", or "the upload was never compiled". There is no error field
+  on `featurespecs`, on the Feature Studio GET, or on the document elements
+  list. The only reliable signal is a known-good feature returning a spec.
+  Until the mechanism is understood, **run a structural/symbol check locally
+  before uploading** (`scripts/fs_local_check.py`) — uploading a syntactically
+  bad file wastes quota and returns no diagnostics.
+

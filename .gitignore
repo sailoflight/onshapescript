@@ -5,4 +5,5 @@ __pycache__/
 temp/
 examples/branch-cable-trophy/outputs/reports/
 outputs/
+docs/verification/live/.fs-id.json
 .coverage
