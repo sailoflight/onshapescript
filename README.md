@@ -48,8 +48,9 @@ from the live OpenAPI definition plus the official auth/error docs):
 | `onshape_api_error_codes` | All documented HTTP response codes + rate/annual limits (429 `Retry-After` semantics) |
 
 **Project docs — local, offline** (the project's own documentation, indexed from
-`docs/` + `README.md` + `reference/quick-reference.md` + example docs into
-`docs/index.json`; the authored `.md` files stay the originals):
+`docs/*.md` + `reference/quick-reference.md` + example docs into `docs/index.json`;
+README.md is the human landing page and is not indexed; the authored `.md` files
+stay the originals):
 
 | Tool | Purpose |
 |---|---|
@@ -102,8 +103,9 @@ API-key / error-code / limits pages (public HTTP, no API-token cost) into
 `reference/onshape-api-docs/` for the `onshape_api_auth` and
 `onshape_api_error_codes` tools.
 
-The project's **own** docs (README, `docs/*.md`, `reference/quick-reference.md`,
-example docs) are indexed separately into `docs/index.json` by
+The project's **own** LLM-facing docs (`docs/*.md`, `reference/quick-reference.md`,
+example docs; README.md is the human landing page and is intentionally not part
+of the indexed corpus) are parsed into `docs/index.json` by
 `scripts/build_docs_index.py`, using the same typed-block schema as the guide.
 The markdown files remain the authored originals; the index is a derived copy
 for on-demand reading (`docs_list` / `docs_section` / `docs_search`) and records

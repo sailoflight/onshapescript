@@ -27,7 +27,8 @@ local MCP tools can answer FeatureScript questions without a network round trip.
 
 ## docs/
 
-The project's own LLM-facing documentation is not vendored material — it is
+The project's own LLM-facing documentation (`docs/*.md`, `reference/quick-reference.md`,
+example docs; README.md is the human landing page and intentionally not indexed) is
 indexed by `scripts/build_docs_index.py` into `docs/index.json` (same typed-block
 schema as `guide.json`) and served by the `docs_*` tools. The markdown files stay
 the authored originals.

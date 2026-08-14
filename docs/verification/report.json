@@ -79,7 +79,7 @@
   {
    "name": "Project docs index.json page sha256 all match",
    "ok": true,
-   "detail": "16 pages ok"
+   "detail": "15 pages ok"
   },
   {
    "name": "Project docs sections well-formed (title + blocks)",
@@ -279,10 +279,9 @@
    ]
   },
   "docs": {
-   "pages": 16,
-   "sections": 100,
+   "pages": 15,
+   "sections": 94,
    "pageNames": [
-    "readme",
     "fs-assistant",
     "mcp-server",
     "onshape-api",

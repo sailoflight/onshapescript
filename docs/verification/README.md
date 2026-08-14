@@ -17,9 +17,10 @@ verified experience for LLM agents**.
 The four corpora verified here are: the vendored FS reference, the vendored
 REST API spec, the vendored auth/error docs, and **the project's own
 documentation index** (`docs/index.json`, built by
-`scripts/build_docs_index.py` from the authored markdown). The markdown files
-are the originals and are kept; `docs/index.json` is a derived, structured copy
-served on demand by the `docs_*` tools (see `docs/mcp-server.md`).
+`scripts/build_docs_index.py` from the authored markdown; README.md is the human
+landing page and intentionally not indexed). The markdown files are the
+originals and are kept; `docs/index.json` is a derived, structured copy served
+on demand by the `docs_*` tools (see `docs/mcp-server.md`).
 
 ## Run
 

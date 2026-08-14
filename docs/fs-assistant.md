@@ -81,8 +81,9 @@ you *whether* to update before paying for the download.
   on every build.
 - `reference/quick-reference.md` — the curated, distilled cheat-sheet (the
   `fs_quick_reference` tool); authored alongside the docs rather than generated.
-- `docs/index.json` — the project's own documentation (README, `docs/*.md`,
-  the quick-reference, example docs) parsed into the same typed-block schema as
+- `docs/index.json` — the project's own documentation (`docs/*.md`,
+  the quick-reference, example docs; README.md is the human landing page and is
+  intentionally not indexed) parsed into the same typed-block schema as
   `guide.json`; served by `docs_list` / `docs_section` / `docs_search`. Built
   by `scripts/build_docs_index.py`; the `.md` files remain the originals.
 - `reference/fsdoc/<page>.html` — the raw guide pages, kept for provenance and

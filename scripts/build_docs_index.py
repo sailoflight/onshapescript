@@ -33,8 +33,13 @@ INDEX_PATH = DOCS_DIR / "index.json"
 
 # Ordered slug -> project-relative markdown path. Page order is the docs_list
 # outline order. Add new LLM-facing docs here and re-run the script.
+#
+# README.md is deliberately NOT indexed: it is the human/GitHub landing page
+# and its tool catalog / reference-data / running sections are summaries of
+# docs/mcp-server.md, docs/fs-assistant.md, and docs/onshape-api.md. Indexing
+# it would make every docs_search return duplicated hits. The LLM-facing
+# corpus is the docs/ tree + the quick-reference + the example docs.
 DOC_PAGES: dict[str, str] = {
-    "readme": "README.md",
     "fs-assistant": "docs/fs-assistant.md",
     "mcp-server": "docs/mcp-server.md",
     "onshape-api": "docs/onshape-api.md",

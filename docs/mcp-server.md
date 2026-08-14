@@ -56,8 +56,9 @@ or the network. They are the primary FeatureScript lookup tools. See
 
 ### Project docs tools — local and offline
 
-The project's own documentation (README, `docs/*.md`, `reference/quick-reference.md`,
-example docs) is parsed into `docs/index.json` by `scripts/build_docs_index.py`
+The project's own documentation (`docs/*.md`, `reference/quick-reference.md`,
+example docs; README.md is the human landing page and intentionally not
+indexed) is parsed into `docs/index.json` by `scripts/build_docs_index.py`
 with the same typed-block schema as the FsDoc guide, so it is searchable and
 readable on demand — the authored `.md` files remain the originals. These tools
 cover the project's own knowledge (tool catalog, workflows, verified lessons),

@@ -1,271 +1,9 @@
 {
  "pages": [
   {
-   "page": "readme",
-   "path": "README.md",
-   "sha256": "fa65f7d7ee9d4526f908ad98024a5b1f6c937ecc815b64699337a5047f702a31",
-   "title": "Onshape FeatureScript MCP server",
-   "sections": [
-    {
-     "level": 1,
-     "title": "Onshape FeatureScript MCP server",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "A local Model Context Protocol server that helps an LLM agent write Onshape FeatureScript and verify it in a real Feature Studio. The standard library is barely present in language-model training data, so this project vendors the official reference material and exposes it as offline query tools, alongside credential-safe Onshape REST tools for compiling and validating your code."
-      },
-      {
-       "type": "code",
-       "language": "",
-       "text": "mcp_server.py          stdio MCP server (JSON-RPC over stdin/stdout)\nonshape_fs_mcp/        Python package: REST client, Onshape operations, FS reference + project-docs queries\nreference/             vendored official material (fsdoc/ pages + std-library/ source)\nscripts/               reference fetch + index build entry points\nexamples/              the Branch Cable Trophy model as a worked FeatureScript example\nconfig/                non-secret target state + parameter sets for the current FeatureScript\ndocs/                  server and tool documentation (+ docs/index.json, the structured project-docs index)\ndocs/verification/     zero-cost corpus verification + LLM experience docs (API + FS)\ntests/                 offline protocol tests (no Onshape contact)"
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "MCP tools (32)",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "FeatureScript reference — local, offline (the core value):"
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Purpose"
-        ],
-        [
-         "fs_check_version",
-         "Verify the vendored reference version; warn docs-behind for newer targets, plus index-consistency health and the REST API spec version. Reports the last observed real FeatureScript versions (languageVersion + libraryVersion) for free — cached from workflow responses, no dedicated call. include_live refreshes the Feature Studio's declared version (1 call); check_latest probes the mirror + live REST spec"
-        ],
-        [
-         "fs_update_reference",
-         "Re-fetch the official docs + std library from FREE sources (FsDoc pages + mirror, zero API quota) and rebuild the indexes; returns a compact change summary. Optionally also refreshes the REST API spec (include_onshape_api, 1 quota call). Live server-version detection deliberately lives in fs_check_version include_live, not here. Mutating: requires confirm_mutation=true"
-        ],
-        [
-         "fs_quick_reference",
-         "The curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call"
-        ],
-        [
-         "fs_list_modules",
-         "Standard library modules grouped by category"
-        ],
-        [
-         "fs_list_functions",
-         "Functions/types/constants/predicates with signatures, filtered"
-        ],
-        [
-         "fs_get_function",
-         "Full entry: signature, parameters, requirements, examples, return type"
-        ],
-        [
-         "fs_get_type",
-         "Type/enum definition and allowed values"
-        ],
-        [
-         "fs_search",
-         "Ranked keyword search across the whole reference and the guide"
-        ],
-        [
-         "fs_guide_section",
-         "FeatureScript language guide pages/sections as plain text"
-        ],
-        [
-         "fs_library_source",
-         "Real standard library implementation source for a module/function"
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "Onshape REST API reference — local, offline (the Onshape REST surface, served from the live OpenAPI definition plus the official auth/error docs):"
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Purpose"
-        ],
-        [
-         "onshape_api_list_tags",
-         "The 42 REST domain groups (Account, Assembly, Document, FeatureStudio, PartStudio, ...) with descriptions"
-        ],
-        [
-         "onshape_api_search",
-         "Ranked keyword search across every REST endpoint (method/path/operationId/summary)"
-        ],
-        [
-         "onshape_api_endpoint",
-         "Full definition of one operation: parameters, request body, auth requirements, responses"
-        ],
-        [
-         "onshape_api_schema",
-         "A REST response/request schema (e.g. BTDocumentElementInfo) and its properties"
-        ],
-        [
-         "onshape_api_auth",
-         "OAuth2 authorization-code workflow (6 steps) and API-key usage, with full section text on demand"
-        ],
-        [
-         "onshape_api_error_codes",
-         "All documented HTTP response codes + rate/annual limits (429 Retry-After semantics)"
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "Project docs — local, offline (the project's own documentation, indexed from docs/ + README.md + reference/quick-reference.md + example docs into docs/index.json; the authored .md files stay the originals):"
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Purpose"
-        ],
-        [
-         "docs_list",
-         "List every indexed project-doc page (README, docs/*, quick-reference, example docs) with its section outline"
-        ],
-        [
-         "docs_section",
-         "Read one project-doc page, or a single heading section of it, on demand"
-        ],
-        [
-         "docs_search",
-         "Ranked keyword search across every project-doc section"
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "Onshape REST — inspect and validate your FeatureScript (existing tools, kept): read-only onshape_get_project_state, onshape_get_parameter_set, onshape_build_parameter_payload, onshape_api_quota (API-quota budget, zero network cost), onshape_list_document_elements, onshape_get_feature_studio_status, onshape_check_model, onshape_render_preview; onshape_eval_featurescript (evaluate a FeatureScript snippet on the live server — 1 quota call each, document-first guarded, to confirm version-specific behavior the 2960 docs lack; the live server is currently FeatureScript 3044); mutating (require confirm_mutation=true) onshape_upload_feature_studio, onshape_create_validation_part_studio, onshape_instantiate_feature, onshape_run_validation_pipeline — every mutating tool preflights against the API-quota budget first (upload ~4 calls, create 1, instantiate 2, pipeline ~15 with render / ~10 without) and blocks with the shortfall if the annual limit would be exceeded."
-      },
-      {
-       "type": "para",
-       "text": "See docs/mcp-server.md for the complete catalog, security boundary, and tests. See docs/onshape-api.md for the REST reference data, coverage, and gaps."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "The vendored reference",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "scripts/fetch_reference.py downloads, and scripts/build_fsdoc_index.py indexes, the official FeatureScript material into reference/:"
-      },
-      {
-       "type": "list",
-       "items": [
-        {
-         "text": "reference/fsdoc/ — the FsDoc pages from cad.onshape.com (function/type reference, language guide, tutorial) plus index.json (every function, type, parameter, and description as structured text), guide.json (the guide pages parsed into heading sections with typed blocks — paragraphs, code, tables, lists), and quick.json (one line per entry for cheap context loading).",
-         "depth": 0
-        },
-        {
-         "text": "reference/std-library/ — the standard library source mirrored from github.com/javawizard/onshape-std-library-mirror (MIT), because the real implementation is the highest-fidelity reference.",
-         "depth": 0
-        },
-        {
-         "text": "reference/quick-reference.md — a curated, distilled cheat-sheet synthesized from the docs (served by fs_quick_reference).",
-         "depth": 0
-        }
-       ]
-      },
-      {
-       "type": "para",
-       "text": "scripts/fetch_onshape_api.py downloads the live Onshape REST API OpenAPI definition from https://cad.onshape.com/api/openapi (authenticated) into reference/onshape-api/openapi.json, and scripts/build_onshape_api_index.py flattens it into api_index.json (302 endpoints, 1226 schemas) + api_quick.json for the onshape_api_* tools. Because it is pulled live from the server, it always reflects the running deployment — no stale snapshot. scripts/fetch_onshape_api_docs.py additionally vendors the official OAuth2 / API-key / error-code / limits pages (public HTTP, no API-token cost) into reference/onshape-api-docs/ for the onshape_api_auth and onshape_api_error_codes tools."
-      },
-      {
-       "type": "para",
-       "text": "The project's own docs (README, docs/*.md, reference/quick-reference.md, example docs) are indexed separately into docs/index.json by scripts/build_docs_index.py, using the same typed-block schema as the guide. The markdown files remain the authored originals; the index is a derived copy for on-demand reading (docs_list / docs_section / docs_search) and records each page's sha256 for staleness checks."
-      },
-      {
-       "type": "para",
-       "text": "Everything prose-shaped is a JSON index; the large source stays as files read on demand. Both indexes record the source sha256 so fs_check_version can report when a re-fetch left them stale."
-      },
-      {
-       "type": "para",
-       "text": "Re-sync after an upstream change:"
-      },
-      {
-       "type": "code",
-       "language": "bash",
-       "text": "python3 scripts/fetch_reference.py\npython3 scripts/build_fsdoc_index.py\npython3 scripts/fetch_onshape_api.py      # needs onshape-credentials.json\npython3 scripts/build_onshape_api_index.py\npython3 scripts/fetch_onshape_api_docs.py # public pages, no credentials\npython3 scripts/build_onshape_api_docs_index.py\npython3 scripts/build_docs_index.py       # project docs -> docs/index.json"
-      },
-      {
-       "type": "para",
-       "text": "See docs/fs-assistant.md for usage guidance and the tool workflows."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Running the MCP server",
-     "blocks": [
-      {
-       "type": "code",
-       "language": "bash",
-       "text": "python3 mcp_server.py"
-      },
-      {
-       "type": "para",
-       "text": "Configure an MCP client with an absolute command/path, for example:"
-      },
-      {
-       "type": "code",
-       "language": "json",
-       "text": "{\n  \"mcpServers\": {\n    \"onshape-featurescript\": {\n      \"command\": \"python3\",\n      \"args\": [\"/home/lijq/code/onshapescript/mcp_server.py\"],\n      \"cwd\": \"/home/lijq/code/onshapescript\"\n    }\n  }\n}"
-      },
-      {
-       "type": "para",
-       "text": "Non-secret state (config/onshape-state.json) and credentials (onshape-credentials.json, gitignored) configure which Onshape document the REST tools target. ONSHAPE_STATE, ONSHAPE_CREDENTIALS, ONSHAPE_PARAMETERS_DIR, and ONSHAPE_OUTPUTS_DIR override the paths."
-      },
-      {
-       "type": "para",
-       "text": "API-quota budgeting: set \"apiQuota\" in config/onshape-state.json — {\"accountType\": \"professional\"} maps to the official annual limit (enterprise 10000 / professional 5000 / standard 2500) or {\"annualLimit\": N} directly. Seed it with your real year-to-date usage read from the Onshape UI: {\"accountType\": \"standard\", \"alreadyConsumed\": 119}; the passive local ledger (config/api-usage.json, gitignored) adds on top, so consumed = alreadyConsumed + ledgerConsumed. onshape_api_quota reports the budget and every mutating tool preflights before spending calls. This costs zero extra API calls — Onshape has no public quota endpoint."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Example: Branch Cable Trophy",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "examples/branch-cable-trophy/ is a complete, validated FeatureScript model that demonstrates the language (features, sketches, sweeps, patterns, fillets, appearance/name properties) and the workflow. It doubles as the live testbed for the REST tools: its Feature Studio is the configured target. See examples/branch-cable-trophy/README.md."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Tests",
-     "blocks": [
-      {
-       "type": "code",
-       "language": "bash",
-       "text": "python3 -m unittest discover -s tests -v\npython3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/branch-cable-trophy/scripts/*.py"
-      },
-      {
-       "type": "para",
-       "text": "Zero-cost syntax guard before any upload: Onshape compiles FeatureScript only on the server, and a syntactically bad upload still costs API quota while returning no diagnostics (featurespecs comes back empty). Run scripts/fs_local_check.py first — it validates Feature Studio structure (header, defineFeature form, bracket balance, dangling annotations) as hard errors and flags symbols absent from the vendored std index as warnings:"
-      },
-      {
-       "type": "code",
-       "language": "bash",
-       "text": "python3 scripts/fs_local_check.py path/to/file.fs        # single file\npython3 scripts/fs_local_check.py docs/verification/live/experiments/  # directory"
-      }
-     ]
-    }
-   ]
-  },
-  {
    "page": "fs-assistant",
    "path": "docs/fs-assistant.md",
-   "sha256": "9074dccbc3828a221cab3e42118da3e90532cf663045ad3c549d78bce5d15e20",
+   "sha256": "8cdae83f4a2dfe0bb34027a37beafaa1a3861a449e06464af3c83fc2425a28c8",
    "title": "FeatureScript assistance guide",
    "sections": [
     {
@@ -390,7 +128,7 @@
          "depth": 0
         },
         {
-         "text": "docs/index.json — the project's own documentation (README, docs/*.md, the quick-reference, example docs) parsed into the same typed-block schema as guide.json; served by docs_list / docs_section / docs_search. Built by scripts/build_docs_index.py; the .md files remain the originals.",
+         "text": "docs/index.json — the project's own documentation (docs/*.md, the quick-reference, example docs; README.md is the human landing page and is intentionally not indexed) parsed into the same typed-block schema as guide.json; served by docs_list / docs_section / docs_search. Built by scripts/build_docs_index.py; the .md files remain the originals.",
          "depth": 0
         },
         {
@@ -484,7 +222,7 @@
   {
    "page": "mcp-server",
    "path": "docs/mcp-server.md",
-   "sha256": "2b31ad54ac48a7d0effda950655a2b3650c1a9e3dced3656fea2607b2c46dedd",
+   "sha256": "7caad679bb879af385a100b52dc3cf41878c120f067f84f4c49a69ce235d5774",
    "title": "Local MCP server",
    "sections": [
     {
@@ -606,7 +344,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The project's own documentation (README, docs/*.md, reference/quick-reference.md, example docs) is parsed into docs/index.json by scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
+       "text": "The project's own documentation (docs/*.md, reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is parsed into docs/index.json by scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
       },
       {
        "type": "table",
@@ -1065,7 +803,7 @@
   {
    "page": "verification",
    "path": "docs/verification/README.md",
-   "sha256": "941a12b7bb2d2b22b5a1d0af50637116f76a3cce248f491b153e1939de6dc8cf",
+   "sha256": "f4dddb121f2d144af037994985a349afa67776fe9af043f4a6d5101a5717cff6",
    "title": "Documentation verification",
    "sections": [
     {
@@ -1113,7 +851,7 @@
       },
       {
        "type": "para",
-       "text": "The four corpora verified here are: the vendored FS reference, the vendored REST API spec, the vendored auth/error docs, and the project's own documentation index (docs/index.json, built by scripts/build_docs_index.py from the authored markdown). The markdown files are the originals and are kept; docs/index.json is a derived, structured copy served on demand by the docs_* tools (see docs/mcp-server.md)."
+       "text": "The four corpora verified here are: the vendored FS reference, the vendored REST API spec, the vendored auth/error docs, and the project's own documentation index (docs/index.json, built by scripts/build_docs_index.py from the authored markdown; README.md is the human landing page and intentionally not indexed). The markdown files are the originals and are kept; docs/index.json is a derived, structured copy served on demand by the docs_* tools (see docs/mcp-server.md)."
       }
      ]
     },
@@ -2289,7 +2027,7 @@
   {
    "page": "reference",
    "path": "reference/README.md",
-   "sha256": "1678decc5974b80cf1c2e9342571adb76ebb34fc809c84f48cdd05e82d5cbc83",
+   "sha256": "b1324f891c9a29082374ae4eba25ceb72086adce372a9e3e0d16c3f2433c1ee5",
    "title": "Vendored FeatureScript reference",
    "sections": [
     {
@@ -2353,7 +2091,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The project's own LLM-facing documentation is not vendored material — it is indexed by scripts/build_docs_index.py into docs/index.json (same typed-block schema as guide.json) and served by the docs_* tools. The markdown files stay the authored originals."
+       "text": "The project's own LLM-facing documentation (docs/.md, reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is indexed by scripts/build_docs_index.py into docs/index.json (same typed-block schema as guide.json) and served by the docs_ tools. The markdown files stay the authored originals."
       }
      ]
     },

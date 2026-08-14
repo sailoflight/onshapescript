@@ -474,7 +474,8 @@ TOOLS: list[dict[str, Any]] = [
         "name": "docs_list",
         "description": (
             "List every page in the project's own structured documentation index (docs/index.json, built "
-            "from docs/*.md, README.md, reference/quick-reference.md, and the example docs): each page's "
+            "from docs/*.md, reference/quick-reference.md, and the example docs; the root README is the "
+            "human landing page and is intentionally not indexed): each page's "
             "title, source path, and heading-section outline. Use it to see what project docs exist and "
             "their section titles, then read one with docs_section. This is separate from the vendored "
             "Onshape reference (fs_* / onshape_api_* tools). Local and offline."
@@ -485,7 +486,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_section",
         "description": (
-            "Read the project's own documentation (README, docs/mcp-server.md, docs/fs-assistant.md, the "
+            "Read the project's own documentation (docs/mcp-server.md, docs/fs-assistant.md, the "
             "verified LLM-experience docs, the example docs) as plain text. Pass page=<page> and optionally "
             "section=<heading> to narrow to one section; without section you get the whole page plus its "
             "heading outline. This is how the project's own knowledge (tool catalog, workflows, live "
@@ -500,7 +501,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_search",
         "description": (
-            "Keyword search across every section of the project's own documentation (README, docs/*, "
+            "Keyword search across every section of the project's own documentation (docs/*, "
             "reference/quick-reference.md, example docs). Results are ranked by how well the query tokens "
             "match the page/section titles and body text. Use this to find which project doc answers a "
             "question (e.g. 'quota', 'eval budget', 'defineFeature'), then read the full section with "
@@ -963,7 +964,7 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
                 "For FeatureScript questions, use the offline reference tools first (fs_search, "
                 "fs_get_function, fs_get_type, fs_guide_section, fs_library_source): the standard library "
                 "is rarely present in language-model training data, so look up exact signatures before "
-                "writing code. The project's own documentation (README, tool catalog, verified "
+                "writing code. The project's own documentation (tool catalog, verified "
                 "experience/lessons, example docs) is served by docs_list / docs_section / docs_search. "
                 "Use read-only inspection tools unless the user explicitly requests a cloud "
                 "mutation; mutating tools require confirm_mutation=true and never return credentials."
