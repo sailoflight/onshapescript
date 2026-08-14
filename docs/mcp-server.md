@@ -68,12 +68,14 @@ data, coverage, and the remaining documentation gaps for real operations.
 | `onshape_api_search` | Ranked keyword search over every REST endpoint (method/path/operationId/summary), optional tag filter. |
 | `onshape_api_endpoint` | Full definition of one operation: parameters (name, path/query/header, required, type, enum/default, description), response codes and their schema references. |
 | `onshape_api_schema` | A response/request schema (e.g. `BTDocumentElementInfo`) and its properties/required fields. |
+| `onshape_api_auth` | The OAuth2 authorization-code workflow (6 steps: register app → authorize → exchange → use → refresh → grant) and API-key usage; distilled by default, full section text (incl. code) via `section`. |
+| `onshape_api_error_codes` | All documented HTTP response codes with category/description/next steps, plus rate and annual call limits (429 `X-Rate-Limit-Remaining` / `Retry-After`); `status` narrows to one code. |
 
 `fs_check_version` also reports `onshapeApiSpecVersion` (the vendored REST API
 spec version + index health), and `fs_update_reference` accepts
-`include_onshape_api: true` to refresh the REST spec alongside the FeatureScript
-reference — that re-fetch needs onshape-credentials.json and is skipped with a
-note when it is absent.
+`include_onshape_api: true` to refresh the REST spec and the auth/error docs
+alongside the FeatureScript reference — the spec re-fetch needs
+onshape-credentials.json and is skipped with a note when it is absent.
 
 ### Local and read-only
 
@@ -133,7 +135,7 @@ python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/br
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 25-tool discovery;
+- MCP initialization and 27-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

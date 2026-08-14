@@ -17,7 +17,7 @@ docs/                  server and tool documentation
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (25)
+## MCP tools (27)
 
 **FeatureScript reference — local, offline** (the core value):
 
@@ -35,14 +35,16 @@ tests/                 offline protocol tests (no Onshape contact)
 | `fs_library_source` | Real standard library implementation source for a module/function |
 
 **Onshape REST API reference — local, offline** (the Onshape REST surface, served
-from the live OpenAPI definition vendored under `reference/onshape-api/`):
+from the live OpenAPI definition plus the official auth/error docs):
 
 | Tool | Purpose |
 |---|---|
 | `onshape_api_list_tags` | The 42 REST domain groups (Account, Assembly, Document, FeatureStudio, PartStudio, ...) with descriptions |
 | `onshape_api_search` | Ranked keyword search across every REST endpoint (method/path/operationId/summary) |
-| `onshape_api_endpoint` | Full definition of one operation: parameters, responses, schema references |
+| `onshape_api_endpoint` | Full definition of one operation: parameters, request body, auth requirements, responses |
 | `onshape_api_schema` | A REST response/request schema (e.g. `BTDocumentElementInfo`) and its properties |
+| `onshape_api_auth` | OAuth2 authorization-code workflow (6 steps) and API-key usage, with full section text on demand |
+| `onshape_api_error_codes` | All documented HTTP response codes + rate/annual limits (429 `Retry-After` semantics) |
 
 **Onshape REST — inspect and validate your FeatureScript** (existing tools, kept):
 read-only `onshape_get_project_state`, `onshape_get_parameter_set`,
@@ -77,6 +79,10 @@ definition from `https://cad.onshape.com/api/openapi` (authenticated) into
 flattens it into `api_index.json` (302 endpoints, 1226 schemas) +
 `api_quick.json` for the `onshape_api_*` tools. Because it is pulled live from
 the server, it always reflects the running deployment — no stale snapshot.
+`scripts/fetch_onshape_api_docs.py` additionally vendors the official OAuth2 /
+API-key / error-code / limits pages (public HTTP, no API-token cost) into
+`reference/onshape-api-docs/` for the `onshape_api_auth` and
+`onshape_api_error_codes` tools.
 
 Everything prose-shaped is a JSON index; the large source stays as files read
 on demand. Both indexes record the source sha256 so `fs_check_version` can
@@ -89,6 +95,8 @@ python3 scripts/fetch_reference.py
 python3 scripts/build_fsdoc_index.py
 python3 scripts/fetch_onshape_api.py      # needs onshape-credentials.json
 python3 scripts/build_onshape_api_index.py
+python3 scripts/fetch_onshape_api_docs.py # public pages, no credentials
+python3 scripts/build_onshape_api_docs_index.py
 ```
 
 See `docs/fs-assistant.md` for usage guidance and the tool workflows.

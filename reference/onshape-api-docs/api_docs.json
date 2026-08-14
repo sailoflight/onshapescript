@@ -1,0 +1,1363 @@
+{
+ "pages": [
+  {
+   "page": "errors",
+   "title": "Response Codes",
+   "url": "https://onshape-public.github.io/docs/api-adv/errors/",
+   "sha256": "f453f06e12b3d93ac41fd4155e79d1f1f3b4eb1207b817687ca64b6b0f33fc07",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Response Codes",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This page details some of the response codes that may be returned by Onshape API endpoints. For each response code, we’ve provided a brief description of the response and recommended next steps."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Success (2xx)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client call was successful."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "200 OK",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client call was successful. No action needed."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "204 No Content",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client call was successful, and there’s nothing to return in the response body. The empty response body cannot be parsed."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Redirect (3xx)",
+     "blocks": []
+    },
+    {
+     "level": 3,
+     "title": "307 Temporary Redirect",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client call was successful, and a redirection URL was returned. Follow the URL provided in the response."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Client Error (4xx)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "There’s an error with the client request. Find the error code below, and follow the instructions for resolution. Calls that return 4xx response codes do not count against API Limits."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "400 Bad Request",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The request cannot be processed by the server due a client-side error. This could be a malformed request syntax or other issue. Check the request parameters (GET and POST) and request body (POST) to determine the cause of the failure."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "401 Unauthorized",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The request failed the authentication/authorization checks. This could mean you are not logged in to Onshape, your API keys are invalid or for a different server, OAuth failed, etc."
+      },
+      {
+       "type": "para",
+       "text": "Make sure the client is authenticated."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "402 Payment Required",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "API Limits have been reached. Reach out to your Onshape representative or api‑support@onshape.com for more information."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "403 Forbidden",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client doesn’t have the correct permissions to perform this operation. Check that the API Keys or OAuth authentication have sufficient permissions to perform the operation. For example, POST operations typically require write scope; if the API Key was created with only read scope, the server will return a 403 error."
+      },
+      {
+       "type": "para",
+       "text": "You might also need to check document and user permissions. For more details, see Share Documents (for everyone) and Understanding and Administering Project Roles and Permission Schemes (for Enterprise users and administrators)."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "404 Not Found",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The server can’t find what the client is looking for. For example, a 404 error will be returned if the client tries to make a GET request for a document that doesn’t exist."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "405 Method Not Allowed",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Use of that method is not supported. For example, you cannot perform a DELETE request on a document version, because versions are read-only. Only GET requests on document versions are allowed."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "406 Not Acceptable",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The server cannot provide a response for the media type requested. See https://datatracker.ietf.org/doc/html/rfc2616#section-6.1.1."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "409 Conflict",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client call includes duplicate values, causing a conflict. Modify the request to remove any conflicting values."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "415 Media Type Not Supported",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client call includes unsupported data types or invalid JSON. Review the client code. When performing data imports and exports, follow all Translation guidelines to ensure all media and file types are supported."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "429 Too Many Requests",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The client sent too many requests to this endpoint in the Onshape-defined time window. The number of requests allowed per time window vary and are subject to change; Onshape does not publish this information."
+      },
+      {
+       "type": "para",
+       "text": "Every Onshape API response includes the X-Rate-Limit-Remaining header. This is the number of times you are allowed to call this particular endpoint again within the Onshape-defined time window. For example, the following response indicates that you can call this endpoint 3000 more times within the time window:"
+      },
+      {
+       "type": "para",
+       "text": "200 Response (Additional headers may be returned.)"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "<Response [200]>\n{\n    'Date': 'Tue, 22 Apr 2025 18:10:46 GMT', \n    'Content-Type': 'application/json;charset=utf-8', \n    'X-Api-Version': 'v10', \n    'On-Version': '1.196.54436.927372740f35', \n    'X-Rate-Limit-Remaining': '3000'\n}"
+      },
+      {
+       "type": "para",
+       "text": "If you exceed this number of calls during the time window, you’ll receive the 429 response code with a Retry-After header. This is the number of seconds before the counter for this endpoint resets. You can use this value as a delay to prevent hitting the 429 error again."
+      },
+      {
+       "type": "para",
+       "text": "In the example below, the user has 0 retries left in the X-Rate-Limit-Remaining header, and must wait 450 seconds before calling the endpoint again, as noted in the Retry-After header."
+      },
+      {
+       "type": "para",
+       "text": "429 Response (Additional headers may be returned.)"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "<Response [429]>\n{\n    'Date': 'Tue, 22 Apr 2025 18:16:16 GMT', \n    'Content-Type': 'application/json', \n    'X-Api-Version': 'v10', \n    'On-Version': '1.196.54436.927372740f35', \n    'X-Rate-Limit-Remaining': '0', \n    'Retry-After': '450'\n}"
+      },
+      {
+       "type": "para",
+       "text": "Onshape also limits the number of annual calls each account can make. See API Limits for details."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "499 Timeout",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This call is taking too long. Please try again later."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Server Error (5xx)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "There’s an error with the Onshape servers. Find the error code below, and follow the instructions for resolution. Calls that return 5xx response codes do not count against API Limits."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "500 Internal Server Error",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The request resulted in an error. Set a limit for the number of retries, and if the request continues to fail, reach out to support."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "503 Service Unavailable",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Something is wrong with the Onshape servers. Retry after the delay specified in the response. Set a limit for the number of retries, and if the request continues to fail, reach out to support."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "limits",
+   "title": "API Limits",
+   "url": "https://onshape-public.github.io/docs/auth/limits/",
+   "sha256": "1c564b0944115d71613333f051849e8e9c44565d2344777abef1c2fcc0b2466f",
+   "sections": [
+    {
+     "level": 1,
+     "title": "API Limits",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "When using the Onshape REST API, it is important to understand the usage limits in place to ensure reliable and consistent performance for all users. These limits help safeguard the platform and ensure equitable access to Onshape services."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Rate Limits",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Onshape limits the number of API calls that can be made within a given time period to maintain optimal platform stability and performance. Specific rate limit values vary by endpoint, but exceeding the threshold results in an HTTP response status code 429 (Too Many Requests)."
+      },
+      {
+       "type": "para",
+       "text": "To minimize disruptions:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Follow the guidance at Response Codes: 429 to handle 429 responses gracefully.",
+        "Optimize your application’s API call patterns to reduce unnecessary or redundant requests.",
+        "Monitor your application’s request rate proactively to remain within acceptable usage levels."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Annual API Call Limits",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "In addition to per-endpoint rate limits, Onshape enforces annual limits on API usage, varying by account type:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Onshape Subscription",
+         "Annual Calls"
+        ],
+        [
+         "Enterprise\nEnterprise GOV",
+         "10,000 per Full User in Company"
+        ],
+        [
+         "Professional",
+         "5,000 per User in Company"
+        ],
+        [
+         "EDU Student\nFree\nStandard",
+         "2,500 per User"
+        ],
+        [
+         "EDU Enterprise",
+         "10,000 per Enterprise"
+        ],
+        [
+         "EDU Educator\nPro Discovery",
+         "2,500 per Company"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "You can view your API usage directly in Onshape."
+      },
+      {
+       "type": "list",
+       "items": [
+        "See Company/Classroom/Enterprise Settings - Developer for information on viewing company-wide usage.",
+        "See My Account - Developer for information on viewing your personal API usage."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Call limit details",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "⚠️ WARNING"
+      },
+      {
+       "type": "list",
+       "items": [
+        "All applications created in the Company/Classroom/Enterprise Settings are owned by the company and count towards the company's API Limits.",
+        "All applications created in the My Account Settings are owned by the user and count towards the user's API Limits."
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Calls that count toward API limits:"
+      },
+      {
+       "type": "para",
+       "text": "Calls from the following sources are only counted if they return 2xx or 3xx Response Codes."
+      },
+      {
+       "type": "list",
+       "items": [
+        "Calls made with API keys",
+        "Calls made with OAuth2 via private applications (any applications that are NOT publicly available in the Onshape App Store)"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "Calls made by private applications count toward the app owner’s API limits, not the end user’s."
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Calls that do NOT count toward API limits:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Calls made with OAuth2 via applications that are publicly available in the Onshape App Store",
+        "Calls made from the Onshape browser, mobile clients, or the Onshape API Explorer (when authenticated via an Onshape session)",
+        "Webhook notifications sent by Onshape",
+        "Calls that return 4xx or 5xx Response Codes"
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Limits are applied at the company level, and additional users increase allocation by a pro-rated amount. For example, if an Enterprise adds 1 seat when they have half of their API allocation period remaining, that allocation will increase by 5,000 API calls in their current cycle. It will then increase by 10,000 API calls in the next full cycle."
+      },
+      {
+       "type": "para",
+       "text": "Once the annual API call limit is reached, subsequent API requests are rejected with a 402 Response Code. To avoid service disruption, manage and monitor your API consumption carefully throughout the year."
+      },
+      {
+       "type": "para",
+       "text": "Additional API calls are available for purchase upon request. Reach out to your Onshape representative or api‑support@onshape.com for more information."
+      },
+      {
+       "type": "para",
+       "text": "See also: Transfer app ownership."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Terms of Use",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Your usage of the Onshape API is governed by the Onshape Terms of Use and the Onshape API Terms of Use. You must comply fully with these terms when using the API. Specifically, it is critical to note:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Prohibited Usage: The API may not be used by any robot, spider, scraper or other automated means for data mining, data gathering or extraction method from the Onshape Public Documents. Such activity constitutes a violation of the API Terms of Use and may result in suspension or termination of your API access.",
+        "Acceptable Use: The API should be used exclusively to develop applications or tools that enhance productivity for you or other Onshape users by interacting responsibly with user content and resources provided by the Onshape platform."
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Refer directly to the Onshape Terms of Use and the API Terms of Use for comprehensive information regarding permissible activities and usage restrictions. Reach out to your Onshape representative for the latest version of the agreements."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "oauth",
+   "title": "OAuth2",
+   "url": "https://onshape-public.github.io/docs/auth/oauth/",
+   "sha256": "09c3b6fdb96516c7317c284edfce8a8c14a96dafd3f31c1e99994373ffe672f2",
+   "sections": [
+    {
+     "level": 1,
+     "title": "OAuth2",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "⚠️ WARNING"
+      },
+      {
+       "type": "para",
+       "text": "All applications must authenticate with OAuth2 to be approved in the Onshape App Store for distribution."
+      },
+      {
+       "type": "para",
+       "text": "ℹ️ Note"
+      },
+      {
+       "type": "para",
+       "text": "See the gltf-viewer-app for a working example of OAuth2."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "What is OAuth2?",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The OAuth (Open authorization) protocol was developed by the Internet Engineering Task Force, an open standards organization that develops and promotes voluntary Internet standards (particularly the technical standards that comprise the Internet protocol suite) to enable secure, delegated access to an application’s resources."
+      },
+      {
+       "type": "para",
+       "text": "The OAuth2 protocol enables an application to access a resource that is under the control of someone else. In order to access that resource, a token is required. The token represent the delegated rights of access (that is, what rights this application has, such as read/write/update, scope, rights to different resources, and more)."
+      },
+      {
+       "type": "para",
+       "text": "This means the application can be accessed by a third-party system without that system\nimpersonating the user that controls the resource."
+      },
+      {
+       "type": "para",
+       "text": "A good analogy is the hotel check-in process. When you arrive at the front desk of a hotel, you provide an ID and a form of payment. Then, you are given a key card that opens a specific door. When you reach that door, you swipe the key card and are granted access. The door itself doesn’t know who you are or anything about you, it just knows that the key card was encoded correctly, and it allows you access. At some point, the key card expires, and the door no longer lets you into the room. This is the same for access tokens in the OAuth2 flow."
+      },
+      {
+       "type": "para",
+       "text": "With the OAuth2 protocol, you register your application with the third party, and you are given a set of keys. These keys get exchanged for an access token that grants you access to resources in the third-party application. The token expires regularly; you must get a new token to access the application again. For this, you are provided with a refresh token. Sending the refresh token to the authentication server updates your access token and gives you a new refresh token."
+      },
+      {
+       "type": "para",
+       "text": "Keep in mind:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "API keys are used to authenticate an application, NOT its users.",
+        "OAuth2 authenticates an application AND users of the application by ensuring the users are authorized to access Onshape."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "OAuth2 & Onshape",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The first step in the OAuth flow is for the Onshape user to request that Onshape let the third-party application access Onshape."
+      },
+      {
+       "type": "para",
+       "text": "Once the user has authorized the application, they are redirected to a predefined URL (called a redirect URL) with a code that will requests an access token from Onshape. Therefore, the redirect URL should contain a script that can capture the authorization code."
+      },
+      {
+       "type": "para",
+       "text": "You will use the access token to authenticate requests to the Onshape API. The token expires after preset amount of time. To get a new valid access token after one has expired, you must use the refresh token to request a new access token. Refreshing the access token also provides you with an updated refresh token to use in the next refresh access token request. Make sure to store both the the access token and the refresh token, and update them with each refresh of the token. The authorization token must accompany any call to the API, this is done by adding the token to an Authorization field in the header of each request:"
+      },
+      {
+       "type": "code",
+       "language": "js",
+       "text": "Authorization: Bearer <accessToken>"
+      },
+      {
+       "type": "para",
+       "text": "If correctly authenticated, most responses from the REST API call return JSON data (though some return binary data), with an HTTP response code of 200 Success, 204 - No Content, or 301 - Permanent Redirect. 301 responses will include a redirect for you to follow."
+      },
+      {
+       "type": "para",
+       "text": "In the event that the authorization code is incorrect (for instance, if it expired), you will receive an HTTP 401 response. This response means that the client request has not been completed, since it lacks valid authentication credentials for the requested resource. In this event, your code for each call to the REST API should include a catch clause for a 401 exception. Once caught, you can refresh the token and make the request again. Pay close attention to the Content-Type header for what data to parse and expect."
+      },
+      {
+       "type": "para",
+       "text": "When integrating with Onshape, OAuth tokens give third-party applications (such as desktop applications or web services) access to users’ data as defined by the permissions scope (such as users’ documents or profile information). Using OAuth terminology, Onshape acts as both the authorization and resource server, while the desktop or web-based application is the client. Resource owners have the option of granting or denying access to applications."
+      },
+      {
+       "type": "para",
+       "text": "Once obtained, an OAuth token will work for third-party APIs under /api. Do NOT attempt to use an OAuth token to fetch the URLs typically displayed in a web browsers location bar."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "More resources",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        "Digital Ocean - A good resource for learning more about OAuth2.",
+        "RFC 6749 - The reference for the OAuth framework as a whole. Most of this document describes how to implement the OAuth exchanges described by the reference within the context of Onshape and client applications.",
+        "RFC 6750 - Describes the exchange of OAuth access tokens between clients and OAuth servers."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Authentication Workflow",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This OAuth tutorial demonstrates how to recreate the authentication process in Node.js found in the gltf-viewer-app sample code. The final code in Node.js and other languages can be found at the end of this page."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "1: Register the app",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        "Navigate to your Onshape Developer Settings:"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "Company Accounts: Company/Classroom/Enterprise Settings",
+        "Individual Accounts: My Account Settings"
+       ]
+      },
+      {
+       "type": "para",
+       "text": "⚠️ WARNING"
+      },
+      {
+       "type": "list",
+       "items": [
+        "All applications created in the Company/Classroom/Enterprise Settings are owned by the company and count towards the company's API Limits.",
+        "All applications created in the My Account Settings are owned by the user and count towards the user's API Limits."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "2: Get the user authorization code",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "We’ll start by loading the basic libraries required to run this sample. We’ll use Passport to authenticate requests through plugins known as strategies. In this example, we’ll use an Onshape-developed plugin called passport-onshape, but you can define your own strategy to use with Passport, if you prefer. You can find more information on Passport here."
+      },
+      {
+       "type": "list",
+       "items": [
+        "Create a directory for your app, and then install Passport and passport-onshape:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "js",
+       "text": "npm install passport\nnpm install passport-onshape"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Next, create a file called app.js and add the following definitions to the top of the file:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "// App definitions \nconst path = require('path');\nconst uuid = require('uuid');\n\nconst express = require('express');\nconst session = require('express-session');\nconst bodyParser = require('body-parser');\n\nconst passport = require('passport');\nconst OnshapeStrategy = require('passport-onshape');\n\nconst config = require('./config');"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Next, tell Express to use Passport and initialize it. Note: you can replace the Express code with code for the web server of your choice."
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "// Tell Express to use Passport, and initialize it.\nconst app = express();\n\napp.use(express.static(path.join(__dirname, 'public')));\napp.use(express.static(path.join(__dirname, 'dist')));\napp.use(bodyParser.json());\n\napp.set('trust proxy', 1); // To allow to run correctly behind Heroku when deployed\n\napp.use(session({\n    secret: config.sessionSecret,\n    saveUninitialized: false,\n    resave: false,\n    cookie: {\n        name: 'app-gltf-viewer',\n        sameSite: 'none',\n        secure: true,\n        httpOnly: true,\n        path: '/',\n        maxAge: 1000 * 60 * 60 * 24 // 1 day\n    }\n}));\napp.use(passport.initialize());\napp.use(passport.session());"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Next, we’ll store the Onshape user information so it can be retrieved from req.user in\neach call. Passport uses the serializeUser function to persist user data (after successful\nauthentication) into the session. The function deserializeUser is used\nto retrieve user data from session."
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "//Store the Onshape user information\npassport.serializeUser((user, done) => done(null, user));\npassport.deserializeUser((obj, done) => done(null, obj));"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Initialize Passport with the Onshape Strategy:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "//Initialize Passport with the Onshape Strategy\npassport.use(new OnshapeStrategy({\n        clientID: config.oauthClientId,\n        clientSecret: config.oauthClientSecret,\n        callbackURL: config.oauthCallbackUrl,\n        authorizationURL: `${config.oauthUrl}/oauth/authorize`,\n        tokenURL: `${config.oauthUrl}/oauth/token`,\n        userProfileURL: `${config.oauthUrl}/api/users/sessioninfo`\n    },\n    (accessToken, refreshToken, profile, done) => {\n        profile.accessToken = accessToken;\n        profile.refreshToken = refreshToken;\n        return done(null, profile);\n    }\n));"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Open your environment variables file (e.g.,.env, .bashrc, .bash_profile, .zshrc, etc.) and add the following environment variables, then save and close the file."
+       ]
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "authorizationURL : https://oauth.onshape.com/oauth/authorize\ntokenURL : https://oauth.onshape.com/oauth/token\nuserProfileURL : https://cad.onshape.com/api/users/sessioninfo"
+      },
+      {
+       "type": "para",
+       "text": "The callback function will provide us with the accessToken, the refreshToken, and the user’s Onshape profile once authentication has been successfully passed. We can now use this to update our database with user-specific information."
+      },
+      {
+       "type": "para",
+       "text": "Note that if you store the accessToken and refreshToken in the database along with the user record, you must update it each time that the access codes are refreshed."
+      },
+      {
+       "type": "list",
+       "items": [
+        "Next, we define our endpoint where the authorization flow starts (in this case, /oauthSignin). This is the endpoint that we previously defined in the Onshape application setup. This will redirect to an Onshape page in order for the user to confirm (or deny) the applications access to the Onshape resources."
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "//Define the Onshape API endpoint\napp.use('/oauthSignin', (req, res) => {\n    /* These 5 lines are specific to the glTF Viewer sample app. You can replace them with the input for whatever Onshape endpoints you are using in your app */\n    const state = {\n        docId: req.query.documentId,\n        workId: req.query.workspaceId,\n        elId: req.query.elementId\n    };\n    req.session.state = state;\n    return passport.authenticate('onshape', { state: uuid.v4(state) })(req, res);\n}, (req, res) => {    \n\n });"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "3: Exchange the code for an access token",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Fortunately, if you are using Passport, there isn’t much to do once the user grants authorization. The return URL will contain the one-time authorization token, which Passport will extract and exchange for an access token and a refresh token, which are available in Passport callback function."
+      },
+      {
+       "type": "list",
+       "items": [
+        "Add the following code to app.js:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "//Exchange the code for an access token\napp.use('/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {\n    /* This code is specific to the glTF Viewer sample app. You can replace it with the input for whatever Onshape endpoints you are using in your app. */\n    res.redirect(`/?documentId=${req.session.state.docId}\n&workspaceId=${req.session.state.workId}&elementId=\n    ${req.session.state.elId}`);\n});"
+      },
+      {
+       "type": "list",
+       "items": [
+        "If the user clicks Deny instead of Authorize Application, they are taken to a page that notifies them that access to the application was denied. We can see that in the failureRedirect argument. Add the following to app.js:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "javascript",
+       "text": "//Handle denied access\napp.get('/grantDenied', (req, res) => {\n    res.sendFile(path.join(__dirname, 'public', 'html', 'grantDenied.html'));\n})"
+      },
+      {
+       "type": "para",
+       "text": "Now we have received the access token, and it can be accessed from res.user.accessToken on this page or from req.user.accessToken from any other page you redirect to from here."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "4: Use the access token",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        "Add the following to the bottom of app.js. You can see that the access token is used as an Authorization header:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "js",
+       "text": "//Use the access token as an Authorization header\nmakeOnshapeAPICall: async (req, res) => {\n        try {\n            const apiUrl = \"https://cad.onshape.com/api/documents?ownerType=1&sortColumn=createdAt&sortOrder=desc&offset=0&limit=20\"; //You can replace this with any Onshape API endpoint URL.\n            const resp = await fetch(normalizedUrl, { headers: { Authorization: `Bearer ${req.user.accessToken}` }});\n            const data = await resp.text();\n            const contentType = resp.headers.get('Content-Type');\n            res.status(resp.status).contentType(contentType).send(data);\n        } catch (err) {\n            res.status(500).json({ error: err });\n        }\n    }"
+      },
+      {
+       "type": "para",
+       "text": "Note: in the glTF Viewer sample app, this code appears in utils.js instead of app.js."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "5: Refresh the token",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "When the access token expires, it must be refreshed by making another POST request to https://oauth.onshape.com/oauth/token with the following URL-encoded form body (with Content-Type application/x-www-form-urlencoded):"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "grant_type=refresh_token&refresh_token=\\<refresh_token\\>&client_id=\\<client_id\\>&client_secret=\\<client_secret\\>"
+      },
+      {
+       "type": "para",
+       "text": "As with the authorization code data, the parameters in the form body must be URL-encoded. The response to this POST request will be a JSON-encoded structure with a new access_token value that can be used for the next 60 minutes."
+      },
+      {
+       "type": "para",
+       "text": "Refresh tokens are valid for the lifetime of the user’s grant. If a user who previously granted access to your application decides to revoke the grant, the refresh token is invalidated. If the user decides to re-grant application access, a new refresh token is generated and returned along with the access token."
+      },
+      {
+       "type": "list",
+       "items": [
+        "Add the following to app.js:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "js",
+       "text": "/** After landing on the home page, we check if a user had already signed in. If no user has signed in, we redirect the request to the OAuth sign-in page. If a user had signed in previously, we will attempt to refresh the access token of the user. After successfully refreshing the access token, we will simply take the user to the landing page of the app. If the refresh token request fails, we will redirect the user to the OAuth sign-in page again. */\napp.get('/', (req, res) => {\n    if (!req.user) {\n        return res.redirect(`/oauthSignin${req._parsedUrl.search ? req._parsedUrl.search : \"\"}`);\n    } else {\n        refreshAccessToken(req.user).then((tokenJson) => {\n            // Dereference the user object and update the access token and refresh token in the in-memory object.\n            let usrObj = JSON.parse(JSON.stringify(req.user));\n            usrObj.accessToken = tokenJson.access_token;\n            usrObj.refreshToken = tokenJson.refresh_token;\n            // Update the user object in PassportJS. No redirections will happen here, this is a purely internal operation.\n            req.login(usrObj, () => {\n                return res.sendFile(path.join(__dirname, 'public', 'html', 'index.html'));\n            });\n        }).catch(() => {\n            // Refresh token failed, take the user to OAuth sign in page.\n            return res.redirect(`/oauthSignin${req._parsedUrl.search ? req._parsedUrl.search : \"\"}`);\n        });\n    }\n});\n\n//Refresh the access token\nconst refreshAccessToken = async (user) => {\n    const body = 'grant_type=refresh_token&refresh_token=' + user.refreshToken + '&client_id=' + config.oauthClientId + '&client_secret=' + config.oauthClientSecret;\n    let res = await fetch(config.oauthUrl + \"/oauth/token\", {\n        method: 'POST',\n        headers: {\n            'Content-Type': 'application/x-www-form-urlencoded'\n        },\n        body: body\n    });\n    if (res.ok) {\n        return await res.json();\n    } else {\n        throw new Error(\"Could not refresh access token, please sign in again.\");\n    }\n}\n\napp.use('/api', require('./api'));\nmodule.exports = app;"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Save the file.",
+        "To see the authentication working in practice, you can follow the instructions in the glTF Viewer README to deploy the glTF Viewer app."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "6: Grant authorization",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "For apps published in the Onshape App Store, the Onshape user must grant authorization to your application to access the Onshape data. This must be done by each user of your app."
+      },
+      {
+       "type": "para",
+       "text": "To grant the application access to a user’s data in Onshape, the Onshape user must follow the steps below:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Sign in to cad.onshape.com."
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "Note: Use https://companyName.onshape.com for Enterprise accounts. See Enterprise users below for more information."
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "Note that the gltf-viewer app will not appear in this list until it has been deployed and subscribed to as described in the glTF Viewer README."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Notes",
+     "blocks": []
+    },
+    {
+     "level": 3,
+     "title": "Installed desktop applications",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "OAuth is designed for interactions between two servers using a browser. However, it can also be used by an installed desktop (or mobile) application. The application must perform a similar role to that of a third party server: it must exchange the code for an access token structure."
+      },
+      {
+       "type": "para",
+       "text": "To enable this, Onshape allows two special forms of redirect URI to be registered:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "http://localhost:<port> Causes the browser to attempt to load a page from the host upon which it is running. The code parameter will be supplied exactly the same as outlined above. If the application can listen on the registered port and behave as a simple web server for the redirect URL, it can retrieve the code in the same way as a deployed web server.",
+        "urn:ietf:wg:oauth:2.0:oob Causes the browser to display a simple page after a request has been granted instead of going to a new URL. The page contains simple instructions to copy and paste code into an application field. The browser will also update the title of the window to contain the code. An application could also look for browsers with window titles containing the string Success code=<code> and automatically grab the code from the browser window title. If an error occurs (e.g., the grant is denied), the browser window title will contain Error description=<error string>."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Enterprise users",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "When a user authorizes an OAuth app to access Onshape on their behalf, they get a bearer token that corresponds to their session and the allowed scopes."
+      },
+      {
+       "type": "para",
+       "text": "However, if the user has a seat in the Enterprise, additional information is needed to determine whether to allow the bearer token to access enterprise data for the user or simply return non-enterprise data. We use the company_id field for this distinction."
+      },
+      {
+       "type": "para",
+       "text": "There are two ways of setting the company_id correctly to access enterprise data:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "During the authorization process, select the name and URL of the enterprise instead of cad.onshape.com. This will correctly associate your bearer token with the company_id.",
+        "If you have an integrated app, call the Company/findCompany endpoint to obtain the id from the company object. Append this company_id as a query parameter to the /authorize URL while initiating the OAuth workflow. (Note: you may be asked to authenticate yourself again.)"
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "3rd-party cookies",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "3rd-party cookies must be enabled in the browser for Onshape apps to work correctly."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Debugging",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Debugging OAuth can be a little tricky. Some tips are below:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Make sure you are correctly URL encoding the values supplied to the oauth/authorize and oauth/token endpoints.",
+        "Use a GET /oauth/authorize but a POST /oauth/token and make sure that the GET uses query parameters but that the POST uses a URL-encoded form body.",
+        "If you supply a redirect_uri to /oauth/authorize, you must also supply it as an additional parameter in the POST to /oauth/token",
+        "Use a tool such as Burp or Charles to deliberately ‘man-in-the-middle’ the connection requests between your server and Onshape, and verify that you are performing the correct REST operations (GET vs. POST) and correctly URL-encoding the parameter values."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Final Code",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The above example uses Node.js to authenticate an Onshape app. This section includes the code for using OAuth2 with other coding languages."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Node.js",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Prerequisites"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "npm install passport\nnpm install passport-onshape"
+      },
+      {
+       "type": "para",
+       "text": "Environment variables"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "authorizationURL : <https://oauth.onshape.com/oauth/authorize>\ntokenURL : <https://oauth.onshape.com/oauth/token>\nuserProfileURL : <https://cad.onshape.com/api/users/sessioninfo>"
+      },
+      {
+       "type": "para",
+       "text": "app.js"
+      },
+      {
+       "type": "code",
+       "language": "js",
+       "text": "//App definitions\nconst path = require('path');\nconst uuid = require('uuid');\n\nconst express = require('express');\nconst session = require('express-session');\nconst bodyParser = require('body-parser');\n\nconst passport = require('passport');\nconst OnshapeStrategy = require('passport-onshape');\n\nconst config = require('./config');\n\n//Tell Express to use Passport, and initialize it.\nconst app = express();\n\napp.use(express.static(path.join(__dirname, 'public')));\napp.use(express.static(path.join(__dirname, 'dist')));\napp.use(bodyParser.json());\n\napp.set('trust proxy', 1); // To allow to run correctly behind Heroku when deployed.\n\napp.use(session({\n    secret: config.sessionSecret,\n    saveUninitialized: false,\n    resave: false,\n    cookie: {\n        name: 'app-gltf-viewer',\n        sameSite: 'none',\n        secure: true,\n        httpOnly: true,\n        path: '/',\n        maxAge: 1000 * 60 * 60 * 24 // 1 day\n    }\n}));\napp.use(passport.initialize());\napp.use(passport.session());\n\n//Store the Onshape user information\npassport.serializeUser((user, done) => done(null, user));\npassport.deserializeUser((obj, done) => done(null, obj));\n\n//Initialize Passport with the Onshape Strategy\npassport.use(new OnshapeStrategy({\n        clientID: config.oauthClientId,\n        clientSecret: config.oauthClientSecret,\n        callbackURL: config.oauthCallbackUrl,\n        authorizationURL: `${config.oauthUrl}/oauth/authorize`,\n        tokenURL: `${config.oauthUrl}/oauth/token`,\n        userProfileURL: `${config.oauthUrl}/api/users/sessioninfo`\n    },\n    (accessToken, refreshToken, profile, done) => {\n        profile.accessToken = accessToken;\n        profile.refreshToken = refreshToken;\n        return done(null, profile);\n    }\n));\n\n//Define the Onshape API endpoint\napp.use('/oauthSignin', (req, res) => {\n    /* These 5 lines are specific to the glTF Viewer sample app. You can replace them with the input for whatever Onshape endpoints you are using in your app. */\n    const state = {\n        docId: req.query.documentId,\n        workId: req.query.workspaceId,\n        elId: req.query.elementId\n    };\n    req.session.state = state;\n    return passport.authenticate('onshape', { state: uuid.v4(state) })(req, res);\n}, (req, res) => {    \n\n});\n\napp.use('/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {\n    /* This code is specific to the glTF Viewer sample app. You can replace it with the input for whatever Onshape endpoints you are using in your app. */\n    res.redirect(`/?documentId=${req.session.state.docId}&workspaceId=${req.session.state.workId}&elementId=${req.session.state.elId}`);\n});\n\n//Handle denied access\napp.get('/grantDenied', (req, res) => {\n    res.sendFile(path.join(__dirname, 'public', 'html', 'grantDenied.html'));\n})\n\n/** After landing on the home page, we check if a user had already signed in. If no user has signed in, we redirect the request to the OAuth sign-in page. If a user had signed in previously, we will attempt to refresh the access token of the user. After successfully refreshing the access token, we will simply take the user to the landing page of the app. If the refresh token request fails, we will redirect the user to the OAuth sign-in page again. */\napp.get('/', (req, res) => {\n    if (!req.user) {\n        return res.redirect(`/oauthSignin${req._parsedUrl.search ? req._parsedUrl.search : \"\"}`);\n    } else {\n        refreshAccessToken(req.user).then((tokenJson) => {\n            // Dereference the user object, and update the access token and refresh token in the in-memory object.\n            let usrObj = JSON.parse(JSON.stringify(req.user));\n            usrObj.accessToken = tokenJson.access_token;\n            usrObj.refreshToken = tokenJson.refresh_token;\n            // Update the user object in PassportJS. No redirections will happen here, this is a purely internal operation.\n            req.login(usrObj, () => {\n                return res.sendFile(path.join(__dirname, 'public', 'html', 'index.html'));\n            });\n        }).catch(() => {\n            // Refresh token failed, take the user to OAuth sign in page.\n            return res.redirect(`/oauthSignin${req._parsedUrl.search ? req._parsedUrl.search : \"\"}`);\n        });\n    }\n});\n\n//Refresh the access token\nconst refreshAccessToken = async (user) => {\n    const body = 'grant_type=refresh_token&refresh_token=' + user.refreshToken + '&client_id=' + config.oauthClientId + '&client_secret=' + config.oauthClientSecret;\n    let res = await fetch(config.oauthUrl + \"/oauth/token\", {\n        method: 'POST',\n        headers: {\n            'Content-Type': 'application/x-www-form-urlencoded'\n        },\n        body: body\n    });\n    if (res.ok) {\n        return await res.json();\n    } else {\n        throw new Error(\"Could not refresh access token, please sign in again.\");\n    }\n}\n\napp.use('/api', require('./api'));\nmodule.exports = app;\n\n//Use the access token in an Authorization header.\nmakeOnshapeAPICall: async (req, res) => {\n        try {\n            const apiUrl = \"https://cad.onshape.com/glassworks/explorer/#/Document/getDocuments\"; //You can replace this with any Onshape API endpoint URL.\n            const resp = await fetch(normalizedUrl, { headers: { Authorization: `Bearer ${req.user.accessToken}` }});\n            const data = await resp.text();\n            const contentType = resp.headers.get('Content-Type');\n            res.status(resp.status).contentType(contentType).send(data);\n        } catch (err) {\n            res.status(500).json({ error: err });\n        }\n    }"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Python",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This Python code only works on a local machine. To deploy the code, you can replace the Flask code with the web server of your choice."
+      },
+      {
+       "type": "para",
+       "text": "Prerequisites"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "pip3 install flask\npip3 install requests_oauthlib"
+      },
+      {
+       "type": "para",
+       "text": "app.py"
+      },
+      {
+       "type": "code",
+       "language": "py",
+       "text": "from flask import Flask, request, redirect, session, url_for\nfrom flask.json import jsonify\nfrom requests_oauthlib import OAuth2Session\nimport os\n\napp = Flask(__name__)\napp.secret_key = b'F\\xf5\\xe5\\xc0\\xbe\\tg\\x7f\\xac\\x89\\x87e\\xc24\\xe8m\\x1c\\xd9\\xda\\x96G,\\x90i'\n\nos.environ['OAUTHLIB_INSECURE_TRANSPORT'] = \"1\"\n\nclient_id = <Client ID of your application>\nclient_secret = <Client Secret of your application>\nauthorization_base_url = \"https://oauth.onshape.com/oauth/authorize\"\ntoken_url = \"https://oauth.onshape.com/oauth/token\"\nredirect_url = \"http://localhost:5000/token\"\n\n@app.route('/')\ndef home():\n  onshape = OAuth2Session(client_id, redirect_uri=redirect_url)\n  auth_url, state = onshape.authorization_url(authorization_base_url)\n  session['oauth_state'] = state\n  return redirect(auth_url)\n\n@app.route('/token', methods=[\"GET\"])\ndef token():\n  onshape = OAuth2Session(client_id, state=session['oauth_state'], redirect_uri=redirect_url)\n  token = onshape.fetch_token(token_url, client_secret=client_secret, authorization_response=request.url)\n  session['oauth_token'] = token\n  return redirect(url_for('.documents'))\n\n@app.route('/documents', methods=[\"GET\"])\ndef documents():\n  extra = {\n    'client_id': client_id,\n    'client_secret': client_secret,\n  }\n  onshape = OAuth2Session(client_id, token=session['oauth_token'], redirect_uri=redirect_url)\n  session['oauth_token'] = onshape.refresh_token(token_url, **extra)\n  return jsonify(onshape.get('https://cad.onshape.com/api/v6/documents?q=Untitled&ownerType=1&sortColumn=createdAt&sortOrder=desc&offset=0&limit=20').json())\n\nif __name__ == \"__main__\":\n  app.run()"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "apikeys",
+   "title": "API Keys",
+   "url": "https://onshape-public.github.io/docs/auth/apikeys/",
+   "sha256": "f4adfefe833f21bdd5a8fde20637081febd9f3769bfa3e611807d7fe6a8378f2",
+   "sections": [
+    {
+     "level": 1,
+     "title": "API Keys",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "⚠️ WARNING"
+      },
+      {
+       "type": "para",
+       "text": "All applications must authenticate with OAuth2 to be approved in the Onshape App Store for distribution."
+      },
+      {
+       "type": "para",
+       "text": "API keys are useful for small applications meant for personal use, allowing developers to avoid the overhead of the OAuth workflow. Creating an app is very easy with API keys: create an API key, set up a function to build your API key header as in the samples, and make your API calls."
+      },
+      {
+       "type": "para",
+       "text": "Keep in mind:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "API keys are used to authenticate an application, NOT its users.",
+        "OAuth2 authenticates an application AND users of the application by ensuring the users are authorized to access Onshape."
+       ]
+      },
+      {
+       "type": "para",
+       "text": "We use API keys for authenticating requests instead of cookies for several reasons:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Security: Each request is signed with unique headers so that we can be sure it’s coming from the right place.",
+        "Scope: API keys can be scoped to specific actions. See Permission Scopes.",
+        "Revocation: API keys are revokable. If a server with API secret keys is compromised, you can revoke the API key so it can no longer be used. Cookies require a password reset that must be updated everywhere.",
+        "OAuth: The API key system we’re now using for HTTP requests is the same process developers follow when building full-blown OAuth applications; there’s no longer a disconnect between the two."
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Once you create an API key, it will only be valid in the stack on which it was created. An API key created on your company stack (i.e., companyName.onshape.com) will not function on the production stack (cad.onshape.com)."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Manage API keys",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "ℹ️ NOTE"
+      },
+      {
+       "type": "para",
+       "text": "API keys are now managed in your Onshape settings."
+      },
+      {
+       "type": "list",
+       "items": [
+        "To manage your own API keys, see: My Account - Developer",
+        "To manage API keys for a company, classroom, or enterprise, see: Company/Classroom/Enterprise Settings - Developer"
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Individual accounts are capped at two (2) active API keys. Delete API keys as needed. Company, classroom, and enterprise accounts are not capped."
+      },
+      {
+       "type": "para",
+       "text": "Your API key and secret are like a username and password pair. They are tied directly to your Onshape account. Avoid sharing them, and do not place them directly in the code for your application. Several of the samples provided on this site use a separate configuration file to contain this information, but there are other ways to keep the access key and secret safe, such as setting them as environment variables."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Authenticate with API keys",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Please select an option for authentication:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Basic Authorization: Lowest security. For local testing only.",
+        "Request Signature: Medium security. For testing and internal use.",
+        "OAuth2: Highest security. Required for all Onshape Apps."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Basic authorization",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "For local testing, you can provide a basic authentication via your API Keys. Depending on your library of choice, you may need to encode your keys for basic authorization."
+      },
+      {
+       "type": "para",
+       "text": "To base-64-encode your keys:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Open your terminal/command prompt and run the following command, replacing ACCESS_KEY and SECRET_KEY with the access key and secret key you created earlier. Remember to include the colon (:) between the keys. You will receive a long, base-64-encoded string as output."
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "MacOS:"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "printf ACCESS_KEY:SECRET_KEY | base64"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "powershell \"[convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(\\\"ACCESS_KEY:SECRET_KEY\\\"))\""
+      },
+      {
+       "type": "list",
+       "items": [
+        "MacOS"
+       ]
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "printf abcdefghi0123456789jkl:abcdefghijklmnopqrstuvwxzy0123456789abcdefghijkl | base64"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "powershell \"[convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(\\\"abcdefghijklmnopqrstuvwxzy0123456789abcdefghijkl:abcdefghijklmnopqrstuvwxzy0123456789abcdefghijkl\\\"))\""
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "-H 'Authorization: Basic CREDENTIALS' \\"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "-H 'Authorization: Basic ZnBpZnE1cm92d2VjeHZRU0k0MmxHbn0m4r5ydXNXczRPRUJLWTduS1NObVhoMzlrN2dzVE5QWEdqb0gzSUU4dFVnTlREdDZaYQ==' \\"
+      },
+      {
+       "type": "para",
+       "text": "See our Quick Start Guide for an example of using Basic Authorization in an app."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Request signature",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "For additional security, you can include your API Keys as part of a request signature. This provides more security than the Basic Authorization above, but less security than OAuth2."
+      },
+      {
+       "type": "para",
+       "text": "To ensure that a request is coming from you, we have a process for signing requests that you must follow for API calls to work. Everything is done via HTTP headers that you’ll need to set:"
+      },
+      {
+       "type": "list",
+       "items": [
+        "Date: A standard date header giving the time of the request; must be accurate within 5 minutes of request. Example: Mon, 11 Apr 2016 20:08:56 GMT",
+        "On-Nonce: A string that satisfies the following requirements:"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "At least 16 characters",
+        "Alphanumeric",
+        "Unique for each request"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "Input: Method, URL, On-Nonce, Date, Content-Type, AccessKey, SecretKey",
+        "Output: String of the form: On <AccessKey>:HmacSHA256:<Signature>",
+        "Steps to generate the signature portion:"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "Parse the URL and get the following:"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "The path, e.g. /api/documents (no query params!)",
+        "The query string, e.g. a=1&b=2"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "NOTE: If no query parameters are present, use an empty string"
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        "HTTP method",
+        "On-Nonce header value",
+        "Date header value",
+        "Content-Type header value",
+        "URL pathname",
+        "URL query string"
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Below is an example function to generate the authorization header, using Node.js’s standard crypto and url libraries:"
+      },
+      {
+       "type": "code",
+       "language": "js",
+       "text": "// ...at top of file\nvar u = require('url');\nvar crypto = require('crypto');\n\n/**\n* Generates the \"Authorization\" HTTP header for using the Onshape API\n*\n* @param {string} method - Request method; GET, POST, etc.\n* @param {string} url - The full request URL\n* @param {string} nonce - 25-character nonce (generated by you)\n* @param {string} authDate - UTC-formatted date string (generated by you)\n* @param {string} contentType - Value of the \"Content-Type\" header; generally \"application/json\"\n* @param {string} accessKey - API access key\n* @param {string} secretKey - API secret key\n*\n* @return {string} Value for the \"Authorization\" header\n*/\nfunction createSignature(method, url, nonce, authDate, contentType, accessKey, secretKey) {\n    var urlObj = u.parse(url);\n    var urlPath = urlObj.pathname;\n    var urlQuery = urlObj.query ? urlObj.query : ''; // if no query, use empty string\n\n    var str = (method + '\\n' + nonce + '\\n' + authDate + '\\n' + contentType + '\\n' +\n        urlPath + '\\n' + urlQuery + '\\n').toLowerCase();\n\n    var hmac = crypto.createHmac('sha256', secretKey)\n        .update(str)\n        .digest('base64');\n\n    var signature = 'On ' + accessKey + ':HmacSHA256:' + hmac;\n    return signature;\n}"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Redirects",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Some API endpoints return 307 redirects. You must generate an Authorization header for the redirect as well, but please note that the server portion of the URL might be different, the redirect URL may contain query parameters that must be encoded in the Authorization header, etc."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Delete API keys",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        "Click the Delete API Key button next to the key pair you wish to delete.",
+        "Confirm that you are deleting the correct set of API keys. This cannot be undone. Click Delete to confirm."
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Get help",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "If you need information or have a question unanswered in this documentation, email api-support@onshape.com or check out the forums."
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "errorCodes": [
+  {
+   "code": 200,
+   "name": "OK",
+   "category": "Success (2xx)",
+   "description": "The client call was successful. No action needed.",
+   "nextSteps": ""
+  },
+  {
+   "code": 204,
+   "name": "No Content",
+   "category": "Success (2xx)",
+   "description": "The client call was successful, and there’s nothing to return in the response body. The empty response body cannot be parsed.",
+   "nextSteps": ""
+  },
+  {
+   "code": 307,
+   "name": "Temporary Redirect",
+   "category": "Redirect (3xx)",
+   "description": "The client call was successful, and a redirection URL was returned. Follow the URL provided in the response.",
+   "nextSteps": ""
+  },
+  {
+   "code": 400,
+   "name": "Bad Request",
+   "category": "Client Error (4xx)",
+   "description": "The request cannot be processed by the server due a client-side error. This could be a malformed request syntax or other issue. Check the request parameters (GET and POST) and request body (POST) to determine the cause of the failure.",
+   "nextSteps": ""
+  },
+  {
+   "code": 401,
+   "name": "Unauthorized",
+   "category": "Client Error (4xx)",
+   "description": "The request failed the authentication/authorization checks. This could mean you are not logged in to Onshape, your API keys are invalid or for a different server, OAuth failed, etc.",
+   "nextSteps": "Make sure the client is authenticated."
+  },
+  {
+   "code": 402,
+   "name": "Payment Required",
+   "category": "Client Error (4xx)",
+   "description": "API Limits have been reached. Reach out to your Onshape representative or api‑support@onshape.com for more information.",
+   "nextSteps": ""
+  },
+  {
+   "code": 403,
+   "name": "Forbidden",
+   "category": "Client Error (4xx)",
+   "description": "The client doesn’t have the correct permissions to perform this operation. Check that the API Keys or OAuth authentication have sufficient permissions to perform the operation. For example, POST operations typically require write scope; if the API Key was created with only read scope, the server will return a 403 error.",
+   "nextSteps": "You might also need to check document and user permissions. For more details, see Share Documents (for everyone) and Understanding and Administering Project Roles and Permission Schemes (for Enterprise users and administrators)."
+  },
+  {
+   "code": 404,
+   "name": "Not Found",
+   "category": "Client Error (4xx)",
+   "description": "The server can’t find what the client is looking for. For example, a 404 error will be returned if the client tries to make a GET request for a document that doesn’t exist.",
+   "nextSteps": ""
+  },
+  {
+   "code": 405,
+   "name": "Method Not Allowed",
+   "category": "Client Error (4xx)",
+   "description": "Use of that method is not supported. For example, you cannot perform a DELETE request on a document version, because versions are read-only. Only GET requests on document versions are allowed.",
+   "nextSteps": ""
+  },
+  {
+   "code": 406,
+   "name": "Not Acceptable",
+   "category": "Client Error (4xx)",
+   "description": "The server cannot provide a response for the media type requested. See https://datatracker.ietf.org/doc/html/rfc2616#section-6.1.1.",
+   "nextSteps": ""
+  },
+  {
+   "code": 409,
+   "name": "Conflict",
+   "category": "Client Error (4xx)",
+   "description": "The client call includes duplicate values, causing a conflict. Modify the request to remove any conflicting values.",
+   "nextSteps": ""
+  },
+  {
+   "code": 415,
+   "name": "Media Type Not Supported",
+   "category": "Client Error (4xx)",
+   "description": "The client call includes unsupported data types or invalid JSON. Review the client code. When performing data imports and exports, follow all Translation guidelines to ensure all media and file types are supported.",
+   "nextSteps": ""
+  },
+  {
+   "code": 429,
+   "name": "Too Many Requests",
+   "category": "Client Error (4xx)",
+   "description": "The client sent too many requests to this endpoint in the Onshape-defined time window. The number of requests allowed per time window vary and are subject to change; Onshape does not publish this information.",
+   "nextSteps": "Every Onshape API response includes the X-Rate-Limit-Remaining header. This is the number of times you are allowed to call this particular endpoint again within the Onshape-defined time window. For example, the following response indicates that you can call this endpoint 3000 more times within the time window:"
+  },
+  {
+   "code": 499,
+   "name": "Timeout",
+   "category": "Client Error (4xx)",
+   "description": "This call is taking too long. Please try again later.",
+   "nextSteps": ""
+  },
+  {
+   "code": 500,
+   "name": "Internal Server Error",
+   "category": "Server Error (5xx)",
+   "description": "The request resulted in an error. Set a limit for the number of retries, and if the request continues to fail, reach out to support.",
+   "nextSteps": ""
+  },
+  {
+   "code": 503,
+   "name": "Service Unavailable",
+   "category": "Server Error (5xx)",
+   "description": "Something is wrong with the Onshape servers. Retry after the delay specified in the response. Set a limit for the number of retries, and if the request continues to fail, reach out to support.",
+   "nextSteps": ""
+  }
+ ]
+}

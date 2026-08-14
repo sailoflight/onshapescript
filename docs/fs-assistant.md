@@ -85,6 +85,9 @@ you *whether* to update before paying for the download.
   so it always describes the running deployment. `api_index.json` /
   `api_quick.json` flatten it (302 endpoints, 1226 schemas, 42 tags) for the
   `onshape_api_*` tools.
+- `reference/onshape-api-docs/` — the official OAuth2 / API-key / error-code /
+  limits pages (public HTTP, no API-token cost), parsed into `api_docs.json`
+  for `onshape_api_auth` and `onshape_api_error_codes`.
 
 The indexes record `librarySha256` / per-page `sha256` so you can tell whether
 the docs and indexes are in sync. Rebuild after re-fetching:
@@ -142,6 +145,14 @@ onshape_api_endpoint(path="/documents/d/{did}/{wvm}/{wvmid}/elements", method="g
 
 onshape_api_schema(name="BTDocumentElementInfo")
   -> properties of the response type referenced by the endpoint above
+
+onshape_api_auth()
+  -> the OAuth2 authorization-code workflow (6 steps) + API-key usage
+     (pass section="3: Exchange the code for an access token" for detail)
+
+onshape_api_error_codes(status=429)
+  -> Too Many Requests, category Client Error (4xx), description + next steps,
+     plus the X-Rate-Limit-Remaining / Retry-After header semantics
 ```
 
 ## Disambiguation

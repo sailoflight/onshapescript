@@ -699,6 +699,12 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     before = current_versions()
     api_before: Any = None
     api_notes: list[str] = []
+    docs_errors = ROOT / "reference" / "onshape-api-docs" / "errors.html"
+    docs_before = (
+        hashlib.sha256(docs_errors.read_bytes()).hexdigest()
+        if docs_errors.is_file() else None
+    )
+    docs_after: str | None = None
     if include_onshape_api:
         from onshape_fs_mcp import onshape_api_reference
         try:
@@ -718,13 +724,22 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     )
     api_after: Any = None
     if include_onshape_api:
-        from onshape_fs_mcp import onshape_api_reference
+        from onshape_fs_mcp import onshape_api_reference, onshape_api_docs
         fetch_api = subprocess.run(
             [sys.executable, "scripts/fetch_onshape_api.py", "--quiet"],
             cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
         )
         build_api = subprocess.run(
             [sys.executable, "scripts/build_onshape_api_index.py"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+        )
+        # Auth + error-handling docs are public pages: fetch with plain HTTP.
+        fetch_docs = subprocess.run(
+            [sys.executable, "scripts/fetch_onshape_api_docs.py", "--quiet"],
+            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+        )
+        build_docs = subprocess.run(
+            [sys.executable, "scripts/build_onshape_api_docs_index.py"],
             cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
         )
         if fetch_api.returncode != 0:
@@ -737,8 +752,21 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
                 "build_onshape_api_index.py exited nonzero: "
                 + build_api.stderr.strip()[:200]
             )
+        if fetch_docs.returncode != 0:
+            api_notes.append(
+                "fetch_onshape_api_docs.py exited nonzero: "
+                + fetch_docs.stderr.strip()[:200]
+            )
+        if build_docs.returncode != 0:
+            api_notes.append(
+                "build_onshape_api_docs_index.py exited nonzero: "
+                + build_docs.stderr.strip()[:200]
+            )
         reload()
         onshape_api_reference.reload()
+        onshape_api_docs.reload()
+        if docs_errors.is_file():
+            docs_after = hashlib.sha256(docs_errors.read_bytes()).hexdigest()
         try:
             api_after = onshape_api_reference.spec_version().get("specVersion")
         except Exception as error:
@@ -776,6 +804,10 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
         result["onshapeApiVersionAfter"] = api_after
         result["onshapeApiUpdated"] = (
             api_before is not None and api_after is not None and api_before != api_after
+        )
+        result["apiDocsRefreshed"] = (
+            docs_before is not None and docs_after is not None
+            and docs_before != docs_after
         )
         result["notes"].extend(api_notes)
     return result

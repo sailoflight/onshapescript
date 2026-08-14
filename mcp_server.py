@@ -9,7 +9,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
-from onshape_fs_mcp import fs_reference, onshape_api_reference
+from onshape_fs_mcp import fs_reference, onshape_api_reference, onshape_api_docs
 from onshape_fs_mcp.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
 from onshape_fs_mcp.operations import (
     check_model,
@@ -253,8 +253,9 @@ TOOLS: list[dict[str, Any]] = [
             "Returns only a compact change summary (version before/after, counts and sample names of "
             "added/removed/changed functions) so the caller does not have to hold the delta in context - "
             "afterwards all fs_* lookup tools serve the fresh corpus. With include_onshape_api it also "
-            "re-fetches the live Onshape REST API OpenAPI spec and rebuilds the onshape_api_* indexes "
-            "(that fetch needs onshape-credentials.json; without it the REST part is skipped with a note). "
+            "re-fetches the live Onshape REST API OpenAPI spec, the auth/error-handling docs, and rebuilds "
+            "the onshape_api_* indexes (the REST spec fetch needs onshape-credentials.json; without it that "
+            "part is skipped with a note). "
             "This performs network downloads and overwrites files under reference/, so it requires "
             "confirm_mutation=true."
         ),
@@ -438,6 +439,33 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({
             "name": {"type": "string", "description": "Schema name, e.g. 'BTDocumentElementInfo'."},
         }, ["name"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_api_auth",
+        "description": (
+            "Onshape authentication reference: the OAuth2 authorization-code workflow (register app, "
+            "authorize, exchange code for token, use, refresh) and API-key usage (Basic auth). Without a "
+            "section it returns a distilled summary - workflow step titles with their opening summaries - "
+            "plus the API-key steps. Pass section=<title> to get the full text of one step, including code. "
+            "Local and offline (from vendored official docs)."
+        ),
+        "inputSchema": object_schema({
+            "section": {"type": "string", "description": "Optional: a step/section title, e.g. '3: Exchange the code for an access token'."},
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_api_error_codes",
+        "description": (
+            "Onshape REST HTTP response codes and API call limits: every code (200-503) with its category, "
+            "description and recommended next steps, plus the rate-limit / annual-limit semantics (including "
+            "the X-Rate-Limit-Remaining and Retry-After headers on 429). Pass status=<code> to narrow to one "
+            "error. Use it when an onshape_* REST call returns a non-2xx. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "status": {"type": "integer", "description": "Optional: one status code to expand, e.g. 429."},
+        }),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     {
@@ -677,6 +705,12 @@ HANDLERS: dict[str, ToolHandler] = {
     ),
     "onshape_api_schema": lambda arguments: onshape_api_reference.get_schema(
         name=arguments["name"],
+    ),
+    "onshape_api_auth": lambda arguments: onshape_api_docs.auth(
+        section=arguments.get("section"),
+    ),
+    "onshape_api_error_codes": lambda arguments: onshape_api_docs.error_codes(
+        status=arguments.get("status"),
     ),
 }
 

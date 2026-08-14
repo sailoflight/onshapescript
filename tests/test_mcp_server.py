@@ -62,7 +62,7 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 25)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 27)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -258,6 +258,55 @@ class McpServerTest(unittest.TestCase):
         rest = content["onshapeApiSpecVersion"]
         self.assertEqual(rest["status"] if isinstance(rest, dict) and "status" in rest else None, None)
         self.assertTrue(rest["specVersion"])
+
+    def test_onshape_api_auth_and_error_codes(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "onshape_api_auth", "arguments": {}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_auth",
+                    "arguments": {"section": "3: Exchange the code for an access token"},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "onshape_api_error_codes", "arguments": {}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_error_codes",
+                    "arguments": {"status": 429},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        auth = responses[0]["result"]["structuredContent"]
+        self.assertEqual(len(auth["oauthWorkflowSteps"]), 6)
+        self.assertTrue(auth["apiKeySteps"])
+        section = responses[1]["result"]["structuredContent"]
+        self.assertEqual(section["title"], "3: Exchange the code for an access token")
+        self.assertTrue(section["text"])
+        codes = responses[2]["result"]["structuredContent"]
+        self.assertGreaterEqual(codes["count"], 16)
+        by_code = {c["code"]: c for c in codes["errorCodes"]}
+        self.assertEqual(by_code[429]["name"], "Too Many Requests")
+        self.assertEqual(by_code[429]["category"], "Client Error (4xx)")
+        single = responses[3]["result"]["structuredContent"]
+        self.assertEqual(single["count"], 1)
+        self.assertEqual(single["errorCodes"][0]["code"], 429)
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([
