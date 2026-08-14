@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Parse the vendored Onshape developer docs into structured JSON.
 
-reference/onshape-api-docs/<page>.html are public GitHub Pages documents
+reference/raw/onshape-api-docs/<page>.html are public GitHub Pages documents
 (auth + error handling) fetched by scripts/fetch_onshape_api_docs.py. This
 script parses each page's <main> into heading sections with typed blocks and
-emits reference/onshape-api-docs/api_docs.json:
+emits reference/index/onshape-api-docs/api_docs.json:
 
   pages:      [{page, title, url, sha256, sections: [{level, title, blocks}]}]
   errorCodes: [{code, name, category, description, nextSteps}]  (from errors)
@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-DOCS_DIR = ROOT / "reference" / "onshape-api-docs"
-DOCS_PATH = DOCS_DIR / "api_docs.json"
+DOCS_DIR = ROOT / "reference" / "raw" / "onshape-api-docs"
+DOCS_PATH = ROOT / "reference" / "index" / "onshape-api-docs" / "api_docs.json"
 
 PAGE_URLS = {
     "errors": "https://onshape-public.github.io/docs/api-adv/errors/",

@@ -15,10 +15,11 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-ONSHAPE_API_DIR = ROOT / "reference" / "onshape-api"
+RAW_DIR = ROOT / "reference" / "raw"
+ONSHAPE_API_DIR = RAW_DIR / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
-API_INDEX_PATH = ONSHAPE_API_DIR / "api_index.json"
-API_QUICK_PATH = ONSHAPE_API_DIR / "api_quick.json"
+API_INDEX_PATH = ROOT / "reference" / "index" / "onshape-api" / "api_index.json"
+API_QUICK_PATH = ROOT / "reference" / "quick" / "onshape-api" / "api_quick.json"
 
 _index: dict[str, Any] | None = None
 _quick: dict[str, Any] | None = None

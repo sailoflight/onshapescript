@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Parse the vendored FsDoc documentation into structured JSON indexes.
 
-library.html is the official FeatureScript function/type reference. This script
-walks its DOM and emits reference/fsdoc/index.json containing every module,
-function, type/enum/const/predicate, parameter, and description as plain text.
+library.html (raw/fsdoc/) is the official FeatureScript function/type reference.
+This script walks its DOM and emits reference/index/fsdoc/index.json containing
+every module, function, type/enum/const/predicate, parameter, and description as
+plain text.
 
 The guide pages are language/tutorial content; each page is parsed into
-reference/fsdoc/guide.json with heading sections and typed blocks (paragraphs,
-code, tables, lists), so the whole documentation corpus is JSON for indexing
-while the large source stays on disk for on-demand reads.
+reference/index/fsdoc/guide.json with heading sections and typed blocks
+(paragraphs, code, tables, lists), so the whole documentation corpus is JSON for
+indexing while the large source stays on disk for on-demand reads.
 
 Outputs (all data is vendored; nothing is fetched here):
-  index.json - {modules, functions, types, constants, predicates} from library.html
-  guide.json - {pages: [{page, path, sha256, title, sections:[{level,title,blocks}]}]}
+  reference/index/fsdoc/index.json   - {modules, functions, types, constants, predicates} from library.html (tier 2)
+  reference/index/fsdoc/guide.json   - {pages: [{page, path, sha256, title, sections:[{level,title,blocks}]}]} (tier 2)
+  reference/quick/fsdoc/quick.json   - compact distilled surface index (tier 1)
 """
 
 from __future__ import annotations
@@ -26,11 +28,11 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-FSDOC_DIR = ROOT / "reference" / "fsdoc"
+FSDOC_DIR = ROOT / "reference" / "raw" / "fsdoc"
 LIBRARY_PATH = FSDOC_DIR / "library.html"
-INDEX_PATH = FSDOC_DIR / "index.json"
-GUIDE_PATH = FSDOC_DIR / "guide.json"
-QUICK_PATH = FSDOC_DIR / "quick.json"
+INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
+GUIDE_PATH = ROOT / "reference" / "index" / "fsdoc" / "guide.json"
+QUICK_PATH = ROOT / "reference" / "quick" / "fsdoc" / "quick.json"
 
 # Guide/tutorial pages included in guide.json. library.html and index.html are
 # excluded: library.html is the function reference (covered by index.json) and

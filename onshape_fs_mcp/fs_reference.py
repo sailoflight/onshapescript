@@ -1,8 +1,10 @@
 """Offline FeatureScript reference queries over the vendored official material.
 
-Everything here is local and deterministic: it reads `reference/fsdoc/index.json`
-(built by scripts/build_fsdoc_index.py), the raw FsDoc guide pages under
-`reference/fsdoc/`, and the standard library source under `reference/std-library/`.
+Everything here is local and deterministic: it reads the tier-2 indexes
+`reference/index/fsdoc/index.json` and `reference/index/fsdoc/guide.json`
+(built by scripts/build_fsdoc_index.py), the tier-1 distilled
+`reference/quick/fsdoc/quick.json`, and the tier-0 raw sources under
+`reference/raw/fsdoc/` and `reference/raw/std-library/`.
 No network request is ever made, so these queries are safe to call freely from
 the MCP server.
 
@@ -24,11 +26,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
-INDEX_PATH = ROOT / "reference" / "fsdoc" / "index.json"
-GUIDE_PATH = ROOT / "reference" / "fsdoc" / "guide.json"
+INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
+GUIDE_PATH = ROOT / "reference" / "index" / "fsdoc" / "guide.json"
 QUICK_REFERENCE_PATH = ROOT / "reference" / "quick-reference.md"
-FSDOC_DIR = ROOT / "reference" / "fsdoc"
-STD_LIB_DIR = ROOT / "reference" / "std-library"
+FSDOC_DIR = ROOT / "reference" / "raw" / "fsdoc"
+STD_LIB_DIR = ROOT / "reference" / "raw" / "std-library"
 
 KINDS = ("function", "type", "const", "predicate")
 INDEX_KEYS = {
@@ -389,8 +391,9 @@ def _find_page(page: str) -> dict[str, Any]:
 def guide_section(page: str, section: str | None = None) -> dict[str, Any]:
     """Return a guide page as text, optionally narrowed to one heading section.
 
-    Reads the structured reference/fsdoc/guide.json, so page and section lookup
-    is index-driven and on demand; the large HTML is never parsed at query time.
+    Reads the structured reference/index/fsdoc/guide.json, so page and section
+    lookup is index-driven and on demand; the large HTML is never parsed at
+    query time.
     """
     entry = _find_page(page)
     sections = entry["sections"]
@@ -443,7 +446,7 @@ def _source_lines(module: str) -> list[str]:
     path = STD_LIB_DIR / f"{module}.fs"
     if not path.is_file():
         raise ValueError(
-            f"standard library module '{module}' not vendored under reference/std-library"
+            f"standard library module '{module}' not vendored under reference/raw/std-library"
         )
     return path.read_text(encoding="utf-8").splitlines()
 
@@ -606,11 +609,11 @@ def check_version(target: Any = None, live_version: Any = None) -> dict[str, Any
     health = _reference_health()
     if not health["indexConsistent"]:
         warnings.append(
-            "reference/fsdoc/index.json is out of date relative to library.html; rebuild the index."
+            "reference/index/fsdoc/index.json is out of date relative to library.html; rebuild the index."
         )
     if not health["guideConsistent"]:
         warnings.append(
-            "reference/fsdoc/guide.json is out of date relative to the guide pages; rebuild the index."
+            "reference/index/fsdoc/guide.json is out of date relative to the guide pages; rebuild the index."
         )
 
     return {
@@ -724,7 +727,7 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     before = current_versions()
     api_before: Any = None
     api_notes: list[str] = []
-    docs_errors = ROOT / "reference" / "onshape-api-docs" / "errors.html"
+    docs_errors = ROOT / "reference" / "raw" / "onshape-api-docs" / "errors.html"
     docs_before = (
         hashlib.sha256(docs_errors.read_bytes()).hexdigest()
         if docs_errors.is_file() else None

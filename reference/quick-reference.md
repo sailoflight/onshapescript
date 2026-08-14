@@ -1,9 +1,10 @@
 # FeatureScript quick reference
 
 A distilled cheat-sheet for writing Onshape FeatureScript, synthesized from the
-vendored official docs (`reference/fsdoc/`). It is intentionally short enough to
-read in one shot; drill into `index.json` / the `fs_*` tools for exact
-signatures. The vendored reference currently tracks standard library version
+vendored official docs (`reference/raw/fsdoc/`). It is intentionally short enough to
+read in one shot; drill into `reference/index/fsdoc/index.json` / the `fs_*` tools
+for exact signatures. The vendored reference currently tracks standard library
+version
 **2960**.
 
 ## How FeatureScript works
@@ -170,5 +171,6 @@ setProperty(context, {
   language concepts; `fs_library_source` → the real std library implementation.
 - `fs_check_version` before relying on the corpus for a newer FeatureScript
   version than the vendored snapshot; `fs_update_reference` to refresh it.
-- `reference/fsdoc/quick.json` holds this same surface as one line per entry for
-  machine indexing; `reference/fsdoc/index.json` has the full detail.
+- `reference/quick/fsdoc/quick.json` holds this same surface as one line per
+  entry for machine indexing; `reference/index/fsdoc/index.json` has the full
+  detail.

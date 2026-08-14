@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Parse the vendored Onshape REST API OpenAPI spec into structured JSON indexes.
 
-reference/onshape-api/openapi.json is the live OpenAPI 3.0 definition served by
+reference/raw/onshape-api/openapi.json is the live OpenAPI 3.0 definition served by
 Onshape at /api/openapi (fetched by scripts/fetch_onshape_api.py). This script
 flattens it so the MCP onshape_api_* tools can answer REST questions offline:
 
 Outputs (all data is vendored; nothing is fetched here):
-  api_index.json - {tags, endpoints, schemas} with every operation's path,
-                   method, parameters, responses, and shallow schema shapes
-  api_quick.json - compact one-line-per-entry surface index for machine indexing
+  reference/index/onshape-api/api_index.json  - {tags, endpoints, schemas} with every
+                   operation's path, method, parameters, responses, and shallow
+                   schema shapes (tier 2: full detail, read on demand)
+  reference/quick/onshape-api/api_quick.json  - compact one-line-per-entry surface
+                   index for cheap machine indexing (tier 1: first look)
 """
 
 from __future__ import annotations
@@ -20,10 +22,11 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-ONSHAPE_API_DIR = ROOT / "reference" / "onshape-api"
+RAW_DIR = ROOT / "reference" / "raw"
+ONSHAPE_API_DIR = RAW_DIR / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
-INDEX_PATH = ONSHAPE_API_DIR / "api_index.json"
-QUICK_PATH = ONSHAPE_API_DIR / "api_quick.json"
+INDEX_PATH = ROOT / "reference" / "index" / "onshape-api" / "api_index.json"
+QUICK_PATH = ROOT / "reference" / "quick" / "onshape-api" / "api_quick.json"
 
 # HTTP methods materialized in a path item; "parameters" and other keys are skipped.
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head")

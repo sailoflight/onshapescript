@@ -2,21 +2,23 @@
 
 The MCP server answers Onshape REST questions offline from two vendored
 sources: the **live OpenAPI definition** served at
-`https://cad.onshape.com/api/openapi` (`reference/onshape-api/`) and the
-**official developer docs** for authentication and error handling
-(`reference/onshape-api-docs/`). See `docs/mcp-server.md` for the tool behavior
-table; this page covers the data, its coverage, and the gaps that remain for
-doing real API *operations*.
+`https://cad.onshape.com/api/openapi` (raw tier 0:
+`reference/raw/onshape-api/`) and the **official developer docs** for
+authentication and error handling (`reference/raw/onshape-api-docs/`). The
+tiered indexes the tools actually read are under `reference/index/onshape-api/`
+and `reference/index/onshape-api-docs/` (see `docs/mcp-server.md` for the tool
+behavior table; this page covers the data, its coverage, and the gaps that
+remain for doing real API *operations*).
 
 ## Data
 
 | File | Contents |
 |---|---|
-| `reference/onshape-api/openapi.json` | The raw OpenAPI 3.0.1 spec, pulled live from `/api/openapi` by `scripts/fetch_onshape_api.py` (authenticated). Always the running deployment's version. |
-| `reference/onshape-api/api_index.json` | Flattened by `scripts/build_onshape_api_index.py`: `tags`, `endpoints` (path, method, operationId, summary, parameters, **requestBody**, **security**, responses), `schemas`, plus `specVersion`, `baseUrl`, `securitySchemes`, `globalSecurity`, `sourceSha256`. |
-| `reference/onshape-api/api_quick.json` | One line per endpoint (path/method/operationId/summary/`hasRequestBody`) for cheap machine indexing. |
-| `reference/onshape-api-docs/errors.html` `limits.html` `oauth.html` `apikeys.html` | Public Onshape developer docs (GitHub Pages, plain HTTP — **zero API-token cost**): response codes, rate/annual limits, the OAuth2 workflow, and API-key usage. |
-| `reference/onshape-api-docs/api_docs.json` | Those pages parsed into heading sections with typed blocks, plus a flattened `errorCodes` table. |
+| `reference/raw/onshape-api/openapi.json` | The raw OpenAPI 3.0.1 spec, pulled live from `/api/openapi` by `scripts/fetch_onshape_api.py` (authenticated). Always the running deployment's version. |
+| `reference/index/onshape-api/api_index.json` | Flattened by `scripts/build_onshape_api_index.py` (tier 2): `tags`, `endpoints` (path, method, operationId, summary, parameters, **requestBody**, **security**, responses), `schemas`, plus `specVersion`, `baseUrl`, `securitySchemes`, `globalSecurity`, `sourceSha256`. |
+| `reference/quick/onshape-api/api_quick.json` | One line per endpoint (path/method/operationId/summary/`hasRequestBody`) for cheap machine indexing (tier 1). |
+| `reference/raw/onshape-api-docs/errors.html` `limits.html` `oauth.html` `apikeys.html` | Public Onshape developer docs (GitHub Pages, plain HTTP — **zero API-token cost**): response codes, rate/annual limits, the OAuth2 workflow, and API-key usage. |
+| `reference/index/onshape-api-docs/api_docs.json` | Those pages parsed into heading sections with typed blocks, plus a flattened `errorCodes` table. |
 
 Current snapshot: REST API **1.219.86205**, 302 operations, 1226 schemas,
 42 tags, base URL `https://cad.onshape.com/api/v16`.

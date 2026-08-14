@@ -73,7 +73,9 @@ distinct from the vendored Onshape reference above.
 ### Onshape REST API reference tools — local and offline
 
 These answer questions about the Onshape REST API surface from the live OpenAPI
-definition vendored under `reference/onshape-api/`. Like the FeatureScript
+definition vendored under `reference/` (raw spec in `reference/raw/onshape-api/`,
+indexes read from `reference/index/onshape-api/` and
+`reference/quick/onshape-api/`). Like the FeatureScript
 tools they are offline; only `fs_check_version`/`fs_update_reference` (above)
 and the Onshape REST tools touch the network. See `docs/onshape-api.md` for the
 data, coverage, and the remaining documentation gaps for real operations.

@@ -6,9 +6,9 @@ with their raw sources, that the structures are complete, and that
 cross-references resolve. Writes report.json and prints a human summary.
 
 Corpora verified:
-  FS reference   reference/fsdoc/{index,guide}.json  vs the raw FsDoc HTML
-  REST API       reference/onshape-api/api_index.json vs openapi.json
-  Auth/errors    reference/onshape-api-docs/api_docs.json vs the raw HTML
+  FS reference   reference/index/fsdoc/{index,guide}.json  vs the raw FsDoc HTML
+  REST API       reference/index/onshape-api/api_index.json vs openapi.json
+  Auth/errors    reference/index/onshape-api-docs/api_docs.json vs the raw HTML
   Project docs   docs/index.json vs the authored markdown sources
 """
 
@@ -23,9 +23,16 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-FSDOC = ROOT / "reference" / "fsdoc"
-REST = ROOT / "reference" / "onshape-api"
-AUTH = ROOT / "reference" / "onshape-api-docs"
+# Tier 0: raw build inputs — only sha256-compared, never loaded for content.
+RAW = ROOT / "reference" / "raw"
+FSDOC_RAW = RAW / "fsdoc"
+REST_RAW = RAW / "onshape-api"
+AUTH_RAW = RAW / "onshape-api-docs"
+# Tier 1/2: distilled + full-detail indexes — what the MCP tools actually serve.
+FSDOC_INDEX = ROOT / "reference" / "index" / "fsdoc"
+REST_INDEX = ROOT / "reference" / "index" / "onshape-api"
+REST_QUICK = ROOT / "reference" / "quick" / "onshape-api"
+AUTH_INDEX = ROOT / "reference" / "index" / "onshape-api-docs"
 
 checks: list[dict[str, Any]] = []
 stats: dict[str, Any] = {}
@@ -44,19 +51,19 @@ def load(path: Path) -> Any:
 
 
 def verify_fs() -> None:
-    idx = load(FSDOC / "index.json")
-    guide = load(FSDOC / "guide.json")
+    idx = load(FSDOC_INDEX / "index.json")
+    guide = load(FSDOC_INDEX / "guide.json")
 
     # Source sha256 pinning.
-    lib_sha = sha256_of(FSDOC / "library.html")
+    lib_sha = sha256_of(FSDOC_RAW / "library.html")
     check("FS index.json librarySha256 matches library.html",
           idx.get("librarySha256") == lib_sha,
           f"index={idx.get('librarySha256')} html={lib_sha}")
     missing = [
         (p["page"], p["sha256"])
         for p in guide["pages"]
-        if not (FSDOC / p["path"]).is_file()
-        or sha256_of(FSDOC / p["path"]) != p["sha256"]
+        if not (FSDOC_RAW / p["path"]).is_file()
+        or sha256_of(FSDOC_RAW / p["path"]) != p["sha256"]
     ]
     check("FS guide.json page sha256 all match", not missing,
           f"{len(missing)} mismatch(es)" if missing else f"{len(guide['pages'])} pages ok")
@@ -135,9 +142,9 @@ def verify_fs() -> None:
 
 
 def verify_rest() -> None:
-    idx = load(REST / "api_index.json")
-    quick = load(REST / "api_quick.json")
-    openapi_sha = sha256_of(REST / "openapi.json")
+    idx = load(REST_INDEX / "api_index.json")
+    quick = load(REST_QUICK / "api_quick.json")
+    openapi_sha = sha256_of(REST_RAW / "openapi.json")
 
     check("REST api_index.json sourceSha256 matches openapi.json",
           idx.get("sourceSha256") == openapi_sha,
@@ -201,11 +208,11 @@ def verify_rest() -> None:
 
 
 def verify_auth() -> None:
-    docs = load(AUTH / "api_docs.json")
+    docs = load(AUTH_INDEX / "api_docs.json")
     missing = [
         p["page"] for p in docs["pages"]
-        if not (AUTH / f"{p['page']}.html").is_file()
-        or sha256_of(AUTH / f"{p['page']}.html") != p["sha256"]
+        if not (AUTH_RAW / f"{p['page']}.html").is_file()
+        or sha256_of(AUTH_RAW / f"{p['page']}.html") != p["sha256"]
     ]
     check("Auth docs sha256 all match", not missing,
           f"mismatch: {missing}" if missing else f"{len(docs['pages'])} pages ok")

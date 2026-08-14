@@ -68,17 +68,26 @@ you *whether* to update before paying for the download.
 
 ## Reference data
 
-- `reference/fsdoc/library.html` — the raw official reference (1.7 MB HTML).
-- `reference/fsdoc/index.json` — the same content parsed into structured JSON
-  (modules, functions, types, constants, predicates, parameters). Built by
-  `scripts/build_fsdoc_index.py`.
-- `reference/fsdoc/guide.json` — every guide/tutorial page parsed into heading
-  sections with typed blocks (paragraph, code, table, list); this is what
-  `fs_guide_section` reads and what `fs_search kind=guide` searches.
-- `reference/fsdoc/quick.json` — one line per entry (name, kind, module,
-  category, one-line summary) across the whole reference plus the guide section
-  titles: the cheap whole-surface index for machine indexing. Auto-regenerated
-  on every build.
+Vendored material lives in `reference/`, in three tiers by reading order:
+
+- `reference/raw/` — **build inputs, never read by the tools**: the official
+  FsDoc pages (`raw/fsdoc/`, including the 1.7 MB `library.html`), the standard
+  library source (`raw/std-library/`, mirrored from
+  `github.com/javawizard/onshape-std-library-mirror`, MIT), the live OpenAPI
+  spec (`raw/onshape-api/openapi.json`), and the OAuth2 / API-key / error /
+  limits pages (`raw/onshape-api-docs/`). Kept for provenance and sha256
+  staleness checks only.
+- `reference/quick/` — **the cheap first read** (tier 1): `quick.json` (one
+  line per entry: name, kind, module, category, one-line summary across the
+  whole reference plus the guide section titles), `api_quick.json` (one line
+  per endpoint). Auto-regenerated on every build.
+- `reference/index/` — **on-demand full detail** (tier 2): `fsdoc/index.json`
+  (modules, functions, types, constants, predicates, parameters, descriptions;
+  built by `scripts/build_fsdoc_index.py`), `fsdoc/guide.json` (every
+  guide/tutorial page parsed into heading sections with typed blocks —
+  paragraph, code, table, list — what `fs_guide_section` reads and what
+  `fs_search kind=guide` searches), `onshape-api/api_index.json`,
+  `onshape-api-docs/api_docs.json`.
 - `reference/quick-reference.md` — the curated, distilled cheat-sheet (the
   `fs_quick_reference` tool); authored alongside the docs rather than generated.
 - `docs/index.json` — the project's own documentation (`docs/*.md`,
@@ -86,18 +95,6 @@ you *whether* to update before paying for the download.
   intentionally not indexed) parsed into the same typed-block schema as
   `guide.json`; served by `docs_list` / `docs_section` / `docs_search`. Built
   by `scripts/build_docs_index.py`; the `.md` files remain the originals.
-- `reference/fsdoc/<page>.html` — the raw guide pages, kept for provenance and
-  staleness checks (each page's sha256 is recorded in `guide.json`).
-- `reference/std-library/<module>.fs` — the standard library source, mirrored
-  from `github.com/javawizard/onshape-std-library-mirror` (MIT).
-- `reference/onshape-api/openapi.json` — the **live** Onshape REST API OpenAPI
-  definition, pulled from `https://cad.onshape.com/api/openapi` (authenticated),
-  so it always describes the running deployment. `api_index.json` /
-  `api_quick.json` flatten it (302 endpoints, 1226 schemas, 42 tags) for the
-  `onshape_api_*` tools.
-- `reference/onshape-api-docs/` — the official OAuth2 / API-key / error-code /
-  limits pages (public HTTP, no API-token cost), parsed into `api_docs.json`
-  for `onshape_api_auth` and `onshape_api_error_codes`.
 
 The indexes record `librarySha256` / per-page `sha256` so you can tell whether
 the docs and indexes are in sync. Rebuild after re-fetching:
@@ -110,7 +107,7 @@ python3 scripts/build_fsdoc_index.py
 ## Version checks
 
 `fs_check_version` compares the vendored reference version (parsed from
-`reference/std-library/featurescriptversionnumber.gen.fs`) against the version
+`reference/raw/std-library/featurescriptversionnumber.gen.fs`) against the version
 you intend to compile with:
 
 ```text

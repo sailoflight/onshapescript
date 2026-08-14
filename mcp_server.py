@@ -29,7 +29,7 @@ from onshape_fs_mcp.operations import (
 )
 
 SERVER_NAME = "onshape-branch-cable-trophy"
-SERVER_VERSION = "1.2.0"
+SERVER_VERSION = "1.3.0"
 PROTOCOL_VERSION = "2025-06-18"
 
 
@@ -966,7 +966,10 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
                 "For FeatureScript questions, use the offline reference tools first (fs_search, "
                 "fs_get_function, fs_get_type, fs_guide_section, fs_library_source): the standard library "
                 "is rarely present in language-model training data, so look up exact signatures before "
-                "writing code. The project's own documentation (tool catalog, verified "
+                "writing code. Read order: start with a search/find tool (cheap candidate list), then "
+                "fs_get_function or fs_guide_section for the one entry you need (full detail) — the "
+                "vendored corpus is tiered (reference/quick/ then reference/index/; reference/raw/ is "
+                "build input and never read). The project's own documentation (tool catalog, verified "
                 "experience/lessons, example docs) is served by docs_list / docs_section / docs_search. "
                 "Use read-only inspection tools unless the user explicitly requests a cloud "
                 "mutation; mutating tools require confirm_mutation=true and never return credentials."

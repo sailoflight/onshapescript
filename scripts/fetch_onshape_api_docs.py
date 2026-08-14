@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vendor Onshape developer documentation (auth + error handling) into reference/.
+"""Vendor Onshape developer documentation (auth + error handling) into reference/raw/onshape-api-docs/.
 
 These are public GitHub Pages documents (onshape-public.github.io), fetched with
 plain HTTP - they consume no Onshape API token quota. They cover the two gaps
@@ -22,7 +22,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DOCS_DIR = ROOT / "reference" / "onshape-api-docs"
+DOCS_DIR = ROOT / "reference" / "raw" / "onshape-api-docs"
 
 PAGES = {
     "errors": "https://onshape-public.github.io/docs/api-adv/errors/",

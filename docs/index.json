@@ -3,7 +3,7 @@
   {
    "page": "fs-assistant",
    "path": "docs/fs-assistant.md",
-   "sha256": "8cdae83f4a2dfe0bb34027a37beafaa1a3861a449e06464af3c83fc2425a28c8",
+   "sha256": "62a621b3f0e058942130a3bf6e3638a6dca33f67de5c34cedf1704ed1813f686",
    "title": "FeatureScript assistance guide",
    "sections": [
     {
@@ -105,22 +105,22 @@
      "title": "Reference data",
      "blocks": [
       {
+       "type": "para",
+       "text": "Vendored material lives in reference/, in three tiers by reading order:"
+      },
+      {
        "type": "list",
        "items": [
         {
-         "text": "reference/fsdoc/library.html — the raw official reference (1.7 MB HTML).",
+         "text": "reference/raw/ — build inputs, never read by the tools: the official FsDoc pages (raw/fsdoc/, including the 1.7 MB library.html), the standard library source (raw/std-library/, mirrored from github.com/javawizard/onshape-std-library-mirror, MIT), the live OpenAPI spec (raw/onshape-api/openapi.json), and the OAuth2 / API-key / error / limits pages (raw/onshape-api-docs/). Kept for provenance and sha256 staleness checks only.",
          "depth": 0
         },
         {
-         "text": "reference/fsdoc/index.json — the same content parsed into structured JSON (modules, functions, types, constants, predicates, parameters). Built by scripts/build_fsdoc_index.py.",
+         "text": "reference/quick/ — the cheap first read (tier 1): quick.json (one line per entry: name, kind, module, category, one-line summary across the whole reference plus the guide section titles), api_quick.json (one line per endpoint). Auto-regenerated on every build.",
          "depth": 0
         },
         {
-         "text": "reference/fsdoc/guide.json — every guide/tutorial page parsed into heading sections with typed blocks (paragraph, code, table, list); this is what fs_guide_section reads and what fs_search kind=guide searches.",
-         "depth": 0
-        },
-        {
-         "text": "reference/fsdoc/quick.json — one line per entry (name, kind, module, category, one-line summary) across the whole reference plus the guide section titles: the cheap whole-surface index for machine indexing. Auto-regenerated on every build.",
+         "text": "reference/index/ — on-demand full detail (tier 2): fsdoc/index.json (modules, functions, types, constants, predicates, parameters, descriptions; built by scripts/build_fsdoc_index.py), fsdoc/guide.json (every guide/tutorial page parsed into heading sections with typed blocks — paragraph, code, table, list — what fs_guide_section reads and what fs_search kind=guide searches), onshape-api/api_index.json, onshape-api-docs/api_docs.json.",
          "depth": 0
         },
         {
@@ -129,22 +129,6 @@
         },
         {
          "text": "docs/index.json — the project's own documentation (docs/*.md, the quick-reference, example docs; README.md is the human landing page and is intentionally not indexed) parsed into the same typed-block schema as guide.json; served by docs_list / docs_section / docs_search. Built by scripts/build_docs_index.py; the .md files remain the originals.",
-         "depth": 0
-        },
-        {
-         "text": "reference/fsdoc/<page>.html — the raw guide pages, kept for provenance and staleness checks (each page's sha256 is recorded in guide.json).",
-         "depth": 0
-        },
-        {
-         "text": "reference/std-library/<module>.fs — the standard library source, mirrored from github.com/javawizard/onshape-std-library-mirror (MIT).",
-         "depth": 0
-        },
-        {
-         "text": "reference/onshape-api/openapi.json — the live Onshape REST API OpenAPI definition, pulled from https://cad.onshape.com/api/openapi (authenticated), so it always describes the running deployment. api_index.json / api_quick.json flatten it (302 endpoints, 1226 schemas, 42 tags) for the onshape_api_* tools.",
-         "depth": 0
-        },
-        {
-         "text": "reference/onshape-api-docs/ — the official OAuth2 / API-key / error-code / limits pages (public HTTP, no API-token cost), parsed into api_docs.json for onshape_api_auth and onshape_api_error_codes.",
          "depth": 0
         }
        ]
@@ -166,7 +150,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "fs_check_version compares the vendored reference version (parsed from reference/std-library/featurescriptversionnumber.gen.fs) against the version you intend to compile with:"
+       "text": "fs_check_version compares the vendored reference version (parsed from reference/raw/std-library/featurescriptversionnumber.gen.fs) against the version you intend to compile with:"
       },
       {
        "type": "code",
@@ -222,7 +206,7 @@
   {
    "page": "mcp-server",
    "path": "docs/mcp-server.md",
-   "sha256": "7caad679bb879af385a100b52dc3cf41878c120f067f84f4c49a69ce235d5774",
+   "sha256": "aff703cfc4f792ad38e608355ba9f03dc01e4ac1389619569ee34e780a9e1361",
    "title": "Local MCP server",
    "sections": [
     {
@@ -375,7 +359,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under reference/onshape-api/. Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See docs/onshape-api.md for the data, coverage, and the remaining documentation gaps for real operations."
+       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under reference/ (raw spec in reference/raw/onshape-api/, indexes read from reference/index/onshape-api/ and reference/quick/onshape-api/). Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See docs/onshape-api.md for the data, coverage, and the remaining documentation gaps for real operations."
       },
       {
        "type": "table",
@@ -621,7 +605,7 @@
   {
    "page": "onshape-api",
    "path": "docs/onshape-api.md",
-   "sha256": "0fb3b2f0f563747455fe91da288bd21878fc32f0c0980a0990c8e533b34dcc81",
+   "sha256": "e4c9fb78ea09d3f6c95f4cce56bf5a286b854a9b8e3bcee7ba13d1da4a5b1d72",
    "title": "Onshape REST API reference",
    "sections": [
     {
@@ -630,7 +614,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The MCP server answers Onshape REST questions offline from two vendored sources: the live OpenAPI definition served at https://cad.onshape.com/api/openapi (reference/onshape-api/) and the official developer docs for authentication and error handling (reference/onshape-api-docs/). See docs/mcp-server.md for the tool behavior table; this page covers the data, its coverage, and the gaps that remain for doing real API operations."
+       "text": "The MCP server answers Onshape REST questions offline from two vendored sources: the live OpenAPI definition served at https://cad.onshape.com/api/openapi (raw tier 0: reference/raw/onshape-api/) and the official developer docs for authentication and error handling (reference/raw/onshape-api-docs/). The tiered indexes the tools actually read are under reference/index/onshape-api/ and reference/index/onshape-api-docs/ (see docs/mcp-server.md for the tool behavior table; this page covers the data, its coverage, and the gaps that remain for doing real API operations)."
       }
      ]
     },
@@ -646,23 +630,23 @@
          "Contents"
         ],
         [
-         "reference/onshape-api/openapi.json",
+         "reference/raw/onshape-api/openapi.json",
          "The raw OpenAPI 3.0.1 spec, pulled live from /api/openapi by scripts/fetch_onshape_api.py (authenticated). Always the running deployment's version."
         ],
         [
-         "reference/onshape-api/api_index.json",
-         "Flattened by scripts/build_onshape_api_index.py: tags, endpoints (path, method, operationId, summary, parameters, requestBody, security, responses), schemas, plus specVersion, baseUrl, securitySchemes, globalSecurity, sourceSha256."
+         "reference/index/onshape-api/api_index.json",
+         "Flattened by scripts/build_onshape_api_index.py (tier 2): tags, endpoints (path, method, operationId, summary, parameters, requestBody, security, responses), schemas, plus specVersion, baseUrl, securitySchemes, globalSecurity, sourceSha256."
         ],
         [
-         "reference/onshape-api/api_quick.json",
-         "One line per endpoint (path/method/operationId/summary/hasRequestBody) for cheap machine indexing."
+         "reference/quick/onshape-api/api_quick.json",
+         "One line per endpoint (path/method/operationId/summary/hasRequestBody) for cheap machine indexing (tier 1)."
         ],
         [
-         "reference/onshape-api-docs/errors.html limits.html oauth.html apikeys.html",
+         "reference/raw/onshape-api-docs/errors.html limits.html oauth.html apikeys.html",
          "Public Onshape developer docs (GitHub Pages, plain HTTP — zero API-token cost): response codes, rate/annual limits, the OAuth2 workflow, and API-key usage."
         ],
         [
-         "reference/onshape-api-docs/api_docs.json",
+         "reference/index/onshape-api-docs/api_docs.json",
          "Those pages parsed into heading sections with typed blocks, plus a flattened errorCodes table."
         ]
        ]
@@ -1703,7 +1687,7 @@
   {
    "page": "quick-reference",
    "path": "reference/quick-reference.md",
-   "sha256": "b65bc53b3bb44630d961166dff4f7cfc0fa6fefd9de6a03b4bedaff9aa6ac3ce",
+   "sha256": "a383c471788f4aa102ed34bf25260530c034cedba78096e706358eae51f36a9f",
    "title": "FeatureScript quick reference",
    "sections": [
     {
@@ -1712,7 +1696,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "A distilled cheat-sheet for writing Onshape FeatureScript, synthesized from the vendored official docs (reference/fsdoc/). It is intentionally short enough to read in one shot; drill into index.json / the fs_* tools for exact signatures. The vendored reference currently tracks standard library version 2960."
+       "text": "A distilled cheat-sheet for writing Onshape FeatureScript, synthesized from the vendored official docs (reference/raw/fsdoc/). It is intentionally short enough to read in one shot; drill into reference/index/fsdoc/index.json / the fs_* tools for exact signatures. The vendored reference currently tracks standard library version 2960."
       }
      ]
     },
@@ -2015,7 +1999,7 @@
          "depth": 0
         },
         {
-         "text": "reference/fsdoc/quick.json holds this same surface as one line per entry for machine indexing; reference/fsdoc/index.json has the full detail.",
+         "text": "reference/quick/fsdoc/quick.json holds this same surface as one line per entry for machine indexing; reference/index/fsdoc/index.json has the full detail.",
          "depth": 0
         }
        ]
@@ -2027,22 +2011,51 @@
   {
    "page": "reference",
    "path": "reference/README.md",
-   "sha256": "b1324f891c9a29082374ae4eba25ceb72086adce372a9e3e0d16c3f2433c1ee5",
-   "title": "Vendored FeatureScript reference",
+   "sha256": "d4a9106676609c84ba62fccca862f53e1abed110d849b1a0b50bba03f2ff65d8",
+   "title": "Vendored reference corpus",
    "sections": [
     {
      "level": 1,
-     "title": "Vendored FeatureScript reference",
+     "title": "Vendored reference corpus",
      "blocks": [
       {
        "type": "para",
-       "text": "This directory is generated by python3 scripts/fetch_reference.py and is safe to commit. The content is Onshape/third-party material, vendored so the local MCP tools can answer FeatureScript questions without a network round trip."
+       "text": "Fetched by scripts/fetch_reference.py (FsDoc + std library) and the scripts/fetch_onshape_api*.py fetchers. Onshape/third-party material, vendored so the local MCP tools answer without a network round trip. Three tiers, in reading order:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tier",
+         "Directory",
+         "Contents",
+         "Who reads it"
+        ],
+        [
+         "0",
+         "raw/",
+         "build inputs: FsDoc HTML, std-library .fs, OpenAPI spec, dev-doc HTML",
+         "fetch/build scripts only; verify_docs.py sha256-pins them; tools never read"
+        ],
+        [
+         "1",
+         "quick/",
+         "compact distilled indexes (quick.json, api_quick.json)",
+         "fs_search, onshape_api_find — the cheap first look for candidates"
+        ],
+        [
+         "2",
+         "index/",
+         "full-detail indexes (index.json, guide.json, api_index.json, api_docs.json)",
+         "fs_get_function, fs_guide_section, onshape_api_* — on-demand deep read"
+        ]
+       ]
       }
      ]
     },
     {
      "level": 2,
-     "title": "fsdoc/",
+     "title": "raw/fsdoc/",
      "blocks": [
       {
        "type": "list",
@@ -2057,7 +2070,7 @@
     },
     {
      "level": 2,
-     "title": "std-library/",
+     "title": "raw/std-library/",
      "blocks": [
       {
        "type": "list",
@@ -2072,13 +2085,17 @@
     },
     {
      "level": 2,
-     "title": "onshape-api/",
+     "title": "raw/onshape-api/ + raw/onshape-api-docs/",
      "blocks": [
       {
        "type": "list",
        "items": [
         {
-         "text": "onshape-api/openapi.json — the live Onshape REST API OpenAPI definition, fetched from https://cad.onshape.com/api/openapi with the local credentials by scripts/fetch_onshape_api.py (always the current server version). api_index.json/api_quick.json are flattened from it by scripts/build_onshape_api_index.py.",
+         "text": "raw/onshape-api/openapi.json — the live Onshape REST API OpenAPI definition, fetched from https://cad.onshape.com/api/openapi with the local credentials by scripts/fetch_onshape_api.py (always the current server version). index/onshape-api/api_index.json and quick/onshape-api/api_quick.json are flattened from it by scripts/build_onshape_api_index.py.",
+         "depth": 0
+        },
+        {
+         "text": "raw/onshape-api-docs/ — the OAuth2 / API-key / error-code / rate-limit pages (public GitHub Pages, zero API-token cost), parsed into index/onshape-api-docs/api_docs.json.",
          "depth": 0
         }
        ]
@@ -2087,7 +2104,7 @@
     },
     {
      "level": 2,
-     "title": "docs/",
+     "title": "Project docs",
      "blocks": [
       {
        "type": "para",
@@ -2097,16 +2114,26 @@
     },
     {
      "level": 2,
+     "title": "Reading order for callers",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Never read raw/ — it exists only as build input and is sha256-pinned by docs/verification/verify_docs.py. For a question: start with a quick/ index (cheap candidate lists), then pull the one entry you need from index/ at full detail. That ordering is exactly what the MCP tools already do (fs_search → fs_get_function); docs/index.json mirrors the project's own markdown the same way (see docs/mcp-server.md)."
+      }
+     ]
+    },
+    {
+     "level": 2,
      "title": "Updating",
      "blocks": [
       {
        "type": "para",
-       "text": "Re-run the fetch scripts to re-sync each tree, then the index builders (which parse library.html into index.json, the guide pages into guide.json, both into the compact quick.json, the OpenAPI spec into the onshape-api indexes, and the project's markdown into docs/index.json — all record source sha256 for staleness checks):"
+       "text": "Re-run the fetch scripts to re-sync each raw tree, then the index builders (which parse raw/fsdoc/library.html into index/fsdoc/index.json, the guide pages into index/fsdoc/guide.json, both into the compact quick/fsdoc/quick.json, and the OpenAPI spec into the onshape-api indexes — all record source sha256 for staleness checks):"
       },
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 scripts/fetch_reference.py\npython3 scripts/build_fsdoc_index.py\npython3 scripts/fetch_onshape_api.py   # needs onshape-credentials.json\npython3 scripts/build_onshape_api_index.py\npython3 scripts/build_docs_index.py    # project docs -> docs/index.json"
+       "text": "python3 scripts/fetch_reference.py\npython3 scripts/build_fsdoc_index.py\npython3 scripts/fetch_onshape_api.py   # needs onshape-credentials.json\npython3 scripts/build_onshape_api_index.py"
       },
       {
        "type": "para",

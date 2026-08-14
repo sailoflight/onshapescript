@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vendor the live Onshape REST API OpenAPI definition into reference/onshape-api/.
+"""Vendor the live Onshape REST API OpenAPI definition into reference/raw/onshape-api/.
 
 Pulls the spec Onshape serves at /api/openapi (the same URL their official
 `onshape-public/openapi` CI workflow downloads from), authenticated with the
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from onshape_fs_mcp.client import OnshapeClient  # noqa: E402
 
-ONSHAPE_API_DIR = ROOT / "reference" / "onshape-api"
+ONSHAPE_API_DIR = ROOT / "reference" / "raw" / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
 OPENAPI_URL = "https://cad.onshape.com/api/openapi"
 

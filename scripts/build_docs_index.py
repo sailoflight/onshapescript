@@ -5,7 +5,7 @@ The MCP server serves two kinds of corpora: the vendored Onshape material
 (reference/) and the project's own LLM-facing docs (docs/, README.md,
 examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
 indexes the project's own markdown into docs/index.json with the SAME schema as
-reference/fsdoc/guide.json — pages -> heading sections -> typed blocks (para,
+reference/index/fsdoc/guide.json — pages -> heading sections -> typed blocks (para,
 code, list, table) — so the project docs are searchable and readable on demand
 through the docs_* tools, never loaded whole.
 

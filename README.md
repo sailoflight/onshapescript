@@ -79,28 +79,34 @@ See `docs/onshape-api.md` for the REST reference data, coverage, and gaps.
 ## The vendored reference
 
 `scripts/fetch_reference.py` downloads, and `scripts/build_fsdoc_index.py`
-indexes, the official FeatureScript material into `reference/`:
+indexes, the official FeatureScript material into `reference/`, split into
+three tiers so a caller never reads what it does not need:
 
-- `reference/fsdoc/` — the FsDoc pages from `cad.onshape.com` (function/type
-  reference, language guide, tutorial) plus `index.json` (every function, type,
-  parameter, and description as structured text), `guide.json` (the guide pages
-  parsed into heading sections with typed blocks — paragraphs, code, tables,
-  lists), and `quick.json` (one line per entry for cheap context loading).
-- `reference/std-library/` — the standard library source mirrored from
-  `github.com/javawizard/onshape-std-library-mirror` (MIT), because the real
-  implementation is the highest-fidelity reference.
+- `reference/raw/` — **build inputs, never read by the tools**: the FsDoc
+  pages from `cad.onshape.com` (`raw/fsdoc/`, including the 1.7 MB
+  `library.html`), the standard-library source mirrored from
+  `github.com/javawizard/onshape-std-library-mirror` (MIT; `raw/std-library/`,
+  the real implementation is the highest-fidelity reference), and the raw
+  REST / dev-doc inputs below.
+- `reference/quick/` — **the cheap first read** (tier 1): `quick.json` (one
+  line per entry), `api_quick.json` (one line per endpoint). What the
+  search/find tools consult.
+- `reference/index/` — **on-demand full detail** (tier 2): `index.json` (every
+  function, type, parameter, and description as structured text), `guide.json`
+  (the guide pages parsed into heading sections with typed blocks — paragraphs,
+  code, tables, lists), `api_index.json`, `api_docs.json`.
 - `reference/quick-reference.md` — a curated, distilled cheat-sheet synthesized
   from the docs (served by `fs_quick_reference`).
 
 `scripts/fetch_onshape_api.py` downloads the **live** Onshape REST API OpenAPI
 definition from `https://cad.onshape.com/api/openapi` (authenticated) into
-`reference/onshape-api/openapi.json`, and `scripts/build_onshape_api_index.py`
-flattens it into `api_index.json` (302 endpoints, 1226 schemas) +
-`api_quick.json` for the `onshape_api_*` tools. Because it is pulled live from
-the server, it always reflects the running deployment — no stale snapshot.
-`scripts/fetch_onshape_api_docs.py` additionally vendors the official OAuth2 /
-API-key / error-code / limits pages (public HTTP, no API-token cost) into
-`reference/onshape-api-docs/` for the `onshape_api_auth` and
+`raw/onshape-api/openapi.json`, and `scripts/build_onshape_api_index.py`
+flattens it into `index/onshape-api/api_index.json` (302 endpoints, 1226
+schemas) + `quick/onshape-api/api_quick.json` for the `onshape_api_*` tools.
+Because it is pulled live from the server, it always reflects the running
+deployment — no stale snapshot. `scripts/fetch_onshape_api_docs.py` additionally
+vendors the official OAuth2 / API-key / error-code / limits pages (public HTTP,
+no API-token cost) into `raw/onshape-api-docs/` for the `onshape_api_auth` and
 `onshape_api_error_codes` tools.
 
 The project's **own** LLM-facing docs (`docs/*.md`, `reference/quick-reference.md`,

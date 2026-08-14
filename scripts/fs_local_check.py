@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-INDEX_PATH = ROOT / "reference" / "fsdoc" / "index.json"
+INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
 
 # Keywords that are not function calls.
 _KEYWORDS = {
