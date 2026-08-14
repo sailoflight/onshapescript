@@ -933,7 +933,7 @@
   {
    "page": "llm-experience-fs",
    "path": "docs/verification/llm-experience-fs.md",
-   "sha256": "c1ec1465a48e781e2ddee8eb5bbb0094d5265b599d4db9bd727eb979ce3cc8d3",
+   "sha256": "e931b6554a9874ac60c7c75553ebd1244da4ea6ffa437da5f4fa2f37f120cacf",
    "title": "LLM experience: FeatureScript language",
    "sections": [
     {
@@ -942,7 +942,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "What a model actually needs to write correct FeatureScript. Backed by the verified corpus (docs/verification/report.json, collected by verify_docs.py against FsDoc: 949 functions, 270 types, 129 constants, 133 predicates, 210 modules, 18 guide pages)."
+       "text": "What a model actually needs to write correct FeatureScript. Backed by the verified corpus (docs/verification/report.json, collected by verify_docs.py against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates, 210 modules, 18 guide pages)."
       }
      ]
     },
@@ -974,7 +974,7 @@
          "depth": 1
         },
         {
-         "text": "55 operator overloads (symbols like -, +), the -Id-string style names are the operators.",
+         "text": "35 operator overload entries (symbols like -, +), the -Id-string style names are the operators. (Count is deduplicated: the official page lists some operator overloads several times under the same anchor; the index folds them.)",
          "depth": 1
         },
         {

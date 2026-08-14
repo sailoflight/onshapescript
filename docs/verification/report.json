@@ -19,7 +19,7 @@
   {
    "name": "FS function entries have ['name', 'signature', 'module']",
    "ok": true,
-   "detail": "949 ok"
+   "detail": "929 ok"
   },
   {
    "name": "FS type entries have ['name', 'kind']",
@@ -108,7 +108,7 @@
    ]
   },
   "fs": {
-   "functions": 949,
+   "functions": 929,
    "types": 270,
    "constants": 129,
    "predicates": 133,
@@ -118,7 +118,7 @@
   "fsFunctionPrefixes": [
    [
     "-",
-    54
+    34
    ],
    [
     "toString",

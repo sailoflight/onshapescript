@@ -399,7 +399,9 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Return the full reference entry for one FeatureScript function: exact signature, every "
             "parameter with its type, requirement (Optional / Required), description and example, plus the "
-            "return type and module. Use for exact API details before writing FeatureScript. Constants and "
+            "return type and module. FeatureScript overloads a name with several signatures — when the "
+            "name has multiple signatures in one module, ALL of them are returned as an 'overloads' list "
+            "(each with parameters/description) so you can pick by exact signature. Constants and "
             "typecheck predicates are also addressable via kind. Local and offline."
         ),
         "inputSchema": object_schema({

@@ -2,7 +2,7 @@
 
 What a model actually needs to write correct FeatureScript. Backed by the
 verified corpus (`docs/verification/report.json`, collected by `verify_docs.py`
-against FsDoc: 949 functions, 270 types, 129 constants, 133 predicates,
+against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates,
 210 modules, 18 guide pages).
 
 ## How the language is shaped (verified counts)
@@ -17,8 +17,9 @@ against FsDoc: 949 functions, 270 types, 129 constants, 133 predicates,
     back out of the model (queries in, values out).
   - `to*` — conversions (23), `is*` — typecheck predicates (13), `f*` — feature
     builders (4).
-  - 55 operator overloads (symbols like `-`, `+`), the `-Id-string` style names
-    are the operators.
+  - 35 operator overload entries (symbols like `-`, `+`), the `-Id-string` style
+    names are the operators. (Count is deduplicated: the official page lists some
+    operator overloads several times under the same anchor; the index folds them.)
 - **The dominant parameter type is `map`** (verified: 220 uses), followed by
   `Vector` (49), `array` (45), `Query` (23), `Id` (15), `ValueWithUnits` (14).
   A feature's `definition` is a map; pass the documented keys, not a positional

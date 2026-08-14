@@ -9292,16 +9292,6 @@
    "parameters": []
   },
   {
-   "anchor": "-Matrix-Matrix",
-   "name": "-",
-   "module": "matrix.fs",
-   "category": "Math",
-   "signature": "-(m1 is Matrix, m2 is Matrix)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
    "anchor": "cwiseProduct-Matrix-Matrix",
    "name": "cwiseProduct",
    "module": "matrix.fs",
@@ -9318,26 +9308,6 @@
    "module": "matrix.fs",
    "category": "Math",
    "signature": "-(m1 is Matrix)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-Matrix-Matrix",
-   "name": "-",
-   "module": "matrix.fs",
-   "category": "Math",
-   "signature": "-(m1 is Matrix, m2 is Matrix)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-Matrix-number",
-   "name": "-",
-   "module": "matrix.fs",
-   "category": "Math",
-   "signature": "-(m is Matrix, n is number)",
    "kind": null,
    "description": "",
    "parameters": []
@@ -9521,16 +9491,6 @@
    "parameters": []
   },
   {
-   "anchor": "-MatrixWithUnits-MatrixWithUnits",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "signature": "-(lhs is MatrixWithUnits, rhs is MatrixWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
    "anchor": "-MatrixWithUnits",
    "name": "-",
    "module": "matrixWithUnits.fs",
@@ -9581,16 +9541,6 @@
    "parameters": []
   },
   {
-   "anchor": "-MatrixWithUnits-MatrixWithUnits",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "signature": "-(lhs is MatrixWithUnits, rhs is MatrixWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
    "anchor": "-Matrix-MatrixWithUnits",
    "name": "-",
    "module": "matrixWithUnits.fs",
@@ -9606,26 +9556,6 @@
    "module": "matrixWithUnits.fs",
    "category": "Math",
    "signature": "-(lhs is MatrixWithUnits, rhs is Matrix)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-MatrixWithUnits-number",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "signature": "-(lhs is MatrixWithUnits, rhs is number)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-MatrixWithUnits-ValueWithUnits",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "signature": "-(lhs is MatrixWithUnits, rhs is ValueWithUnits)",
    "kind": null,
    "description": "",
    "parameters": []
@@ -10554,7 +10484,7 @@
    "category": "Math",
    "signature": "-(lhs is ValueWithUnits, rhs is ValueWithUnits)",
    "kind": null,
-   "description": "",
+   "description": "Multiplication of two ValueWithUnits normally returns a ValueWithUnits. Multiplying two lengths returns an area. As a special case, if the product is unitless the result is a scalar number.",
    "parameters": []
   },
   {
@@ -10573,26 +10503,6 @@
    "module": "units.fs",
    "category": "Math",
    "signature": "-(lhs is number, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is ValueWithUnits)",
    "kind": null,
    "description": "",
    "parameters": []
@@ -10608,36 +10518,6 @@
    "parameters": []
   },
   {
-   "anchor": "-number-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is number, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-number",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is number)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "Multiplication of two ValueWithUnits normally returns a ValueWithUnits. Multiplying two lengths returns an area. As a special case, if the product is unitless the result is a scalar number.",
-   "parameters": []
-  },
-  {
    "anchor": "reciprocal-ValueWithUnits",
    "name": "reciprocal",
    "module": "units.fs",
@@ -10646,56 +10526,6 @@
    "returnType": "ValueWithUnits",
    "kind": null,
    "description": "Inverts a value, including units.",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-number-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is number, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-number",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is number)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-ValueWithUnits",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is ValueWithUnits)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-ValueWithUnits-number",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "signature": "-(lhs is ValueWithUnits, rhs is number)",
-   "kind": null,
-   "description": "",
    "parameters": []
   },
   {
@@ -10950,16 +10780,6 @@
    "parameters": []
   },
   {
-   "anchor": "-Vector-Vector",
-   "name": "-",
-   "module": "vector.fs",
-   "category": "Math",
-   "signature": "-(vector1 is Vector, vector2 is Vector)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
    "anchor": "-Vector",
    "name": "-",
    "module": "vector.fs",
@@ -11051,16 +10871,6 @@
    "parameters": []
   },
   {
-   "anchor": "-Vector-Vector",
-   "name": "-",
-   "module": "vector.fs",
-   "category": "Math",
-   "signature": "-(vec1 is Vector, vec2 is Vector)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
    "anchor": "-Matrix-Vector",
    "name": "-",
    "module": "vector.fs",
@@ -11076,16 +10886,6 @@
    "module": "vector.fs",
    "category": "Math",
    "signature": "-(vector is Vector, matrix is Matrix)",
-   "kind": null,
-   "description": "",
-   "parameters": []
-  },
-  {
-   "anchor": "-Vector-",
-   "name": "-",
-   "module": "vector.fs",
-   "category": "Math",
-   "signature": "-(vector is Vector, scalar)",
    "kind": null,
    "description": "",
    "parameters": []

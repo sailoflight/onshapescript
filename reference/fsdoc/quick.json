@@ -1,6 +1,6 @@
 {
  "counts": {
-  "functions": 949,
+  "functions": 929,
   "types": 270,
   "constants": 129,
   "predicates": 133,
@@ -39,27 +39,6 @@
    "kind": "function",
    "name": "-",
    "module": "curveGeometry.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "matrix.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "matrix.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "matrix.fs",
    "category": "Math",
    "summary": ""
   },
@@ -171,34 +150,6 @@
   {
    "kind": "function",
    "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "matrixWithUnits.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
    "module": "surfaceGeometry.fs",
    "category": "Math",
    "summary": ""
@@ -236,62 +187,6 @@
    "name": "-",
    "module": "units.fs",
    "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
    "summary": "Multiplication of two ValueWithUnits normally returns a ValueWithUnits. Multiplying two lengths…"
   },
   {
@@ -312,41 +207,6 @@
    "kind": "function",
    "name": "-",
    "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "units.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "vector.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "vector.fs",
-   "category": "Math",
-   "summary": ""
-  },
-  {
-   "kind": "function",
-   "name": "-",
-   "module": "vector.fs",
    "category": "Math",
    "summary": ""
   },

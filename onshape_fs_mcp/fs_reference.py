@@ -169,7 +169,13 @@ def get_function(
     module: str | None = None,
     kind: str | None = None,
 ) -> dict[str, Any]:
-    """Return the full detail of a function (or const/predicate when kind given)."""
+    """Return the full detail of a function (or const/predicate when kind given).
+
+    FeatureScript overloads a function name with several signatures (e.g.
+    `qEverything()`, `qEverything(entityType)`); when all matches live in one
+    module they are returned together as an `overloads` list. Only genuinely
+    cross-module name clashes raise an ambiguity error.
+    """
     if kind is not None and kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}")
     candidates = [e for e in _all_entries() if e["kind"] == (kind or "function")]
@@ -183,23 +189,42 @@ def get_function(
             + (f" in module '{module}'" if module else "")
             + ". Check the name or omit module to see all matches."
         )
-    if len(matches) > 1:
+    modules = {m["module"] for m in matches}
+    if len(modules) > 1:
         raise ValueError(
-            f"'{name}' exists in {len(matches)} modules: "
-            + ", ".join(m["module"] for m in matches)
+            f"'{name}' exists in {len(modules)} modules: "
+            + ", ".join(sorted(modules))
             + ". Pass module to disambiguate."
         )
+
+    def _detail(entry: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "signature": entry.get("signature", ""),
+            "returnType": entry.get("returnType"),
+            "parameters": entry.get("parameters", []),
+            "description": entry.get("description", ""),
+            "anchor": entry.get("anchor", ""),
+        }
+
     entry = matches[0]
-    return {
+    base: dict[str, Any] = {
         "kind": entry["kind"],
         "name": entry["name"],
         "module": entry.get("module", ""),
         "category": entry.get("category", ""),
-        "signature": entry.get("signature", ""),
-        "returnType": entry.get("returnType"),
-        "parameters": entry.get("parameters", []),
-        "description": entry.get("description", ""),
-        "anchor": entry.get("anchor", ""),
+    }
+    if len(matches) == 1:
+        return {**base, **_detail(entry)}
+    # Overloads in the same module: list every signature so the caller can pick
+    # by exact signature instead of guessing which one fs_get_function meant.
+    return {
+        **base,
+        "overloadCount": len(matches),
+        "overloads": [_detail(m) for m in matches],
+        "note": (
+            f"'{name}' is overloaded with {len(matches)} signatures in "
+            f"'{entry.get('module')}'; each is listed above. Pick by signature."
+        ),
     }
 
 

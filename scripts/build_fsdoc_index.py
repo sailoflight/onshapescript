@@ -649,6 +649,27 @@ def build_guide() -> list[dict[str, Any]]:
     return pages
 
 
+def _dedupe_functions(functions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse official FsDoc duplicate entries by (module, anchor).
+
+    The official library.html lists some operator overloads several times under
+    the SAME anchor (e.g. `-` in units.fs appears ~6x for
+    `-ValueWithUnits-ValueWithUnits`, only once with a description). These are
+    duplicate definitions in the upstream page, not distinct overloads. Fold
+    them so fs_get_function's overloads list shows each real signature once,
+    keeping the entry that carries a description when one exists.
+    """
+    seen: dict[tuple[str, str], dict[str, Any]] = {}
+    for entry in functions:
+        key = (entry.get("module", ""), entry.get("anchor", ""))
+        existing = seen.get(key)
+        if existing is None:
+            seen[key] = entry
+        elif not existing.get("description") and entry.get("description"):
+            seen[key] = entry  # prefer the copy that has prose
+    return list(seen.values())
+
+
 def build() -> dict[str, Any]:
     source = LIBRARY_PATH.read_text(encoding="utf-8")
     categories = load_category_map(source)
@@ -659,6 +680,7 @@ def build() -> dict[str, Any]:
     for entry in parser.functions:
         entry["parameters"] = _nest_subfields(_clean(entry.get("parameters", [])))
         functions.append(entry)
+    functions = _dedupe_functions(functions)
 
     types = []
     for entry in parser.types:
