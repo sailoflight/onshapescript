@@ -19,12 +19,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX_PATH = ROOT / "reference" / "fsdoc" / "index.json"
 GUIDE_PATH = ROOT / "reference" / "fsdoc" / "guide.json"
+QUICK_REFERENCE_PATH = ROOT / "reference" / "quick-reference.md"
 FSDOC_DIR = ROOT / "reference" / "fsdoc"
 STD_LIB_DIR = ROOT / "reference" / "std-library"
 
@@ -595,3 +597,142 @@ def check_version(target: Any = None, live_version: Any = None) -> dict[str, Any
         "warnings": warnings,
         "referenceHealth": health,
     }
+
+
+# --------------------------------------------------------------------------
+# reference maintenance (the only network path) and quick digest
+# --------------------------------------------------------------------------
+
+MIRROR_VERSION_URL = (
+    "https://raw.githubusercontent.com/javawizard/onshape-std-library-mirror/"
+    "without-versions/featurescriptversionnumber.gen.fs"
+)
+
+
+def fetch_latest_mirror_version(timeout: int = 30) -> dict[str, Any]:
+    """Probe the mirror for the newest FeatureScript version (network call).
+
+    Downloads only the small version constant file, so the probe is cheap. This
+    is the sole network-requiring function in this module.
+    """
+    with urllib.request.urlopen(MIRROR_VERSION_URL, timeout=timeout) as response:
+        text = response.read().decode("utf-8", "replace")
+    match = re.search(
+        r"FeatureScriptVersionNumberCurrent[^\n]*V(\d+)_([A-Za-z0-9_]+)\s*;",
+        text,
+    )
+    if not match:
+        raise ValueError("could not parse FeatureScriptVersionNumberCurrent from the mirror")
+    version = int(match.group(1))
+    return {
+        "version": version,
+        "label": f"V{version}_{match.group(2)}",
+        "source": "mirror (network probe)",
+    }
+
+
+def current_versions() -> dict[str, Any]:
+    """Snapshot of the vendored corpus versions/sizes (offline)."""
+    index = _load_index()
+    guide = _load_guide()
+    return {
+        "vendoredVersion": vendored_version()["version"],
+        "librarySha256": index.get("librarySha256"),
+        "functionsCount": len(index.get("functions", [])),
+        "guideSectionsCount": sum(
+            len(p.get("sections", [])) for p in guide.get("pages", [])
+        ),
+    }
+
+
+def _function_key(entry: dict[str, Any]) -> tuple[str, str]:
+    return (entry.get("name", ""), entry.get("module", ""))
+
+
+def reference_change_summary(
+    old_functions: list[dict[str, Any]],
+    new_functions: list[dict[str, Any]],
+    preview: int = 20,
+) -> dict[str, Any]:
+    """Compare two generations of the function index, bounded for context."""
+    old = {_function_key(e): e for e in old_functions}
+    new = {_function_key(e): e for e in new_functions}
+
+    def signature_of(entry: dict[str, Any]) -> tuple[Any, Any]:
+        return (entry.get("signature"), entry.get("description"))
+
+    added = sorted(set(new) - set(old), key=lambda k: k[0])
+    removed = sorted(set(old) - set(new), key=lambda k: k[0])
+    changed = sorted(
+        (k for k in set(old) & set(new) if signature_of(old[k]) != signature_of(new[k])),
+        key=lambda k: k[0],
+    )
+
+    def names(items: list[tuple[str, str]]) -> list[str]:
+        return [name for name, _ in items]
+
+    return {
+        "addedCount": len(added),
+        "removedCount": len(removed),
+        "changedCount": len(changed),
+        "added": names(added[:preview]),
+        "removed": names(removed[:preview]),
+        "changed": names(changed[:preview]),
+        "truncated": max(len(added), len(removed), len(changed)) > preview,
+    }
+
+
+def update_reference(timeout: int = 600) -> dict[str, Any]:
+    """Fetch the latest docs and rebuild the JSON indexes (mutates reference/).
+
+    Returns a bounded change summary so the caller does not have to hold the
+    delta in context; afterwards the query functions serve the fresh corpus.
+    """
+    import subprocess
+    import sys
+
+    old_functions = _load_index().get("functions", [])
+    before = current_versions()
+    fetch = subprocess.run(
+        [sys.executable, "scripts/fetch_reference.py", "--quiet"],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+    )
+    build = subprocess.run(
+        [sys.executable, "scripts/build_fsdoc_index.py"],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+    )
+    reload()
+    new_functions = _load_index().get("functions", [])
+    after = current_versions()
+    changes = reference_change_summary(old_functions, new_functions)
+
+    notes: list[str] = []
+    if fetch.returncode != 0:
+        notes.append("fetch_reference.py exited nonzero (some downloads failed): "
+                     + fetch.stderr.strip()[:200])
+    if build.returncode != 0:
+        notes.append("build_fsdoc_index.py exited nonzero: " + build.stderr.strip()[:200])
+
+    updated = (
+        before.get("librarySha256") != after.get("librarySha256")
+        or changes["addedCount"] > 0
+        or changes["removedCount"] > 0
+        or changes["changedCount"] > 0
+    )
+    return {
+        "versionBefore": before.get("vendoredVersion"),
+        "versionAfter": after.get("vendoredVersion"),
+        "updated": updated,
+        "changes": changes,
+        "notes": notes,
+    }
+
+
+def quick_reference() -> dict[str, Any]:
+    """Return the curated quick-reference digest (reference/quick-reference.md)."""
+    if not QUICK_REFERENCE_PATH.is_file():
+        raise ValueError(
+            "reference/quick-reference.md is missing; it is authored alongside the vendored docs."
+        )
+    text = QUICK_REFERENCE_PATH.read_text(encoding="utf-8")
+    return {"path": str(QUICK_REFERENCE_PATH), "bytes": len(text), "text": text}

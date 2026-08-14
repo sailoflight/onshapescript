@@ -62,7 +62,7 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 19)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 21)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -138,6 +138,15 @@ class McpServerTest(unittest.TestCase):
                     "arguments": {"category": "Math"},
                 },
             },
+            {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_quick_reference",
+                    "arguments": {},
+                },
+            },
         ])
         self.assertEqual(stderr, "")
         op = responses[0]["result"]["structuredContent"]
@@ -154,6 +163,8 @@ class McpServerTest(unittest.TestCase):
         modules = responses[3]["result"]["structuredContent"]["modules"]
         self.assertTrue(modules)
         self.assertTrue(all(m["category"] == "Math" for m in modules))
+        quick = responses[4]["result"]["structuredContent"]
+        self.assertTrue(quick["text"].startswith("# FeatureScript quick reference"))
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([
@@ -165,10 +176,20 @@ class McpServerTest(unittest.TestCase):
                     "name": "onshape_upload_feature_studio",
                     "arguments": {"confirm_mutation": False},
                 },
-            }
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_update_reference",
+                    "arguments": {"confirm_mutation": False},
+                },
+            },
         ])
-        self.assertTrue(responses[0]["result"]["isError"])
-        self.assertIn("confirm_mutation", responses[0]["result"]["content"][0]["text"])
+        for response in responses:
+            self.assertTrue(response["result"]["isError"])
+            self.assertIn("confirm_mutation", response["result"]["content"][0]["text"])
         self.assertIn("ValueError", stderr)
 
 

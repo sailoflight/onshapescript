@@ -160,13 +160,17 @@ def write_attribution() -> None:
         "## Updating",
         "",
         "Re-run the fetch script to re-sync both trees. Then re-run the index builder,",
-        "which parses `library.html` into `index.json` and the guide pages into",
-        "`guide.json` (both record source sha256 for staleness checks):",
+        "which parses `library.html` into `index.json`, the guide pages into",
+        "`guide.json`, and both into the compact `quick.json` (all record source",
+        "sha256 for staleness checks):",
         "",
         "```bash",
         "python3 scripts/fetch_reference.py",
         "python3 scripts/build_fsdoc_index.py",
         "```",
+        "",
+        "`reference/quick-reference.md` is a curated cheat-sheet authored alongside",
+        "these files; refresh it by hand when a major version bump changes the API.",
     ]
     write(REFERENCE_DIR / "README.md", ("\n".join(lines) + "\n").encode())
 
@@ -180,22 +184,26 @@ def main() -> int:
 
     print(f"Fetching into {REFERENCE_DIR}")
     total = 0
+    failed_total = 0
     if not args.skip_docs:
         print("  FsDoc pages:")
         n, failed = fetch_fsdoc(args.quiet)
         total += n
+        failed_total += failed
         print(f"    {n} bytes written, {failed} failed")
     if not args.skip_library:
         print("  Standard library source:")
         n, failed = fetch_std_library(args.quiet)
         total += n
+        failed_total += failed
         print(f"    {n} bytes written, {failed} failed")
     write_attribution()
     print(f"Total {total} bytes in {REFERENCE_DIR}")
 
     docs_sha = sha256_of(FSDOC_DIR / "library.html")
     print(f"  fsdoc/library.html sha256 = {docs_sha}")
-    return 0
+    # Nonzero exit lets callers (e.g. the MCP update tool) detect partial failures.
+    return 1 if failed_total else 0
 
 
 if __name__ == "__main__":

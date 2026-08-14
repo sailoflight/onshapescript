@@ -17,13 +17,15 @@ docs/                  server and tool documentation
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (19)
+## MCP tools (21)
 
 **FeatureScript reference — local, offline** (the core value):
 
 | Tool | Purpose |
 |---|---|
-| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` when you target a newer version, plus index-consistency health |
+| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health and an optional latest-version probe (`check_latest`) |
+| `fs_update_reference` | Re-fetch the official docs + std library and rebuild the indexes; returns a compact change summary (version before/after, added/removed/changed counts). Mutating: requires `confirm_mutation=true` |
+| `fs_quick_reference` | The curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call |
 | `fs_list_modules` | Standard library modules grouped by category |
 | `fs_list_functions` | Functions/types/constants/predicates with signatures, filtered |
 | `fs_get_function` | Full entry: signature, parameters, requirements, examples, return type |
@@ -49,12 +51,14 @@ indexes, the official material into `reference/`:
 
 - `reference/fsdoc/` — the FsDoc pages from `cad.onshape.com` (function/type
   reference, language guide, tutorial) plus `index.json` (every function, type,
-  parameter, and description as structured text) and `guide.json` (the guide
-  pages parsed into heading sections with typed blocks — paragraphs, code,
-  tables, lists).
+  parameter, and description as structured text), `guide.json` (the guide pages
+  parsed into heading sections with typed blocks — paragraphs, code, tables,
+  lists), and `quick.json` (one line per entry for cheap context loading).
 - `reference/std-library/` — the standard library source mirrored from
   `github.com/javawizard/onshape-std-library-mirror` (MIT), because the real
   implementation is the highest-fidelity reference.
+- `reference/quick-reference.md` — a curated, distilled cheat-sheet synthesized
+  from the docs (served by `fs_quick_reference`).
 
 Everything prose-shaped is a JSON index; the large source stays as files read
 on demand. Both indexes record the source sha256 so `fs_check_version` can

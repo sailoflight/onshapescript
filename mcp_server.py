@@ -84,26 +84,37 @@ GUIDE_PAGE_SCHEMA = {
 
 
 def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Version check is offline; the Feature Studio live version is optional."""
+    """Version check is offline; the live/latest probes are optional."""
     live_version: Any = None
+    note = None
     if arguments.get("include_live"):
         if not CREDENTIALS_PATH.is_file():
-            live_version = None
             note = "live check skipped: no credentials configured"
         else:
             try:
                 live_version = feature_studio_status().get("libraryVersion")
-                note = None
             except Exception as error:
-                live_version = None
                 note = f"live check failed: {type(error).__name__}: {error}"
-        result = fs_reference.check_version(
-            target=arguments.get("target"), live_version=live_version
-        )
-        if note:
-            result["liveCheckNote"] = note
-        return result
-    return fs_reference.check_version(target=arguments.get("target"))
+    result = fs_reference.check_version(
+        target=arguments.get("target"), live_version=live_version
+    )
+    if arguments.get("check_latest"):
+        try:
+            latest = fs_reference.fetch_latest_mirror_version()
+            result["latestAvailableVersion"] = latest["version"]
+            result["latestAvailableLabel"] = latest["label"]
+            vendored = result.get("vendoredVersion")
+            result["updateAvailable"] = vendored is not None and latest["version"] > vendored
+        except Exception as error:
+            result["latestCheckNote"] = f"latest check failed: {type(error).__name__}: {error}"
+    if note:
+        result["liveCheckNote"] = note
+    return result
+
+
+def _update_reference(arguments: dict[str, Any]) -> dict[str, Any]:
+    _confirm(arguments)
+    return fs_reference.update_reference()
 
 
 def _local_state(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -188,8 +199,9 @@ TOOLS: list[dict[str, Any]] = [
             "version you are coding against. Reports the vendored reference version (parsed from the "
             "standard library), your target version, and - when include_live is set and credentials are "
             "configured - your Onshape Feature Studio's version. Returns a 'docs-behind' warning whenever "
-            "a newer version is targeted, plus reference-health consistency checks. Use it before writing "
-            "code against a specific FeatureScript version."
+            "a newer version is targeted, plus reference-health consistency checks. With check_latest it "
+            "also probes the mirror (one small network call) for the newest available version. Use it "
+            "before writing code against a specific FeatureScript version."
         ),
         "inputSchema": object_schema({
             "target": {
@@ -201,10 +213,38 @@ TOOLS: list[dict[str, Any]] = [
                 "default": False,
                 "description": "Also read the configured Onshape Feature Studio's version (read-only, requires credentials).",
             },
+            "check_latest": {
+                "type": "boolean",
+                "default": False,
+                "description": "Probe the mirror for the newest available FeatureScript version (one small network call).",
+            },
         }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "fs_update_reference",
+        "description": (
+            "Update the vendored FeatureScript reference: re-fetch the official FsDoc pages and the "
+            "standard library from the mirror, then rebuild index.json / guide.json / quick.json. "
+            "Returns only a compact change summary (version before/after, counts and sample names of "
+            "added/removed/changed functions) so the caller does not have to hold the delta in context - "
+            "afterwards all fs_* lookup tools serve the fresh corpus. This performs network downloads and "
+            "overwrites files under reference/, so it requires confirm_mutation=true."
+        ),
+        "inputSchema": object_schema({"confirm_mutation": mutating_confirmation()}, ["confirm_mutation"]),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "fs_quick_reference",
+        "description": (
+            "Return the curated FeatureScript quick-reference digest (reference/quick-reference.md): a "
+            "distilled cheat-sheet covering the language model, feature anatomy, parameters, queries, the "
+            "standard library map, common patterns, and pitfalls. Small enough to load into context in one "
+            "call; use it to orient before drilling into fs_get_function/fs_guide_section. Local and offline."
+        ),
+        "inputSchema": object_schema(),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
-    # --- FeatureScript reference tools (local, offline) ---------------------
     {
         "name": "fs_list_modules",
         "description": (
@@ -489,6 +529,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_run_validation_pipeline": _pipeline,
     # FeatureScript reference tools (local, offline)
     "fs_check_version": _check_version,
+    "fs_update_reference": _update_reference,
+    "fs_quick_reference": lambda _: fs_reference.quick_reference(),
     "fs_list_modules": lambda arguments: {
         "categories": fs_reference.list_categories(),
         "modules": fs_reference.list_modules(category=arguments.get("category")),

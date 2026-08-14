@@ -30,6 +30,7 @@ FSDOC_DIR = ROOT / "reference" / "fsdoc"
 LIBRARY_PATH = FSDOC_DIR / "library.html"
 INDEX_PATH = FSDOC_DIR / "index.json"
 GUIDE_PATH = FSDOC_DIR / "guide.json"
+QUICK_PATH = FSDOC_DIR / "quick.json"
 
 # Guide/tutorial pages included in guide.json. library.html and index.html are
 # excluded: library.html is the function reference (covered by index.json) and
@@ -147,6 +148,12 @@ class LibraryParser(HTMLParser):
         ret = " ".join("".join(self.sig_bufs["ret"]).split())
         ret = ret[len("returns"):].strip() if ret.startswith("returns") else ret
         entry = self.entry
+        if not name and entry.get("anchor"):
+            # Operator overloads (e.g. `-Id-string`) leave the symbol name span
+            # empty; the anchor encodes the operator as a leading symbol run.
+            match = re.match(r"^([^A-Za-z0-9]+)", entry["anchor"])
+            if match:
+                name = match.group(1)
         entry["name"] = name
         entry["module"] = self.current_module
         entry["category"] = self.categories.get(self.current_module, "")
@@ -684,11 +691,59 @@ def build() -> dict[str, Any]:
     }
 
 
+def _summary(text: str, length: int = 96) -> str:
+    text = " ".join(text.split())
+    if len(text) <= length:
+        return text
+    cut = text[: length - 1].rstrip()
+    return cut + "…"
+
+
+def build_quick(index: dict[str, Any], guide: dict[str, Any]) -> dict[str, Any]:
+    """Compact, one-line-per-entry quick index for cheap context loading.
+
+    Drops signatures, parameters, and full descriptions; keeps just enough to
+    know the surface and decide what to look up in full. Auto-regenerated on
+    every index build so it can never drift from index.json.
+    """
+    entries: list[dict[str, Any]] = []
+    kind_order = {"function": 0, "type": 1, "const": 2, "predicate": 3}
+    for kind, key in (("function", "functions"), ("type", "types"),
+                      ("const", "constants"), ("predicate", "predicates")):
+        for entry in index[key]:
+            entries.append({
+                "kind": kind,
+                "name": entry["name"],
+                "module": entry.get("module", ""),
+                "category": entry.get("category", ""),
+                "summary": _summary(entry.get("description", "")),
+            })
+    entries.sort(key=lambda e: (kind_order[e["kind"]], e["name"]))
+    guide_sections = [
+        {"title": section["title"], "page": page["page"]}
+        for page in guide.get("pages", [])
+        for section in page.get("sections", [])
+    ]
+    return {
+        "counts": {
+            "functions": len(index["functions"]),
+            "types": len(index["types"]),
+            "constants": len(index["constants"]),
+            "predicates": len(index["predicates"]),
+            "guideSections": len(guide_sections),
+        },
+        "entries": entries,
+        "guideSections": guide_sections,
+    }
+
+
 def main() -> int:
     index = build()
     INDEX_PATH.write_text(json.dumps(index, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     guide = {"pages": build_guide()}
     GUIDE_PATH.write_text(json.dumps(guide, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    quick = build_quick(index, guide)
+    QUICK_PATH.write_text(json.dumps(quick, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     counts = {
         "modules": len(index["modules"]),
         "functions": len(index["functions"]),
@@ -701,6 +756,7 @@ def main() -> int:
     print(json.dumps(counts, indent=2))
     print(f"wrote {INDEX_PATH} ({INDEX_PATH.stat().st_size} bytes)")
     print(f"wrote {GUIDE_PATH} ({GUIDE_PATH.stat().st_size} bytes)")
+    print(f"wrote {QUICK_PATH} ({QUICK_PATH.stat().st_size} bytes)")
     return 0
 
 

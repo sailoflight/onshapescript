@@ -20,10 +20,14 @@ local MCP tools can answer FeatureScript questions without a network round trip.
 ## Updating
 
 Re-run the fetch script to re-sync both trees. Then re-run the index builder,
-which parses `library.html` into `index.json` and the guide pages into
-`guide.json` (both record source sha256 for staleness checks):
+which parses `library.html` into `index.json`, the guide pages into
+`guide.json`, and both into the compact `quick.json` (all record source
+sha256 for staleness checks):
 
 ```bash
 python3 scripts/fetch_reference.py
 python3 scripts/build_fsdoc_index.py
 ```
+
+`reference/quick-reference.md` is a curated cheat-sheet authored alongside
+these files; refresh it by hand when a major version bump changes the API.
