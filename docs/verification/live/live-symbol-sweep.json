@@ -4,7 +4,7 @@
   "budget": 99,
   "spent": 0,
   "remaining": 99,
-  "annualRemaining": 1829
+  "annualRemaining": 1817
  },
  "importBoundary": {
   "3029": {
@@ -39,9 +39,9 @@
  "final": {
   "label": "symbol existence sweep",
   "budget": 99,
-  "spent": 9,
-  "remaining": 90,
-  "annualRemaining": 1829
+  "spent": 3,
+  "remaining": 96,
+  "annualRemaining": 1817
  },
  "budgetStopped": false
 }

@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "url": "https://cad.onshape.com/api/openapi",
+  "headers": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "body": null
+}

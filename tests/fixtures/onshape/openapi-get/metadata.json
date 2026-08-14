@@ -1,0 +1,13 @@
+{
+  "operation": "GET /api/openapi",
+  "at": "2026-08-14T10:43:57Z",
+  "status": 200,
+  "ledgered": true,
+  "source": "scripts/fetch_onshape_api.py",
+  "purpose": "Fetched the live OpenAPI definition during the accidental 2026-08-14 live run (stale rate-limit hold believed active; it had cleared). Captured as a fixture so this exact call is never re-run: the vendored spec + this hash ARE the recorded outcome.",
+  "testPurpose": "Replay instead of live GET: any test that needs the OpenAPI definition must load reference/raw/onshape-api/openapi.json and check its sha256 against response.json, never re-fetch.",
+  "requestHeaders": {
+    "Authorization": "<REDACTED>"
+  },
+  "responseHeaders": "Not persisted: fetch_onshape_api prints body stats only and never captured the response headers for this run."
+}

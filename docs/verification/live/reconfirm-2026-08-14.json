@@ -1,0 +1,303 @@
+{
+ "kind": "live-run-reconfirm",
+ "at": {
+  "start": "2026-08-14T10:43:57Z",
+  "end": "2026-08-14T10:45:34Z"
+ },
+ "trigger": "accidental: during quota-gate verification I set LIVE_API_ENABLED=1 believing the account was under the ~20h rate-limit hold; the ledger's lastRetryAfter 72910s was stale and the hold had cleared, so the scripts really executed",
+ "featureScriptVersion": 3029,
+ "importVersion": "3029.0",
+ "experimentFS": "7a4dedcaeb022728fa37722f",
+ "manifest": "docs/verification/live/experiments.json",
+ "resultFile": "docs/verification/live/results.json",
+ "outcome": "15/15 experiments match expectation",
+ "ledger": {
+  "consumedBefore": 576,
+  "consumedAfter": 622,
+  "experimentCalls": 45,
+  "openapiCalls": 1
+ },
+ "calls": [
+  {
+   "at": "2026-08-14T10:43:57Z",
+   "method": "GET",
+   "path": "/api/openapi",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:43:58Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:01Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:04Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:05Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:08Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:11Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:12Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:14Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:17Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:18Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:20Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:23Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:24Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:26Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:29Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:30Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:32Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:35Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:36Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:46Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:48Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:49Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:51Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:54Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:55Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:44:58Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:00Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:01Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:04Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:06Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:07Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:10Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:13Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:14Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:15Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:18Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:19Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:20Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:23Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:24Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:27Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:29Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:30Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:32Z",
+   "method": "POST",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f",
+   "status": 200
+  },
+  {
+   "at": "2026-08-14T10:45:34Z",
+   "method": "GET",
+   "path": "/api/featurestudios/d/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/7a4dedcaeb022728fa37722f/featurespecs",
+   "status": 200
+  }
+ ],
+ "preventsReRun": "Do NOT re-run run_live_tests.py (or fetch_onshape_api.py) to reconfirm what this run already confirmed against the live server: the 15 experiments in experiments.json all match expectation (FeatureScript 3029). The verdict facts are settled; replay results.json + this record instead. Only a genuinely new fact (a new FeatureScript version, or observed server behavior change) justifies a new live run.",
+ "fixtures": {
+  "openapi-get": "tests/fixtures/onshape/openapi-get/ (response body vendored at reference/raw/onshape-api/openapi.json)",
+  "experiment-compile": "No per-call fixtures: run_live_tests does not persist request/response bodies, and the POST body needs the GET's serializationVersion/sourceMicroversion which were not captured. Verdict facts are recorded in this file and results.json."
+ }
+}

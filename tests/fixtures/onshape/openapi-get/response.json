@@ -1,0 +1,6 @@
+{
+  "httpStatus": 200,
+  "contentSha256": "eeedc4df5db6612a0d45276a3442c6422b285bf7258d0256c36633820506df7a",
+  "responseBodyVendoredAt": "reference/raw/onshape-api/openapi.json",
+  "note": "The response body is a 1.1MB OpenAPI spec already vendored in the repo; the fixture points at it by hash instead of duplicating it. To replay this exact call offline, load reference/raw/onshape-api/openapi.json and assert its sha256 equals contentSha256."
+}
