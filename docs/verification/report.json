@@ -1,8 +1,8 @@
 {
  "checkedAt": null,
  "summary": {
-  "total": 14,
-  "passed": 14,
+  "total": 16,
+  "passed": 16,
   "failed": 0
  },
  "checks": [
@@ -75,6 +75,16 @@
    "name": "Auth errorCodes well-formed",
    "ok": true,
    "detail": "16 codes ok"
+  },
+  {
+   "name": "Project docs index.json page sha256 all match",
+   "ok": true,
+   "detail": "16 pages ok"
+  },
+  {
+   "name": "Project docs sections well-formed (title + blocks)",
+   "ok": true,
+   "detail": "ok"
   }
  ],
  "stats": {
@@ -266,6 +276,28 @@
     499,
     500,
     503
+   ]
+  },
+  "docs": {
+   "pages": 16,
+   "sections": 100,
+   "pageNames": [
+    "readme",
+    "fs-assistant",
+    "mcp-server",
+    "onshape-api",
+    "verification",
+    "llm-experience-fs",
+    "llm-experience-api",
+    "live-verification",
+    "quick-reference",
+    "reference",
+    "example",
+    "example-setup",
+    "example-feature-parameters",
+    "example-api-workflow",
+    "example-validation-contract",
+    "example-visual-review"
    ]
   }
  }

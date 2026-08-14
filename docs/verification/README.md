@@ -12,6 +12,14 @@ verified experience for LLM agents**.
 | `report.json` | Latest run: every check's pass/fail + corpus statistics + known official gaps. |
 | `llm-experience-api.md` | Onshape REST API experience for LLM agents, backed by the verified corpus. |
 | `llm-experience-fs.md` | FeatureScript language experience for LLM agents, backed by the verified corpus. |
+| `live/` | The raw live-verification record: experiment `.fs` files, `results.json`, `instance-results.json`, and `README.md` with the budget ledger. |
+
+The four corpora verified here are: the vendored FS reference, the vendored
+REST API spec, the vendored auth/error docs, and **the project's own
+documentation index** (`docs/index.json`, built by
+`scripts/build_docs_index.py` from the authored markdown). The markdown files
+are the originals and are kept; `docs/index.json` is a derived, structured copy
+served on demand by the `docs_*` tools (see `docs/mcp-server.md`).
 
 ## Run
 
@@ -19,7 +27,7 @@ verified experience for LLM agents**.
 python3 docs/verification/verify_docs.py
 ```
 
-The 14 checks verify consistency and integrity of all three corpora:
+The 16 checks verify consistency and integrity of all four corpora:
 
 - **FS reference** — `index.json` ↔ `library.html` sha256, guide page sha256,
   structural completeness (functions/types/constants/predicates), operator-name
@@ -28,6 +36,8 @@ The 14 checks verify consistency and integrity of all three corpora:
   well-formedness, security / request-body / response schema references resolve,
   `api_quick.json` surface equals `api_index.json`.
 - **Auth / errors** — page sha256, `errorCodes` well-formedness.
+- **Project docs** — `docs/index.json` page sha256 matches the authored markdown,
+  sections well-formed (title + blocks).
 
 ## Known official gaps (recorded, not failures)
 
@@ -47,5 +57,6 @@ New gaps that appear after a re-fetch will fail the run.
 Green checks are not the goal. The goal is turning verification findings into
 **experience an LLM agent can act on** — so the reference corpus becomes
 self-correcting guidance. The two `llm-experience-*.md` documents are that
-output: read them into context (or point a model at them) alongside the
+output, and (like every project doc) they are indexed into `docs/index.json`
+and read on demand through `docs_section` / `docs_search` alongside the
 `fs_*` / `onshape_api_*` reference tools.

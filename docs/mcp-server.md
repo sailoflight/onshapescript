@@ -54,6 +54,21 @@ or the network. They are the primary FeatureScript lookup tools. See
 | `fs_guide_section` | One FsDoc guide page, or a section of it, as plain text with fenced code blocks. |
 | `fs_library_source` | The real standard library implementation source, optionally the window around one function. |
 
+### Project docs tools — local and offline
+
+The project's own documentation (README, `docs/*.md`, `reference/quick-reference.md`,
+example docs) is parsed into `docs/index.json` by `scripts/build_docs_index.py`
+with the same typed-block schema as the FsDoc guide, so it is searchable and
+readable on demand — the authored `.md` files remain the originals. These tools
+cover the project's own knowledge (tool catalog, workflows, verified lessons),
+distinct from the vendored Onshape reference above.
+
+| Tool | Behavior |
+|---|---|
+| `docs_list` | Every indexed page with its title, source path, and heading-section outline. |
+| `docs_section` | A page as plain text, or one heading section (page + optional section; matching is case-insensitive substring). |
+| `docs_search` | Ranked keyword search across every section of the project docs; pass `page` to restrict. |
+
 ### Onshape REST API reference tools — local and offline
 
 These answer questions about the Onshape REST API surface from the live OpenAPI
@@ -160,7 +175,7 @@ python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/br
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 29-tool discovery;
+- MCP initialization and 32-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

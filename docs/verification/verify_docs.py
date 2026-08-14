@@ -9,6 +9,7 @@ Corpora verified:
   FS reference   reference/fsdoc/{index,guide}.json  vs the raw FsDoc HTML
   REST API       reference/onshape-api/api_index.json vs openapi.json
   Auth/errors    reference/onshape-api-docs/api_docs.json vs the raw HTML
+  Project docs   docs/index.json vs the authored markdown sources
 """
 
 from __future__ import annotations
@@ -219,10 +220,37 @@ def verify_auth() -> None:
     }
 
 
+def verify_project_docs() -> None:
+    idx = load(ROOT / "docs" / "index.json")
+    missing = [
+        p["page"] for p in idx["pages"]
+        if not (ROOT / p["path"]).is_file()
+        or sha256_of(ROOT / p["path"]) != p["sha256"]
+    ]
+    check("Project docs index.json page sha256 all match", not missing,
+          f"stale/missing: {missing}" if missing else f"{len(idx['pages'])} pages ok")
+    bad = []
+    for p in idx["pages"]:
+        if not p.get("title") or not isinstance(p.get("sections"), list):
+            bad.append((p["page"], "no-title-or-sections"))
+            continue
+        for s in p["sections"]:
+            if not s.get("title") or not isinstance(s.get("blocks"), list) or not s["blocks"]:
+                bad.append((p["page"], f"section {s.get('title')!r} empty"))
+    check("Project docs sections well-formed (title + blocks)", not bad,
+          f"{len(bad)} issues (first 5): {bad[:5]}" if bad else "ok")
+    stats["docs"] = {
+        "pages": len(idx["pages"]),
+        "sections": sum(len(p["sections"]) for p in idx["pages"]),
+        "pageNames": [p["page"] for p in idx["pages"]],
+    }
+
+
 def main() -> int:
     verify_fs()
     verify_rest()
     verify_auth()
+    verify_project_docs()
     failed = [c for c in checks if not c["ok"]]
     report = {
         "checkedAt": None,  # no clock in the repo; stamp after running if wanted

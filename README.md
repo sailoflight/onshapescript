@@ -8,17 +8,17 @@ credential-safe Onshape REST tools for compiling and validating your code.
 
 ```
 mcp_server.py          stdio MCP server (JSON-RPC over stdin/stdout)
-onshape_fs_mcp/        Python package: REST client, Onshape operations, FS reference queries
+onshape_fs_mcp/        Python package: REST client, Onshape operations, FS reference + project-docs queries
 reference/             vendored official material (fsdoc/ pages + std-library/ source)
 scripts/               reference fetch + index build entry points
 examples/              the Branch Cable Trophy model as a worked FeatureScript example
 config/                non-secret target state + parameter sets for the current FeatureScript
-docs/                  server and tool documentation
+docs/                  server and tool documentation (+ docs/index.json, the structured project-docs index)
 docs/verification/     zero-cost corpus verification + LLM experience docs (API + FS)
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (29)
+## MCP tools (32)
 
 **FeatureScript reference — local, offline** (the core value):
 
@@ -46,6 +46,16 @@ from the live OpenAPI definition plus the official auth/error docs):
 | `onshape_api_schema` | A REST response/request schema (e.g. `BTDocumentElementInfo`) and its properties |
 | `onshape_api_auth` | OAuth2 authorization-code workflow (6 steps) and API-key usage, with full section text on demand |
 | `onshape_api_error_codes` | All documented HTTP response codes + rate/annual limits (429 `Retry-After` semantics) |
+
+**Project docs — local, offline** (the project's own documentation, indexed from
+`docs/` + `README.md` + `reference/quick-reference.md` + example docs into
+`docs/index.json`; the authored `.md` files stay the originals):
+
+| Tool | Purpose |
+|---|---|
+| `docs_list` | List every indexed project-doc page (README, docs/*, quick-reference, example docs) with its section outline |
+| `docs_section` | Read one project-doc page, or a single heading section of it, on demand |
+| `docs_search` | Ranked keyword search across every project-doc section |
 
 **Onshape REST — inspect and validate your FeatureScript** (existing tools, kept):
 read-only `onshape_get_project_state`, `onshape_get_parameter_set`,
@@ -92,6 +102,13 @@ API-key / error-code / limits pages (public HTTP, no API-token cost) into
 `reference/onshape-api-docs/` for the `onshape_api_auth` and
 `onshape_api_error_codes` tools.
 
+The project's **own** docs (README, `docs/*.md`, `reference/quick-reference.md`,
+example docs) are indexed separately into `docs/index.json` by
+`scripts/build_docs_index.py`, using the same typed-block schema as the guide.
+The markdown files remain the authored originals; the index is a derived copy
+for on-demand reading (`docs_list` / `docs_section` / `docs_search`) and records
+each page's sha256 for staleness checks.
+
 Everything prose-shaped is a JSON index; the large source stays as files read
 on demand. Both indexes record the source sha256 so `fs_check_version` can
 report when a re-fetch left them stale.
@@ -105,6 +122,7 @@ python3 scripts/fetch_onshape_api.py      # needs onshape-credentials.json
 python3 scripts/build_onshape_api_index.py
 python3 scripts/fetch_onshape_api_docs.py # public pages, no credentials
 python3 scripts/build_onshape_api_docs_index.py
+python3 scripts/build_docs_index.py       # project docs -> docs/index.json
 ```
 
 See `docs/fs-assistant.md` for usage guidance and the tool workflows.

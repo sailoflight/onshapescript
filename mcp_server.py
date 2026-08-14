@@ -9,7 +9,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
-from onshape_fs_mcp import fs_reference, onshape_api_reference, onshape_api_docs
+from onshape_fs_mcp import fs_reference, onshape_api_reference, onshape_api_docs, project_docs
 from onshape_fs_mcp.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
 from onshape_fs_mcp.operations import (
     api_usage,
@@ -29,7 +29,7 @@ from onshape_fs_mcp.operations import (
 )
 
 SERVER_NAME = "onshape-branch-cable-trophy"
-SERVER_VERSION = "1.1.0"
+SERVER_VERSION = "1.2.0"
 PROTOCOL_VERSION = "2025-06-18"
 
 
@@ -120,6 +120,12 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
     except Exception as error:
         result["onshapeApiSpecVersion"] = {
             "note": f"REST API spec not indexed: {type(error).__name__}: {error}"
+        }
+    try:
+        result["projectDocsHealth"] = project_docs.index_health()
+    except Exception as error:
+        result["projectDocsHealth"] = {
+            "note": f"project docs index not built: {type(error).__name__}: {error}"
         }
     if arguments.get("check_latest"):
         try:
@@ -301,7 +307,8 @@ TOOLS: list[dict[str, Any]] = [
             "whenever a newer version is targeted, plus reference-health consistency checks. With "
             "check_latest it also probes the mirror (one small network call) for the newest available "
             "FeatureScript version and the live REST API spec version (needs credentials). Use it "
-            "before writing code against a specific FeatureScript version."
+            "before writing code against a specific FeatureScript version. Also reports the health of "
+            "the project-docs index (docs/index.json) vs its markdown sources."
         ),
         "inputSchema": object_schema({
             "target": {
@@ -460,6 +467,50 @@ TOOLS: list[dict[str, Any]] = [
             "module": {"type": "string"},
             "function": {"type": "string", "description": "Optional; extract the definition window for this function."},
         }, ["module"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    # --- Project docs tools (local, offline; the project's own LLM docs) ---
+    {
+        "name": "docs_list",
+        "description": (
+            "List every page in the project's own structured documentation index (docs/index.json, built "
+            "from docs/*.md, README.md, reference/quick-reference.md, and the example docs): each page's "
+            "title, source path, and heading-section outline. Use it to see what project docs exist and "
+            "their section titles, then read one with docs_section. This is separate from the vendored "
+            "Onshape reference (fs_* / onshape_api_* tools). Local and offline."
+        ),
+        "inputSchema": object_schema(),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "docs_section",
+        "description": (
+            "Read the project's own documentation (README, docs/mcp-server.md, docs/fs-assistant.md, the "
+            "verified LLM-experience docs, the example docs) as plain text. Pass page=<page> and optionally "
+            "section=<heading> to narrow to one section; without section you get the whole page plus its "
+            "heading outline. This is how the project's own knowledge (tool catalog, workflows, live "
+            "verification lessons) is read on demand from docs/index.json. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "page": {"type": "string", "description": "A project doc page, e.g. 'llm-experience-fs', 'mcp-server', 'quick-reference'. See docs_list for the full list."},
+            "section": {"type": "string", "description": "Optional heading to narrow to (case-insensitive substring)."},
+        }, ["page"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "docs_search",
+        "description": (
+            "Keyword search across every section of the project's own documentation (README, docs/*, "
+            "reference/quick-reference.md, example docs). Results are ranked by how well the query tokens "
+            "match the page/section titles and body text. Use this to find which project doc answers a "
+            "question (e.g. 'quota', 'eval budget', 'defineFeature'), then read the full section with "
+            "docs_section. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "query": {"type": "string"},
+            "page": {"type": "string", "description": "Optional: restrict the search to one page (see docs_list)."},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+        }, ["query"]),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     # --- Onshape REST API reference tools (local, offline) -----------------
@@ -817,6 +868,17 @@ HANDLERS: dict[str, ToolHandler] = {
         module=arguments["module"],
         function=arguments.get("function"),
     ),
+    # Project docs tools (local, offline)
+    "docs_list": lambda _: project_docs.list_pages(),
+    "docs_section": lambda arguments: project_docs.section(
+        page=arguments["page"],
+        section_name=arguments.get("section"),
+    ),
+    "docs_search": lambda arguments: project_docs.search(
+        query=arguments["query"],
+        page=arguments.get("page"),
+        limit=arguments.get("limit", 20),
+    ),
     # Onshape REST API reference tools (local, offline)
     "onshape_api_list_tags": lambda _: onshape_api_reference.list_tags(),
     "onshape_api_search": lambda arguments: {
@@ -901,10 +963,10 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
                 "For FeatureScript questions, use the offline reference tools first (fs_search, "
                 "fs_get_function, fs_get_type, fs_guide_section, fs_library_source): the standard library "
                 "is rarely present in language-model training data, so look up exact signatures before "
-                "writing code. Use read-only inspection tools unless the user explicitly requests a cloud "
-                "mutation; mutating tools require confirm_mutation=true and never return credentials. "
-                "Verified experience - including known gaps in the official docs - is in "
-                "docs/verification/llm-experience-api.md and llm-experience-fs.md."
+                "writing code. The project's own documentation (README, tool catalog, verified "
+                "experience/lessons, example docs) is served by docs_list / docs_section / docs_search. "
+                "Use read-only inspection tools unless the user explicitly requests a cloud "
+                "mutation; mutating tools require confirm_mutation=true and never return credentials."
             ),
         })
     if method == "ping":

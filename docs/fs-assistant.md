@@ -40,6 +40,11 @@ signatures here. The tools below exist to replace guessing with lookup.
    `opExtrude`-style primitives or how `qCreatedBy` constructs a query.
 7. **Breadth before depth** — `fs_list_modules` to see the module layout and
    `fs_list_functions` (with `prefix`) when you remember part of a name.
+8. **Project docs** — `docs_list` / `docs_section` / `docs_search` read the
+   project's own documentation (README, `docs/mcp-server.md`, the verified
+   `llm-experience-*` lessons, example docs) on demand from `docs/index.json`.
+   Use these for tool-catalog, workflow, and verification-lesson questions that
+   are not in the vendored reference.
 
 ## Updating vs diffing
 
@@ -76,6 +81,10 @@ you *whether* to update before paying for the download.
   on every build.
 - `reference/quick-reference.md` — the curated, distilled cheat-sheet (the
   `fs_quick_reference` tool); authored alongside the docs rather than generated.
+- `docs/index.json` — the project's own documentation (README, `docs/*.md`,
+  the quick-reference, example docs) parsed into the same typed-block schema as
+  `guide.json`; served by `docs_list` / `docs_section` / `docs_search`. Built
+  by `scripts/build_docs_index.py`; the `.md` files remain the originals.
 - `reference/fsdoc/<page>.html` — the raw guide pages, kept for provenance and
   staleness checks (each page's sha256 is recorded in `guide.json`).
 - `reference/std-library/<module>.fs` — the standard library source, mirrored

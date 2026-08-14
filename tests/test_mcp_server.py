@@ -72,8 +72,11 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
         tools = responses[1]["result"]["tools"]
-        self.assertEqual(len(tools), 29)
+        self.assertEqual(len(tools), 32)
         self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
+        self.assertIn("docs_list", {t["name"] for t in tools})
+        self.assertIn("docs_section", {t["name"] for t in tools})
+        self.assertIn("docs_search", {t["name"] for t in tools})
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -187,6 +190,48 @@ class McpServerTest(unittest.TestCase):
         self.assertTrue(all(m["category"] == "Math" for m in modules))
         quick = responses[4]["result"]["structuredContent"]
         self.assertTrue(quick["text"].startswith("# FeatureScript quick reference"))
+
+    def test_project_docs_tools(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "docs_list", "arguments": {}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "docs_section",
+                    "arguments": {"page": "mcp-server", "section": "Mutating tools"},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "docs_search",
+                    "arguments": {"query": "quota preflight", "limit": 5},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        listed = responses[0]["result"]["structuredContent"]
+        self.assertGreater(listed["count"], 10)
+        pages = {p["page"] for p in listed["pages"]}
+        self.assertIn("mcp-server", pages)
+        self.assertIn("llm-experience-fs", pages)
+        self.assertTrue(all("sections" in p for p in listed["pages"]))
+        section = responses[1]["result"]["structuredContent"]
+        self.assertEqual(section["page"], "mcp-server")
+        self.assertEqual(section["section"], "Mutating tools")
+        self.assertIn("confirm_mutation", section["text"])
+        search = responses[2]["result"]["structuredContent"]
+        self.assertTrue(search["results"])
+        self.assertTrue(all("snippet" in r for r in search["results"]))
 
     def test_onshape_api_reference_tools(self) -> None:
         responses, stderr = invoke([

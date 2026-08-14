@@ -25,19 +25,27 @@ local MCP tools can answer FeatureScript questions without a network round trip.
   server version). `api_index.json`/`api_quick.json` are flattened from it
   by `scripts/build_onshape_api_index.py`.
 
+## docs/
+
+The project's own LLM-facing documentation is not vendored material — it is
+indexed by `scripts/build_docs_index.py` into `docs/index.json` (same typed-block
+schema as `guide.json`) and served by the `docs_*` tools. The markdown files stay
+the authored originals.
+
 ## Updating
 
 Re-run the fetch scripts to re-sync each tree, then the index builders
 (which parse `library.html` into `index.json`, the guide pages into
-`guide.json`, both into the compact `quick.json`, and the OpenAPI spec
-into the onshape-api indexes — all record source sha256 for staleness
-checks):
+`guide.json`, both into the compact `quick.json`, the OpenAPI spec
+into the onshape-api indexes, and the project's markdown into
+`docs/index.json` — all record source sha256 for staleness checks):
 
 ```bash
 python3 scripts/fetch_reference.py
 python3 scripts/build_fsdoc_index.py
 python3 scripts/fetch_onshape_api.py   # needs onshape-credentials.json
 python3 scripts/build_onshape_api_index.py
+python3 scripts/build_docs_index.py    # project docs -> docs/index.json
 ```
 
 `reference/quick-reference.md` is a curated cheat-sheet authored alongside
