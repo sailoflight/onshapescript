@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,7 @@ from onshape_fs_mcp.client import (
     PARAMETERS_DIR,
     PREVIEW_DIR,
     ROOT,
+    STATE_PATH,
     OnshapeClient,
     compact_feature_response,
     load_json,
@@ -25,6 +28,13 @@ PARAMETER_PATHS = {
     "default": DEFAULT_PARAMETERS_PATH,
     "preview": PARAMETERS_DIR / "model.preview.json",
 }
+# A cached element-mirror microversion is only trustworthy for a MUTATION if the
+# mirror was synced recently. Onshape has no free way to query a Feature
+# Studio's current microversion, and a stale one silently pins an OLD definition
+# (microversions are immutable snapshots, so the instantiate POST succeeds
+# against the old content instead of failing). Instantiate re-fetches the
+# element list when the mirror is older than this window.
+MICROVERSION_CACHE_MAX_AGE_SECONDS = 300
 REQUIRED_PREFIXES = [
     "base",
     "plaqueInsert_blank",
@@ -118,22 +128,159 @@ def resolve_part_studio_id(
     return did, wid, eid
 
 
-def list_document_elements(client: OnshapeClient | None = None) -> list[dict[str, Any]]:
+def _elements_from_state(state: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Extract the cached element table from a state dict, keyed by element id."""
+    return {
+        item.get("id"): dict(item)
+        for item in state.get("elements", [])
+        if isinstance(item, dict) and item.get("id")
+    }
+
+
+def _read_state_file() -> dict[str, Any]:
+    try:
+        return load_json(STATE_PATH)
+    except Exception:
+        return {}
+
+
+def _merge_state_to_disk(updates: dict[str, Any]) -> None:
+    """Merge `updates` onto the on-disk state file, preserving keys edited
+    externally since a client loaded its in-memory snapshot. Only the given keys
+    are written; hand-maintained keys (partStudioId, featureStudioId,
+    apiQuota.alreadyConsumed, ...) are never clobbered by a stale in-memory
+    snapshot."""
+    disk = _read_state_file()
+    disk.update(updates)
+    save_state(disk)
+
+
+def _elements_cache(client: OnshapeClient) -> dict[str, dict[str, Any]]:
+    """Return the cached element table (config/onshape-state.json "elements"),
+    keyed by element id. The table is the local mirror of the workspace's
+    elements: id/name/type are stable (refresh is an explicit action), while
+    microversionId is the one mutable field, rolled forward from mutation and
+    status responses so later operations don't re-query it."""
+    return _elements_from_state(client.state)
+
+
+def _cache_age_seconds(state: dict[str, Any]) -> float | None:
+    """Seconds since the element mirror was last synced, or None if never/unknown."""
+    timestamp = state.get("elementsUpdatedAt")
+    if not timestamp:
+        return None
+    try:
+        cached_at = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if cached_at.tzinfo is None:
+        cached_at = cached_at.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - cached_at).total_seconds()
+
+
+def _fresh_cached_fs_microversion(client: OnshapeClient, state: dict[str, Any]) -> Any:
+    """Return the cached Feature Studio microversion only when the element mirror
+    was synced recently enough to trust for a mutation; else None (caller
+    re-fetches it via GET /elements).
+
+    A stale cached microversion silently pins an OLD Feature Studio definition:
+    microversions are immutable snapshots, so the POST succeeds against the old
+    content instead of failing. Only a recently-synced mirror is trusted; a
+    microversion threaded from a just-finished upload is authoritative regardless
+    (it is same-run, not a cache read).
+    """
+    age = _cache_age_seconds(state)
+    if age is None or age > MICROVERSION_CACHE_MAX_AGE_SECONDS:
+        return None
+    return (_elements_cache(client).get(state["featureStudioId"]) or {}).get("microversionId")
+
+
+def _save_elements_cache(client: OnshapeClient, by_id: dict[str, dict[str, Any]]) -> None:
+    state = client.state
+    state["elements"] = [by_id[key] for key in sorted(by_id)]
+    state["elementsUpdatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _merge_state_to_disk({
+        "elements": state["elements"],
+        "elementsUpdatedAt": state["elementsUpdatedAt"],
+    })
+
+
+def _upsert_element_microversion(
+    client: OnshapeClient,
+    element_id: str,
+    microversion: Any,
+    element_type: str | None = None,
+) -> None:
+    """Roll an element's one mutable field (microversionId) forward in the cache.
+
+    The stable id/name/type are preserved; when the table has never been
+    refreshed (no entry yet), a minimal {id, elementType, microversionId} entry
+    is seeded and its name is filled by the next explicit list refresh."""
+    if not microversion:
+        return
+    by_id = _elements_cache(client)
+    row = by_id.get(element_id)
+    if row is None:
+        row = {"id": element_id}
+        by_id[element_id] = row
+    row["microversionId"] = microversion
+    if element_type and not row.get("elementType"):
+        row["elementType"] = element_type
+    _save_elements_cache(client, by_id)
+
+
+def list_document_elements(
+    client: OnshapeClient | None = None,
+    refresh: bool = False,
+) -> dict[str, Any]:
+    """List the workspace's elements, preferring the cached table (zero quota).
+
+    The cached table is the local mirror of the workspace (see _elements_cache):
+    id/name/type are stable and refresh is an explicit action; microversionId
+    rolls forward from upload/create/status responses. Pass refresh=True to make
+    the one live GET /elements and repopulate the cache. The cached read needs
+    only the local state file, not credentials.
+    """
+    if not refresh:
+        state = client.state if client is not None else _read_state_file()
+        cache = _elements_from_state(state)
+        result: dict[str, Any] = {
+            "elements": [cache[key] for key in sorted(cache)],
+            "source": "cache",
+            "cacheTimestamp": state.get("elementsUpdatedAt"),
+            "documentId": state.get("documentId"),
+            "workspaceId": state.get("workspaceId"),
+        }
+        if not cache:
+            result["note"] = (
+                "No cached element table yet. Pass refresh=true to fetch the "
+                "live workspace elements (1 API call)."
+            )
+        return result
     client = client or OnshapeClient()
     state = client.state
     elements = client.request(
         "GET",
         f"/api/documents/d/{state['documentId']}/w/{state['workspaceId']}/elements",
     )
-    return [
-        {
+    by_id = {
+        item.get("id"): {
             "id": item.get("id"),
             "name": item.get("name"),
             "elementType": item.get("elementType"),
             "microversionId": item.get("microversionId"),
         }
         for item in elements
-    ]
+        if item.get("id")
+    }
+    _save_elements_cache(client, by_id)
+    return {
+        "elements": [by_id[key] for key in sorted(by_id)],
+        "source": "live",
+        "cacheTimestamp": client.state.get("elementsUpdatedAt"),
+        "documentId": state["documentId"],
+        "workspaceId": state["workspaceId"],
+    }
 
 
 def _feature_specs_summary(specs: dict[str, Any]) -> list[dict[str, Any]]:
@@ -171,6 +318,12 @@ def feature_studio_status(client: OnshapeClient | None = None) -> dict[str, Any]
     summary = _feature_specs_summary(specs)
     language_version = _first_language_version(specs)
     record_observed_version(language_version=language_version, client=client)
+    _upsert_element_microversion(
+        client,
+        state["featureStudioId"],
+        current.get("microversionId") or specs.get("sourceMicroversion"),
+        element_type="FEATURE_STUDIO",
+    )
     return {
         "featureStudioId": state["featureStudioId"],
         "microversionId": current.get("microversionId"),
@@ -205,7 +358,7 @@ def record_observed_version(
             observed[key] = value
             changed = True
     if changed:
-        save_state(state)
+        _merge_state_to_disk({"observedServerVersion": state["observedServerVersion"]})
 
 
 def _dry_run(requests: list[dict[str, Any]], note: str | None = None) -> dict[str, Any]:
@@ -281,8 +434,19 @@ def upload_feature_studio(
     if not any(item["featureType"] == FEATURE_TYPE for item in summary):
         raise RuntimeError(f"Expected feature spec {FEATURE_TYPE} was not compiled")
     record_observed_version(language_version=_first_language_version(specs), client=client)
+    # The featurespecs response's sourceMicroversion is the Feature Studio's
+    # microversion AFTER this upload (the value an instantiate namespace must
+    # pin). Cache it so a follow-on instantiate skips its GET /elements.
+    feature_studio_microversion = specs.get("sourceMicroversion")
+    _upsert_element_microversion(
+        client,
+        state["featureStudioId"],
+        feature_studio_microversion,
+        element_type="FEATURE_STUDIO",
+    )
     return {
         "sourceMicroversion": updated.get("sourceMicroversion"),
+        "featureStudioMicroversion": feature_studio_microversion,
         "featureSpecs": summary,
     }
 
@@ -305,7 +469,17 @@ def create_validation_part_studio(
     created = client.request("POST", path, body)
     if save_to_project_state:
         state["partStudioId"] = created["id"]
-        save_state(state)
+        _merge_state_to_disk({"partStudioId": created["id"]})
+    # Append the newly created element to the cached table so later
+    # instantiate/list calls don't re-discover it.
+    by_id = _elements_cache(client)
+    by_id[created["id"]] = {
+        "id": created["id"],
+        "name": created.get("name"),
+        "elementType": "PARTSTUDIO",
+        "microversionId": created.get("microversionId"),
+    }
+    _save_elements_cache(client, by_id)
     return {
         "partStudioId": created.get("id"),
         "name": created.get("name"),
@@ -334,6 +508,7 @@ def instantiate_feature(
     parameter_set: str = "default",
     overrides: dict[str, Any] | None = None,
     part_studio_id: str | None = None,
+    feature_studio_microversion: Any = None,
     client: OnshapeClient | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
@@ -343,33 +518,51 @@ def instantiate_feature(
     elements_path = f"/api/documents/d/{did}/w/{wid}/elements"
     features_path = f"/api/v9/partstudios/d/{did}/w/{wid}/e/{eid}/features"
     parameters = merged_parameters(parameter_set, overrides)
+    # The namespace pins the Feature Studio's microversion. Prefer an explicit
+    # value (threaded from a just-finished upload), then a cached element-table
+    # microversion only when the mirror was synced recently; only fall back to a
+    # live GET /elements when neither is available.
+    namespace_microversion = feature_studio_microversion or _fresh_cached_fs_microversion(client, state)
+    needs_elements_get = namespace_microversion is None
     if dry_run:
+        requests: list[dict[str, Any]] = []
+        if needs_elements_get:
+            requests.append({
+                **client.describe("GET", elements_path),
+                "note": "read the Feature Studio's current microversionId to build the namespace (no cached microversion)",
+            })
+            placeholder = "<microversionId>"
+        else:
+            placeholder = str(namespace_microversion)
+        requests.append({
+            **client.describe("POST", features_path, _instantiate_body(
+                parameters, f"e{state['featureStudioId']}::m{placeholder}",
+            )),
+            "note": (
+                "namespace microversion taken from cache/upload (no GET needed)"
+                if not needs_elements_get else
+                "namespace microversion is filled from the GET above"
+            ),
+        })
         return _dry_run(
-            [
-                {
-                    **client.describe("GET", elements_path),
-                    "note": "read the Feature Studio's current microversionId to build the namespace",
-                },
-                {
-                    **client.describe("POST", features_path, _instantiate_body(
-                        parameters, f"e{state['featureStudioId']}::m<microversionId>",
-                    )),
-                    "note": "namespace microversion is filled from the GET above",
-                },
-            ],
+            requests,
             note=(
-                "2 API calls (GET elements + POST feature). The namespace is "
-                "e{featureStudioId}::m{current feature studio microversion}."
+                "1 API call (POST feature) when the Feature Studio microversion is "
+                f"threaded from an upload or from an element mirror synced within the "
+                f"last {MICROVERSION_CACHE_MAX_AGE_SECONDS}s; 2 (GET elements + POST "
+                "feature) when the mirror is stale or empty."
             ),
         )
-    elements = client.request("GET", elements_path)
-    feature_studio = next(
-        (item for item in elements if item.get("id") == state["featureStudioId"]),
-        None,
-    )
-    if feature_studio is None:
-        raise RuntimeError("Configured Feature Studio is not present in the workspace")
-    namespace = f"e{state['featureStudioId']}::m{feature_studio['microversionId']}"
+    if needs_elements_get:
+        elements = client.request("GET", elements_path)
+        feature_studio = next(
+            (item for item in elements if item.get("id") == state["featureStudioId"]),
+            None,
+        )
+        if feature_studio is None:
+            raise RuntimeError("Configured Feature Studio is not present in the workspace")
+        namespace_microversion = feature_studio["microversionId"]
+    namespace = f"e{state['featureStudioId']}::m{namespace_microversion}"
     response = client.request("POST", features_path, _instantiate_body(parameters, namespace), timeout=900)
     summary = compact_feature_response(response)
     if summary["featureStatus"] != "OK":
@@ -566,9 +759,10 @@ ANNUAL_LIMITS = {
     "standard": 2500,      # per user
 }
 # Per-run API call estimate for run_validation_pipeline, counted from the
-# actual operations it performs (upload: 3, create: 1, instantiate: 2,
+# actual operations it performs (upload: 3, create: 1, instantiate: 1 — the
+# Feature Studio microversion is threaded from the upload, so no GET /elements,
 # check_model: 3, plus 5 render views when render is on).
-PIPELINE_ESTIMATE = {True: 14, False: 9}
+PIPELINE_ESTIMATE = {True: 13, False: 8}
 
 
 def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
@@ -696,6 +890,7 @@ def run_validation_pipeline(
                 "instantiate": instantiate_feature(
                     parameter_set,
                     part_studio_id="<id from create>",
+                    feature_studio_microversion="<from upload>",
                     client=client,
                     dry_run=True,
                 ),
@@ -707,7 +902,12 @@ def run_validation_pipeline(
     result["upload"] = upload_feature_studio(client)
     result["partStudio"] = create_validation_part_studio(client=client)
     new_id = result["partStudio"]["partStudioId"]
-    result["feature"] = instantiate_feature(parameter_set, part_studio_id=new_id, client=client)
+    result["feature"] = instantiate_feature(
+        parameter_set,
+        part_studio_id=new_id,
+        feature_studio_microversion=result["upload"].get("featureStudioMicroversion"),
+        client=client,
+    )
     mode = "detailed" if parameter_set == "default" else "simplified"
     result["modelCheck"] = check_model(mode, new_id, client)
     if not result["modelCheck"]["ok"]:

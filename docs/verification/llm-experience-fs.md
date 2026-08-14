@@ -200,7 +200,7 @@ Confirmed by ~310 live calls. Cost-per-step below is real API calls:
 | `scripts/fs_local_check.py` | 0 | Structure (hard) + body symbols absent from the vendored index (warning) |
 | `featurespecs` (via upload / `onshape_get_feature_studio_status`) | ~3 / 2 | **Signature + precondition only.** Body is not compiled at save |
 | `onshape_eval_featurescript` | 1 | Any semantics the 2960 docs lack, with detailed compile errors in `notices`. Cheapest way to learn *why* a body fails |
-| Instantiate (`POST .../features`) | 2 | The only layer that executes the body — but ERROR is opaque (no message) |
+| Instantiate (`POST .../features`) | 1 (cached) / 2 (cold) | The only layer that executes the body — but ERROR is opaque (no message) |
 
 Rules that save quota:
 

@@ -108,7 +108,7 @@ onshape-credentials.json and is skipped with a note when it is absent.
 
 | Tool | Behavior |
 |---|---|
-| `onshape_list_document_elements` | Lists elements and current microversions in the configured workspace. |
+| `onshape_list_document_elements` | Lists elements and current microversions in the configured workspace — cached (zero API cost) by default; `refresh=true` re-fetches live. |
 | `onshape_get_feature_studio_status` | Reads Feature Studio metadata and compiled feature specifications. |
 | `onshape_check_model` | Checks feature state, 132/65 part count, required names, and bounds without writing the report file. |
 | `onshape_render_preview` | Returns one shaded PNG as MCP image content; `save=true` additionally writes `outputs/previews/<view>.png`. |
@@ -132,9 +132,10 @@ constructed or a remote request is sent.
 | `onshape_run_validation_pipeline` | Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call. |
 
 **Every mutating tool also preflights against the annual quota budget before
-any remote call** — upload ~3 calls, create 1, instantiate 2, pipeline ~14 with
-render / ~9 without. When the configured budget would be exceeded the tool
-blocks with the shortfall instead of spending API calls.
+any remote call** — upload ~3 calls, create 1, instantiate 1 (microversion
+cached) / 2 (cold), pipeline ~13 with render / ~8 without. When the configured
+budget would be exceeded the tool blocks with the shortfall instead of spending
+API calls.
 
 The quota ledger (`config/api-usage.json`, gitignored) is passive: every 2xx/3xx
 response counts toward the annual limit and each response's

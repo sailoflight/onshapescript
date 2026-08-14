@@ -234,6 +234,14 @@ def _preflight_or_raise(estimate_calls: int, label: str) -> None:
     _require_live(estimate_calls, label)
 
 
+def _list_document_elements(arguments: dict[str, Any]) -> dict[str, Any]:
+    """List workspace elements: cached (zero quota) by default, live on refresh."""
+    refresh = bool(arguments.get("refresh", False))
+    if refresh:
+        _require_live(1, "list_document_elements")
+    return list_document_elements(refresh=refresh)
+
+
 def _upload(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
     if arguments.get("dry_run"):
@@ -732,13 +740,24 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_list_document_elements",
-        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": False, "cacheable": True},
+        "cost": {"network": "live", "estimated_requests": 0, "max_requests": 1, "mutating": False, "cacheable": True},
         "description": (
-            "List elements in the configured Onshape workspace, including names, element types, IDs, and "
-            "microversions. This makes one authenticated read-only Onshape request. Use it to inspect current "
-            "workspace state before choosing a Feature Studio or Part Studio operation."
+            "List elements in the configured Onshape workspace (names, element types, IDs, microversions). "
+            "By default it returns the locally cached element table at ZERO API cost — that table is populated "
+            "and kept current by upload/create/status operations and by explicit refreshes. Pass refresh=true "
+            "to make one authenticated read-only GET /elements and repopulate the cache. Use this to inspect "
+            "workspace state before choosing a Feature Studio or Part Studio operation. "
+            "Returns {source: 'cache'|'live', elements: [...], cacheTimestamp, documentId, workspaceId}; "
+            "source is 'cache' whenever no network call was made (an empty elements list with a note means "
+            "the mirror is not populated yet)."
         ),
-        "inputSchema": object_schema(),
+        "inputSchema": object_schema({
+            "refresh": {
+                "type": "boolean",
+                "default": False,
+                "description": "Re-fetch the live workspace elements (1 API call) and update the local cache. Default false returns the cached table at zero cost.",
+            },
+        }),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
     },
     {
@@ -747,7 +766,9 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Read the configured Feature Studio metadata and compiled feature specifications. It reports "
             "whether branchCableTrophyDisplay is exposed and how many parameters its compiled specification "
-            "contains. This uses authenticated read-only Onshape requests and does not upload source."
+            "contains. This uses authenticated read-only Onshape requests and does not upload source. It also "
+            "rolls the Feature Studio's current microversion into the local element mirror (a zero-quota local "
+            "write), which is what keeps the cached element table trustworthy for follow-up operations."
         ),
         "inputSchema": object_schema(),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
@@ -837,11 +858,14 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_instantiate_feature",
-        "cost": {"network": "live", "estimated_requests": 2, "max_requests": 2, "mutating": True, "cacheable": False},
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 2, "mutating": True, "cacheable": False},
         "description": (
             "Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit "
             "parameter set and optional known-parameter overrides. Repeated calls add additional cloud features; "
-            "this requires explicit mutation confirmation and returns the regeneration status."
+            "this requires explicit mutation confirmation and returns the regeneration status. Costs 1 call when "
+            "the Feature Studio microversion is threaded from a just-finished upload or read from an element "
+            "mirror synced within the last 5 minutes; 2 when the mirror is stale or empty and the current "
+            "microversion must be re-read from the element list."
         ),
         "inputSchema": object_schema({
             "confirm_mutation": mutating_confirmation(),
@@ -862,12 +886,12 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_run_validation_pipeline",
-        "cost": {"network": "live", "estimated_requests": 9, "max_requests": 14, "mutating": True, "cacheable": False},
+        "cost": {"network": "live", "estimated_requests": 8, "max_requests": 13, "mutating": True, "cacheable": False},
         "description": (
             "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save "
             "that ID to local project state, instantiate the feature, validate invariants, and optionally render "
             "five PNG previews. This performs several cloud and local mutations and requires explicit confirmation. "
-            "Before any call is made it checks the local API-quota budget (~14 calls with render, ~9 without; see "
+            "Before any call is made it checks the local API-quota budget (~13 calls with render, ~8 without; see "
             "onshape_api_quota) and blocks with the shortfall if the annual limit would be exceeded."
         ),
         "inputSchema": object_schema({
@@ -891,10 +915,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_eval_featurescript": _eval_featurescript,
     "onshape_get_parameter_set": _parameter_set,
     "onshape_build_parameter_payload": _parameter_payload,
-    "onshape_list_document_elements": lambda _: (
-        _require_live(1, "list_document_elements") or
-        {"elements": list_document_elements()}
-    ),
+    "onshape_list_document_elements": _list_document_elements,
     "onshape_get_feature_studio_status": lambda _: (
         _require_live(2, "get_feature_studio_status") or
         feature_studio_status()

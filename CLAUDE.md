@@ -79,8 +79,8 @@
   ledger 现报 `Rate-Limit-Remaining 2987`，实测请求成功；`lastRetryAfter 72910` 是过期
   残留，勿据此认为账户被 hold。切勿为了"验证 hold 门"而设 `LIVE_API_ENABLED=1` 真跑
   ——验证门逻辑只用 mock 账本（`tests/test_quota_guards.py` 里的 fake client）。
-- 已知额度成本：eval/GET = 1；upload+featurespecs = 3；instantiate = 2；
-  create_validation_part_studio = 1；validation pipeline = 14（含 render）/ 9（不含）；
+- 已知额度成本：eval/GET = 1；upload+featurespecs = 3；instantiate = 1（微版本已缓存）/ 2（冷缓存）；
+  create_validation_part_studio = 1；validation pipeline = 13（含 render）/ 8（不含）；
   render = 1；is* 收敛探测每失败符号 +1；上传前必跑 `scripts/fs_local_check.py`（0 调用）。
 - 关键文件：`scripts/fs_local_check.py`、`scripts/live_symbol_sweep.py`（时间戳+增量落盘+
   断点续跑+自适应预算）、`onshape_fs_mcp/{client,budget,operations}.py`、

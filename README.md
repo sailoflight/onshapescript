@@ -70,7 +70,8 @@ currently FeatureScript **3044**); mutating (require `confirm_mutation=true`)
 `onshape_upload_feature_studio`, `onshape_create_validation_part_studio`,
 `onshape_instantiate_feature`, `onshape_run_validation_pipeline` — **every**
 mutating tool preflights against the API-quota budget first (upload ~3 calls,
-create 1, instantiate 2, pipeline ~14 with render / ~9 without) and blocks with
+create 1, instantiate 1 when the Feature Studio microversion is cached / 2
+otherwise, pipeline ~13 with render / ~8 without) and blocks with
 the shortfall if the annual limit would be exceeded.
 
 See `docs/mcp-server.md` for the complete catalog, security boundary, and tests.

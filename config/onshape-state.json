@@ -7,7 +7,7 @@
   "featureScriptFile": "examples/branch-cable-trophy/branchCableTrophyDisplay.fs",
   "apiQuota": {
     "accountType": "standard",
-    "alreadyConsumed": 119
+    "alreadyConsumed": 120
   },
   "observedServerVersion": {
     "languageVersion": 3029,

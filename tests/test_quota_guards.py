@@ -47,6 +47,11 @@ def fake_client(state: dict | None = None, usage: dict | None = None) -> client_
     return cl
 
 
+def _now_utc() -> str:
+    """A fresh element-mirror timestamp in the state file's format."""
+    return operations.time.strftime("%Y-%m-%dT%H:%M:%SZ", operations.time.gmtime())
+
+
 def invoke(messages: list[dict], live_flag: str) -> tuple[list[dict], str]:
     """Drive mcp_server.py over stdio with a forced LIVE_API_ENABLED value."""
     wire = "".join(json.dumps(message, separators=(",", ":")) + "\n" for message in messages)
@@ -186,14 +191,103 @@ class DryRunZeroNetworkTest(unittest.TestCase):
             save.assert_not_called()
         cl.request.assert_not_called()
         # The pipeline estimate must equal the sum of its steps, render on/off.
-        self.assertEqual(run["estimatedRequests"], 14)
-        self.assertEqual(run_off["estimatedRequests"], 9)
+        self.assertEqual(run["estimatedRequests"], 13)
+        self.assertEqual(run_off["estimatedRequests"], 8)
 
     def test_pipeline_estimate_matches_actual_calls(self) -> None:
-        # upload:3 + create:1 + instantiate:2 + check_model:3 + render:5 = 14.
-        self.assertEqual(operations.PIPELINE_ESTIMATE, {True: 14, False: 9})
-        self.assertEqual(3 + 1 + 2 + 3 + 5, operations.PIPELINE_ESTIMATE[True])
-        self.assertEqual(3 + 1 + 2 + 3, operations.PIPELINE_ESTIMATE[False])
+        # upload:3 + create:1 + instantiate:1 (microversion threaded from upload)
+        # + check_model:3 + render:5 = 13.
+        self.assertEqual(operations.PIPELINE_ESTIMATE, {True: 13, False: 8})
+        self.assertEqual(3 + 1 + 1 + 3 + 5, operations.PIPELINE_ESTIMATE[True])
+        self.assertEqual(3 + 1 + 1 + 3, operations.PIPELINE_ESTIMATE[False])
+
+
+class ElementCacheTest(unittest.TestCase):
+    def test_list_prefers_cache_zero_network(self) -> None:
+        cl = fake_client(state={
+            "documentId": "did", "workspaceId": "wid",
+            "featureStudioId": "fsid", "partStudioId": "psid",
+            "elements": [{"id": "fsid", "name": "FS", "elementType": "FEATURE_STUDIO", "microversionId": "m1"}],
+        })
+        cl.request = mock.Mock(side_effect=AssertionError("cache hit must not request"))
+        result = operations.list_document_elements(client=cl)
+        self.assertEqual(result["source"], "cache")
+        self.assertEqual(result["elements"][0]["microversionId"], "m1")
+        cl.request.assert_not_called()
+
+    def test_list_cold_cache_returns_empty_with_note(self) -> None:
+        cl = fake_client()
+        cl.request = mock.Mock(side_effect=AssertionError("cold cache must not request"))
+        result = operations.list_document_elements(client=cl)
+        self.assertEqual(result["source"], "cache")
+        self.assertEqual(result["elements"], [])
+        self.assertIn("refresh", result.get("note", ""))
+        cl.request.assert_not_called()
+
+    def test_list_refresh_writes_cache(self) -> None:
+        cl = fake_client()
+        cl.request = mock.Mock(return_value=[
+            {"id": "fsid", "name": "FS", "elementType": "FEATURE_STUDIO", "microversionId": "m9"},
+        ])
+        with mock.patch.object(operations, "save_state") as save, \
+             mock.patch.object(operations, "_read_state_file", return_value={}):
+            result = operations.list_document_elements(client=cl, refresh=True)
+        self.assertEqual(result["source"], "live")
+        self.assertEqual(result["elements"][0]["microversionId"], "m9")
+        save.assert_called_once()
+        self.assertEqual(cl.state["elements"][0]["id"], "fsid")
+
+    def test_instantiate_skips_elements_get_when_cached(self) -> None:
+        cl = fake_client(state={
+            "documentId": "did", "workspaceId": "wid",
+            "featureStudioId": "fsid", "partStudioId": "psid",
+            "elementsUpdatedAt": _now_utc(),
+            "elements": [{"id": "fsid", "name": "FS", "elementType": "FEATURE_STUDIO", "microversionId": "m123"}],
+        })
+        cl.request = mock.Mock(return_value={
+            "featureState": {"featureStatus": "OK"},
+            "feature": {"featureId": "f1", "featureType": "branchCableTrophyDisplay", "namespace": "e fsid :: m m123"},
+            "sourceMicroversion": "m123",
+        })
+        summary = operations.instantiate_feature(part_studio_id="psid", client=cl)
+        self.assertEqual(summary["featureStatus"], "OK")
+        # Only the POST feature call; no GET /elements for the microversion.
+        self.assertEqual(cl.request.call_count, 1)
+        self.assertIn("/features", cl.request.call_args[0][1])
+        self.assertNotIn("/elements", cl.request.call_args[0][1])
+        self.assertIn("m123", cl.request.call_args[0][2]["feature"]["namespace"])
+
+    def test_instantiate_refetches_when_mirror_stale(self) -> None:
+        # A cached microversion older than the freshness window must NOT be
+        # trusted for a mutation: re-read the element list instead of pinning
+        # the stale snapshot.
+        cl = fake_client(state={
+            "documentId": "did", "workspaceId": "wid",
+            "featureStudioId": "fsid", "partStudioId": "psid",
+            "elementsUpdatedAt": "2020-01-01T00:00:00Z",
+            "elements": [{"id": "fsid", "name": "FS", "elementType": "FEATURE_STUDIO", "microversionId": "mSTALE"}],
+        })
+        cl.request = mock.Mock(side_effect=[
+            [{"id": "fsid", "name": "FS", "elementType": "FEATURE_STUDIO", "microversionId": "mCURRENT"}],
+            {
+                "featureState": {"featureStatus": "OK"},
+                "feature": {"featureId": "f1", "featureType": "branchCableTrophyDisplay", "namespace": "e fsid :: m mCURRENT"},
+                "sourceMicroversion": "mCURRENT",
+            },
+        ])
+        summary = operations.instantiate_feature(part_studio_id="psid", client=cl)
+        self.assertEqual(summary["featureStatus"], "OK")
+        # GET /elements first, then the POST feature call.
+        self.assertEqual(cl.request.call_count, 2)
+        self.assertIn("/elements", cl.request.call_args_list[0][0][1])
+        # The POST namespaces to the freshly re-read microversion, not the cache.
+        self.assertIn("mCURRENT", cl.request.call_args_list[1][0][2]["feature"]["namespace"])
+
+    def test_instantiate_falls_back_to_get_when_cold(self) -> None:
+        cl = fake_client()
+        cl.request = mock.Mock(side_effect=AssertionError("dry run must not request"))
+        dry = operations.instantiate_feature(part_studio_id="psid", client=cl, dry_run=True)
+        self.assertEqual(dry["estimatedRequests"], 2)
 
 
 class McpCostMetadataTest(unittest.TestCase):
@@ -242,11 +336,26 @@ class McpLiveGateTest(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "tools/call",
-                "params": {"name": "onshape_list_document_elements", "arguments": {}},
+                "params": {"name": "onshape_list_document_elements", "arguments": {"refresh": True}},
             },
         ], live_flag="")
         self.assertTrue(responses[0]["result"]["isError"])
         self.assertIn("LIVE_API_ENABLED", responses[0]["result"]["content"][0]["text"])
+
+    def test_list_elements_cached_default_works_without_flag(self) -> None:
+        # The cached (refresh=false) list is offline: it succeeds without the
+        # live flag and makes no network request.
+        responses, _ = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "onshape_list_document_elements", "arguments": {}},
+            },
+        ], live_flag="")
+        result = responses[0]["result"]
+        self.assertFalse(result.get("isError"))
+        self.assertEqual(result["structuredContent"]["source"], "cache")
 
     def test_dry_run_still_works_while_live_disabled(self) -> None:
         responses, stderr = invoke([
