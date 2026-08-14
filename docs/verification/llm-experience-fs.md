@@ -112,11 +112,20 @@ reference does not document. Full run log: `live/README.md` (15 experiments,
   `defineFeature(...)` call ending `});`. Closing the paren after
   `precondition {...}` and putting the body outside is a syntax error that
   silently yields 0 specs.
-- **The vendored predicates index is incomplete for `is*`.** `isQuery`,
-  `isString`, `isArray`, `isType` are absent from the mirror; live runs showed
-  some of these (`isString`, `isArray`) genuinely absent from the live
-  `precondition` layer too, while `isLength` is real. Treat an `is*` lookup
-  miss as "mirror gap OR version drift" — verify against the live server.
+- **The vendored `is*` predicate set is accurate except `isUvVector`.**
+  Live-verified against the deployed runtime (eval `libraryVersion` 3044;
+  budgeted probe in `docs/verification/live/live-is-predicates.json`, script
+  `scripts/live_is_probe.py`): all 29 mirror `is*` predicates resolve except
+  **`isUvVector`**, which the 2960 docs list but the 3044 runtime no longer
+  defines (version drift — use `isUnitlessVector` instead; treat any `is*`
+  lookup miss as "mirror gap OR version drift" and verify live).
+  `isQuery`/`isString`/`isArray`/`isType` are **not** std predicates at 3044
+  (probe: "Variable not found") — the correct precondition form is the
+  `is <Type>` syntax (`definition.x is length`), not an `isX()` call. The
+  2-arg bound forms are real and keep their 2960 signatures:
+  `isReal(value, boundSpec)`, `isSquare(matrix)`, `isTopLevelId(id)`,
+  `isWrap{Cone,Cylinder,Plane}(context, val)` — the 1-arg form of these does
+  not exist.
 - **Because the server does not compile bodies at save time, the local static
   checker is the only body-level guard.** Run `scripts/fs_local_check.py`
   before any upload: it catches structural errors (hard) and flags body symbols
@@ -155,6 +164,10 @@ only cheap way to confirm real semantics the 2960 docs lack:
   calls it with `(context, id)`; anything else fails with "script does not
   evaluate to a function" or an arity error. Working shape:
   `function(context is Context, id is Id) { return 5; }` → result `5`.
+- **Pass `part_studio_id` explicitly in probe loops.** Without it, each eval
+  re-resolves the target Part Studio by walking the document (~1 elements GET +
+  ~N parts GETs ≈ 10 ledger calls). With it, one eval is exactly 1 call — the
+  difference between a 33-symbol probe costing ~34 calls and ~130.
 - **Its `notices` carry detailed compile errors** (`level`, `type: PARSE`,
   message, stack location) — far more diagnostic than instantiation's bare
   `featureStatus=ERROR`. Use eval to find *why* a body fails before spending

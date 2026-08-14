@@ -917,7 +917,7 @@
   {
    "page": "llm-experience-fs",
    "path": "docs/verification/llm-experience-fs.md",
-   "sha256": "e931b6554a9874ac60c7c75553ebd1244da4ea6ffa437da5f4fa2f37f120cacf",
+   "sha256": "a33caf091d932900878e9e8c06e796c631f4546a7d607270c86ac4ed9db2aa43",
    "title": "LLM experience: FeatureScript language",
    "sections": [
     {
@@ -1097,7 +1097,7 @@
          "depth": 0
         },
         {
-         "text": "*The vendored predicates index is incomplete for is.** isQuery, isString, isArray, isType are absent from the mirror; live runs showed some of these (isString, isArray) genuinely absent from the live precondition layer too, while isLength is real. Treat an is* lookup miss as \"mirror gap OR version drift\" — verify against the live server.",
+         "text": "*The vendored is predicate set is accurate except isUvVector.** Live-verified against the deployed runtime (eval libraryVersion 3044; budgeted probe in docs/verification/live/live-is-predicates.json, script scripts/live_is_probe.py): all 29 mirror is* predicates resolve except isUvVector, which the 2960 docs list but the 3044 runtime no longer defines (version drift — use isUnitlessVector instead; treat any is* lookup miss as \"mirror gap OR version drift\" and verify live). isQuery/isString/isArray/isType are not std predicates at 3044 (probe: \"Variable not found\") — the correct precondition form is the is <Type> syntax (definition.x is length), not an isX() call. The 2-arg bound forms are real and keep their 2960 signatures: isReal(value, boundSpec), isSquare(matrix), isTopLevelId(id), isWrap{Cone,Cylinder,Plane}(context, val) — the 1-arg form of these does not exist.",
          "depth": 0
         },
         {
@@ -1148,6 +1148,10 @@
        "items": [
         {
          "text": "The script must evaluate to a two-argument anonymous function. The server calls it with (context, id); anything else fails with \"script does not evaluate to a function\" or an arity error. Working shape: function(context is Context, id is Id) { return 5; } → result 5.",
+         "depth": 0
+        },
+        {
+         "text": "Pass part_studio_id explicitly in probe loops. Without it, each eval re-resolves the target Part Studio by walking the document (~1 elements GET + ~N parts GETs ≈ 10 ledger calls). With it, one eval is exactly 1 call — the difference between a 33-symbol probe costing ~34 calls and ~130.",
          "depth": 0
         },
         {
@@ -1416,7 +1420,7 @@
   {
    "page": "live-verification",
    "path": "docs/verification/live/README.md",
-   "sha256": "df0bd1b241f57a60ece8438f1b96e00d43f6b1f234fadc35b6398751a79e9c4b",
+   "sha256": "8af0187b2726e48177803d61dfc181884f084594453b6b964389f880395fd6ec",
    "title": "Live FeatureScript verification — 实测记录",
    "sections": [
     {
@@ -1679,6 +1683,32 @@
        "type": "code",
        "language": "bash",
        "text": "python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截\npython3 docs/verification/live/run_live_tests.py                      # 需调整 MAX_BUDGET"
+      },
+      {
+       "type": "para",
+       "text": "---"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "追加：is* 谓词集实测（2026-08-14，用户放宽额度至 500/2500）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户授权继续验证剩余悬案，本轮 ledger 311 → 459（+148，真实用量 119+459=578/2500）。"
+      },
+      {
+       "type": "para",
+       "text": "方法：scripts/live_is_probe.py 用 onshape_eval_featurescript 在部署运行时 （eval libraryVersion 3044）逐符号/收敛探测。编译器停在第一个错误 → 探测只能一次揭示一个失败符号；isReal 等\"类型不匹配\"错误会直接暴露 3044 真实签名，而 bare-reference 错误可区分\"存在\"（Cannot reference function X） 与\"缺失\"（Variable X not found）。"
+      },
+      {
+       "type": "para",
+       "text": "结论（live-is-predicates.json）：镜像 29 个 is* 谓词，28 个在 3044 存在 ——22 个可直接调用，6 个以 2960 签名存在但需正确参数 （isReal(value, boundSpec)、isSquare(matrix)、isTopLevelId(id)、 isWrap{Cone,Cylinder,Plane}(context, val)）；isUvVector 是唯一漂移 （2960 文档列了，3044 已删，用 isUnitlessVector）。 isQuery/isString/isArray/isType 在 3044 全部不存在——precondition 用 is <Type> 语法（definition.x is length），不是 isX() 调用。"
+      },
+      {
+       "type": "para",
+       "text": "代价教训：探测循环没传 part_studio_id 时，resolve_part_studio_id 每次 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用）， 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号 共 12 次）。教训已写入 llm-experience-fs.md 的 eval 小节。"
       }
      ]
     }

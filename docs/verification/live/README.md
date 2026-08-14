@@ -93,3 +93,28 @@ symbols risk。results 在 `results.json`。重跑：
 python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截
 python3 docs/verification/live/run_live_tests.py                      # 需调整 MAX_BUDGET
 ```
+
+---
+
+## 追加：`is*` 谓词集实测（2026-08-14，用户放宽额度至 500/2500）
+
+用户授权继续验证剩余悬案，本轮 ledger 311 → 459（+148，真实用量 119+459=**578/2500**）。
+
+方法：`scripts/live_is_probe.py` 用 `onshape_eval_featurescript` 在部署运行时
+（eval `libraryVersion` **3044**）逐符号/收敛探测。编译器**停在第一个错误**
+→ 探测只能一次揭示一个失败符号；`isReal` 等"类型不匹配"错误会直接暴露 3044
+真实签名，而 bare-reference 错误可区分"存在"（Cannot reference function X）
+与"缺失"（Variable X not found）。
+
+**结论**（`live-is-predicates.json`）：镜像 29 个 `is*` 谓词，28 个在 3044 存在
+——22 个可直接调用，6 个以 2960 签名存在但需正确参数
+（`isReal(value, boundSpec)`、`isSquare(matrix)`、`isTopLevelId(id)`、
+`isWrap{Cone,Cylinder,Plane}(context, val)`）；**`isUvVector` 是唯一漂移**
+（2960 文档列了，3044 已删，用 `isUnitlessVector`）。
+`isQuery/isString/isArray/isType` 在 3044 **全部不存在**——precondition 用
+`is <Type>` 语法（`definition.x is length`），不是 `isX()` 调用。
+
+**代价教训**：探测循环没传 `part_studio_id` 时，`resolve_part_studio_id` 每次
+eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用），
+首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号
+共 12 次）。教训已写入 `llm-experience-fs.md` 的 eval 小节。

@@ -1,0 +1,200 @@
+{
+ "isReal": {
+  "call": "isReal(1, {})",
+  "verdict": "EXISTS (mirror sig correct; probe arg mismatched)",
+  "errors": [
+   "Call isReal(number, map) does not match isReal(<any>, RealBoundSpec)"
+  ],
+  "realSignature": "isReal(value, boundSpec is RealBoundSpec)"
+ },
+ "isSquare": {
+  "call": "isSquare(1)",
+  "verdict": "EXISTS (mirror sig correct; probe arg mismatched)",
+  "errors": [
+   "Call isSquare(number) does not match isSquare(Matrix)"
+  ],
+  "realSignature": "isSquare(matrix is Matrix)"
+ },
+ "isTopLevelId": {
+  "call": "isTopLevelId(1)",
+  "verdict": "EXISTS (mirror sig correct; probe arg mismatched)",
+  "errors": [
+   "Call isTopLevelId(number) does not match isTopLevelId(Id)"
+  ],
+  "realSignature": "isTopLevelId(id is Id)"
+ },
+ "isUvVector": {
+  "call": "isUvVector(vector(1,2,3))",
+  "verdict": "ABSENT at 3044",
+  "errors": [
+   "Function isUvVector with 1 argument(s) not found"
+  ],
+  "note": "bare-reference oracle: 'Variable not found' (the 2960 FsDoc lists isUvVector; 3044 dropped it)"
+ },
+ "isWrapCone": {
+  "call": "isWrapCone(1)",
+  "verdict": "EXISTS (mirror sig correct; probe arg mismatched)",
+  "errors": [
+   "Function isWrapCone with 1 argument(s) not found"
+  ],
+  "realSignature": "isWrapCone(context is Context, val is WrapSurface)"
+ },
+ "isWrapCylinder": {
+  "call": "isWrapCylinder(1)",
+  "verdict": "EXISTS (mirror sig correct; probe arg mismatched)",
+  "errors": [
+   "Function isWrapCylinder with 1 argument(s) not found"
+  ],
+  "realSignature": "isWrapCylinder(context is Context, val is WrapSurface)"
+ },
+ "isWrapPlane": {
+  "call": "isWrapPlane(1)",
+  "verdict": "EXISTS (mirror sig correct; probe arg mismatched)",
+  "errors": [
+   "Function isWrapPlane with 1 argument(s) not found"
+  ],
+  "realSignature": "isWrapPlane(context is Context, val is WrapSurface)"
+ },
+ "isQuery": {
+  "call": "isQuery(qEverything(EntityType.BODY))",
+  "verdict": "ABSENT at 3044",
+  "errors": [
+   "Function isQuery with 1 argument(s) not found"
+  ],
+  "note": "bare-reference oracle: 'Variable not found' (the 2960 FsDoc lists isUvVector; 3044 dropped it)"
+ },
+ "isString": {
+  "call": "isString(\"x\")",
+  "verdict": "ABSENT at 3044",
+  "errors": [
+   "Function isString with 1 argument(s) not found"
+  ],
+  "note": "bare-reference oracle: 'Variable not found' (the 2960 FsDoc lists isUvVector; 3044 dropped it)"
+ },
+ "isArray": {
+  "call": "isArray([1])",
+  "verdict": "ABSENT at 3044",
+  "errors": [
+   "Function isArray with 1 argument(s) not found"
+  ],
+  "note": "bare-reference oracle: 'Variable not found' (the 2960 FsDoc lists isUvVector; 3044 dropped it)"
+ },
+ "isType": {
+  "call": "isType(5, {})",
+  "verdict": "ABSENT at 3044",
+  "errors": [
+   "Function isType with 2 argument(s) not found"
+  ],
+  "note": "bare-reference oracle: 'Variable not found' (the 2960 FsDoc lists isUvVector; 3044 dropped it)"
+ },
+ "isLength": {
+  "call": "isLength(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isAngle": {
+  "call": "isAngle(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isAnything": {
+  "call": "isAnything(5)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isAcceleration": {
+  "call": "isAcceleration(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isAngularVelocity": {
+  "call": "isAngularVelocity(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isArea": {
+  "call": "isArea(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isButton": {
+  "call": "isButton(5)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isDensity": {
+  "call": "isDensity(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isEnergy": {
+  "call": "isEnergy(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isForce": {
+  "call": "isForce(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isFrequency": {
+  "call": "isFrequency(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isInteger": {
+  "call": "isInteger(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isLengthVector": {
+  "call": "isLengthVector(vector(1,2,3))",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isMoment": {
+  "call": "isMoment(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isNonNegativeInteger": {
+  "call": "isNonNegativeInteger(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isPositiveInteger": {
+  "call": "isPositiveInteger(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isPressure": {
+  "call": "isPressure(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isTableValue": {
+  "call": "isTableValue(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isToleranceInfoOrUndefined": {
+  "call": "isToleranceInfoOrUndefined(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isUndefinedOrEmptyString": {
+  "call": "isUndefinedOrEmptyString(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isUnitlessVector": {
+  "call": "isUnitlessVector(vector(1,2,3))",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ },
+ "isVolume": {
+  "call": "isVolume(1)",
+  "verdict": "PASS (callable at 3044)",
+  "errors": []
+ }
+}
