@@ -645,6 +645,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_api_quota",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": True},
         "description": (
             "Report the local API-quota budget: the annual call limit (from apiQuota in "
             "config/onshape-state.json), calls consumed so far (local ledger of 2xx/3xx responses), the "
@@ -659,6 +660,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_eval_featurescript",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": False, "cacheable": True},
         "description": (
             "Evaluate a FeatureScript snippet on the live Onshape server. ⚠️ Each call spends 1 API call "
             "of the annual quota. Document-first discipline: BEFORE calling this, use the free local tools "
@@ -690,6 +692,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_list_document_elements",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": False, "cacheable": True},
         "description": (
             "List elements in the configured Onshape workspace, including names, element types, IDs, and "
             "microversions. This makes one authenticated read-only Onshape request. Use it to inspect current "
@@ -700,6 +703,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_get_feature_studio_status",
+        "cost": {"network": "live", "estimated_requests": 2, "max_requests": 2, "mutating": False, "cacheable": False},
         "description": (
             "Read the configured Feature Studio metadata and compiled feature specifications. It reports "
             "whether branchCableTrophyDisplay is exposed and how many parameters its compiled specification "
@@ -710,6 +714,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_check_model",
+        "cost": {"network": "live", "estimated_requests": 3, "max_requests": 4, "mutating": False, "cacheable": False},
         "description": (
             "Validate an existing Part Studio through read-only Onshape requests. The result checks custom "
             "feature status, exact part count, required part-name prefixes, and bounding limits; it returns "
@@ -726,6 +731,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_render_preview",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": False, "cacheable": True},
         "description": (
             "Request one shaded PNG rendering of the existing configured Part Studio from Onshape. The remote "
             "operation is read-only but may consume rendering resources. By default it returns the image as MCP "
@@ -751,6 +757,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_upload_feature_studio",
+        "cost": {"network": "live", "estimated_requests": 3, "max_requests": 3, "mutating": True, "cacheable": False},
         "description": (
             "Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled "
             "branchCableTrophyDisplay specification. This overwrites cloud Feature Studio contents and may "
@@ -761,6 +768,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_create_validation_part_studio",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": True, "cacheable": False},
         "description": (
             "Create a new Part Studio in the configured Onshape document. Each call creates another cloud "
             "element; by default it also changes config/onshape-state.json to target the new element. This is "
@@ -775,6 +783,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_instantiate_feature",
+        "cost": {"network": "live", "estimated_requests": 2, "max_requests": 3, "mutating": True, "cacheable": False},
         "description": (
             "Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit "
             "parameter set and optional known-parameter overrides. Repeated calls add additional cloud features; "
@@ -794,6 +803,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_run_validation_pipeline",
+        "cost": {"network": "live", "estimated_requests": 10, "max_requests": 15, "mutating": True, "cacheable": False},
         "description": (
             "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save "
             "that ID to local project state, instantiate the feature, validate invariants, and optionally render "

@@ -138,8 +138,13 @@ class OnshapeClient:
         if body is not None:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json;charset=UTF-8; qs=0.09"
+        mutating = method in ("POST", "PATCH", "DELETE")
+        # Mutations never auto-retry (a timeout != "not executed"; re-sending
+        # risks double-execution). Only idempotent GET retries on transient
+        # 5xx/network errors.
+        attempts = 1 if mutating else 4
         last_error: Exception | None = None
-        for attempt in range(4):
+        for attempt in range(attempts):
             request = urllib.request.Request(url, data=data, method=method, headers=headers)
             try:
                 with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -169,17 +174,24 @@ class OnshapeClient:
                         f"HTTP 429 rate-limited, wait ~{retry_after}s: "
                         f"{json.dumps(details, ensure_ascii=False)}"
                     ) from error
-                if error.code < 500:
+                if error.code < 500 or mutating:
+                    # Non-retryable (4xx), or a mutation we must never re-send.
                     raise RuntimeError(
                         f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
                     ) from error
-                # 5xx: transient server error, retry below.
+                # 5xx on an idempotent GET: transient server error, retry below.
                 last_error = RuntimeError(
                     f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
                 )
             except urllib.error.URLError as error:
+                if mutating:
+                    # Timeout/network error on a mutation is ambiguous (it may
+                    # have executed server-side) — never re-send.
+                    raise RuntimeError(
+                        f"{error} on {method} {path} (not retried: timeout != not executed)"
+                    ) from error
                 last_error = error
-            if attempt < 3:
+            if attempt < attempts - 1:
                 time.sleep(2 ** attempt)
         self._record_usage(method, path, None, None)
         raise RuntimeError(f"Onshape request failed after retries: {last_error}")
