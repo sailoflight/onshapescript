@@ -211,12 +211,24 @@ Rules that save quota:
 - **ERROR on instantiation is not a compile error** — it also fires for
   runtime/empty-query conditions (e.g. `qCreatedBy(id)` finds nothing on first
   run). Distinguish by reasoning, not by the API.
-- **Do not batch-verify what a real task will verify on demand.** The remaining
-  unknown — the cross-version `import` boundary vs the deployed runtime — is
-  cheap to answer inside the specific task that needs it, via eval, not by
-  another bulk run. It needs a probe whose feature body reads `definition.*`:
-  `specCount 0` is ambiguous otherwise (empty bodies emit no specs at any
-  version — gap-probe 2026-08-14; `scripts/live_gap_probe.py` is fixed).
+- **Do not batch-verify what a real task will verify on demand.** The
+  cross-version `import` boundary now has strong evidence (symbol-sweep
+  2026-08-14): a probe whose precondition matches experiments/01 exactly
+  (`annotation { "Name" }` + `{ (millimeter) : [...] } as LengthBoundSpec` —
+  that bound-spec/annotation pair is what emits a parameter spec; a bare
+  `isLength` emits none at any version) returns **specCount 0 at import
+  `3044.0`**, while the recorded experiments at `3029.0` return 1 spec — so the
+  boundary is 3029 < version ≤ 3044 (silent rejection, no error text). Confirm
+  with 3029/3050 probes when the rate limit clears. Never probe versions with a
+  bare precondition — `specCount 0` is meaningless without the bound spec.
+- **429 is never retried (user policy 2026-08-14).** Onshape's Retry-After hit
+  73094s (~20h) with Rate-Limit-Remaining 0. `client.request` raises
+  `RateLimited` immediately (wait time persisted to `config/api-usage.json`);
+  every quota script re-raises it, writes the error to its results file, and
+  exits — no retry, no skipping to the next task. Hard budgets everywhere: a
+  `--budget` total cap preflighted against the annual quota, plus per-operation
+  checks (e.g. an import version probe costs 3 calls and is only started if all
+  3 fit the remaining budget).
 - **Quota tests: minimize the unit whose crash is total; bundle only what is
   free to bundle.** A bundled eval is 1 call whether it holds 1 symbol or 10
   (clean bundles PASS in bulk), so large bundles are efficient — but a failing

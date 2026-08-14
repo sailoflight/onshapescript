@@ -164,3 +164,29 @@ errorType。上界（import > 服务器，3050）仍未测出，需再跑一次�
 **配额账目**：ledger 469 → 482（+13；本轮 spent 13/12），真实 = 119 + 482 =
 **601/2500**（剩 ~1899）。
 
+---
+
+## 追加：symbol-sweep 与 import 边界强证据（2026-08-14，账户被限流 ~20h）
+
+`scripts/live_symbol_sweep.py`（已含：时间戳日志、增量落盘、断点续跑跳过已验证
+符号、`--budget 0` 按未验证余量自适应、2s 节流、429 永不重试）。首轮 bug 白烧
+61 次（无限二分 + 429），第二轮修好组件但账户限流。**当前账户 `Retry-After
+72910s`（~20h）、`Rate-Limit-Remaining 0`**——2026-08-14 当天探测耗尽突发额度，
+sweep 暂停，限流过后续跑只补未验证部分。
+
+**import 边界（强证据但未定论，需限流后确认）**：修正形状（precondition 带
+`annotation { "Name" }` + `as LengthBoundSpec`，与实验 01 逐字一致）在
+**版本 3044.0 → specCount 0**（run-4/run-5 两次复现，errorType/errorMessages
+全空、非 4xx）；而同形状的**实验（3029.0）历史记录 → 1 spec**。同一文档/FS/流程
+只差版本 → **import 3044.0 被静默拒绝（0 specs 无错误文本），边界位于
+3029 < 版本 ≤ 3044**。这与 eval `libraryVersion` 报告 3044 并不矛盾——报告的是
+运行时版本，FS 编译支持的 std import 上限仍可能是 3029（奖杯/实验声明版本）。
+待限流解除后用修正探测复测 3029（应 1 spec）与 3050（应 0 specs）坐实。
+
+**429 策略（用户 2026-08-14 指令，已实现）**：`client.request` 对 429 **永不重试**
+——立即抛 `RateLimited`（等待时间已写入 ledger 的 `lastRetryAfter`）；所有额度
+脚本（sweep/gap_probe/is_probe/run_live_tests/run_instance_tests）重新抛出
+RateLimited 而非吞掉继续，脚本把错误写入结果文件并退出，**严禁重试、严禁跳过
+下一任务**。硬额度预算：每脚本 `--budget`（总额上限）+ preflight 对年额度 +
+import 每次版本探测前检查剩余 ≥ 3 次调用。
+
