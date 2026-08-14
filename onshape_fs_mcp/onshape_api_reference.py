@@ -191,6 +191,8 @@ def get_endpoint(path: str, method: str | None = None) -> dict[str, Any]:
             "description": e["description"],
             "tags": e["tags"],
             "deprecated": e["deprecated"],
+            "security": e["security"],
+            "requestBody": e["requestBody"],
             "parameters": e["parameters"],
             "responses": e["responses"],
             "specVersion": index.get("specVersion", ""),
@@ -224,3 +226,29 @@ def get_schema(name: str) -> dict[str, Any]:
     raise ValueError(
         f"no schema named {name!r}; use onshape_api_search to find related endpoints"
     )
+
+
+def _version_floor(version: str) -> tuple[int, ...]:
+    """'1.219.86205-93af2294a88d' / '1.219.86205.93af2294a88d' -> (1, 219, 86205)."""
+    return tuple(int(p) for p in re.split(r"[-.]", version)[:3] if p.isdigit())
+
+
+def version_is_newer(candidate: str, base: str) -> bool:
+    return bool(candidate and base) and _version_floor(candidate) > _version_floor(base)
+
+
+def fetch_latest_version(timeout: int = 60) -> dict[str, Any]:
+    """Probe the live server for the current REST API version (network call).
+
+    Uses /api/build, which returns a tiny JSON version block, instead of
+    downloading the whole OpenAPI spec. Requires onshape-credentials.json.
+    """
+    from onshape_fs_mcp.client import OnshapeClient
+    build = OnshapeClient().request("GET", "/api/build", timeout=timeout)
+    version = (build or {}).get("Implementation-Version", "")
+    if not version:
+        raise ValueError("could not read Implementation-Version from /api/build")
+    return {
+        "version": version,
+        "source": "cad.onshape.com/api/build (network probe)",
+    }

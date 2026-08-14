@@ -207,6 +207,18 @@ class McpServerTest(unittest.TestCase):
                     "arguments": {"name": "BTDocumentElementInfo"},
                 },
             },
+            {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_api_endpoint",
+                    "arguments": {
+                        "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
+                        "method": "post",
+                    },
+                },
+            },
         ])
         self.assertEqual(stderr, "")
         tags = responses[0]["result"]["structuredContent"]
@@ -223,6 +235,11 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(schema["name"], "BTDocumentElementInfo")
         self.assertEqual(schema["type"], "object")
         self.assertTrue(schema["properties"])
+        post = responses[4]["result"]["structuredContent"]
+        self.assertEqual(post["method"], "POST")
+        self.assertEqual(post["operationId"], "addPartStudioFeature")
+        self.assertTrue(post["security"])
+        self.assertIn("schemaRef", post["requestBody"])
 
     def test_check_version_reports_rest_spec_version(self) -> None:
         responses, stderr = invoke([

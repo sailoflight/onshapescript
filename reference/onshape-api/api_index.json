@@ -3,7 +3,53 @@
  "openapiVersion": "3.0.1",
  "specVersion": "1.219.86205-93af2294a88d",
  "specTitle": "Onshape REST API",
+ "baseUrl": "https://cad.onshape.com/api/v16",
  "sourceSha256": "eeedc4df5db6612a0d45276a3442c6422b285bf7258d0256c36633820506df7a",
+ "securitySchemes": {
+  "OAuth2": {
+   "type": "oauth2",
+   "description": "Use OAuth 2.0 to authenticate requests.",
+   "flows": {
+    "authorizationCode": {
+     "authorizationUrl": "/oauth/authorize",
+     "tokenUrl": "/oauth/token",
+     "scopes": [
+      "OAuth2Internal",
+      "OAuth2ReadPII",
+      "OAuth2Read",
+      "OAuth2Write",
+      "OAuth2Delete",
+      "OAuth2Purchase",
+      "OAuth2Share",
+      "document.create",
+      "document.edit",
+      "document.delete",
+      "document.read",
+      "enterprise.create",
+      "enterprise.read",
+      "enterprise.edit",
+      "enterprise.delete",
+      "enterprise.member.create",
+      "enterprise.member.read",
+      "enterprise.member.edit",
+      "enterprise.member.delete",
+      "webhook.create",
+      "webhook.edit",
+      "webhook.read",
+      "webhook.delete",
+      "PLMIntegration"
+     ]
+    }
+   }
+  },
+  "BasicAuth": {
+   "type": "http",
+   "description": "Use Basic Authentication with API Keys (key as username and secret as password) to authenticate requests."
+  }
+ },
+ "globalSecurity": [
+  "BasicAuth"
+ ],
  "tags": [
   {
    "name": "APIApplication",
@@ -185,6 +231,10 @@
     "Account"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "planId",
@@ -239,6 +289,10 @@
     "Account"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "all",
@@ -282,6 +336,14 @@
     "Account"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTPurchaseIdentityParams"
+   },
    "parameters": [
     {
      "name": "pid",
@@ -311,6 +373,10 @@
     "Account"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "aid",
@@ -361,6 +427,10 @@
     "Alias"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "prefix",
@@ -436,6 +506,14 @@
     "Alias"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAliasParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -455,6 +533,10 @@
     "Alias"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "aid",
@@ -486,6 +568,10 @@
     "Alias"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "aid",
@@ -515,6 +601,14 @@
     "Alias"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAliasParams"
+   },
    "parameters": [
     {
      "name": "aid",
@@ -544,6 +638,10 @@
     "Alias"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "aid",
@@ -628,6 +726,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAppElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -676,6 +782,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAppElementBulkCreateParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -724,6 +838,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -798,6 +916,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -893,6 +1015,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBAppElementBlobUploadParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -949,6 +1079,14 @@
     "AppAssociativeData"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTAppElementParamsArrayBTCopyViewAssociativeDataParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -996,6 +1134,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1043,6 +1185,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAppElementStartTransactionParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -1090,6 +1240,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1158,6 +1312,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAppElementCommitTransactionParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -1206,6 +1368,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1319,6 +1485,10 @@
     "AppAssociativeData"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1505,6 +1675,10 @@
     "AppAssociativeData"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1716,6 +1890,17 @@
     "AppAssociativeData"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "string",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -1772,6 +1957,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1846,6 +2035,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -1947,6 +2140,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2054,6 +2251,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTAppElementUpdateParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -2110,6 +2315,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2166,6 +2375,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2240,6 +2453,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2329,6 +2546,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTGetJsonPaths-1697"
+   },
    "parameters": [
     {
      "name": "did",
@@ -2418,6 +2643,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2511,6 +2740,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2619,6 +2852,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2711,6 +2948,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAppElementReferenceParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -2767,6 +3012,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2859,6 +3108,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -2961,6 +3214,14 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAppElementReferenceParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -3026,6 +3287,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -3135,6 +3400,10 @@
     "AppElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -3257,6 +3526,10 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cpid",
@@ -3307,6 +3580,10 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cpid",
@@ -3364,6 +3641,14 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTUserAppSettingsParams"
+   },
    "parameters": [
     {
      "name": "cpid",
@@ -3404,6 +3689,10 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "uid",
@@ -3451,6 +3740,10 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "uid",
@@ -3499,6 +3792,14 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTUserAppSettingsParams"
+   },
    "parameters": [
     {
      "name": "uid",
@@ -3539,6 +3840,10 @@
     "APIApplication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "uid",
@@ -3590,6 +3895,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -3658,6 +3967,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTModelElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -3696,6 +4013,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -3743,6 +4064,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -3799,6 +4124,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTFeatureDefinitionCall-1406"
+   },
    "parameters": [
     {
      "name": "did",
@@ -3855,6 +4188,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -3913,6 +4250,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTAssemblyInstanceDefinitionParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -3962,6 +4307,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAssemblyMateValuesInfo"
+   },
    "parameters": [
     {
      "name": "did",
@@ -4009,6 +4362,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTAssemblyModificationParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -4068,6 +4429,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTAssemblyTransformDefinitionParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -4117,6 +4486,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAssemblyTransformedInstancesDefinitionParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -4164,6 +4541,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4294,6 +4675,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4491,6 +4876,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4618,6 +5007,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4692,6 +5085,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4785,6 +5182,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4885,6 +5286,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTFeatureDefinitionCall-1406"
+   },
    "parameters": [
     {
      "name": "did",
@@ -4941,6 +5350,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -4997,6 +5410,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -5078,6 +5495,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -5171,6 +5592,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -5372,6 +5797,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTBGltfExportParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5428,6 +5861,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTBObjExportParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5484,6 +5925,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTBStepExportParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5540,6 +5989,10 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -5596,6 +6049,14 @@
     "Assembly"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTTranslateFormatParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5652,6 +6113,10 @@
     "Billing"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -5680,6 +6145,14 @@
     "BlobElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBTranslationRequestParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5728,6 +6201,10 @@
     "BlobElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -5806,6 +6283,14 @@
     "BlobElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBTranslationRequestParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5872,6 +6357,14 @@
     "BlobElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTUpdateMeshUnitsParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5929,6 +6422,14 @@
     "BlobElement"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTTranslateFormatParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -5999,6 +6500,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -6126,6 +6631,14 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCommentParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -6145,6 +6658,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6176,6 +6693,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6205,6 +6726,14 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCommentParams"
+   },
    "parameters": [
     {
      "name": "cid",
@@ -6234,6 +6763,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6265,6 +6798,14 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBFileUpload"
+   },
    "parameters": [
     {
      "name": "cid",
@@ -6294,6 +6835,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6343,6 +6888,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6372,6 +6921,10 @@
     "Comment"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6401,6 +6954,10 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "uid",
@@ -6450,6 +7007,10 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6479,6 +7040,10 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6520,6 +7085,10 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6580,6 +7149,17 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "array",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "cid",
@@ -6628,6 +7208,10 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6752,6 +7336,14 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCompanyUserParams"
+   },
    "parameters": [
     {
      "name": "cid",
@@ -6781,6 +7373,10 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -6841,6 +7437,14 @@
     "Company"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCompanyUserParams"
+   },
    "parameters": [
     {
      "name": "cid",
@@ -6879,6 +7483,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "q",
@@ -7012,6 +7620,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTDocumentParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -7031,6 +7647,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7081,6 +7701,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7137,6 +7761,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTVersionOrWorkspaceParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7166,6 +7798,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7223,6 +7859,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTLinkToLatestDocumentParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7270,6 +7914,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTMoveElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7308,6 +7960,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTRevertUnchangedParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7349,6 +8009,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTSyncAppElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7389,6 +8057,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7421,6 +8093,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTVersionOrWorkspaceParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7450,6 +8130,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7490,6 +8174,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7540,6 +8228,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7631,6 +8323,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7736,6 +8432,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7798,6 +8498,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -7845,6 +8549,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBExportModelParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -7917,6 +8629,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8231,6 +8947,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTDocumentSearchParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -8252,6 +8976,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8293,6 +9021,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8322,6 +9054,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTDocumentParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8351,6 +9091,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8380,6 +9124,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTAclParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8411,6 +9163,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTAclParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8442,6 +9202,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTDocumentNotesParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8471,6 +9239,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8503,6 +9275,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTShareParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8532,6 +9312,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8585,6 +9369,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8616,6 +9404,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8647,6 +9439,10 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -8713,6 +9509,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTRestoreInfo"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8779,6 +9583,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCopyDocumentParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8817,6 +9629,14 @@
     "Document"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTVersionOrWorkspaceMergeInfo"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8855,6 +9675,14 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTDrawingParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8893,6 +9721,14 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTDrawingModificationParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -8950,6 +9786,10 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9000,6 +9840,10 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9091,6 +9935,10 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9203,6 +10051,14 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTTranslateFormatParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9259,6 +10115,10 @@
     "Drawing"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "mrid",
@@ -9288,6 +10148,14 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCopyElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9326,6 +10194,14 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTConfigurationParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9382,6 +10258,10 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9431,6 +10311,14 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTUpdateReferenceParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9480,6 +10368,10 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9551,6 +10443,14 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTConfigurationUpdateCall-2933"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9607,6 +10507,10 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9701,6 +10605,10 @@
     "Element"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9794,6 +10702,10 @@
     "ExportRule"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cu",
@@ -9836,6 +10748,14 @@
     "FeatureStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTModelElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9874,6 +10794,10 @@
     "FeatureStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -9930,6 +10854,14 @@
     "FeatureStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTFeatureStudioContents-2239"
+   },
    "parameters": [
     {
      "name": "did",
@@ -9986,6 +10918,10 @@
     "FeatureStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -10042,6 +10978,10 @@
     "Folder"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "fid",
@@ -10071,6 +11011,14 @@
     "Folder"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTShareParams"
+   },
    "parameters": [
     {
      "name": "fid",
@@ -10100,6 +11048,10 @@
     "Folder"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "fid",
@@ -10153,6 +11105,10 @@
     "Insertable"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -10422,6 +11378,10 @@
     "Item"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "documentId",
@@ -10515,6 +11475,14 @@
     "Item"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTItemParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -10534,6 +11502,10 @@
     "Item"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "iid",
@@ -10565,6 +11537,10 @@
     "Item"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "iid",
@@ -10612,6 +11588,14 @@
     "Item"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTItemParams"
+   },
    "parameters": [
     {
      "name": "iid",
@@ -10641,6 +11625,14 @@
     "Material"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBFileUpload"
+   },
    "parameters": [
     {
      "name": "did",
@@ -10690,6 +11682,10 @@
     "Material"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -10746,6 +11742,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -10852,6 +11852,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -10982,6 +11986,17 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "string",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -11049,6 +12064,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -11129,6 +12148,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -11250,6 +12273,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -11413,6 +12440,17 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "string",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -11538,6 +12576,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -11644,6 +12686,17 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "string",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -11693,6 +12746,17 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "string",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -11742,6 +12806,10 @@
     "Metadata"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -11855,6 +12923,10 @@
     "MetadataCategory"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "ownerId",
@@ -11984,6 +13056,14 @@
     "NumberingScheme"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTNextPartNumbersParam"
+   },
    "parameters": [
     {
      "name": "cid",
@@ -12024,6 +13104,10 @@
     "OpenApi"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "version",
@@ -12153,6 +13237,10 @@
     "OpenApi"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [],
    "responses": [
     {
@@ -12175,6 +13263,14 @@
     "PartNumber"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTNextPartNumbersParam"
+   },
    "parameters": [
     {
      "name": "cid",
@@ -12215,6 +13311,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -12328,6 +13428,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -12434,6 +13538,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -12554,6 +13662,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -12647,6 +13759,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -12826,6 +13942,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -12956,6 +14076,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13052,6 +14176,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13198,6 +14326,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13272,6 +14404,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13438,6 +14574,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13587,6 +14727,10 @@
     "Part"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13816,6 +14960,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13884,6 +15032,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTModelElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -13922,6 +15078,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -13978,6 +15138,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "feature The serialized feature definition",
+    "schemaRef": "BTFeatureDefinitionCall-1406"
+   },
    "parameters": [
     {
      "name": "did",
@@ -14034,6 +15202,17 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "The index at which the rollback index should be placed. Features\n with entry index (0-based) higher than or equal to the value are rolled back. Value of -1 is treated\n as an alias for \"end of feature list\". Otherwise the value must be in the range 0 to the number of\n entries in the feature list",
+    "schema": {
+     "type": "string",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -14081,6 +15260,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "feature The serialized feature definition",
+    "schemaRef": "BTUpdateFeaturesCall-1748"
+   },
    "parameters": [
     {
      "name": "did",
@@ -14128,6 +15315,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -14269,6 +15460,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -14363,6 +15558,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -14473,6 +15672,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -14604,6 +15807,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTFeatureDefinitionCall-1406"
+   },
    "parameters": [
     {
      "name": "did",
@@ -14660,6 +15871,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTFeatureScriptEvalCall-2377"
+   },
    "parameters": [
     {
      "name": "did",
@@ -14761,6 +15980,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -14862,6 +16085,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -14918,6 +16145,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15028,6 +16259,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15208,6 +16443,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTIdTranslationParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -15264,6 +16507,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15395,6 +16642,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15507,6 +16758,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15674,6 +16929,10 @@
     "Sketch"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15790,6 +17049,10 @@
     "Sketch"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15873,6 +17136,10 @@
     "Sketch"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -15988,6 +17255,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -16151,6 +17422,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -16301,6 +17576,10 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -16531,6 +17810,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTBGltfExportParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -16587,6 +17874,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTBObjExportParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -16643,6 +17938,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTBStepExportParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -16699,6 +18002,14 @@
     "PartStudio"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTTranslateFormatParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -16755,6 +18066,10 @@
     "ProductStructure"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "documentId",
@@ -16878,6 +18193,14 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTPublicationParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -16897,6 +18220,10 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "pid",
@@ -16938,6 +18265,14 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTPublicationParams"
+   },
    "parameters": [
     {
      "name": "pid",
@@ -16969,6 +18304,14 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTPublicationItemParams"
+   },
    "parameters": [
     {
      "name": "pid",
@@ -16998,6 +18341,10 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "pid",
@@ -17038,6 +18385,10 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "pid",
@@ -17067,6 +18418,14 @@
     "Publication"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTPublicationBulkItemParams"
+   },
    "parameters": [
     {
      "name": "pid",
@@ -17096,6 +18455,10 @@
     "ReleasePackage"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "wfid",
@@ -17146,6 +18509,14 @@
     "ReleasePackage"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTReleasePackageParams"
+   },
    "parameters": [
     {
      "name": "wfid",
@@ -17187,6 +18558,10 @@
     "ReleasePackage"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "rpid",
@@ -17236,6 +18611,14 @@
     "ReleasePackage"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTUpdateReleasePackageParams"
+   },
    "parameters": [
     {
      "name": "rpid",
@@ -17284,6 +18667,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -17341,6 +18728,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -17414,6 +18805,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -17542,6 +18937,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -17664,6 +19063,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -17741,6 +19144,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -17800,6 +19207,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -17829,6 +19240,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -17867,6 +19282,10 @@
     "Revision"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cd",
@@ -17923,6 +19342,14 @@
     "StandardContent"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTStandardContentSetCustomParametersBatchRequest"
+   },
    "parameters": [
     {
      "name": "did",
@@ -17962,6 +19389,10 @@
     "StandardContent"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -17994,6 +19425,10 @@
     "StandardContent"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "standard",
@@ -18027,6 +19462,14 @@
     "PropertiesTableTemplate"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTPropertiesTableTemplateParams"
+   },
    "parameters": [
     {
      "name": "templateGroupId",
@@ -18056,6 +19499,10 @@
     "PropertiesTableTemplate"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -18118,6 +19565,10 @@
     "PropertiesTableTemplate"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -18180,6 +19631,10 @@
     "PropertiesTableTemplate"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -18211,6 +19666,10 @@
     "PropertiesTableTemplate"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -18240,6 +19699,10 @@
     "Task"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "userId",
@@ -18346,6 +19809,14 @@
     "Task"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTCreateTaskParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -18365,6 +19836,10 @@
     "Task"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -18394,6 +19869,14 @@
     "Task"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTUpdateTaskParams"
+   },
    "parameters": [
     {
      "name": "tid",
@@ -18423,6 +19906,10 @@
     "Task"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -18461,6 +19948,10 @@
     "Team"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "query",
@@ -18574,6 +20065,10 @@
     "Team"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -18603,6 +20098,10 @@
     "Team"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -18686,6 +20185,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -18715,6 +20218,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -18762,6 +20269,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -18800,6 +20311,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -18916,6 +20431,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -18984,6 +20503,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19056,6 +20579,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19126,6 +20653,14 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTApplicationElementThumbnailParamsArray"
+   },
    "parameters": [
     {
      "name": "did",
@@ -19208,6 +20743,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19318,6 +20857,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19347,6 +20890,10 @@
     "Thumbnail"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19385,6 +20932,10 @@
     "Translation"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19439,6 +20990,14 @@
     "Translation"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTBTranslationRequestParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -19477,6 +21036,10 @@
     "Translation"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [],
    "responses": [
     {
@@ -19499,6 +21062,10 @@
     "Translation"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -19530,6 +21097,10 @@
     "Translation"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "tid",
@@ -19559,6 +21130,14 @@
     "User"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTLoginParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -19580,6 +21159,10 @@
     "User"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [],
    "responses": [
     {
@@ -19599,6 +21182,10 @@
     "User"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "includematerials",
@@ -19629,6 +21216,10 @@
     "User"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "uid",
@@ -19668,6 +21259,17 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schema": {
+     "type": "array",
+     "description": ""
+    }
+   },
    "parameters": [
     {
      "name": "did",
@@ -19727,6 +21329,14 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTVariableStudioReferenceListInfo"
+   },
    "parameters": [
     {
      "name": "did",
@@ -19786,6 +21396,14 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTVariableStudioScopeInfo"
+   },
    "parameters": [
     {
      "name": "did",
@@ -19845,6 +21463,14 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": true,
+    "description": "",
+    "schemaRef": "BTModelElementParams"
+   },
    "parameters": [
     {
      "name": "did",
@@ -19893,6 +21519,10 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -19986,6 +21616,10 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -20056,6 +21690,10 @@
     "Variables"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "did",
@@ -20126,6 +21764,10 @@
     "Version"
    ],
    "deprecated": false,
+   "security": [
+    "BasicAuth"
+   ],
+   "requestBody": null,
    "parameters": [],
    "responses": [
     {
@@ -20145,6 +21787,10 @@
     "Webhook"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "company",
@@ -20209,6 +21855,14 @@
     "Webhook"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTWebhookParams"
+   },
    "parameters": [],
    "responses": [
     {
@@ -20228,6 +21882,10 @@
     "Webhook"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "webhookid",
@@ -20269,6 +21927,10 @@
     "Webhook"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "webhookid",
@@ -20298,6 +21960,14 @@
     "Webhook"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": {
+    "required": false,
+    "description": "",
+    "schemaRef": "BTWebhookParams"
+   },
    "parameters": [
     {
      "name": "webhookid",
@@ -20327,6 +21997,10 @@
     "Webhook"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "webhookid",
@@ -20358,6 +22032,10 @@
     "Workflow"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "documentId",
@@ -20388,6 +22066,10 @@
     "Workflow"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "companyId",
@@ -20457,6 +22139,10 @@
     "Workflow"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "cid",
@@ -20530,6 +22216,10 @@
     "Workflow"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "objectId",
@@ -20578,6 +22268,10 @@
     "Workflow"
    ],
    "deprecated": false,
+   "security": [
+    "OAuth2"
+   ],
+   "requestBody": null,
    "parameters": [
     {
      "name": "objectId",

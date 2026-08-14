@@ -59,7 +59,8 @@ or the network. They are the primary FeatureScript lookup tools. See
 These answer questions about the Onshape REST API surface from the live OpenAPI
 definition vendored under `reference/onshape-api/`. Like the FeatureScript
 tools they are offline; only `fs_check_version`/`fs_update_reference` (above)
-and the Onshape REST tools touch the network.
+and the Onshape REST tools touch the network. See `docs/onshape-api.md` for the
+data, coverage, and the remaining documentation gaps for real operations.
 
 | Tool | Behavior |
 |---|---|

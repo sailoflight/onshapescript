@@ -179,7 +179,8 @@
    "tags": [
     "Account"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/accounts/purchases",
@@ -189,7 +190,8 @@
    "tags": [
     "Account"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/accounts/purchases/{pid}/consume",
@@ -199,7 +201,8 @@
    "tags": [
     "Account"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/accounts/{aid}/purchases/{pid}",
@@ -209,7 +212,8 @@
    "tags": [
     "Account"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/aliases",
@@ -219,7 +223,8 @@
    "tags": [
     "Alias"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/aliases",
@@ -229,7 +234,8 @@
    "tags": [
     "Alias"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/aliases/{aid}",
@@ -239,7 +245,8 @@
    "tags": [
     "Alias"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/aliases/{aid}",
@@ -249,7 +256,8 @@
    "tags": [
     "Alias"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/aliases/{aid}",
@@ -259,7 +267,8 @@
    "tags": [
     "Alias"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/aliases/{aid}/members",
@@ -269,7 +278,8 @@
    "tags": [
     "Alias"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/w/{wid}",
@@ -279,7 +289,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/bulkcreate",
@@ -289,7 +300,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/blob/{bid}",
@@ -299,7 +311,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/blob/{bid}",
@@ -309,7 +322,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/blob/{bid}",
@@ -319,7 +333,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/copyassociativedata",
@@ -329,7 +344,8 @@
    "tags": [
     "AppAssociativeData"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/transactions",
@@ -339,7 +355,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/transactions",
@@ -349,7 +366,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/e/{eid}/transactions/{tid}",
@@ -359,7 +377,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/w/{wid}/transactions",
@@ -369,7 +388,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/{vm}/{vmid}/e/{eid}/blob/{bid}",
@@ -379,7 +399,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/associativedata",
@@ -389,7 +410,8 @@
    "tags": [
     "AppAssociativeData"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/associativedata",
@@ -399,7 +421,8 @@
    "tags": [
     "AppAssociativeData"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/associativedata",
@@ -409,7 +432,8 @@
    "tags": [
     "AppAssociativeData"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/blob",
@@ -419,7 +443,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/compare",
@@ -429,7 +454,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content",
@@ -439,7 +465,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content",
@@ -449,7 +476,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/history",
@@ -459,7 +487,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/ids",
@@ -469,7 +498,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/json",
@@ -479,7 +509,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/jsonpaths",
@@ -489,7 +520,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/subelements",
@@ -499,7 +531,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/subelements",
@@ -509,7 +542,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/subelements/{sid}",
@@ -519,7 +553,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/references",
@@ -529,7 +564,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/references/{rid}",
@@ -539,7 +575,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/references/{rid}",
@@ -549,7 +586,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/references/{rid}",
@@ -559,7 +597,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/resolvereferences",
@@ -569,7 +608,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/appelements/d/{did}/{wvm}/{wvmid}/resolvereferences",
@@ -579,7 +619,8 @@
    "tags": [
     "AppElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/applications/clients/{cid}/settings/companies/{cpid}",
@@ -589,7 +630,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/applications/clients/{cid}/settings/companies/{cpid}",
@@ -599,7 +641,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/applications/clients/{cid}/settings/companies/{cpid}",
@@ -609,7 +652,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/applications/clients/{cid}/settings/users/{uid}",
@@ -619,7 +663,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/applications/clients/{cid}/settings/users/{uid}",
@@ -629,7 +674,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/applications/clients/{cid}/settings/users/{uid}",
@@ -639,7 +685,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/applications/extensions/user/{uid}/client/{cid}",
@@ -649,7 +696,8 @@
    "tags": [
     "APIApplication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/e/{eid}/namedViews",
@@ -659,7 +707,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}",
@@ -669,7 +718,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/bomelement",
@@ -679,7 +729,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
@@ -689,7 +740,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
@@ -699,7 +751,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/instance/nodeid/{nid}",
@@ -709,7 +762,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/instances",
@@ -719,7 +773,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/matevalues",
@@ -729,7 +784,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/modify",
@@ -739,7 +795,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/occurrencetransforms",
@@ -749,7 +806,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/w/{wid}/e/{eid}/transformedinstances",
@@ -759,7 +817,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -769,7 +828,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/bom",
@@ -779,7 +839,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/boundingboxes",
@@ -789,7 +850,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/displaystates",
@@ -799,7 +861,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/explodedviews",
@@ -809,7 +872,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
@@ -819,7 +883,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
@@ -829,7 +894,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/featurespecs",
@@ -839,7 +905,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/massproperties",
@@ -849,7 +916,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/namedpositions",
@@ -859,7 +927,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/shadedviews",
@@ -869,7 +938,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wv}/{wvid}/e/{eid}/export/gltf",
@@ -879,7 +949,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/{wv}/{wvid}/e/{eid}/export/obj",
@@ -889,7 +960,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/{wv}/{wvid}/e/{eid}/export/step",
@@ -899,7 +971,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/assemblies/d/{did}/{wv}/{wvid}/e/{eid}/matevalues",
@@ -909,7 +982,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/assemblies/d/{did}/{wv}/{wvid}/e/{eid}/translations",
@@ -919,7 +993,8 @@
    "tags": [
     "Assembly"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/billing/plans/client/{cid}",
@@ -929,7 +1004,8 @@
    "tags": [
     "Billing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/blobelements/d/{did}/w/{wid}",
@@ -939,7 +1015,8 @@
    "tags": [
     "BlobElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/blobelements/d/{did}/w/{wid}/e/{eid}",
@@ -949,7 +1026,8 @@
    "tags": [
     "BlobElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/blobelements/d/{did}/w/{wid}/e/{eid}",
@@ -959,7 +1037,8 @@
    "tags": [
     "BlobElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/blobelements/d/{did}/w/{wid}/e/{eid}/units",
@@ -969,7 +1048,8 @@
    "tags": [
     "BlobElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/blobelements/d/{did}/{wv}/{wvid}/e/{eid}/translations",
@@ -979,7 +1059,8 @@
    "tags": [
     "BlobElement"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/comments",
@@ -989,7 +1070,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/comments",
@@ -999,7 +1081,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/comments/{cid}",
@@ -1009,7 +1092,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/comments/{cid}",
@@ -1019,7 +1103,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/comments/{cid}",
@@ -1029,7 +1114,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/comments/{cid}/attachment",
@@ -1039,7 +1125,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/comments/{cid}/attachment",
@@ -1049,7 +1136,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/comments/{cid}/attachment/{fdid}.{ext}",
@@ -1059,7 +1147,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/comments/{cid}/reopen",
@@ -1069,7 +1158,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/comments/{cid}/resolve",
@@ -1079,7 +1169,8 @@
    "tags": [
     "Comment"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies",
@@ -1089,7 +1180,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies/{cid}",
@@ -1099,7 +1191,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies/{cid}/documentsbyname",
@@ -1109,7 +1202,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies/{cid}/globalpermission/{type}/{id}",
@@ -1119,7 +1213,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies/{cid}/globalpermission/{type}/{id}",
@@ -1129,7 +1224,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/companies/{cid}/users",
@@ -1139,7 +1235,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies/{cid}/users",
@@ -1149,7 +1246,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/companies/{cid}/users/{uid}",
@@ -1159,7 +1257,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/companies/{cid}/users/{uid}",
@@ -1169,7 +1268,8 @@
    "tags": [
     "Company"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents",
@@ -1179,7 +1279,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents",
@@ -1189,7 +1290,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/externaldata/{fid}",
@@ -1199,7 +1301,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/versions",
@@ -1209,7 +1312,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/versions",
@@ -1219,7 +1323,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/versions/{vid}",
@@ -1229,7 +1334,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/w/{wid}/e/{eid}/latestdocumentreferences",
@@ -1239,7 +1345,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/w/{wid}/moveelement",
@@ -1249,7 +1356,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/w/{wid}/revertunchangedtorevisions",
@@ -1259,7 +1367,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/w/{wid}/syncAppElements",
@@ -1269,7 +1378,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/workspaces",
@@ -1279,7 +1389,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/workspaces",
@@ -1289,7 +1400,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/workspaces/{wid}",
@@ -1299,7 +1411,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/{wm}/{wmid}/documenthistory",
@@ -1309,7 +1422,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/{wvm}/{wvmid}/contents",
@@ -1319,7 +1433,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/{wvm}/{wvmid}/elements",
@@ -1329,7 +1444,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/{wvm}/{wvmid}/unitinfo",
@@ -1339,7 +1455,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/{wv}/{wvid}/currentmicroversion",
@@ -1349,7 +1466,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/d/{did}/{wv}/{wvid}/e/{eid}/export",
@@ -1359,7 +1477,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/d/{did}/{wv}/{wvid}/insertables",
@@ -1369,7 +1488,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/search",
@@ -1379,7 +1499,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}",
@@ -1389,7 +1510,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}",
@@ -1399,7 +1521,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}",
@@ -1409,7 +1532,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/acl",
@@ -1419,7 +1543,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}/acl/anonymousAccess",
@@ -1429,7 +1554,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/acl/public",
@@ -1439,7 +1565,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/notes",
@@ -1449,7 +1576,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/permissionset",
@@ -1459,7 +1587,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}/share",
@@ -1469,7 +1598,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/share/{eid}",
@@ -1479,7 +1609,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}/shareWithSupport",
@@ -1489,7 +1620,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}/shareWithSupport",
@@ -1499,7 +1631,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}/w/{wid}/mergePreview",
@@ -1509,7 +1642,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/documents/{did}/w/{wid}/restore/{vm}/{vmid}",
@@ -1519,7 +1653,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/workspaces/{wid}/copy",
@@ -1529,7 +1664,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/documents/{did}/workspaces/{wid}/merge",
@@ -1539,7 +1675,8 @@
    "tags": [
     "Document"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/drawings/d/{did}/w/{wid}/create",
@@ -1549,7 +1686,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/drawings/d/{did}/w/{wid}/e/{eid}/modify",
@@ -1559,7 +1697,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/drawings/d/{did}/w/{wid}/e/{eid}/translationformats",
@@ -1569,7 +1708,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/drawings/d/{did}/{wvm}/{wvmid}/e/{eid}/views",
@@ -1579,7 +1719,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/drawings/d/{did}/{wvm}/{wvmid}/e/{eid}/views/{viewid}/jsongeometry",
@@ -1589,7 +1730,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/drawings/d/{did}/{wv}/{wvid}/e/{eid}/translations",
@@ -1599,7 +1741,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/drawings/modify/status/{mrid}",
@@ -1609,7 +1752,8 @@
    "tags": [
     "Drawing"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/elements/copyelement/{did}/workspace/{wid}",
@@ -1619,7 +1763,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/elements/d/{did}/e/{eid}/configurationencodings",
@@ -1629,7 +1774,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/elements/d/{did}/w/{wid}/e/{eid}",
@@ -1639,7 +1785,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/elements/d/{did}/w/{wid}/e/{eid}/updatereferences",
@@ -1649,7 +1796,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration",
@@ -1659,7 +1807,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration",
@@ -1669,7 +1818,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configurationencodings/{cid}",
@@ -1679,7 +1829,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/elements/translatorFormats/{did}/{wv}/{wvid}/{eid}",
@@ -1689,7 +1840,8 @@
    "tags": [
     "Element"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/exportrules/options/{cu}/{cuid}",
@@ -1699,7 +1851,8 @@
    "tags": [
     "ExportRule"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/featurestudios/d/{did}/w/{wid}",
@@ -1709,7 +1862,8 @@
    "tags": [
     "FeatureStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/featurestudios/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -1719,7 +1873,8 @@
    "tags": [
     "FeatureStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/featurestudios/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -1729,7 +1884,8 @@
    "tags": [
     "FeatureStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/featurestudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurespecs",
@@ -1739,7 +1895,8 @@
    "tags": [
     "FeatureStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/folders/{fid}/acl",
@@ -1749,7 +1906,8 @@
    "tags": [
     "Folder"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/folders/{fid}/share",
@@ -1759,7 +1917,8 @@
    "tags": [
     "Folder"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/folders/{fid}/share/{eid}",
@@ -1769,7 +1928,8 @@
    "tags": [
     "Folder"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/insertables/d/{did}/latest",
@@ -1779,7 +1939,8 @@
    "tags": [
     "Insertable"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/items",
@@ -1789,7 +1950,8 @@
    "tags": [
     "Item"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/items",
@@ -1799,7 +1961,8 @@
    "tags": [
     "Item"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/items/{iid}",
@@ -1809,7 +1972,8 @@
    "tags": [
     "Item"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/items/{iid}",
@@ -1819,7 +1983,8 @@
    "tags": [
     "Item"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/items/{iid}",
@@ -1829,7 +1994,8 @@
    "tags": [
     "Item"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/materials/libraries/d/{did}/w/{wid}/e/{eid}/csv",
@@ -1839,7 +2005,8 @@
    "tags": [
     "Material"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/materials/libraries/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -1849,7 +2016,8 @@
    "tags": [
     "Material"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e",
@@ -1859,7 +2027,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -1869,7 +2038,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -1879,7 +2049,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/assembly-debug",
@@ -1889,7 +2060,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/p",
@@ -1899,7 +2071,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/{iden}/{pid}",
@@ -1909,7 +2082,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/{iden}/{pid}",
@@ -1919,7 +2093,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/metadata/d/{did}/{wv}/{wvid}",
@@ -1929,7 +2104,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadata/d/{did}/{wv}/{wvid}",
@@ -1939,7 +2115,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/metadata/standardcontent/d/{did}",
@@ -1949,7 +2126,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/metadata/standardcontent/d/{did}/v/{vid}/e/{eid}/p/{pid}",
@@ -1959,7 +2137,8 @@
    "tags": [
     "Metadata"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/metadatacategory/categoryproperties",
@@ -1969,7 +2148,8 @@
    "tags": [
     "MetadataCategory"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/numberingscheme/nextnumbers",
@@ -1979,7 +2159,8 @@
    "tags": [
     "NumberingScheme"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/openapi",
@@ -1989,7 +2170,8 @@
    "tags": [
     "OpenApi"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/openapi/tags",
@@ -1999,7 +2181,8 @@
    "tags": [
     "OpenApi"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partnumber/nextnumbers",
@@ -2009,7 +2192,8 @@
    "tags": [
     "PartNumber"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}",
@@ -2019,7 +2203,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}",
@@ -2029,7 +2214,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/bodydetails",
@@ -2039,7 +2225,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/boundingboxes",
@@ -2049,7 +2236,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/gltf",
@@ -2059,7 +2247,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/massproperties",
@@ -2069,7 +2258,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/parasolid",
@@ -2079,7 +2269,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/shadedviews",
@@ -2089,7 +2280,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/sheetmetal/bendtable",
@@ -2099,7 +2291,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/stl",
@@ -2109,7 +2302,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/tessellatededges",
@@ -2119,7 +2313,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/tessellatedfaces",
@@ -2129,7 +2324,8 @@
    "tags": [
     "Part"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/e/{eid}/namedViews",
@@ -2139,7 +2335,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/w/{wid}",
@@ -2149,7 +2346,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
@@ -2159,7 +2357,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
@@ -2169,7 +2368,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/w/{wid}/e/{eid}/features/rollback",
@@ -2179,7 +2379,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/w/{wid}/e/{eid}/features/updates",
@@ -2189,7 +2390,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/bodydetails",
@@ -2199,7 +2401,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/boundingboxes",
@@ -2209,7 +2412,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/compare",
@@ -2219,7 +2423,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
@@ -2229,7 +2434,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
@@ -2239,7 +2445,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurescript",
@@ -2249,7 +2456,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurescriptrepresentation",
@@ -2259,7 +2467,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurespecs",
@@ -2269,7 +2478,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/fstable",
@@ -2279,7 +2489,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/gltf",
@@ -2289,7 +2500,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/idtranslations",
@@ -2299,7 +2511,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/massproperties",
@@ -2309,7 +2522,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/parasolid",
@@ -2319,7 +2533,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/shadedviews",
@@ -2329,7 +2544,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/sketches",
@@ -2339,7 +2555,8 @@
    "tags": [
     "Sketch"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/sketches/{sid}/boundingboxes",
@@ -2349,7 +2566,8 @@
    "tags": [
     "Sketch"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/sketches/{sid}/tessellatedentities",
@@ -2359,7 +2577,8 @@
    "tags": [
     "Sketch"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/stl",
@@ -2369,7 +2588,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/tessellatededges",
@@ -2379,7 +2599,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/tessellatedfaces",
@@ -2389,7 +2610,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/partstudios/d/{did}/{wv}/{wvid}/e/{eid}/export/gltf",
@@ -2399,7 +2621,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wv}/{wvid}/e/{eid}/export/obj",
@@ -2409,7 +2632,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wv}/{wvid}/e/{eid}/export/step",
@@ -2419,7 +2643,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/partstudios/d/{did}/{wv}/{wvid}/e/{eid}/translations",
@@ -2429,7 +2654,8 @@
    "tags": [
     "PartStudio"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/productstructure/whereused",
@@ -2439,7 +2665,8 @@
    "tags": [
     "ProductStructure"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/publications",
@@ -2449,7 +2676,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/publications/{pid}",
@@ -2459,7 +2687,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/publications/{pid}",
@@ -2469,7 +2698,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/publications/{pid}/item",
@@ -2479,7 +2709,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/publications/{pid}/item/{iid}",
@@ -2489,7 +2720,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/publications/{pid}/items",
@@ -2499,7 +2731,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/publications/{pid}/items",
@@ -2509,7 +2742,8 @@
    "tags": [
     "Publication"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/releasepackages/obsoletion/{wfid}",
@@ -2519,7 +2753,8 @@
    "tags": [
     "ReleasePackage"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/releasepackages/release/{wfid}",
@@ -2529,7 +2764,8 @@
    "tags": [
     "ReleasePackage"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/releasepackages/{rpid}",
@@ -2539,7 +2775,8 @@
    "tags": [
     "ReleasePackage"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/releasepackages/{rpid}",
@@ -2549,7 +2786,8 @@
    "tags": [
     "ReleasePackage"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/revisions/c/{cid}/partnumber/{pnum}",
@@ -2559,7 +2797,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/companies/{cid}",
@@ -2569,7 +2808,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/companies/{cid}/d/{did}/{wv}/{wvid}/e/{eid}",
@@ -2579,7 +2819,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/companies/{cid}/d/{did}/{wv}/{wvid}/e/{eid}/p/{pid}",
@@ -2589,7 +2830,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/companies/{cid}/partnumber/{pnum}",
@@ -2599,7 +2841,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/companies/{cid}/partnumber/{pnum}/elementType/{et}",
@@ -2609,7 +2852,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/d/{did}",
@@ -2619,7 +2863,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/d/{did}/v/{vid}",
@@ -2629,7 +2874,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/revisions/{cd}/{cdid}/p/{pnum}/latest",
@@ -2639,7 +2885,8 @@
    "tags": [
     "Revision"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/standardcontent/d/{did}/customparameters",
@@ -2649,7 +2896,8 @@
    "tags": [
     "StandardContent"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/standardcontent/d/{did}/parametervalues",
@@ -2659,7 +2907,8 @@
    "tags": [
     "StandardContent"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/standardcontent/list",
@@ -2669,7 +2918,8 @@
    "tags": [
     "StandardContent"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tabletemplates",
@@ -2679,7 +2929,8 @@
    "tags": [
     "PropertiesTableTemplate"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/tabletemplates/companies/{cid}",
@@ -2689,7 +2940,8 @@
    "tags": [
     "PropertiesTableTemplate"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tabletemplates/d/{did}",
@@ -2699,7 +2951,8 @@
    "tags": [
     "PropertiesTableTemplate"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tabletemplates/{tid}",
@@ -2709,7 +2962,8 @@
    "tags": [
     "PropertiesTableTemplate"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tabletemplates/{tid}",
@@ -2719,7 +2973,8 @@
    "tags": [
     "PropertiesTableTemplate"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tasks",
@@ -2729,7 +2984,8 @@
    "tags": [
     "Task"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tasks",
@@ -2739,7 +2995,8 @@
    "tags": [
     "Task"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/tasks/{tid}",
@@ -2749,7 +3006,8 @@
    "tags": [
     "Task"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/tasks/{tid}",
@@ -2759,7 +3017,8 @@
    "tags": [
     "Task"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/tasks/{tid}/{transition}",
@@ -2769,7 +3028,8 @@
    "tags": [
     "Task"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/teams",
@@ -2779,7 +3039,8 @@
    "tags": [
     "Team"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/teams/{tid}",
@@ -2789,7 +3050,8 @@
    "tags": [
     "Team"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/teams/{tid}/members",
@@ -2799,7 +3061,8 @@
    "tags": [
     "Team"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}",
@@ -2809,7 +3072,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/v/{vid}",
@@ -2819,7 +3083,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/w/{wid}",
@@ -2829,7 +3094,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/w/{wid}/e/{eid}/ac/{cid}/s/{sz}",
@@ -2839,7 +3105,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/w/{wid}/s/{sz}",
@@ -2849,7 +3116,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/{wv}/{wvid}/e/{eid}",
@@ -2859,7 +3127,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/{wv}/{wvid}/e/{eid}",
@@ -2869,7 +3138,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/d/{did}/{wv}/{wvid}/e/{eid}",
@@ -2879,7 +3149,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/thumbnails/d/{did}/{wv}/{wvid}/e/{eid}/s/{sz}",
@@ -2889,7 +3160,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/document/{did}",
@@ -2899,7 +3171,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/thumbnails/document/{did}/version/{vid}",
@@ -2909,7 +3182,8 @@
    "tags": [
     "Thumbnail"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/translations/d/{did}",
@@ -2919,7 +3193,8 @@
    "tags": [
     "Translation"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/translations/d/{did}/w/{wid}",
@@ -2929,7 +3204,8 @@
    "tags": [
     "Translation"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/translations/translationformats",
@@ -2939,7 +3215,8 @@
    "tags": [
     "Translation"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/translations/{tid}",
@@ -2949,7 +3226,8 @@
    "tags": [
     "Translation"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/translations/{tid}",
@@ -2959,7 +3237,8 @@
    "tags": [
     "Translation"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/users/session",
@@ -2969,7 +3248,8 @@
    "tags": [
     "User"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/users/sessioninfo",
@@ -2979,7 +3259,8 @@
    "tags": [
     "User"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/users/settings",
@@ -2989,7 +3270,8 @@
    "tags": [
     "User"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/users/{uid}/settings",
@@ -2999,7 +3281,8 @@
    "tags": [
     "User"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/variables/d/{did}/w/{wid}/e/{eid}/variables",
@@ -3009,7 +3292,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/variables/d/{did}/w/{wid}/e/{eid}/variablestudioreferences",
@@ -3019,7 +3303,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/variables/d/{did}/w/{wid}/e/{eid}/variablestudioscope",
@@ -3029,7 +3314,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/variables/d/{did}/w/{wid}/variablestudio",
@@ -3039,7 +3325,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/variables/d/{did}/{wv}/{wvid}/e/{eid}/variables",
@@ -3049,7 +3336,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/variables/d/{did}/{wv}/{wvid}/e/{eid}/variablestudioreferences",
@@ -3059,7 +3347,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/variables/d/{did}/{wv}/{wvid}/e/{eid}/variablestudioscope",
@@ -3069,7 +3358,8 @@
    "tags": [
     "Variables"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/versions",
@@ -3079,7 +3369,8 @@
    "tags": [
     "Version"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/webhooks",
@@ -3089,7 +3380,8 @@
    "tags": [
     "Webhook"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/webhooks",
@@ -3099,7 +3391,8 @@
    "tags": [
     "Webhook"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/webhooks/{webhookid}",
@@ -3109,7 +3402,8 @@
    "tags": [
     "Webhook"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/webhooks/{webhookid}",
@@ -3119,7 +3413,8 @@
    "tags": [
     "Webhook"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/webhooks/{webhookid}",
@@ -3129,7 +3424,8 @@
    "tags": [
     "Webhook"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": true
   },
   {
    "path": "/webhooks/{webhookid}/ping",
@@ -3139,7 +3435,8 @@
    "tags": [
     "Webhook"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/workflow/active",
@@ -3149,7 +3446,8 @@
    "tags": [
     "Workflow"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/workflow/c/{companyId}/approvers",
@@ -3159,7 +3457,8 @@
    "tags": [
     "Workflow"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/workflow/companies/{cid}/objects",
@@ -3169,7 +3468,8 @@
    "tags": [
     "Workflow"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/workflow/obj/{objectId}",
@@ -3179,7 +3479,8 @@
    "tags": [
     "Workflow"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   },
   {
    "path": "/workflow/obj/{objectId}/auditlog",
@@ -3189,7 +3490,8 @@
    "tags": [
     "Workflow"
    ],
-   "deprecated": false
+   "deprecated": false,
+   "hasRequestBody": false
   }
  ],
  "schemas": [

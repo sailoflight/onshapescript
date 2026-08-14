@@ -113,6 +113,21 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
             result["updateAvailable"] = vendored is not None and latest["version"] > vendored
         except Exception as error:
             result["latestCheckNote"] = f"latest check failed: {type(error).__name__}: {error}"
+        # REST API spec version probe (cheap /api/build call, needs credentials)
+        try:
+            rest_latest = onshape_api_reference.fetch_latest_version()
+            result["onshapeApiLatestVersion"] = rest_latest["version"]
+            vendored_rest = result.get("onshapeApiSpecVersion", {}).get("specVersion")
+            result["onshapeApiUpdateAvailable"] = (
+                bool(vendored_rest)
+                and onshape_api_reference.version_is_newer(
+                    rest_latest["version"], vendored_rest
+                )
+            )
+        except Exception as error:
+            result["onshapeApiLatestCheckNote"] = (
+                f"REST spec latest check failed: {type(error).__name__}: {error}"
+            )
     if note:
         result["liveCheckNote"] = note
     return result
@@ -208,7 +223,8 @@ TOOLS: list[dict[str, Any]] = [
             "standard library), your target version, and - when include_live is set and credentials are "
             "configured - your Onshape Feature Studio's version. Returns a 'docs-behind' warning whenever "
             "a newer version is targeted, plus reference-health consistency checks. With check_latest it "
-            "also probes the mirror (one small network call) for the newest available version. Use it "
+            "also probes the mirror (one small network call) for the newest available FeatureScript "
+            "version and the live REST API spec version (needs credentials). Use it "
             "before writing code against a specific FeatureScript version."
         ),
         "inputSchema": object_schema({
@@ -224,7 +240,7 @@ TOOLS: list[dict[str, Any]] = [
             "check_latest": {
                 "type": "boolean",
                 "default": False,
-                "description": "Probe the mirror for the newest available FeatureScript version (one small network call).",
+                "description": "Probe the mirror for the newest FeatureScript version and the live REST API spec version (needs credentials).",
             },
         }),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},

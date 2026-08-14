@@ -86,6 +86,75 @@ def parse_response(code: str, response: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def inline_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Flatten an inline (non-ref) schema — same shape as parse_schema output."""
+    out: dict[str, Any] = {
+        "type": schema.get("type"),
+        "description": schema.get("description", ""),
+    }
+    if schema.get("required"):
+        out["required"] = schema["required"]
+    props = schema.get("properties")
+    if props:
+        out["properties"] = []
+        for key, prop in props.items():
+            item = {
+                "name": key,
+                "type": prop.get("type"),
+                "ref": resolve_ref(prop.get("$ref")),
+                "description": prop.get("description", ""),
+            }
+            if prop.get("enum"):
+                item["enum"] = prop["enum"]
+            items = prop.get("items")
+            if isinstance(items, dict):
+                if "$ref" in items:
+                    item["itemsRef"] = resolve_ref(items["$ref"])
+                elif "type" in items:
+                    item["itemsType"] = items["type"]
+            out["properties"].append(item)
+    return out
+
+
+def parse_request_body(op: dict[str, Any]) -> dict[str, Any] | None:
+    body = op.get("requestBody")
+    if not body:
+        return None
+    out: dict[str, Any] = {
+        "required": bool(body.get("required")),
+        "description": body.get("description", ""),
+    }
+    content = body.get("content") or {}
+    if content:
+        chosen = next((k for k in content if "json" in k), next(iter(content)))
+        schema = content[chosen].get("schema")
+        if schema:
+            if "$ref" in schema:
+                out["schemaRef"] = resolve_ref(schema["$ref"])
+            else:
+                out["schema"] = inline_schema(schema)
+    return out
+
+
+def _security_brief(scheme: dict[str, Any]) -> dict[str, Any]:
+    brief: dict[str, Any] = {
+        "type": scheme.get("type"),
+        "description": scheme.get("description", ""),
+    }
+    flows = scheme.get("flows")
+    if flows:
+        brief["flows"] = {}
+        for name, flow in flows.items():
+            brief["flows"][name] = {
+                key: value for key, value in flow.items()
+                if key in ("authorizationUrl", "tokenUrl")
+            }
+            scopes = flow.get("scopes") or {}
+            if scopes:
+                brief["flows"][name]["scopes"] = list(scopes.keys())
+    return brief
+
+
 def parse_schema(name: str, schema: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {
         "name": name,
@@ -135,6 +204,7 @@ def build() -> dict[str, Any]:
     ]
 
     endpoints: list[dict[str, Any]] = []
+    global_security = spec.get("security", [])
     for path, item in spec.get("paths", {}).items():
         path_params = [parse_parameter(p) for p in item.get("parameters", [])] if item else []
         for method in HTTP_METHODS:
@@ -150,6 +220,10 @@ def build() -> dict[str, Any]:
                 "description": op.get("description", ""),
                 "tags": list(op.get("tags", [])),
                 "deprecated": bool(op.get("deprecated")),
+                "security": [
+                    list(scheme.keys())[0] for scheme in op.get("security", global_security)
+                ],
+                "requestBody": parse_request_body(op),
                 "parameters": params,
                 "responses": [
                     parse_response(code, resp)
@@ -163,12 +237,19 @@ def build() -> dict[str, Any]:
         for name, body in sorted((spec.get("components") or {}).get("schemas", {}).items())
     ]
 
+    components = spec.get("components") or {}
     return {
         "sourceUrl": "https://cad.onshape.com/api/openapi",
         "openapiVersion": spec.get("openapi"),
         "specVersion": info.get("version"),
         "specTitle": info.get("title"),
+        "baseUrl": (spec.get("servers") or [{}])[0].get("url", ""),
         "sourceSha256": sha256_of(OPENAPI_PATH),
+        "securitySchemes": {
+            name: _security_brief(scheme)
+            for name, scheme in (components.get("securitySchemes") or {}).items()
+        },
+        "globalSecurity": [list(scheme.keys())[0] for scheme in global_security],
         "tags": tags,
         "endpoints": endpoints,
         "schemas": schemas,
@@ -187,6 +268,7 @@ def build_quick(index: dict[str, Any]) -> dict[str, Any]:
                 "summary": e["summary"],
                 "tags": e["tags"],
                 "deprecated": e["deprecated"],
+                "hasRequestBody": bool(e["requestBody"]),
             }
             for e in index["endpoints"]
         ],

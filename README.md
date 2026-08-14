@@ -23,7 +23,7 @@ tests/                 offline protocol tests (no Onshape contact)
 
 | Tool | Purpose |
 |---|---|
-| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health, the REST API spec version, and an optional latest-version probe (`check_latest`) |
+| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health, the REST API spec version, and an optional latest-version probe (`check_latest`) that also checks the live REST spec version |
 | `fs_update_reference` | Re-fetch the official docs + std library and rebuild the indexes; returns a compact change summary (version before/after, added/removed/changed counts). Optionally also refreshes the REST API spec (`include_onshape_api`). Mutating: requires `confirm_mutation=true` |
 | `fs_quick_reference` | The curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call |
 | `fs_list_modules` | Standard library modules grouped by category |
@@ -53,6 +53,7 @@ read-only `onshape_get_project_state`, `onshape_get_parameter_set`,
 `onshape_instantiate_feature`, `onshape_run_validation_pipeline`.
 
 See `docs/mcp-server.md` for the complete catalog, security boundary, and tests.
+See `docs/onshape-api.md` for the REST reference data, coverage, and gaps.
 
 ## The vendored reference
 
