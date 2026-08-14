@@ -89,22 +89,32 @@ GUIDE_PAGE_SCHEMA = {
 
 def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
     """Version check is offline; the live/latest probes are optional."""
-    live_version: Any = None
     note = None
+    # Free last-observed versions, captured from already-costly workflow
+    # responses (feature specs' languageVersion, eval's libraryVersion). So the
+    # docs-behind check works with ZERO quota until the caller opts into a
+    # fresh live probe. See operations.record_observed_version.
+    observed: dict[str, Any] = {}
+    try:
+        observed = load_json(STATE_PATH).get("observedServerVersion") or {}
+    except Exception:
+        pass
+    live_version = observed.get("languageVersion")
     if arguments.get("include_live"):
         if not CREDENTIALS_PATH.is_file():
             note = "live check skipped: no credentials configured"
         else:
             try:
-                # Live server version comes from the feature specs' languageVersion
-                # (the FS GET reports libraryVersion=0 always; live verification
-                # found languageVersion=3029 on a working Feature Studio).
+                # Refreshes the cached version too (feature_studio_status records
+                # what it reads). languageVersion is the Feature Studio content's
+                # version; the deployed runtime (3044) is observed via eval.
                 live_version = feature_studio_status().get("languageVersion")
             except Exception as error:
                 note = f"live check failed: {type(error).__name__}: {error}"
     result = fs_reference.check_version(
         target=arguments.get("target"), live_version=live_version
     )
+    result["lastObservedServerVersion"] = observed
     try:
         result["onshapeApiSpecVersion"] = onshape_api_reference.spec_version()
     except Exception as error:
@@ -284,11 +294,13 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Verify the vendored FeatureScript reference version and warn when it may be behind the "
             "version you are coding against. Reports the vendored reference version (parsed from the "
-            "standard library), your target version, and - when include_live is set and credentials are "
-            "configured - your Onshape Feature Studio's version. Returns a 'docs-behind' warning whenever "
-            "a newer version is targeted, plus reference-health consistency checks. With check_latest it "
-            "also probes the mirror (one small network call) for the newest available FeatureScript "
-            "version and the live REST API spec version (needs credentials). Use it "
+            "standard library), your target version, and the last FeatureScript version observed from "
+            "already-costly workflow responses (free - captured from featurespecs languageVersion and "
+            "eval libraryVersion, so no dedicated call). Pass include_live to refresh that from your "
+            "Feature Studio (1 read-only call, requires credentials). Returns a 'docs-behind' warning "
+            "whenever a newer version is targeted, plus reference-health consistency checks. With "
+            "check_latest it also probes the mirror (one small network call) for the newest available "
+            "FeatureScript version and the live REST API spec version (needs credentials). Use it "
             "before writing code against a specific FeatureScript version."
         ),
         "inputSchema": object_schema({
@@ -299,7 +311,7 @@ TOOLS: list[dict[str, Any]] = [
             "include_live": {
                 "type": "boolean",
                 "default": False,
-                "description": "Also read the configured Onshape Feature Studio's version (read-only, requires credentials).",
+                "description": "Also refresh the observed FeatureScript version from the configured Feature Studio (read-only, requires credentials).",
             },
             "check_latest": {
                 "type": "boolean",

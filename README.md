@@ -24,7 +24,7 @@ tests/                 offline protocol tests (no Onshape contact)
 
 | Tool | Purpose |
 |---|---|
-| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health, the REST API spec version, and an optional latest-version probe (`check_latest`). `include_live` reports the real Feature Studio version (from the feature specs' `languageVersion` — costs 1 quota call) |
+| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health and the REST API spec version. Reports the **last observed** real FeatureScript versions (`languageVersion` + `libraryVersion`) for free — cached from workflow responses, no dedicated call. `include_live` refreshes the Feature Studio's declared version (1 call); `check_latest` probes the mirror + live REST spec |
 | `fs_update_reference` | Re-fetch the official docs + std library from FREE sources (FsDoc pages + mirror, zero API quota) and rebuild the indexes; returns a compact change summary. Optionally also refreshes the REST API spec (`include_onshape_api`, 1 quota call). Live server-version detection deliberately lives in `fs_check_version include_live`, not here. Mutating: requires `confirm_mutation=true` |
 | `fs_quick_reference` | The curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call |
 | `fs_list_modules` | Standard library modules grouped by category |

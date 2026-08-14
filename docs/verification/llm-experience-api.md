@@ -61,3 +61,37 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
 - Before a mutating batch (the validation pipeline is ~15 calls, ~10 without
   rendering), check `onshape_api_quota`; the pipeline itself preflights and
   blocks if the annual budget would be exceeded.
+
+## Lessons from live verification (real server, ~310 calls)
+
+- **`featurespecs` empty is ambiguous.** A file of plain functions (compiles
+  fine) and a file with a broken signature both return zero specs. There is no
+  error field on `featurespecs`, the Feature Studio GET, or the document
+  elements list — a compile failure is only visible as "no specs", with no
+  message to read.
+- **POST 200 + `microversionSkew:false` ≠ compile success.** The upload saved;
+  the compile may still have failed. The only compile signal is the subsequent
+  `featurespecs` count, not the save response.
+- **`POST .../features` (instantiate) reports ERROR with no detail.** The
+  `featureState` carries only `featureStatus` — no message, no line, no symbol.
+  The failed feature is still saved and appears in `GET .../features`. So ERROR
+  means "the body did not complete"; distinguish a compile error from a
+  runtime/empty-query condition by reasoning, because the API will not tell you.
+- **`libraryVersion` is always 0** on the Feature Studio GET. The two real
+  version fields live elsewhere and are captured for free by
+  `fs_check_version`: `languageVersion` on each feature spec (the content's
+  declared version, e.g. 3029) and `libraryVersion` on an eval response (the
+  deployed runtime, e.g. 3044). The create-Part-Studio response
+  (`BTDocumentElementInfo`) carries **no** FeatureScript version field — never
+  spend a call expecting it there.
+- **Per-step real cost** (counted from the actual operations): upload ~4,
+  create Part Studio 1, instantiate 2, `evalfeaturescript` 1, validation
+  pipeline 15 with render / 10 without. `check_latest` on `fs_check_version`
+  costs 1 (the `/api/build` REST-spec probe); the plain version check and
+  `fs_update_reference` (without `include_onshape_api`) cost **0**.
+- **A version mismatch on `import` is a save-time failure** — the upload
+  returns fine but `featurespecs` is empty. Check `fs_check_version` (free)
+  before writing `import(path : ..., version : ...)` lines.
+- **Batch verification is a fixed cost with declining returns.** The remaining
+  open questions after ~310 calls are narrow and version-specific; answer them
+  on demand inside the task that needs them rather than spending another batch.

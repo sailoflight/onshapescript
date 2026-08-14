@@ -166,14 +166,16 @@ def feature_studio_status(client: OnshapeClient | None = None) -> dict[str, Any]
         for item in specs.get("featureSpecs", [])
     ]
     # Live verification showed the FS GET reports libraryVersion=0 always; the
-    # real FeatureScript version appears as languageVersion on the feature
-    # specs (e.g. 3029). Read it from there.
+    # version the content is compiled at appears as languageVersion on each
+    # feature spec (e.g. 3029). The deployed runtime version (3044) comes from
+    # an eval response's libraryVersion instead — see eval_featurescript.
     language_version: Any = None
     for item in specs.get("featureSpecs", []):
         lv = (item.get("message") or {}).get("languageVersion")
         if lv:
             language_version = lv
             break
+    record_observed_version(language_version=language_version, client=client)
     return {
         "featureStudioId": state["featureStudioId"],
         "microversionId": current.get("microversionId"),
@@ -183,6 +185,32 @@ def feature_studio_status(client: OnshapeClient | None = None) -> dict[str, Any]
         "featureSpecs": summary,
         "expectedFeatureAvailable": any(item["featureType"] == FEATURE_TYPE for item in summary),
     }
+
+
+def record_observed_version(
+    language_version: Any = None,
+    library_version: Any = None,
+    client: OnshapeClient | None = None,
+) -> None:
+    """Persist a FeatureScript version seen in an already-costly response.
+
+    Never spend a dedicated call just to learn the server's FeatureScript
+    version. Whenever a workflow response carries one, record it here (local,
+    zero quota) so `fs_check_version` can report the last observed version for
+    free. `languageVersion` is the version the Feature Studio content compiles
+    at (from featurespecs); `libraryVersion` is the deployed runtime version
+    (from eval). Writes the state file only when a value changes.
+    """
+    client = client or OnshapeClient()
+    state = client.state
+    observed = state.setdefault("observedServerVersion", {})
+    changed = False
+    for key, value in (("languageVersion", language_version), ("libraryVersion", library_version)):
+        if value and observed.get(key) != value:
+            observed[key] = value
+            changed = True
+    if changed:
+        save_state(state)
 
 
 def upload_feature_studio(client: OnshapeClient | None = None) -> dict[str, Any]:
@@ -452,6 +480,9 @@ def eval_featurescript(
             return value.get("message", {}).get("value")
         return value
 
+    # The eval response's libraryVersion is the deployed runtime version
+    # (3044 at time of writing) — capture it so fs_check_version reports it free.
+    record_observed_version(library_version=response.get("libraryVersion"), client=client)
     return {
         "featureScriptVersion": response.get("libraryVersion"),
         "console": response.get("console"),

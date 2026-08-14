@@ -8,5 +8,9 @@
   "apiQuota": {
     "accountType": "standard",
     "alreadyConsumed": 119
+  },
+  "observedServerVersion": {
+    "languageVersion": 3029,
+    "libraryVersion": 3044
   }
 }

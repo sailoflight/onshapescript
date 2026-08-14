@@ -162,6 +162,37 @@ only cheap way to confirm real semantics the 2960 docs lack:
   **3044** at the time of writing, ahead of both the vendored 2960 and the
   trophy's 3029 header. (The featurespecs `languageVersion` reflects the
   content's declared version; eval's `libraryVersion` reports the server's.)
-  `fs_check_version include_live` reads the Feature Studio's declared version;
-  eval is the way to see the true deployed one.
+  `fs_check_version` reports the **last observed** of both for free — they are
+  cached from workflow responses (`feature_studio_status` / `eval`), never
+  fetched by a dedicated call. `include_live` (1 call) only refreshes the
+  Feature Studio's declared version; eval is the way to see the true deployed
+  one, and its result is cached too.
+
+### The verification ladder (spend quota only where it earns you something)
+
+Confirmed by ~310 live calls. Cost-per-step below is real API calls:
+
+| Step | Cost | What it proves |
+|---|---|---|
+| `scripts/fs_local_check.py` | 0 | Structure (hard) + body symbols absent from the vendored index (warning) |
+| `featurespecs` (via upload / `onshape_get_feature_studio_status`) | ~4 / 1 | **Signature + precondition only.** Body is not compiled at save |
+| `onshape_eval_featurescript` | 1 | Any semantics the 2960 docs lack, with detailed compile errors in `notices`. Cheapest way to learn *why* a body fails |
+| Instantiate (`POST .../features`) | 2 | The only layer that executes the body — but ERROR is opaque (no message) |
+
+Rules that save quota:
+
+- **Never compile-probe with uploads.** A bad body costs the same ~4 calls as a
+  good one and returns nothing (0 specs is ambiguous — plain functions also give
+  0). Use eval for body semantics; it returns real error text.
+- **A version mismatch is a save-time (signature-layer) error** — check
+  `fs_check_version` (free, uses cached observed versions) *before* writing an
+  `import` line. Vendored 2960 → real Feature Studio 3029 is exactly the
+  mismatch that fails at save.
+- **ERROR on instantiation is not a compile error** — it also fires for
+  runtime/empty-query conditions (e.g. `qCreatedBy(id)` finds nothing on first
+  run). Distinguish by reasoning, not by the API.
+- **Do not batch-verify what a real task will verify on demand.** The remaining
+  unknowns (exact `is*` set at 3044, cross-version `import` boundary vs the
+  deployed runtime) are cheap to answer inside the specific task that needs
+  them, via eval — not by another bulk run.
 

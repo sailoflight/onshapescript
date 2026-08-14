@@ -43,7 +43,7 @@ or the network. They are the primary FeatureScript lookup tools. See
 
 | Tool | Behavior |
 |---|---|
-| `fs_check_version` | Reports the vendored reference version (parsed from the std library) and warns `docs-behind` when a `target` and/or the Feature Studio `include_live` version is newer. Also verifies the JSON indexes are consistent with the raw pages and reports `onshapeApiSpecVersion` (the vendored REST API spec version + health). With `check_latest` it probes the mirror (one small network call) for the newest version. |
+| `fs_check_version` | Reports the vendored reference version (parsed from the std library) and warns `docs-behind` when a `target` and/or the Feature Studio version is newer. The last observed real versions (`languageVersion` + `libraryVersion`) are reported **for free** — cached from workflow responses (`feature_studio_status` / `eval`), never a dedicated call; `include_live` refreshes the Feature Studio's declared version (1 read-only call). Also verifies the JSON indexes are consistent with the raw pages and reports `onshapeApiSpecVersion` (the vendored REST API spec version + health). With `check_latest` it probes the mirror (one small network call) plus the live REST spec (1 call) for the newest versions. |
 | `fs_update_reference` | Mutating (requires `confirm_mutation=true`): re-fetches the FsDoc pages + std library and rebuilds the indexes; with `include_onshape_api` it also refreshes the REST API OpenAPI spec (needs credentials). Returns a bounded change summary (version before/after, added/removed/changed counts) so the delta never needs to live in the caller's context. |
 | `fs_quick_reference` | Returns the curated distilled cheat-sheet (`reference/quick-reference.md`), small enough to load in one call for orientation. |
 | `fs_list_modules` | Lists standard library modules grouped by category (optional filter). |
@@ -94,6 +94,11 @@ onshape-credentials.json and is skipped with a note when it is absent.
 | `onshape_get_feature_studio_status` | Reads Feature Studio metadata and compiled feature specifications. |
 | `onshape_check_model` | Checks feature state, 132/65 part count, required names, and bounds without writing the report file. |
 | `onshape_render_preview` | Returns one shaded PNG as MCP image content; `save=true` additionally writes `outputs/previews/<view>.png`. |
+| `onshape_eval_featurescript` | Evaluates a FeatureScript snippet on the live server (1 quota call; script must evaluate to a two-argument anonymous function `function(context is Context, id is Id) {...}`). Document-first guarded: a 10-call/session budget plus `confirm_mutation=true` to exceed it, preflighted against the quota budget, and every response reports the session/eval/quota counters. Use it to confirm version-specific semantics the vendored 2960 docs lack, and to get the deployed `libraryVersion` (3044) cached for `fs_check_version`. |
+
+Note: every tool in this table is read-only with respect to the model, but
+`onshape_eval_featurescript` spends 1 quota call per invocation and the render
+tool spends ~1; the plain status/check tools are the cheap reads.
 
 ### Mutating tools
 

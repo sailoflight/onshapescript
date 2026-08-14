@@ -111,8 +111,16 @@ class McpServerTest(unittest.TestCase):
         self.assertTrue(behind["warnings"])
         self.assertTrue(behind["referenceHealth"]["indexConsistent"])
         current = responses[1]["result"]["structuredContent"]
-        self.assertEqual(current["status"], "current")
+        # Vendored 2960 is behind the observed real Feature Studio version
+        # (3029), now known FOR FREE from cached workflow responses.
+        self.assertEqual(current["status"], "docs-behind")
+        self.assertTrue(current["warnings"])
         self.assertGreater(current["vendoredVersion"], 0)
+        # Free last-observed version: seeded from real workflow responses (3029
+        # declared, 3044 deployed) — reported with zero API calls.
+        observed = current["lastObservedServerVersion"]
+        self.assertEqual(observed.get("languageVersion"), 3029)
+        self.assertEqual(observed.get("libraryVersion"), 3044)
 
     def test_feature_script_reference_tools(self) -> None:
         responses, stderr = invoke([
@@ -373,6 +381,28 @@ class McpServerTest(unittest.TestCase):
         pre3 = operations.preflight_run(client=cl3)
         self.assertTrue(pre3["canProceed"])
         self.assertIn("No annual quota configured", pre3["details"]["note"])
+
+    def test_record_observed_version_writes_only_on_change(self) -> None:
+        import unittest.mock
+        from onshape_fs_mcp import client as client_module
+        from onshape_fs_mcp import operations
+
+        cl = object.__new__(client_module.OnshapeClient)
+        cl.state = {"observedServerVersion": {}}
+        with unittest.mock.patch.object(operations, "save_state") as save:
+            operations.record_observed_version(
+                language_version=3029, library_version=3044, client=cl
+            )
+            save.assert_called_once()
+        self.assertEqual(cl.state["observedServerVersion"], {
+            "languageVersion": 3029, "libraryVersion": 3044,
+        })
+        # No change -> no write.
+        with unittest.mock.patch.object(operations, "save_state") as save:
+            operations.record_observed_version(
+                language_version=3029, library_version=3044, client=cl
+            )
+            save.assert_not_called()
 
     def test_eval_requires_script_before_any_network(self) -> None:
         responses, stderr = invoke([
