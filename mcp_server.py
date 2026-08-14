@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import sys
 import traceback
-from pathlib import Path
 from typing import Any, Callable
 
 from onshape_fs_mcp import fs_reference, onshape_api_reference, onshape_api_docs, project_docs

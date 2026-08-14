@@ -6,7 +6,6 @@ import base64
 import hashlib
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from onshape_fs_mcp.client import (
@@ -445,7 +444,6 @@ def upload_feature_studio(
         element_type="FEATURE_STUDIO",
     )
     return {
-        "sourceMicroversion": updated.get("sourceMicroversion"),
         "featureStudioMicroversion": feature_studio_microversion,
         "featureSpecs": summary,
     }
