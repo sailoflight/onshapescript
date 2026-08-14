@@ -86,10 +86,14 @@ reference does not document. Full run log: `live/README.md` (15 experiments,
   Studio). A spec ≠ working body — it only proves the `annotation` + `precondition`
   signature layer is valid.
 - **Signature-layer errors give 0 specs.** Dropping `context` from the
-  `defineFeature` function signature, importing an older std version than the
-  Feature Studio (`2960.0` vs `3029.0`), or referencing an absent symbol in a
-  `precondition` (`GBTErrorStringEnum`, `isString`, `isArray`) all fail at save
-  time with `featureSpecs` empty.
+  `defineFeature` function signature, or referencing an absent symbol in a
+  `precondition` (`GBTErrorStringEnum`, `isString`, `isArray`), fails at save
+  time with `featureSpecs` empty. The earlier "stale import (`2960.0`)" example
+  is now **confounded**: `featurespecs` are only emitted for `definition.*`
+  fields the body actually reads, and that experiment's body never reads
+  `definition` — so its 0 specs may be a probe artifact, not a version
+  rejection (gap-probe 2026-08-14). Use an eval with a definition-reading body
+  to test version behavior instead.
 - **`featureSpecs` empty is ambiguous.** A file of plain functions (compiles
   fine) also returns empty; only annotated export features appear. No error
   field exists on `featurespecs`, the Feature Studio GET, or the document
@@ -206,7 +210,9 @@ Rules that save quota:
   runtime/empty-query conditions (e.g. `qCreatedBy(id)` finds nothing on first
   run). Distinguish by reasoning, not by the API.
 - **Do not batch-verify what a real task will verify on demand.** The remaining
-  unknowns (exact `is*` set at 3044, cross-version `import` boundary vs the
-  deployed runtime) are cheap to answer inside the specific task that needs
-  them, via eval — not by another bulk run.
+  unknown — the cross-version `import` boundary vs the deployed runtime — is
+  cheap to answer inside the specific task that needs it, via eval, not by
+  another bulk run. It needs a probe whose feature body reads `definition.*`:
+  `specCount 0` is ambiguous otherwise (empty bodies emit no specs at any
+  version — gap-probe 2026-08-14; `scripts/live_gap_probe.py` is fixed).
 

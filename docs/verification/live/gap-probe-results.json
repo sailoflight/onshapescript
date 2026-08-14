@@ -1,0 +1,294 @@
+{
+ "budget": {
+  "label": "gap-closure probe",
+  "budget": 12,
+  "spent": 0,
+  "remaining": 12,
+  "annualRemaining": 1912
+ },
+ "lang:concat_units_trig": {
+  "errors": [],
+  "result": [
+   {
+    "type": 1422,
+    "typeName": "BTFSValueString",
+    "message": {
+     "value": "part3",
+     "typeTag": ""
+    }
+   },
+   {
+    "type": 1817,
+    "typeName": "BTFSValueWithUnits",
+    "message": {
+     "value": 0.0025,
+     "unitToPower": [
+      {
+       "key": "METER",
+       "value": 1
+      }
+     ],
+     "typeTag": ""
+    }
+   },
+   {
+    "type": 772,
+    "typeName": "BTFSValueNumber",
+    "message": {
+     "value": 1.0,
+     "typeTag": ""
+    }
+   },
+   {
+    "type": 1817,
+    "typeName": "BTFSValueWithUnits",
+    "message": {
+     "value": 0.2794,
+     "unitToPower": [
+      {
+       "key": "METER",
+       "value": 1
+      }
+     ],
+     "typeTag": ""
+    }
+   }
+  ],
+  "deployedVersion": 3044,
+  "ledgerCalls": 1
+ },
+ "lang:control_flow": {
+  "errors": [],
+  "result": [
+   {
+    "type": 772,
+    "typeName": "BTFSValueNumber",
+    "message": {
+     "value": 9.0,
+     "typeTag": ""
+    }
+   },
+   {
+    "type": 772,
+    "typeName": "BTFSValueNumber",
+    "message": {
+     "value": 42.0,
+     "typeTag": ""
+    }
+   },
+   {
+    "type": 772,
+    "typeName": "BTFSValueNumber",
+    "message": {
+     "value": 3.0,
+     "typeTag": ""
+    }
+   }
+  ],
+  "deployedVersion": 3044,
+  "ledgerCalls": 1
+ },
+ "lang:query_typecheck": {
+  "errors": [],
+  "result": [
+   {
+    "type": 1195,
+    "typeName": "BTFSValueBoolean",
+    "message": {
+     "value": true,
+     "typeTag": ""
+    }
+   },
+   {
+    "type": 2062,
+    "typeName": "BTFSValueMap",
+    "message": {
+     "value": [
+      {
+       "type": 2077,
+       "typeName": "BTFSValueMapEntry",
+       "message": {
+        "key": {
+         "type": 1422,
+         "typeName": "BTFSValueString",
+         "message": {
+          "value": "n",
+          "typeTag": ""
+         }
+        },
+        "value": {
+         "type": 772,
+         "typeName": "BTFSValueNumber",
+         "message": {
+          "value": 0.0,
+          "typeTag": ""
+         }
+        }
+       }
+      },
+      {
+       "type": 2077,
+       "typeName": "BTFSValueMapEntry",
+       "message": {
+        "key": {
+         "type": 1422,
+         "typeName": "BTFSValueString",
+         "message": {
+          "value": "queryType",
+          "typeTag": ""
+         }
+        },
+        "value": {
+         "type": 1422,
+         "typeName": "BTFSValueString",
+         "message": {
+          "value": "NTH_ELEMENT",
+          "typeTag": "QueryType"
+         }
+        }
+       }
+      },
+      {
+       "type": 2077,
+       "typeName": "BTFSValueMapEntry",
+       "message": {
+        "key": {
+         "type": 1422,
+         "typeName": "BTFSValueString",
+         "message": {
+          "value": "subquery",
+          "typeTag": ""
+         }
+        },
+        "value": {
+         "type": 2062,
+         "typeName": "BTFSValueMap",
+         "message": {
+          "value": [
+           {
+            "type": 2077,
+            "typeName": "BTFSValueMapEntry",
+            "message": {
+             "key": {
+              "type": 1422,
+              "typeName": "BTFSValueString",
+              "message": {
+               "value": "entityType",
+               "typeTag": ""
+              }
+             },
+             "value": {
+              "type": 1422,
+              "typeName": "BTFSValueString",
+              "message": {
+               "value": "BODY",
+               "typeTag": "EntityType"
+              }
+             }
+            }
+           },
+           {
+            "type": 2077,
+            "typeName": "BTFSValueMapEntry",
+            "message": {
+             "key": {
+              "type": 1422,
+              "typeName": "BTFSValueString",
+              "message": {
+               "value": "featureId",
+               "typeTag": ""
+              }
+             },
+             "value": {
+              "type": 2062,
+              "typeName": "BTFSValueMap",
+              "message": {
+               "value": [],
+               "typeTag": "Id"
+              }
+             }
+            }
+           },
+           {
+            "type": 2077,
+            "typeName": "BTFSValueMapEntry",
+            "message": {
+             "key": {
+              "type": 1422,
+              "typeName": "BTFSValueString",
+              "message": {
+               "value": "queryType",
+               "typeTag": ""
+              }
+             },
+             "value": {
+              "type": 1422,
+              "typeName": "BTFSValueString",
+              "message": {
+               "value": "CREATED_BY",
+               "typeTag": "QueryType"
+              }
+             }
+            }
+           }
+          ],
+          "typeTag": "Query"
+         }
+        }
+       }
+      }
+     ],
+     "typeTag": "Query"
+    }
+   }
+  ],
+  "deployedVersion": 3044,
+  "ledgerCalls": 1
+ },
+ "render": {
+  "view": "iso",
+  "width": 300,
+  "height": 300,
+  "mediaType": "image/png",
+  "byteCount": 57927,
+  "sha256": "d676c85347585119b4b2a796812ef0c72d675de8444faa5329c941a36a92abe6",
+  "ledgerCalls": 1
+ },
+ "import:3029": {
+  "declared": "3029",
+  "specCount": 0,
+  "compile": "empty",
+  "errorType": null,
+  "errorMessages": null,
+  "languageVersion": null,
+  "microversionSkew": false,
+  "ledgerCalls": 3
+ },
+ "import:3044": {
+  "declared": "3044",
+  "specCount": 0,
+  "compile": "empty",
+  "errorType": null,
+  "errorMessages": null,
+  "languageVersion": null,
+  "microversionSkew": false,
+  "ledgerCalls": 3
+ },
+ "import:3035": {
+  "declared": "3035",
+  "specCount": 0,
+  "compile": "empty",
+  "errorType": null,
+  "errorMessages": null,
+  "languageVersion": null,
+  "microversionSkew": false,
+  "ledgerCalls": 3
+ },
+ "final": {
+  "label": "gap-closure probe",
+  "budget": 12,
+  "spent": 13,
+  "remaining": 0,
+  "annualRemaining": 1912
+ }
+}

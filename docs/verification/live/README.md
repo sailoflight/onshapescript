@@ -118,3 +118,47 @@ python3 docs/verification/live/run_live_tests.py --budget 50           # 每轮�
 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用），
 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号
 共 12 次）。教训已写入 `llm-experience-fs.md` 的 eval 小节。
+
+---
+
+## 追加：gap-probe 收尾（2026-08-14，22 次预算，ledger 469 → 482）
+
+`scripts/live_gap_probe.py` 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1
+次——guard 在分区边界检查，最后一个分区可整体越界）。结果在
+`gap-probe-results.json`。
+
+**A. 语言特性 eval（runtime 3044，每次恰好 1 调用，全部 ✅ errors 空）**
+- `concat_units_trig`：`"part" ~ 3` → "part3"；`(5*mm)/2` → 0.0025 m；
+  `sin(90*degree)` → 1.0；`10*inch + 1*inch` → 0.2794 m。单位运算 + 三角函数
+  角度制实测成立。
+- `control_flow`：`for-in`、`while`、`for (k, v in map)`、lambda 赋值全通过，
+  结果 [9.0, 42.0, 3.0] 逐项精确。
+- `query_typecheck`：`q is Query` → true；`qNthElement(q, 0)` 返回 NTH_ELEMENT
+  查询结构（qCreatedBy 的实体类型/filter 全链路）。
+
+**B. render_preview（唯一零真实调用记录的工具）✅**：iso 300×300 → 57927 字节
+PNG（sha256 d676c853…），1 调用。渲染通路端到端可用。
+
+**C. 跨版本 import 边界 —— 探测自身有缺陷，边界仍未测出**
+3029/3044/3035 三个 import 版本全部 `specCount:0` + `errorType/errorMessages`
+全空 + 上传非 4xx → 编译器都**接受**了这些 source（import 版本 ≤ 运行时 3044
+兼容）。但 0 specs 不是"接受"的证据：**feature spec 只对 body 实际读取的
+`definition.*` 参数发射**。探测用空 body（`{ }`）→ 0 specs；对照实验 06
+（import 2960.0，body 有 opExtrude 但**不引用 definition**）也是 0 specs 无错误
+文本；而全部 1-spec 实验（01/02/04/08/09/10/12…）的 body 都引用了
+`definition.*`。
+
+由此**实验 06 的旧结论被推翻/混淆**："import 旧版本 2960.0 是签名层错误"——06
+的 body 不读 definition，0 specs 未必是版本拒绝。仍成立的签名层 0-spec 案例：
+缺 context（实验 03）、precondition 引用不存在的符号（07/11/13），这些与 body
+是否读参数无关。上界探测（import > 服务器，如 3050）分支也因"empty ≠ ok"走了
+3035 二分而没跑到。修复：`import_probe` 已改为 body 用
+`opExtrude(... "endDepth" : definition.size)`（复刻实验 01 的 1-spec 形状），
+下次按需跑才能测出上界。
+
+**D. REST 只读端点（getDocument / getDocumentVersions / getDocumentWorkspaces）**
+**未跑到**——C 分区耗掉 9 次后预算尽。已把 D 提到 C 之前，保证 3 次只读必跑。
+
+**配额账目**：ledger 469 → 482（+13；本轮 spent 13/12），真实 = 119 + 482 =
+**601/2500**（剩 ~1899）。
+
