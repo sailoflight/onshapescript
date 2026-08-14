@@ -1,0 +1,272 @@
+{
+ "checkedAt": null,
+ "summary": {
+  "total": 14,
+  "passed": 14,
+  "failed": 0
+ },
+ "checks": [
+  {
+   "name": "FS index.json librarySha256 matches library.html",
+   "ok": true,
+   "detail": "index=d012970f3d19536d7adac238fcf41ecbc570ccc5b73485501179823304302b68 html=d012970f3d19536d7adac238fcf41ecbc570ccc5b73485501179823304302b68"
+  },
+  {
+   "name": "FS guide.json page sha256 all match",
+   "ok": true,
+   "detail": "18 pages ok"
+  },
+  {
+   "name": "FS function entries have ['name', 'signature', 'module']",
+   "ok": true,
+   "detail": "949 ok"
+  },
+  {
+   "name": "FS type entries have ['name', 'kind']",
+   "ok": true,
+   "detail": "270 ok"
+  },
+  {
+   "name": "FS constant entries have ['name']",
+   "ok": true,
+   "detail": "129 ok"
+  },
+  {
+   "name": "FS predicate entries have ['name', 'signature']",
+   "ok": true,
+   "detail": "133 ok"
+  },
+  {
+   "name": "FS operator overloads have non-empty names",
+   "ok": true,
+   "detail": "0 empty: []"
+  },
+  {
+   "name": "FS function parameter type refs resolve to a type/module",
+   "ok": true,
+   "detail": "ok"
+  },
+  {
+   "name": "REST api_index.json sourceSha256 matches openapi.json",
+   "ok": true,
+   "detail": "index=eeedc4df5db6612a0d45276a3442c6422b285bf7258d0256c36633820506df7a openapi=eeedc4df5db6612a0d45276a3442c6422b285bf7258d0256c36633820506df7a"
+  },
+  {
+   "name": "REST api_quick.json specVersion matches",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "REST endpoints well-formed, security + schema refs resolve",
+   "ok": true,
+   "detail": "302 ok"
+  },
+  {
+   "name": "REST api_quick.json surface matches api_index.json",
+   "ok": true,
+   "detail": "quick-only 0, index-only 0"
+  },
+  {
+   "name": "Auth docs sha256 all match",
+   "ok": true,
+   "detail": "4 pages ok"
+  },
+  {
+   "name": "Auth errorCodes well-formed",
+   "ok": true,
+   "detail": "16 codes ok"
+  }
+ ],
+ "stats": {
+  "knownOfficialGaps": {
+   "fsDanglingEnumRefs": [
+    "GBTErrorStringEnum"
+   ],
+   "restEmptySummary": [
+    [
+     "/documents/d/{did}/w/{wid}/revertunchangedtorevisions",
+     "post"
+    ],
+    [
+     "/documents/d/{did}/w/{wid}/syncAppElements",
+     "post"
+    ],
+    [
+     "/partnumber/nextnumbers",
+     "post"
+    ]
+   ]
+  },
+  "fs": {
+   "functions": 949,
+   "types": 270,
+   "constants": 129,
+   "predicates": 133,
+   "modules": 210,
+   "guidePages": 18
+  },
+  "fsFunctionPrefixes": [
+   [
+    "-",
+    54
+   ],
+   [
+    "toString",
+    21
+   ],
+   [
+    "debug",
+    15
+   ],
+   [
+    "regenError",
+    10
+   ],
+   [
+    "transform",
+    6
+   ],
+   [
+    "qCreatedBy",
+    4
+   ],
+   [
+    "qUnion",
+    4
+   ],
+   [
+    "qParallelPlanes",
+    4
+   ],
+   [
+    "scaleNonuniformly",
+    4
+   ],
+   [
+    "project",
+    4
+   ],
+   [
+    "indexOf",
+    4
+   ],
+   [
+    "reportFeatureWarning",
+    4
+   ],
+   [
+    "linearManipulator",
+    4
+   ],
+   [
+    "flipManipulator",
+    4
+   ],
+   [
+    "makeWrapPlane",
+    4
+   ]
+  ],
+  "fsParameterTypes": [
+   [
+    "map",
+    220
+   ],
+   [
+    "Vector",
+    49
+   ],
+   [
+    "array",
+    45
+   ],
+   [
+    "Query",
+    23
+   ],
+   [
+    "boolean",
+    17
+   ],
+   [
+    "function",
+    16
+   ],
+   [
+    "Id",
+    15
+   ],
+   [
+    "ValueWithUnits",
+    14
+   ],
+   [
+    "string",
+    11
+   ],
+   [
+    "EntityType",
+    11
+   ],
+   [
+    "Plane",
+    8
+   ],
+   [
+    "number",
+    5
+   ]
+  ],
+  "rest": {
+   "endpoints": 302,
+   "schemas": 1226,
+   "tags": 42,
+   "specVersion": "1.219.86205-93af2294a88d",
+   "baseUrl": "https://cad.onshape.com/api/v16",
+   "methods": {
+    "get": 160,
+    "post": 111,
+    "delete": 31
+   },
+   "withRequestBody": 104,
+   "requestBodyRequired": 74,
+   "paramLocations": {
+    "path": 756,
+    "query": 717,
+    "header": 4
+   },
+   "security": {
+    "BasicAuth": 27,
+    "OAuth2": 275
+   },
+   "deprecated": 0
+  },
+  "auth": {
+   "pages": [
+    "errors",
+    "limits",
+    "oauth",
+    "apikeys"
+   ],
+   "errorCodes": 16,
+   "codes": [
+    200,
+    204,
+    307,
+    400,
+    401,
+    402,
+    403,
+    404,
+    405,
+    406,
+    409,
+    415,
+    429,
+    499,
+    500,
+    503
+   ]
+  }
+ }
+}

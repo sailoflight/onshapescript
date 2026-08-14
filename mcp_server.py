@@ -800,7 +800,9 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
                 "fs_get_function, fs_get_type, fs_guide_section, fs_library_source): the standard library "
                 "is rarely present in language-model training data, so look up exact signatures before "
                 "writing code. Use read-only inspection tools unless the user explicitly requests a cloud "
-                "mutation; mutating tools require confirm_mutation=true and never return credentials."
+                "mutation; mutating tools require confirm_mutation=true and never return credentials. "
+                "Verified experience - including known gaps in the official docs - is in "
+                "docs/verification/llm-experience-api.md and llm-experience-fs.md."
             ),
         })
     if method == "ping":

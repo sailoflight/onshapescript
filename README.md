@@ -14,6 +14,7 @@ scripts/               reference fetch + index build entry points
 examples/              the Branch Cable Trophy model as a worked FeatureScript example
 config/                non-secret target state + parameter sets for the current FeatureScript
 docs/                  server and tool documentation
+docs/verification/     zero-cost corpus verification + LLM experience docs (API + FS)
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
