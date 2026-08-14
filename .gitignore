@@ -1,0 +1,6 @@
+onshape-credentials.json
+__pycache__/
+*.pyc
+temp/
+outputs/reports/
+.coverage

@@ -1,0 +1,23 @@
+{
+  "baseRadius": "39 mm",
+  "baseHeight": "18 mm",
+  "edgeFillet": "2.4 mm",
+  "sCenterY": "-2 mm",
+  "sLength": "42 mm",
+  "sAmplitude": "7.5 mm",
+  "rootRowSpacing": "5 mm",
+  "terminalSpread": "1.22",
+  "terminalHeightScale": "1.06",
+  "strandRadius": "0.38 mm",
+  "detailedStrands": false,
+  "plaqueWidth": "20.5 mm",
+  "plaqueHeight": "6.7 mm",
+  "plaqueDepth": "1.2 mm",
+  "terminalWidth": "7.4 mm",
+  "terminalDepth": "6 mm",
+  "terminalLength": "5.2 mm",
+  "rootCollarRadius": "2.2 mm",
+  "rootCollarHeight": "2.2 mm",
+  "connectorRadius": "1.15 mm",
+  "connectorLength": "3.2 mm"
+}
