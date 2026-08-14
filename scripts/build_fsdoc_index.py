@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Parse reference/fsdoc/library.html into a structured JSON index.
+"""Parse the vendored FsDoc documentation into structured JSON indexes.
 
 library.html is the official FeatureScript function/type reference. This script
 walks its DOM and emits reference/fsdoc/index.json containing every module,
-function, type/enum/const/predicate, parameter, and description as plain text,
-so the local MCP tools can answer FeatureScript questions offline.
+function, type/enum/const/predicate, parameter, and description as plain text.
+
+The guide pages are language/tutorial content; each page is parsed into
+reference/fsdoc/guide.json with heading sections and typed blocks (paragraphs,
+code, tables, lists), so the whole documentation corpus is JSON for indexing
+while the large source stays on disk for on-demand reads.
 
 Outputs (all data is vendored; nothing is fetched here):
-  modules    - {file, display, category}
-  functions  - {name, module, category, signature, returnType, parameters, description}
-  types      - {name, module, category, kind, description, values}
-  constants  - {name, module, description}
-  predicates - {name, module, signature, description}
+  index.json - {modules, functions, types, constants, predicates} from library.html
+  guide.json - {pages: [{page, path, sha256, title, sections:[{level,title,blocks}]}]}
 """
 
 from __future__ import annotations
@@ -25,8 +26,34 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-LIBRARY_PATH = ROOT / "reference" / "fsdoc" / "library.html"
-INDEX_PATH = ROOT / "reference" / "fsdoc" / "index.json"
+FSDOC_DIR = ROOT / "reference" / "fsdoc"
+LIBRARY_PATH = FSDOC_DIR / "library.html"
+INDEX_PATH = FSDOC_DIR / "index.json"
+GUIDE_PATH = FSDOC_DIR / "guide.json"
+
+# Guide/tutorial pages included in guide.json. library.html and index.html are
+# excluded: library.html is the function reference (covered by index.json) and
+# index.html is just the landing page.
+GUIDE_PAGES = {
+    "intro": "intro.html",
+    "feature-types": "feature-types.html",
+    "uispec": "uispec.html",
+    "output": "output.html",
+    "variables": "variables.html",
+    "modeling": "modeling.html",
+    "tables": "tables.html",
+    "computed-part-properties": "computed-part-properties.html",
+    "imports": "imports.html",
+    "debugging-in-feature-studios": "debugging-in-feature-studios.html",
+    "tokens": "tokens.html",
+    "type-tags": "type-tags.html",
+    "top-level": "top-level.html",
+    "syntax": "syntax.html",
+    "annotations": "annotations.html",
+    "exceptions": "exceptions.html",
+    "relational": "relational.html",
+    "tutorial-slot": "tutorials/create-a-slot-feature.html",
+}
 
 
 def load_category_map(source: str) -> dict[str, str]:
@@ -393,6 +420,228 @@ def _nest_subfields(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return params
 
 
+class GuideParser(HTMLParser):
+    """Parse one guide/tutorial page into heading sections with typed blocks.
+
+    Emits `{title, sections: [{level, title, blocks}]}` where each block is one
+    of `{"type": "para", "text"}`, `{"type": "code", "language", "text"}`,
+    `{"type": "list", "items"}`, or `{"type": "table", "rows"}`. Content before
+    the first heading is attached to that section.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.in_body = False
+        self.body_depth = 0
+        self.skip = 0
+        self.title = ""
+        self.sections: list[dict[str, Any]] = []
+        self.current: dict[str, Any] | None = None
+        self.pending: list[dict[str, Any]] = []
+        self.heading_level = 0
+        self.heading: list[str] = []
+        self.para: list[str] = []
+        self.in_para = False
+        self.in_pre = 0
+        self.code: list[str] = []
+        self.list_items: list[str] = []
+        self.current_item: list[str] | None = None
+        self.table_rows: list[list[str]] = []
+        self.current_row: list[str] | None = None
+        self.current_cell: list[str] | None = None
+
+    def _append(self, block: dict[str, Any]) -> None:
+        if self.current is not None:
+            self.current["blocks"].append(block)
+        else:
+            self.pending.append(block)
+
+    def _flush_para(self) -> None:
+        text = " ".join("".join(self.para).split())
+        self.para = []
+        self.in_para = False
+        if text:
+            self._append({"type": "para", "text": text})
+
+    def _flush_code(self) -> None:
+        text = "\n".join(self.code).strip()
+        self.code = []
+        if text:
+            self._append({"type": "code", "language": "fs", "text": text})
+
+    def _flush_list(self) -> None:
+        if self.list_items:
+            self._append({"type": "list", "items": self.list_items})
+            self.list_items = []
+
+    def _flush_table(self) -> None:
+        if self.table_rows:
+            self._append({"type": "table", "rows": self.table_rows})
+            self.table_rows = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = dict(attrs)
+        classes = set(a.get("class", "").split())
+        if tag == "div" and "fs-doc-body" in classes:
+            self.in_body = True
+            self.body_depth = 1
+            return
+        if tag == "div" and self.in_body:
+            self.body_depth += 1
+            return
+        if not self.in_body:
+            return
+        if tag in ("script", "style"):
+            self.skip += 1
+            return
+        if self.skip:
+            return
+        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            self._flush_para()
+            self._flush_list()
+            self._flush_table()
+            self.heading_level = int(tag[1])
+            self.heading = []
+            return
+        if tag == "p":
+            self._flush_para()
+            self.para = []
+            self.in_para = True
+            return
+        if tag == "pre":
+            self._flush_para()
+            self.in_pre += 1
+            self.code = []
+            return
+        if tag in ("ul", "ol"):
+            self._flush_list()
+            return
+        if tag == "li":
+            self.current_item = []
+            return
+        if tag == "table":
+            self._flush_table()
+            return
+        if tag == "tr":
+            self.current_row = []
+            return
+        if tag in ("td", "th"):
+            self.current_cell = []
+            return
+        if tag == "br":
+            if self.in_pre:
+                self.code.append("\n")
+            elif self.in_para:
+                self.para.append("\n")
+            elif self.current_cell is not None:
+                self.current_cell.append("\n")
+            elif self.current_item is not None:
+                self.current_item.append("\n")
+            return
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "div" and self.in_body:
+            self.body_depth -= 1
+            if self.body_depth == 0:
+                self.in_body = False
+                self._flush_para()
+                self._flush_list()
+                self._flush_table()
+            return
+        if not self.in_body:
+            return
+        if tag in ("script", "style") and self.skip:
+            self.skip -= 1
+            return
+        if self.skip:
+            return
+        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            title = " ".join("".join(self.heading).split())
+            if not self.title:
+                self.title = title
+            self.current = {"level": self.heading_level, "title": title, "blocks": []}
+            if self.pending:
+                self.current["blocks"].extend(self.pending)
+                self.pending = []
+            if title:
+                self.sections.append(self.current)
+            self.heading_level = 0
+            return
+        if tag == "p":
+            self._flush_para()
+            return
+        if tag == "pre":
+            self.in_pre = max(0, self.in_pre - 1)
+            if self.in_pre == 0:
+                self._flush_code()
+            return
+        if tag in ("ul", "ol"):
+            self._flush_list()
+            return
+        if tag == "li":
+            if self.current_item is not None:
+                text = " ".join("".join(self.current_item).split())
+                if text:
+                    self.list_items.append(text)
+            self.current_item = None
+            return
+        if tag == "tr":
+            if self.current_row is not None:
+                self.table_rows.append(self.current_row)
+            self.current_row = None
+            return
+        if tag in ("td", "th"):
+            if self.current_cell is not None and self.current_row is not None:
+                self.current_row.append(" ".join("".join(self.current_cell).split()))
+            self.current_cell = None
+            return
+        if tag == "table":
+            self._flush_table()
+            return
+
+    def handle_data(self, data: str) -> None:
+        if not self.in_body or self.skip:
+            return
+        if self.in_pre:
+            self.code.append(data)
+        elif self.heading_level:
+            self.heading.append(data)
+        elif self.current_cell is not None:
+            self.current_cell.append(data)
+        elif self.current_item is not None:
+            self.current_item.append(data)
+        elif self.in_para:
+            self.para.append(data)
+
+
+def parse_guide_page(html: str) -> dict[str, Any]:
+    parser = GuideParser()
+    parser.feed(html)
+    return {
+        "title": parser.title or (parser.sections[0]["title"] if parser.sections else ""),
+        "sections": [s for s in parser.sections if s["blocks"]],
+    }
+
+
+def build_guide() -> list[dict[str, Any]]:
+    """Parse every guide/tutorial page into structured JSON with staleness info."""
+    pages: list[dict[str, Any]] = []
+    for page, relpath in GUIDE_PAGES.items():
+        path = FSDOC_DIR / relpath
+        if not path.is_file():
+            print(f"  skipped guide page (not vendored): {relpath}", file=sys.stderr)
+            continue
+        html = path.read_text(encoding="utf-8")
+        parsed = parse_guide_page(html)
+        pages.append({
+            "page": page,
+            "path": relpath,
+            "sha256": hashlib.sha256(html.encode("utf-8")).hexdigest(),
+            **parsed,
+        })
+    return pages
+
+
 def build() -> dict[str, Any]:
     source = LIBRARY_PATH.read_text(encoding="utf-8")
     categories = load_category_map(source)
@@ -438,15 +687,20 @@ def build() -> dict[str, Any]:
 def main() -> int:
     index = build()
     INDEX_PATH.write_text(json.dumps(index, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    guide = {"pages": build_guide()}
+    GUIDE_PATH.write_text(json.dumps(guide, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     counts = {
         "modules": len(index["modules"]),
         "functions": len(index["functions"]),
         "types": len(index["types"]),
         "constants": len(index["constants"]),
         "predicates": len(index["predicates"]),
+        "guidePages": len(guide["pages"]),
+        "guideSections": sum(len(p["sections"]) for p in guide["pages"]),
     }
     print(json.dumps(counts, indent=2))
     print(f"wrote {INDEX_PATH} ({INDEX_PATH.stat().st_size} bytes)")
+    print(f"wrote {GUIDE_PATH} ({GUIDE_PATH.stat().st_size} bytes)")
     return 0
 
 

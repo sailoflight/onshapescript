@@ -62,13 +62,43 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 18)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 19)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
         self.assertIs(parameters["detailedStrands"], False)
         self.assertNotIn("accessKey", json.dumps(responses))
         self.assertNotIn("secretKey", json.dumps(responses))
+
+    def test_check_version_reports_docs_behind(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_check_version",
+                    "arguments": {"target": "9999.0"},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_check_version",
+                    "arguments": {},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        behind = responses[0]["result"]["structuredContent"]
+        self.assertEqual(behind["status"], "docs-behind")
+        self.assertTrue(behind["warnings"])
+        self.assertTrue(behind["referenceHealth"]["indexConsistent"])
+        current = responses[1]["result"]["structuredContent"]
+        self.assertEqual(current["status"], "current")
+        self.assertGreater(current["vendoredVersion"], 0)
 
     def test_feature_script_reference_tools(self) -> None:
         responses, stderr = invoke([

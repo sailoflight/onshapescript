@@ -43,11 +43,12 @@ or the network. They are the primary FeatureScript lookup tools. See
 
 | Tool | Behavior |
 |---|---|
+| `fs_check_version` | Reports the vendored reference version (parsed from the std library) and warns `docs-behind` when a `target` and/or the Feature Studio `include_live` version is newer. Also verifies the JSON indexes are consistent with the raw pages. |
 | `fs_list_modules` | Lists standard library modules grouped by category (optional filter). |
 | `fs_list_functions` | Lists functions/types/constants/predicates with signatures and summaries, filtered by module/category/kind/prefix. |
 | `fs_get_function` | Full entry: signature, parameters (type, requirement, description, example), return type, module. |
 | `fs_get_type` | Type/enum definition with every allowed value. |
-| `fs_search` | Ranked keyword search across the entire reference. |
+| `fs_search` | Ranked keyword search across the entire reference and the guide (`kind=guide`). |
 | `fs_guide_section` | One FsDoc guide page, or a section of it, as plain text with fenced code blocks. |
 | `fs_library_source` | The real standard library implementation source, optionally the window around one function. |
 
@@ -109,7 +110,7 @@ python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/br
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 18-tool discovery;
+- MCP initialization and 19-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

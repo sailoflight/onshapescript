@@ -19,7 +19,9 @@ local MCP tools can answer FeatureScript questions without a network round trip.
 
 ## Updating
 
-Re-run the fetch script to re-sync both trees. Then re-run the index builder:
+Re-run the fetch script to re-sync both trees. Then re-run the index builder,
+which parses `library.html` into `index.json` and the guide pages into
+`guide.json` (both record source sha256 for staleness checks):
 
 ```bash
 python3 scripts/fetch_reference.py

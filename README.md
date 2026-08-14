@@ -17,18 +17,19 @@ docs/                  server and tool documentation
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (18)
+## MCP tools (19)
 
 **FeatureScript reference — local, offline** (the core value):
 
 | Tool | Purpose |
 |---|---|
+| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` when you target a newer version, plus index-consistency health |
 | `fs_list_modules` | Standard library modules grouped by category |
 | `fs_list_functions` | Functions/types/constants/predicates with signatures, filtered |
 | `fs_get_function` | Full entry: signature, parameters, requirements, examples, return type |
 | `fs_get_type` | Type/enum definition and allowed values |
-| `fs_search` | Ranked keyword search across the whole reference |
-| `fs_guide_section` | FeatureScript language guide pages as plain text |
+| `fs_search` | Ranked keyword search across the whole reference and the guide |
+| `fs_guide_section` | FeatureScript language guide pages/sections as plain text |
 | `fs_library_source` | Real standard library implementation source for a module/function |
 
 **Onshape REST — inspect and validate your FeatureScript** (existing tools, kept):
@@ -48,10 +49,16 @@ indexes, the official material into `reference/`:
 
 - `reference/fsdoc/` — the FsDoc pages from `cad.onshape.com` (function/type
   reference, language guide, tutorial) plus `index.json` (every function, type,
-  parameter, and description as structured text).
+  parameter, and description as structured text) and `guide.json` (the guide
+  pages parsed into heading sections with typed blocks — paragraphs, code,
+  tables, lists).
 - `reference/std-library/` — the standard library source mirrored from
   `github.com/javawizard/onshape-std-library-mirror` (MIT), because the real
   implementation is the highest-fidelity reference.
+
+Everything prose-shaped is a JSON index; the large source stays as files read
+on demand. Both indexes record the source sha256 so `fs_check_version` can
+report when a re-fetch left them stale.
 
 Re-sync after an upstream change:
 

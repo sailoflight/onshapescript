@@ -69,10 +69,11 @@ VIEW_SCHEMA = {
 MODE_SCHEMA = {"type": "string", "enum": ["detailed", "simplified"]}
 FS_KIND_SCHEMA = {
     "type": "string",
-    "enum": ["function", "type", "const", "predicate"],
+    "enum": ["function", "type", "const", "predicate", "guide"],
     "description": (
         "function = callable FeatureScript function; type = type/enum definitions; "
-        "const = named constant values; predicate = typecheck predicates."
+        "const = named constant values; predicate = typecheck predicates; "
+        "guide = language-guide sections (valid for fs_search only)."
     ),
 }
 GUIDE_PAGE_SCHEMA = {
@@ -80,6 +81,29 @@ GUIDE_PAGE_SCHEMA = {
     "enum": fs_reference.PAGES,
     "description": "One of the vendored FsDoc guide pages (intro, feature-types, modeling, ...).",
 }
+
+
+def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Version check is offline; the Feature Studio live version is optional."""
+    live_version: Any = None
+    if arguments.get("include_live"):
+        if not CREDENTIALS_PATH.is_file():
+            live_version = None
+            note = "live check skipped: no credentials configured"
+        else:
+            try:
+                live_version = feature_studio_status().get("libraryVersion")
+                note = None
+            except Exception as error:
+                live_version = None
+                note = f"live check failed: {type(error).__name__}: {error}"
+        result = fs_reference.check_version(
+            target=arguments.get("target"), live_version=live_version
+        )
+        if note:
+            result["liveCheckNote"] = note
+        return result
+    return fs_reference.check_version(target=arguments.get("target"))
 
 
 def _local_state(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -156,7 +180,135 @@ def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
 
 ToolHandler = Callable[[dict[str, Any]], Any]
 TOOLS: list[dict[str, Any]] = [
+    # --- FeatureScript reference tools (local, offline) ---------------------
     {
+        "name": "fs_check_version",
+        "description": (
+            "Verify the vendored FeatureScript reference version and warn when it may be behind the "
+            "version you are coding against. Reports the vendored reference version (parsed from the "
+            "standard library), your target version, and - when include_live is set and credentials are "
+            "configured - your Onshape Feature Studio's version. Returns a 'docs-behind' warning whenever "
+            "a newer version is targeted, plus reference-health consistency checks. Use it before writing "
+            "code against a specific FeatureScript version."
+        ),
+        "inputSchema": object_schema({
+            "target": {
+                "type": "string",
+                "description": "FeatureScript version you plan to compile against, e.g. '3029.0'.",
+            },
+            "include_live": {
+                "type": "boolean",
+                "default": False,
+                "description": "Also read the configured Onshape Feature Studio's version (read-only, requires credentials).",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    # --- FeatureScript reference tools (local, offline) ---------------------
+    {
+        "name": "fs_list_modules",
+        "description": (
+            "List the FeatureScript standard library modules (geometry.fs, query.fs, sweep.fs, ...), "
+            "grouped by the reference site's categories (Modeling, Math, Onshape features, Utilities, "
+            "enums). Optionally filter to one category. Local and offline; useful before looking up "
+            "functions so you know which module to search."
+        ),
+        "inputSchema": object_schema({
+            "category": {"type": "string", "description": "Optional category filter (exact case-insensitive)."},
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_list_functions",
+        "description": (
+            "List FeatureScript functions (or types/constants/predicates when kind is set), each with its "
+            "module, signature, and one-line summary. Filter by module, category, kind, or a name prefix, "
+            "and cap the result with limit. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "module": {"type": "string", "description": "Optional module file (e.g. 'sweep' or 'sweep.fs')."},
+            "category": {"type": "string"},
+            "kind": FS_KIND_SCHEMA,
+            "prefix": {"type": "string", "description": "Only names starting with this prefix (case-insensitive)."},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_get_function",
+        "description": (
+            "Return the full reference entry for one FeatureScript function: exact signature, every "
+            "parameter with its type, requirement (Optional / Required), description and example, plus the "
+            "return type and module. Use for exact API details before writing FeatureScript. Constants and "
+            "typecheck predicates are also addressable via kind. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "name": {"type": "string"},
+            "module": {"type": "string", "description": "Disambiguate when the name exists in several modules."},
+            "kind": FS_KIND_SCHEMA,
+        }, ["name"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_get_type",
+        "description": (
+            "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, "
+            "EntityType): its kind, description, and each allowed value with type and description. Use it "
+            "when a function parameter references a type you need to understand. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "name": {"type": "string"},
+            "module": {"type": "string"},
+        }, ["name"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_search",
+        "description": (
+            "Keyword search across every FeatureScript function, type, constant, predicate, and "
+            "language-guide section in the vendored reference. Results are ranked by how strongly the "
+            "query tokens match the name, signature, parameter types, and description. Use this when you "
+            "know roughly what you want but not the exact name (for example 'sketch region extrude'). "
+            "Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "query": {"type": "string"},
+            "module": {"type": "string"},
+            "category": {"type": "string"},
+            "kind": FS_KIND_SCHEMA,
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+        }, ["query"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_guide_section",
+        "description": (
+            "Return a section of the official FeatureScript language guide as plain text, with code blocks "
+            "fenced. Omit 'section' to get the whole page plus its heading outline; pass a section title to "
+            "narrow to one heading (matching is case-insensitive substring). Use this for language concepts "
+            "(feature types, the UI specification, queries, modeling) rather than individual functions. "
+            "Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "page": GUIDE_PAGE_SCHEMA,
+            "section": {"type": "string", "description": "Optional heading to narrow to."},
+        }, ["page"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_library_source",
+        "description": (
+            "Return the actual FeatureScript standard library source for a module (for example 'geometry', "
+            "'query', 'sweep') from the vendored mirror. With 'function' set, returns only the window "
+            "around that function's definition plus its usage line numbers. The real implementation is the "
+            "highest-fidelity reference for how Onshape writes FeatureScript. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "module": {"type": "string"},
+            "function": {"type": "string", "description": "Optional; extract the definition window for this function."},
+        }, ["module"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },    {
         "name": "onshape_get_project_state",
         "description": (
             "Read the project's non-secret Onshape document/workspace/element configuration and report "
@@ -317,110 +469,7 @@ TOOLS: list[dict[str, Any]] = [
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
-    # --- FeatureScript reference tools (local, offline) ---------------------
-    {
-        "name": "fs_list_modules",
-        "description": (
-            "List the FeatureScript standard library modules (geometry.fs, query.fs, sweep.fs, ...), "
-            "grouped by the reference site's categories (Modeling, Math, Onshape features, Utilities, "
-            "enums). Optionally filter to one category. Local and offline; useful before looking up "
-            "functions so you know which module to search."
-        ),
-        "inputSchema": object_schema({
-            "category": {"type": "string", "description": "Optional category filter (exact case-insensitive)."},
-        }),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
-    {
-        "name": "fs_list_functions",
-        "description": (
-            "List FeatureScript functions (or types/constants/predicates when kind is set), each with its "
-            "module, signature, and one-line summary. Filter by module, category, kind, or a name prefix, "
-            "and cap the result with limit. Local and offline."
-        ),
-        "inputSchema": object_schema({
-            "module": {"type": "string", "description": "Optional module file (e.g. 'sweep' or 'sweep.fs')."},
-            "category": {"type": "string"},
-            "kind": FS_KIND_SCHEMA,
-            "prefix": {"type": "string", "description": "Only names starting with this prefix (case-insensitive)."},
-            "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
-        }),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
-    {
-        "name": "fs_get_function",
-        "description": (
-            "Return the full reference entry for one FeatureScript function: exact signature, every "
-            "parameter with its type, requirement (Optional / Required), description and example, plus the "
-            "return type and module. Use for exact API details before writing FeatureScript. Constants and "
-            "typecheck predicates are also addressable via kind. Local and offline."
-        ),
-        "inputSchema": object_schema({
-            "name": {"type": "string"},
-            "module": {"type": "string", "description": "Disambiguate when the name exists in several modules."},
-            "kind": FS_KIND_SCHEMA,
-        }, ["name"]),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
-    {
-        "name": "fs_get_type",
-        "description": (
-            "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, "
-            "EntityType): its kind, description, and each allowed value with type and description. Use it "
-            "when a function parameter references a type you need to understand. Local and offline."
-        ),
-        "inputSchema": object_schema({
-            "name": {"type": "string"},
-            "module": {"type": "string"},
-        }, ["name"]),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
-    {
-        "name": "fs_search",
-        "description": (
-            "Keyword search across every FunctionScript function, type, constant, and predicate in the "
-            "vendored reference. Results are ranked by how strongly the query tokens match the name, "
-            "signature, parameter types, and description. Use this when you know roughly what you want but "
-            "not the exact name (for example 'sketch region extrude'). Local and offline."
-        ),
-        "inputSchema": object_schema({
-            "query": {"type": "string"},
-            "module": {"type": "string"},
-            "category": {"type": "string"},
-            "kind": FS_KIND_SCHEMA,
-            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
-        }, ["query"]),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
-    {
-        "name": "fs_guide_section",
-        "description": (
-            "Return a section of the official FeatureScript language guide as plain text, with code blocks "
-            "fenced. Omit 'section' to get the whole page plus its heading outline; pass a section title to "
-            "narrow to one heading (matching is case-insensitive substring). Use this for language concepts "
-            "(feature types, the UI specification, queries, modeling) rather than individual functions. "
-            "Local and offline."
-        ),
-        "inputSchema": object_schema({
-            "page": GUIDE_PAGE_SCHEMA,
-            "section": {"type": "string", "description": "Optional heading to narrow to."},
-        }, ["page"]),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
-    {
-        "name": "fs_library_source",
-        "description": (
-            "Return the actual FeatureScript standard library source for a module (for example 'geometry', "
-            "'query', 'sweep') from the vendored mirror. With 'function' set, returns only the window "
-            "around that function's definition plus its usage line numbers. The real implementation is the "
-            "highest-fidelity reference for how Onshape writes FeatureScript. Local and offline."
-        ),
-        "inputSchema": object_schema({
-            "module": {"type": "string"},
-            "function": {"type": "string", "description": "Optional; extract the definition window for this function."},
-        }, ["module"]),
-        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
-    },
+
 ]
 
 HANDLERS: dict[str, ToolHandler] = {
@@ -439,6 +488,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_instantiate_feature": _instantiate,
     "onshape_run_validation_pipeline": _pipeline,
     # FeatureScript reference tools (local, offline)
+    "fs_check_version": _check_version,
     "fs_list_modules": lambda arguments: {
         "categories": fs_reference.list_categories(),
         "modules": fs_reference.list_modules(category=arguments.get("category")),

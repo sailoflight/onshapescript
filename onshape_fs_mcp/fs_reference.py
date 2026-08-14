@@ -16,14 +16,15 @@ Naming mirrors the reference site:
 
 from __future__ import annotations
 
-import html as html_module
+import hashlib
+import json
 import re
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX_PATH = ROOT / "reference" / "fsdoc" / "index.json"
+GUIDE_PATH = ROOT / "reference" / "fsdoc" / "guide.json"
 FSDOC_DIR = ROOT / "reference" / "fsdoc"
 STD_LIB_DIR = ROOT / "reference" / "std-library"
 
@@ -34,8 +35,8 @@ INDEX_KEYS = {
     "const": "constants",
     "predicate": "predicates",
 }
+# Guide/tutorial pages available through fs_guide_section (see GUIDE_PATH).
 PAGES = [
-    "index",
     "intro",
     "feature-types",
     "uispec",
@@ -53,30 +54,37 @@ PAGES = [
     "annotations",
     "exceptions",
     "relational",
-    "library",
+    "tutorial-slot",
 ]
 
 _index: dict[str, Any] | None = None
+_guide: dict[str, Any] | None = None
 
 
 def _load_index() -> dict[str, Any]:
     global _index
     if _index is None:
-        _index = json_load(INDEX_PATH)
+        _index = _load_json(INDEX_PATH)
     return _index
 
 
-def json_load(path: Path) -> dict[str, Any]:
-    import json
+def _load_guide() -> dict[str, Any]:
+    global _guide
+    if _guide is None:
+        _guide = _load_json(GUIDE_PATH)
+    return _guide
 
+
+def _load_json(path: Path) -> dict[str, Any]:
     with path.open(encoding="utf-8") as stream:
         return json.load(stream)
 
 
 def reload() -> None:
-    """Drop the cached index (useful after the index is rebuilt)."""
-    global _index
+    """Drop the cached indexes (useful after they are rebuilt)."""
+    global _index, _guide
     _index = None
+    _guide = None
 
 
 # --------------------------------------------------------------------------
@@ -251,8 +259,8 @@ def search(
     kind: str | None = None,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    if kind is not None and kind not in KINDS:
-        raise ValueError(f"kind must be one of {', '.join(KINDS)}")
+    if kind is not None and kind not in KINDS and kind != "guide":
+        raise ValueError(f"kind must be one of {', '.join(KINDS)} or 'guide'")
     if limit < 1 or limit > 100:
         raise ValueError("limit must be between 1 and 100")
     tokens = [t for t in re.split(r"\W+", query.lower()) if len(t) >= 2]
@@ -278,8 +286,12 @@ def search(
                 total += 1
         return total
 
+    corpus = list(_all_entries())
+    if kind in (None, "guide"):
+        corpus.extend(_all_guide_sections())
+
     results = []
-    for entry in _all_entries():
+    for entry in corpus:
         if kind and entry["kind"] != kind:
             continue
         if not _matches_module(entry, module):
@@ -310,186 +322,88 @@ def search(
 
 
 # --------------------------------------------------------------------------
-# guide pages (HTML -> text)
+# guide pages (structured JSON -> text)
 # --------------------------------------------------------------------------
 
-class _GuideParser(HTMLParser):
-    """Convert one FsDoc guide page into structured plain text.
-
-    Emits headings as '#'-prefixed lines, fenced code blocks, bulleted lists,
-    and skips the sidebar navigation.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.lines: list[str] = []
-        self.in_body = False
-        self.body_depth = 0
-        self.skip_depth = 0
-        self.pre = 0
-        self.code: list[str] = []
-        self.para: list[str] = []
-        self.list_item: list[str] | None = None
-        self.in_heading: int = 0
-        self.heading: list[str] = []
-        self.in_cell: list[str] | None = None
-        self.table_rows: list[list[str]] = []
-
-    def _flush_para(self) -> None:
-        if self.para:
-            text = " ".join("".join(self.para).split())
-            if text:
-                self.lines.append(text)
-            self.para = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = dict(attrs)
-        classes = set(a.get("class", "").split())
-
-        if tag == "div" and "fs-doc-body" in classes:
-            self.in_body = True
-            self.body_depth = 1
-            return
-        if tag == "div" and self.in_body:
-            self.body_depth += 1
-            return
-        if not self.in_body:
-            return
-        if tag in ("script", "style"):
-            self.skip_depth += 1
-            return
-
-        if self.skip_depth:
-            return
-
-        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            self._flush_para()
-            self.in_heading = int(tag[1])
-            self.heading = []
-            return
-        if tag == "pre":
-            self._flush_para()
-            self.pre += 1
-            self.code = []
-            return
-        if tag == "p":
-            self._flush_para()
-            self.para = []
-            return
-        if tag == "br":
-            self.para.append("\n")
-            return
-        if tag == "li":
-            self._flush_para()
-            self.list_item = []
-            return
-        if tag == "tr":
-            self.table_rows.append([])
-            return
-        if tag == "td" or tag == "th":
-            self.in_cell = []
-            return
-        if tag == "hr":
-            self.lines.append("---")
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "div" and self.in_body:
-            self.body_depth -= 1
-            if self.body_depth == 0:
-                self.in_body = False
-                self._flush_para()
-            return
-        if not self.in_body:
-            return
-        if tag in ("script", "style") and self.skip_depth:
-            self.skip_depth -= 1
-            return
-        if self.skip_depth:
-            return
-
-        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            text = " ".join("".join(self.heading).split())
-            if text:
-                self.lines.append("#" * self.in_heading + " " + text)
-            self.in_heading = 0
-            return
-        if tag == "pre":
-            self.pre = max(0, self.pre - 1)
-            if self.pre == 0:
-                self.lines.append("```fs\n" + "\n".join(self.code).strip() + "\n```")
-                self.code = []
-            return
-        if tag == "p":
-            self._flush_para()
-            return
-        if tag == "li":
-            text = " ".join("".join(self.list_item).split()) if self.list_item else ""
-            if text:
-                self.lines.append("- " + text)
-            self.list_item = None
-            return
-        if tag == "td" or tag == "th":
-            if self.in_cell is not None and self.table_rows:
-                self.table_rows[-1].append(" ".join("".join(self.in_cell).split()))
-            self.in_cell = None
-            return
-        if tag == "table":
-            for row in self.table_rows:
-                self.lines.append("| " + " | ".join(row) + " |")
-            self.table_rows = []
-            return
-
-    def handle_data(self, data: str) -> None:
-        if not self.in_body or self.skip_depth:
-            return
-        if self.pre:
-            self.code.append(data)
-        elif self.in_heading:
-            self.heading.append(data)
-        elif self.in_cell is not None:
-            self.in_cell.append(data)
-        elif self.list_item is not None:
-            self.list_item.append(data)
-        else:
-            self.para.append(data)
+def _render_block(block: dict[str, Any]) -> list[str]:
+    kind = block["type"]
+    if kind == "para":
+        return [block["text"]]
+    if kind == "code":
+        return [f"```{block.get('language', 'fs')}\n{block['text']}\n```"]
+    if kind == "list":
+        return ["- " + item for item in block["items"]]
+    if kind == "table":
+        return ["| " + " | ".join(row) + " |" for row in block["rows"]]
+    return []
 
 
-def guide_text(page: str) -> str:
+def _render_sections(sections: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for section in sections:
+        lines = ["#" * section["level"] + " " + section["title"]]
+        for block in section["blocks"]:
+            lines.extend(_render_block(block))
+        parts.append("\n".join(lines))
+    return "\n\n".join(parts).strip()
+
+
+def _find_page(page: str) -> dict[str, Any]:
     if page not in PAGES:
         raise ValueError(f"page must be one of: {', '.join(PAGES)}")
-    path = FSDOC_DIR / f"{page}.html"
-    if not path.is_file():
-        raise ValueError(f"guide page not vendored: {page}.html")
-    parser = _GuideParser()
-    parser.feed(path.read_text(encoding="utf-8"))
-    return "\n\n".join(line for line in parser.lines if line).strip()
+    for entry in _load_guide().get("pages", []):
+        if entry["page"] == page:
+            return entry
+    raise ValueError(
+        f"guide page '{page}' is not indexed; run `python3 scripts/build_fsdoc_index.py`"
+    )
 
 
 def guide_section(page: str, section: str | None = None) -> dict[str, Any]:
-    """Return a guide page as text, optionally narrowed to one heading section."""
-    full = guide_text(page)
-    headings = re.findall(r"^(#+)\s+(.+)$", full, flags=re.MULTILINE)
+    """Return a guide page as text, optionally narrowed to one heading section.
 
+    Reads the structured reference/fsdoc/guide.json, so page and section lookup
+    is index-driven and on demand; the large HTML is never parsed at query time.
+    """
+    entry = _find_page(page)
+    sections = entry["sections"]
     if section:
         target = section.lower()
-        candidates = [
-            (marker, title) for marker, title in headings if target in title.lower()
-        ]
+        candidates = [s for s in sections if target in s["title"].lower()]
         if not candidates:
-            raise ValueError(f"No section matching '{section}'. Available: " +
-                             "; ".join(title for _, title in headings[:20]))
-        marker, title = candidates[0]
-        index = full.find("#" * len(marker) + " " + title)
-        next_index = len(full)
-        for later_marker, later_title in headings:
-            pos = full.find("#" * len(later_marker) + " " + later_title, index + len(marker) + 2)
-            if pos > index:
-                next_index = pos
+            raise ValueError(
+                f"No section matching '{section}' in '{page}'. Available: "
+                + "; ".join(s["title"] for s in sections[:20])
+            )
+        picked = candidates[0]
+        # Include nested subsections up to the next heading of the same level.
+        selected = [picked]
+        for later in sections[sections.index(picked) + 1:]:
+            if later["level"] <= picked["level"]:
                 break
-        body = full[index:next_index].strip()
-        return {"page": page, "section": title, "text": body}
+            selected.append(later)
+        return {"page": page, "section": picked["title"], "text": _render_sections(selected)}
+    return {
+        "page": page,
+        "section": None,
+        "headings": [s["title"] for s in sections],
+        "text": _render_sections(sections),
+    }
 
-    return {"page": page, "section": None, "headings": [t for _, t in headings], "text": full}
+
+def _all_guide_sections() -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for entry in _load_guide().get("pages", []):
+        for section in entry["sections"]:
+            out.append({
+                "kind": "guide",
+                "name": section["title"],
+                "module": entry["page"],
+                "category": "guide",
+                "signature": "",
+                "description": _render_sections([section]),
+            })
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -550,4 +464,134 @@ def library_source(module: str, function: str | None = None) -> dict[str, Any]:
         "definitionLine": definition + 1,
         "usageLines": usage_lines,
         "source": excerpt,
+    }
+
+
+# --------------------------------------------------------------------------
+# version verification
+# --------------------------------------------------------------------------
+
+VERSION_SOURCE = STD_LIB_DIR / "featurescriptversionnumber.gen.fs"
+
+
+def vendored_version() -> dict[str, Any]:
+    """Parse the FeatureScript version baked into the vendored std library."""
+    version: int | None = None
+    label: str | None = None
+    if VERSION_SOURCE.is_file():
+        text = VERSION_SOURCE.read_text(encoding="utf-8")
+        match = re.search(
+            r"FeatureScriptVersionNumberCurrent[^\n]*V(\d+)_([A-Za-z0-9_]+)\s*;",
+            text,
+        )
+        if match:
+            version = int(match.group(1))
+            label = f"V{version}_{match.group(2)}"
+    return {"version": version, "label": label, "source": VERSION_SOURCE.name}
+
+
+def _coerce_version(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    match = re.search(r"\d+", str(value))
+    return int(match.group(0)) if match else None
+
+
+def _reference_health() -> dict[str, Any]:
+    """Check the vendored corpus for internal consistency."""
+    health: dict[str, Any] = {
+        "indexConsistent": False,
+        "guideConsistent": False,
+        "functionsIndexed": 0,
+        "guideSectionsIndexed": 0,
+        "stdLibraryFiles": 0,
+    }
+    try:
+        index = _load_index()
+        actual = hashlib.sha256((FSDOC_DIR / "library.html").read_bytes()).hexdigest()
+        health["indexConsistent"] = index.get("librarySha256") == actual
+        health["functionsIndexed"] = len(index.get("functions", []))
+    except (OSError, ValueError):
+        pass
+    try:
+        guide = _load_guide()
+        stale = []
+        for entry in guide.get("pages", []):
+            path = FSDOC_DIR / entry.get("path", "")
+            if not path.is_file():
+                stale.append(entry["page"])
+            elif hashlib.sha256(path.read_bytes()).hexdigest() != entry.get("sha256"):
+                stale.append(entry["page"])
+        health["guideConsistent"] = not stale
+        health["guideSectionsIndexed"] = sum(
+            len(p.get("sections", [])) for p in guide.get("pages", [])
+        )
+    except (OSError, ValueError):
+        pass
+    health["stdLibraryFiles"] = len(list(STD_LIB_DIR.glob("*.fs")))
+    return health
+
+
+def check_version(target: Any = None, live_version: Any = None) -> dict[str, Any]:
+    """Compare the vendored reference version against a target and/or live version.
+
+    target        - the FeatureScript version the caller intends to compile against
+                    (e.g. from the import statement or a feature studio).
+    live_version  - the version reported by the configured Onshape Feature Studio,
+                    if the caller fetched it (the check itself stays offline).
+    """
+    vendored = vendored_version()
+    target_version = _coerce_version(target)
+    live = _coerce_version(live_version)
+
+    status = "unknown"
+    warnings: list[str] = []
+    refresh_hint = (
+        "Run `python3 scripts/fetch_reference.py` then "
+        "`python3 scripts/build_fsdoc_index.py` to refresh."
+    )
+    v = vendored["version"]
+
+    if v is not None:
+        status = "current"
+        if target_version is not None and target_version > v:
+            status = "docs-behind"
+            warnings.append(
+                f"Target FeatureScript version {target_version} is newer than the vendored "
+                f"reference ({v}); APIs added since version {v} are not documented here. "
+                f"{refresh_hint}"
+            )
+        if live is not None and live > v:
+            status = "docs-behind" if status != "docs-behind" else status
+            warnings.append(
+                f"Your Onshape Feature Studio reports version {live}, newer than the vendored "
+                f"reference ({v}); APIs added since version {v} are not documented here. "
+                f"{refresh_hint}"
+            )
+        if target_version is not None and target_version < v:
+            warnings.append(
+                f"Target version {target_version} is older than the vendored reference ({v}); "
+                f"some documented APIs may not exist in that older version."
+            )
+
+    health = _reference_health()
+    if not health["indexConsistent"]:
+        warnings.append(
+            "reference/fsdoc/index.json is out of date relative to library.html; rebuild the index."
+        )
+    if not health["guideConsistent"]:
+        warnings.append(
+            "reference/fsdoc/guide.json is out of date relative to the guide pages; rebuild the index."
+        )
+
+    return {
+        "vendoredVersion": v,
+        "vendoredVersionLabel": vendored["label"],
+        "targetVersion": target_version,
+        "featureStudioVersion": live,
+        "status": status,
+        "warnings": warnings,
+        "referenceHealth": health,
     }

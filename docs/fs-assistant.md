@@ -15,19 +15,25 @@ signatures here. The tools below exist to replace guessing with lookup.
 
 ## Suggested workflow
 
-1. **Find the right name** — `fs_search` with plain-language keywords when you
+1. **Gate on version** — `fs_check_version` first: confirm the vendored
+   reference covers the FeatureScript version you are coding against. It warns
+   `docs-behind` when your target (or your Feature Studio, with `include_live`)
+   is newer than the vendored snapshot, and reports whether the JSON indexes
+   are consistent with the raw pages. Treat a `docs-behind` warning as a cue to
+   re-run `scripts/fetch_reference.py` before trusting the answers.
+2. **Find the right name** — `fs_search` with plain-language keywords when you
    don't know the exact function ("create sketch region", "sweep along path",
    "fillet the edge between faces").
-2. **Read the exact API** — `fs_get_function` for the signature and every
+3. **Read the exact API** — `fs_get_function` for the signature and every
    parameter's type, requirement, description, and example. `fs_get_type` for
    the enum/type a parameter expects (e.g. what values `BoundingType` allows).
-3. **Understand the concept** — `fs_guide_section` for language-level guidance:
+4. **Understand the concept** — `fs_guide_section` for language-level guidance:
    `feature-types`, `uispec` (feature UI), `modeling`, `top-level`
    (preconditions, lambdas), `syntax`, `tables`.
-4. **See how Onshape writes it** — `fs_library_source` for the real
+5. **See how Onshape writes it** — `fs_library_source` for the real
    implementation of a module or function, e.g. how `fCylinder` is built from
    `opExtrude`-style primitives or how `qCreatedBy` constructs a query.
-5. **Breadth before depth** — `fs_list_modules` to see the module layout and
+6. **Breadth before depth** — `fs_list_modules` to see the module layout and
    `fs_list_functions` (with `prefix`) when you remember part of a name.
 
 ## Reference data
@@ -36,18 +42,42 @@ signatures here. The tools below exist to replace guessing with lookup.
 - `reference/fsdoc/index.json` — the same content parsed into structured JSON
   (modules, functions, types, constants, predicates, parameters). Built by
   `scripts/build_fsdoc_index.py`.
-- `reference/fsdoc/<page>.html` — guide and tutorial pages, converted to text
-  by `fs_guide_section`.
+- `reference/fsdoc/guide.json` — every guide/tutorial page parsed into heading
+  sections with typed blocks (paragraph, code, table, list); this is what
+  `fs_guide_section` reads and what `fs_search kind=guide` searches.
+- `reference/fsdoc/<page>.html` — the raw guide pages, kept for provenance and
+  staleness checks (each page's sha256 is recorded in `guide.json`).
 - `reference/std-library/<module>.fs` — the standard library source, mirrored
   from `github.com/javawizard/onshape-std-library-mirror` (MIT).
 
-The index records `librarySha256` so you can tell whether the docs and index are
-in sync. Rebuild after re-fetching:
+The indexes record `librarySha256` / per-page `sha256` so you can tell whether
+the docs and indexes are in sync. Rebuild after re-fetching:
 
 ```bash
 python3 scripts/fetch_reference.py
 python3 scripts/build_fsdoc_index.py
 ```
+
+## Version checks
+
+`fs_check_version` compares the vendored reference version (parsed from
+`reference/std-library/featurescriptversionnumber.gen.fs`) against the version
+you intend to compile with:
+
+```text
+fs_check_version(target="3029.0")
+  -> vendoredVersion: 2960, status: "docs-behind",
+     warnings: ["Target FeatureScript version 3029 is newer than the vendored reference (2960); ..."]
+```
+
+- `status: "current"` — the reference covers your version.
+- `status: "docs-behind"` — you are targeting a newer version; APIs introduced
+  since the vendored snapshot are not documented. Re-fetch before relying on it.
+- `status: "unknown"` — the version constant could not be parsed from the
+  vendored library.
+- `include_live: true` adds your Onshape Feature Studio's reported version
+  (requires credentials; read-only). Pass the same version you would use in a
+  FeatureScript `import(path : "onshape/std/geometry.fs", version : "...")`.
 
 ## Tool examples
 
