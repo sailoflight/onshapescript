@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]  # repo root: .../docs/verification/live -> .../docs/verification -> .../docs -> root
 sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp.client import OnshapeClient, load_json  # noqa: E402
+from onshape_fs_mcp.client import OnshapeClient, RateLimited, load_json  # noqa: E402
 from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
@@ -89,6 +89,8 @@ def upload_and_compile(
             },
             timeout=300,
         )
+    except RateLimited:
+        raise  # never swallow a rate limit; the run must exit with the wait time
     except RuntimeError as error:
         message = str(error)
         return {"ok": False, "detail": f"upload rejected: {message}"}

@@ -30,6 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
+from onshape_fs_mcp.client import RateLimited  # noqa: E402
 from onshape_fs_mcp.operations import (  # noqa: E402
     eval_featurescript,
     render_preview,
@@ -161,6 +162,8 @@ def main() -> int:
                 },
                 timeout=300,
             )
+        except RateLimited:
+            raise  # never swallow a rate limit; exit with the wait time
         except RuntimeError as exc:
             return {"declared": version, "postError": str(exc)[:150]}
         specs = client.request("GET", fs_path + "/featurespecs", timeout=300)

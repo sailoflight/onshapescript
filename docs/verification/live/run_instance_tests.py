@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp.client import OnshapeClient, compact_feature_response  # noqa: E402
+from onshape_fs_mcp.client import OnshapeClient, RateLimited, compact_feature_response  # noqa: E402
 from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
@@ -74,6 +74,8 @@ def upload_signature(client, did, wid, eid, source, library_version=0):
             "sourceMicroversion": current.get("sourceMicroversion"),
             "rejectMicroversionSkew": True,
         }, timeout=300)
+    except RateLimited:
+        raise  # never swallow a rate limit; the run must exit with the wait time
     except RuntimeError as error:
         return {"ok": False, "detail": f"upload rejected: {str(error)[:200]}"}
     specs = client.request("GET", path + "/featurespecs", timeout=300)
@@ -112,6 +114,8 @@ def instantiate(client, did, wid, fs_id, microversion, ps_id, feature_type, name
         summary = compact_feature_response(response)
         status = summary["featureStatus"]
         return {"ok": status == "OK", "detail": f"featureStatus={status}"}
+    except RateLimited:
+        raise
     except RuntimeError as error:
         return {"ok": False, "detail": f"rejected at instantiation: {str(error)[:300]}"}
 
@@ -142,6 +146,8 @@ def main(budget: int) -> int:
                 "POST", f"/api/partstudios/d/{did}/w/{wid}", {"name": f"instance {spec['file']}"}
             )
             ps_id = ps["id"]
+        except RateLimited:
+            raise  # never skip onward on a rate limit; exit with the wait time
         except RuntimeError as error:
             results.append({"file": spec["file"], "signature": sig,
                             "error": f"create PS failed: {str(error)[:200]}"})

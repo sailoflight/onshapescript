@@ -52,6 +52,12 @@ def load_json(path: Path) -> dict[str, Any]:
         return json.load(stream)
 
 
+class RateLimited(RuntimeError):
+    """Raised immediately on HTTP 429. NEVER retried — the Retry-After wait time
+    (also captured in config/api-usage.json) is surfaced so callers can exit
+    and wait instead of hammering the rate limit."""
+
+
 class OnshapeClient:
     def __init__(self) -> None:
         credentials = load_json(CREDENTIALS_PATH)
@@ -152,10 +158,22 @@ class OnshapeClient:
                 except json.JSONDecodeError:
                     details = {"message": payload[:4000]}
                 self._record_usage(method, path, error.code, getattr(error, "headers", None))
-                if error.code != 429 and error.code < 500:
+                if error.code == 429:
+                    # 429 is NEVER retried: raise immediately with the wait time
+                    # (the Retry-After header is already persisted to the ledger
+                    # by _record_usage) so callers exit and wait instead of
+                    # hammering the rate limit.
+                    headers = getattr(error, "headers", None) or {}
+                    retry_after = headers.get("Retry-After") or headers.get("retry-after") or "?"
+                    raise RateLimited(
+                        f"HTTP 429 rate-limited, wait ~{retry_after}s: "
+                        f"{json.dumps(details, ensure_ascii=False)}"
+                    ) from error
+                if error.code < 500:
                     raise RuntimeError(
                         f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
                     ) from error
+                # 5xx: transient server error, retry below.
                 last_error = RuntimeError(
                     f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
                 )

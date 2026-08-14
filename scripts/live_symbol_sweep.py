@@ -42,6 +42,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
+from onshape_fs_mcp.client import RateLimited  # noqa: E402
 from onshape_fs_mcp.operations import eval_featurescript  # noqa: E402
 
 DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
@@ -83,6 +84,23 @@ _RUNTIME = re.compile(r"Attempt to dereference non-container|Runtime exception|C
 
 def ts() -> str:
     return time.strftime("%H:%M:%S")
+
+
+def rate_limited() -> str | None:
+    """Return a reason string if the account is under a long rate-limit hold,
+    else None. Onshape's Retry-After landed at 73094s (~20h) on 2026-08-14, so
+    a run would only burn futile retries; abort before the first call instead."""
+    usage = ROOT / "config" / "api-usage.json"
+    try:
+        d = json.loads(usage.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    retry_after = int(d.get("lastRetryAfter") or 0)
+    remaining = str(d.get("lastRateLimitRemaining") or "")
+    if remaining == "0" and retry_after > 60:
+        return (f"Onshape rate-limited: Retry-After {retry_after}s "
+                f"(~{retry_after // 3600}h), rate-limit remaining 0")
+    return None
 
 
 def parse_signature(sig: str) -> list[tuple[str, str]]:
@@ -133,22 +151,12 @@ class Sweep:
     def run_bundle(self, section: str, names: list[tuple[str, str]]) -> list[str]:
         body = ", ".join(expr for _, expr in names)
         script = f"function(context is Context, id is Id) {{ return [{body}]; }}"
-        time.sleep(2.0)  # global throttle; the is*/gap probes ran clean ~1 req/s
-        try:
-            r = eval_featurescript(script, part_studio_id=self.part_studio_id,
-                                   client=self.guard.client)
-            return r["errors"]
-        except RuntimeError as exc:
-            if "429" not in str(exc):
-                raise
-            # The client already retried with 1s/2s/4s backoff; out-wait the
-            # rate-limit window once, then give up (incremental save keeps all
-            # prior results).
-            print(f"[{ts()}] [429] cooling down 30s in {section}", flush=True)
-            time.sleep(30)
-            r = eval_featurescript(script, part_studio_id=self.part_studio_id,
-                                   client=self.guard.client)
-            return r["errors"]
+        time.sleep(2.0)  # global throttle; matches the is*/gap probes ~1 req/s
+        # NO 429 retry: the client raises RateLimited immediately with the wait
+        # time; main() writes it to the results and exits. Never skip onward.
+        r = eval_featurescript(script, part_studio_id=self.part_studio_id,
+                               client=self.guard.client)
+        return r["errors"]
 
     def attribute(self, err: str, names: list[tuple[str, str]]) -> str | None:
         pool = {n for n, _ in names}
@@ -265,6 +273,8 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
                 },
                 timeout=300,
             )
+        except RateLimited:
+            raise  # never swallow a rate limit; main() writes it and exits
         except RuntimeError as exc:
             return {"declared": version, "postError": str(exc)[:150]}
         time.sleep(2.0)
@@ -282,13 +292,19 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
             "microversionSkew": updated.get("microversionSkew"),
         }
 
+    # Hard budget: each version probe costs 3 ledgered calls (GET+POST+
+    # featurespecs); never start one unless all 3 fit in the remaining budget.
+    def afford() -> bool:
+        return guard.remaining >= 3
+
     results = {}
-    control = probe("3044")                     # control: deployed runtime, must accept
-    results["3044"] = control
-    print(f"[{ts()}] [import:3044] {json.dumps(control)[:160]}", flush=True)
-    if control.get("compile") == "ok":
-        results["3050"] = probe("3050")         # upper bound: expect rejection
-        print(f"[{ts()}] [import:3050] {json.dumps(results['3050'])[:160]}", flush=True)
+    if afford():
+        control = probe("3044")                     # control: deployed runtime, must accept
+        results["3044"] = control
+        print(f"[{ts()}] [import:3044] {json.dumps(control)[:160]}", flush=True)
+        if control.get("compile") == "ok" and afford():
+            results["3050"] = probe("3050")         # upper bound: expect rejection
+            print(f"[{ts()}] [import:3050] {json.dumps(results['3050'])[:160]}", flush=True)
     return results
 
 
@@ -300,6 +316,11 @@ def main() -> int:
     parser.add_argument("--part-studio-id", default=DEFAULT_PART_STUDIO_ID)
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args()
+
+    rl = rate_limited()
+    if rl:
+        print(f"[{ts()}] aborting before any call: {rl}", flush=True)
+        return 0
 
     # Resume: keep everything already verified; the budget then only covers the
     # remainder, so a re-run after progress is cheap instead of 99 each time.
@@ -346,34 +367,64 @@ def main() -> int:
           f"{guard.summary()['annualRemaining']}; import boundary first",
           flush=True)
 
-    results = {"budget": guard.summary(), "importBoundary": prev.get("importBoundary", {}),
+    results = {"budget": {}, "importBoundary": prev.get("importBoundary", {}),
                "symbols": symbols}
-    sweep = Sweep(guard, args.part_studio_id, results, args.out, done)
+    sweep = None
+    try:
+        guard = BudgetGuard(args.budget, "symbol existence sweep")
+        did, wid = guard.client.state["documentId"], guard.client.state["workspaceId"]
+        print(f"[{ts()}] preflight OK, annual remaining "
+              f"{guard.summary()['annualRemaining']}; import boundary first",
+              flush=True)
+        results["budget"] = guard.summary()
+        sweep = Sweep(guard, args.part_studio_id, results, args.out, done)
 
-    results["importBoundary"].update(import_boundary(guard, did, wid))
-    sweep.save()
+        results["importBoundary"].update(import_boundary(guard, did, wid))
+        sweep.save()
 
-    sweep.sweep("constants", [(c, c) for c in consts], 12)
-    sweep.sweep("predicates", [(p, gen_call(preds[p])) for p in sorted(preds)], 8)
-    # types: bare type names are value expressions if the runtime allows it.
-    if "Context" not in done and not guard.exceeded():
-        sweep.probe("types-feasibility", [("Context", "Context")])
-    if not guard.exceeded() and sweep.symbols.get("Context", {}).get("verdict") == "PASS":
-        sweep.sweep("types", [(t, t) for t in types if t != "Context"], 10)
-    elif not guard.exceeded():
-        print(f"[{ts()}] --- types skipped: bare type names are not value expressions", flush=True)
+        sweep.sweep("constants", [(c, c) for c in consts], 12)
+        sweep.sweep("predicates", [(p, gen_call(preds[p])) for p in sorted(preds)], 8)
+        # types: bare type names are value expressions if the runtime allows it.
+        if "Context" not in done and not guard.exceeded():
+            sweep.probe("types-feasibility", [("Context", "Context")])
+        if not guard.exceeded() and sweep.symbols.get("Context", {}).get("verdict") == "PASS":
+            sweep.sweep("types", [(t, t) for t in types if t != "Context"], 10)
+        elif not guard.exceeded():
+            print(f"[{ts()}] --- types skipped: bare type names are not value expressions", flush=True)
 
-    sweep.sweep("functions", [(n, gen_call(all_callable[n])) for n in sorted(no_ctx)], 5)
+        sweep.sweep("functions", [(n, gen_call(all_callable[n])) for n in sorted(no_ctx)], 5)
 
-    sweep.save()
-    verdicts = {}
-    for r in results["symbols"].values():
-        v = r["verdict"]
-        verdicts[v] = verdicts.get(v, 0) + 1
-    print(f"[{ts()}] spent {guard.spent}/{guard.budget} ledgered calls; "
-          f"total symbols verified {len(results['symbols'])}, verdicts={verdicts}")
-    print(f"[{ts()}] wrote {args.out}")
-    return 0
+        sweep.save()
+        verdicts = {}
+        for r in results["symbols"].values():
+            v = r["verdict"]
+            verdicts[v] = verdicts.get(v, 0) + 1
+        print(f"[{ts()}] spent {guard.spent}/{guard.budget} ledgered calls; "
+              f"total symbols verified {len(results['symbols'])}, verdicts={verdicts}")
+        print(f"[{ts()}] wrote {args.out}")
+        return 0
+    except RateLimited as exc:
+        # 429 is NEVER retried and never skipped: record the wait time, save,
+        # and exit. Resume later once the limit clears.
+        results["error"] = str(exc)
+        if sweep is not None:
+            try:
+                sweep.save()
+            except Exception:
+                pass
+        print(f"[{ts()}] [rate-limited] {exc}", flush=True)
+        print(f"[{ts()}] exiting now — no retry, no skip; results preserved at {args.out}",
+              flush=True)
+        return 1
+    except Exception as exc:
+        results["error"] = f"{type(exc).__name__}: {exc}"
+        if sweep is not None:
+            try:
+                sweep.save()
+            except Exception:
+                pass
+        print(f"[{ts()}] [error] {results['error']}", flush=True)
+        return 1
 
 
 if __name__ == "__main__":
