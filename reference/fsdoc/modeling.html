@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Modeling</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li class="fs-active-link"><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Modeling</h1>
+<h3>Context</h3>
+<p>A context is a builtin that stores modeling data, including bodies (solid, sheet, wire, and point), their constituent entities (faces, edges, and vertices), variables, feature error states, etc. All features, operations, and evaluation functions require a context to operate on.</p>
+<p>For more information, see the <a href="library.html#module-context.fs">context module</a>.</p>
+<h3>Bodies</h3>
+<p>The geometry in a context is grouped into independent bodies. A body is comprised of zero or more vertices, faces, and edges and may represent a 3D (solid), 2D (sheet), 1D (wire), or 0D (point) region. A cylinder, for example, is a solid body with no vertices, two edges, and three faces. A construction plane is a special type of sheet body with one face. A body is always connected: for example, two disjoint volumes or surfaces cannot be a single body.</p>
+<p>Bodies, vertices, edges, and faces are collectively referred to as &quot;entities&quot;. Every face, edge, and vertex belongs to a body. The typical result of regenerating a Part Studio is creating bodies in its context.</p>
+<h3>Queries</h3>
+<p>Queries are used to refer to topological entities (vertices, edges, faces, and bodies) in a context. You can think of a <code>Query</code> as an order form for geometry, specifying criteria that said geometry must satisfy. For instance, <a href="library.html#qCreatedBy-Id"><code>qCreatedBy</code></a> specifies geometry created during a certain operation. <a href="library.html#qContainsPoint-Query-Vector"><code>qContainsPoint</code></a> specifies geometry that touches a specified point. These queries can be combined and nested into bigger or more specific queries.</p>
+<p>A query does not reference entities, it simply encodes criteria. However, when passed into a function (like an evaluation or an operation) together with a context, that function can determine which entities match the query.</p>
+<p>In general, the functions you use will take care of evaluating which entities match a query. However, sometimes it is necessary to determine how many entities match a query, or perform a loop over each match. In this situation, you can use <a href="library.html#evaluateQuery-Context-Query"><code>evaluateQuery</code></a>, which returns an array of transient queries – one for each entity in the context matching the query at the time it was evaluated.</p>
+<p>FeatureScript uses queries in place of direct references out of a need for robustness in the face of changes earlier in the feature list. When we reference the top of a cube, we need to be able to find that face again after the user changed the cube&#39;s size and drilled a hole through it.</p>
+<p>The full set of available query functions can be found in the <a href="library.html#module-query.fs">query module</a>.</p>
+<h3>Evaluations</h3>
+<p>Evaluation functions are used to measure the geometry and topology in a context.  They start with <code>ev</code> and take two arguments: a <code>Context</code> and a map that specifies what to measure. For example, <code>evBox3d</code> and <code>evVolume</code> respectively find the bounding box and the volume of a group of entities, while <code>evVertexPoint</code> returns a 3D position <code>Vector</code> for a vertex.</p>
+<p>The full set of available evaluation functions can be found in the <a href="library.html#module-evaluate.fs">evaluate module</a>.</p>
+<h3>Operations</h3>
+<p>Operations are standard library functions that create or modify geometry in a context.  They start with <code>op</code> and take three arguments: a <code>Context</code>, an operation <code>Id</code>, and a definition map.  A feature may have no operations (like <code>assignVariable</code>), one operation (like <code>fillet</code> calls <code>opFillet</code>), or multiple operations (like <code>extrude</code>, which may call <code>opExtrude</code>, <code>opDraft</code>, <code>opBoolean</code> and more).</p>
+<p>Operations modify the context which is passed in, potentially creating, deleting, or changing its entities. This modification is tracked in Onshape with a unique <code>Id</code>. For more on operation ids, see the <a href="library.html#Id">Id type documentation</a></p>
+<p>The full set of available operation functions can be found in the <a href="library.html#module-geomOperations.fs">geomOperations module</a>.</p>
+<h3>Primitives</h3>
+<p>Primitives are elementary operations like <a href="library.html#fCuboid-Context-Id-map"><code>fCuboid</code></a> and <a href="library.html#fCylinder-Context-Id-map"><code>fCylinder</code></a> which quickly create simple 3D solid bodies.</p>
+<p>The full set of available primitive-creating functions can be found in the <a href="library.html#module-primitives.fs">primitives module</a>.</p>
+<h3>Sketches</h3>
+<p>Sketches can be created inside of custom features as final products or as a step toward building new geometry.</p>
+<p>The typical way of creating sketches from within a feature is different from the typical way of creating sketches interactively in two important ways:</p>
+<ul>
+<li>When creating a sketch from FeatureScript, full control over the sketch coordinate system is important.  The <code>newSketchOnPlane</code> function creates a sketch whose coordinate system is derived from that of the passed in plane, while the <code>newSketch</code> function (called from Part Studios) uses a canonical coordinate system.</li>
+<li>Sketches created from FeatureScript often don&#39;t need to make use of constraints (although they can if necessary) because it is often easier to calculate the desired sketch entity coordinates in FeatureScript than to set up the correct constraint system.  The <code>skSolve</code> call is still necessary to generate sketch geometry.</li>
+</ul>
+<p>Advanced sketch functionality, like sketch offset, sketch fillet, etc., is not available in FeatureScript.  Some of these gaps can be worked around by extruding a solid body from the sketch and using operations like <code>opThicken</code> or <code>opFillet</code>.</p>
+<p>An example of creating and solving a sketch, along with the full set of sketch functions, can be found in the <a href="library.html#module-sketch.fs">sketch module</a>.</p>
+<h3>Geometry</h3>
+<p>As writing features often involves geometric computation, the standard library provides types and functions to make it easier. There are types to represent points, curves (such as lines and circles), surfaces (planes, cylinders, cones), coordinate systems, and transforms. These are FeatureScript values and should not be confused with entities living in a context. For instance, <code>Vector</code>, <code>Line</code>, <code>Plane</code>, and <code>CoordSystem</code> are types and roughly corresponding respective entities are a vertex, a line edge, a planar face (or a construction plane), and a mate connector. Evaluation functions return geometric types (e.g., <code>evVertexPoint</code>) and operations can create entities from some geometric types (e.g., <code>opPoint</code>).</p>
+<p>An issue that often arises when writing geometric code is round-off error in floating-point. We recommend that for comparing geometric objects, you use the <code>tolerantEquals</code> method instead of the builtin <code>==</code> operator (that does an exact comparison). Keep in mind that while <code>tolerantEquals</code> tries to use reasonable tolerances (1e-8 meters for length, 1e-11 radians for angle), they may not be right for your specific application (and there is no general right answer), but they will work well in most cases.</p>
+<h3>Feature Patterns</h3>
+<p>Feature patterns will not automatically work correctly with custom features because different features need to apply the pattern transform differently.
+To help figure out the right transform to apply, the standard library provides the function
+<a href="library.html#getRemainderPatternTransform-Context-map"><code>getRemainderPatternTransform</code></a>.  See its documentation for more information about feature patterns
+and how to write features that work with them.</p>
+</div>
+</body>
+</html>

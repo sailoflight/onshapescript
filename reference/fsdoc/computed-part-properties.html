@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Computed part properties</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li class="fs-active-link"><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Computed part properties</h1>
+<p>Computed part properties are properties whose values are computed using FeatureScript functions.
+These properties are available wherever Part properties are available, like BOMs and drawings.
+Rather than being manually set to a static value, they are computed from a custom FeatureScript function.
+The FeatureScript function can compute the property value with access the full Part Studio context, including
+geometry of the Part, its attributes, its non-computed properties, and Part Studio variables.</p>
+<p>Standard computed part properties like Mass are available to everyone, while custom computed part properties
+you define can be made available to your company.</p>
+<h2>Defining computed part properties</h2>
+<p>The following sections provide a step by step guide to creating, testing, and using computed part properties.</p>
+<h3>Define the property function</h3>
+<p>Property functions can be defined in any Feature Studio, though it may be useful to create a separate document for
+your company&#39;s property functions.</p>
+<p>The following FeatureScript snippet defines a simple property function that will compute the volume of a part.</p>
+<pre><code class="language-js">annotation { &quot;Property Function Name&quot; : &quot;computeVolume&quot; }
+export const computeVolume = defineComputedPartProperty(
+             function(context is Context, part is Query, definition is map) returns ValueWithUnits
+    {
+        return evVolume(context, { &quot;entities&quot; : part });
+    });
+</code></pre>
+<p>The import <code>onshape/std/common.fs</code> has everything you typically need for defining property functions.
+Importing <code>geometry.fs</code> by property function Feature Studios is discouraged for performance reasons.</p>
+<p>The <code>Property Function Name</code> annotation and the use of <code>defineComputedPropertyFunction</code> identify the function as a
+computed part property function. Both are essential. When you start to type <code>defineComputed</code> in the FeatureScript
+editor, you can autocomplete to a template for your property function.</p>
+<p>Computed part property functions must specify a FeatureScript return type, which must be one of:</p>
+<ul>
+<li><code>string</code></li>
+<li><code>number</code></li>
+<li><code>boolean</code></li>
+<li><code>ValueWithUnits</code></li>
+</ul>
+<p>Your property functions have access to the full power of FeatureScript: all geometry of the part,
+and all FeatureScript functionality from the Onshape Standard Library or other Feature Studios,
+including access to non-computed properties using the <code>getProperty()</code> function.
+Computed part property functions cannot use other computed part properties using <code>getProperty()</code>,
+but they can call other functions including other property functions.</p>
+<h3>Test the property function</h3>
+<p>Onshape generates custom tables for your computed part property functions that you can use in the same
+workspace in which you define the property functions. To use this feature, create some parts in a Part
+Studio in the same workspace, and then select the appropriate custom table from the custom tables tab.</p>
+<p><img src="tutorials/images/computed-part-properties-custom-tables.png" alt="Feature studio showing generated custom tables"></p>
+<p>If there are errors, they will appear in the <code>FeatureScript notices</code> (<code>{!}</code>) in the Part Studio. If that
+happens, you can monitor the Part Studio from the Feature Studio where you defined the property functions,
+and fix the errors from there.</p>
+<p>Outside of this workflow, runtime errors in computed property functions are not visible in the
+<code>FeatureScript notices</code> to users viewing the properties. Thus, it is generally not recommended to throw
+errors inside custom property functions, or to leave errors in called functions uncaught, even in cases
+where the property is clearly not applicable.</p>
+<h3>Create a document version</h3>
+<p>Property functions are versioned by the document version of their Feature Studio, so you need to commit
+the Feature Studio and create a document version to refer to the version you want from your custom property.</p>
+<p>Don&#39;t forget to create a new document version when you change your property functions, and then edit the
+custom property in your company&#39;s setting to use the new version.</p>
+<h3>Define the custom property</h3>
+<p>Custom computed part properties are defined like other custom properties in the custom properties section of your
+company settings. In order to associate a custom property with a property function, making it into a computed part
+property, the following are required:</p>
+<ul>
+<li>The property type must be one of <code>Text</code>, <code>Double</code>, <code>Boolean</code>, or <code>Value with units</code>, corresponding to the
+ FeatureScript types listed above.</li>
+<li>The property&#39;s categories must include <code>Part</code>.</li>
+<li>The property will need to be active in order to use it.</li>
+</ul>
+<p>Note that the <code>Edit value in workspace</code> and <code>Edit value in version</code> checkboxes affect when a computed
+part property can be overridden. The default is for it to be computed.</p>
+<p>When the above conditions are met, a <code>Computed part properties</code> section appears in the property details form.
+From there, you can select a property function by document, version, feature studio, and function name.
+You can use the features of the selection dialog to navigate to other documents and versions as needed.</p>
+<p><img src="tutorials/images/computed-part-properties-select-function.png" alt="Property details showing function selection dialog"></p>
+<p>Once a property function has been selected, the <code>Property function source</code> field will contain a link that will
+open the right version of the feature studio in a new tab.</p>
+<h2>Using computed part properties</h2>
+<h3>Using computed part properties in the properties dialog</h3>
+<p>Computed part properties are included in the properties dialog when you request properties for parts.
+Computed properties have a script <em>f</em> after their names, and will also have an <code>Override</code> checkbox if they
+can be overridden in the properties dialog.</p>
+<p><img src="tutorials/images/computed-part-properties-metadata-dialog.png" alt="Properties dialog showing computed part properties"></p>
+<p>To override a computed value, check the <code>Override</code> checkbox and
+enter the override value. To remove an override and use the computed value, uncheck the <code>Override</code> checkbox.
+When removing an override, the dialog will display <em>Computed</em> until you click <code>Apply</code>, and then the computed
+value will be computed and displayed.</p>
+<h3>Using computed part properties in a bill of materials</h3>
+<p>You can add computed part properties to a bill of materials using the <code>Add column</code> dropdown. You can
+override computed part properties in the BOM by editing the cells. If a table cell contains an override, it
+will display a hover tooltip indicating that it is an overridden computed property. You can remove the
+override using the <code>Remove override</code> context menu item from the table cell.</p>
+<p>Adding computed part properties to a bill of materials will increase the time required to display the table
+if previously computed values are not available in a runtime cache.</p>
+<h3>Using computed part properties in configured part properties</h3>
+<p>You can add computed part properties to the configured properties table in a part studio using the
+<code>Add property</code> dropdown. Similar to a bill of materials, you can provide configuration specific values for
+computed properties by editing their values in the table.
+You can also remove a configured value from a table cell using the <code>Remove configured value</code> context menu
+from the table cell.</p>
+<p>Table cells for computed part properties that do not have configured override values display <code>Computed</code>
+rather than the actual computed values because computing property values for multiple configurations
+is computationally expensive.</p>
+</div>
+</body>
+</html>

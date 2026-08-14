@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Equality and ordering</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li class="fs-active-link"><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Equality and ordering</h1>
+<p>There is a total order on FeatureScript values.  Given any pair of
+values, either one is less than the other or they are equal.</p>
+<p>Any two values can be tested for equality with <code>==</code> and inequality
+with <code>!=</code>.  By definition, inequality is the opposite of equality.</p>
+<p>FeatureScript does not have degrees of equality.  There is no distinction
+like JavaScript&#39;s <code>==</code> and <code>===</code> or Scheme&#39;s <code>eq?</code>, <code>eqv?</code>, and <code>equal?</code>.</p>
+<p>Two values are equal if they have the same underlying type, same
+type tag (if any), and satisfy the obvious equality relationship
+for the standard type.</p>
+<ul>
+<li>Equal numbers are equal, and positive and negative zero are also equal.</li>
+<li>Maps are equal if all the key-value pairs are equal.</li>
+<li>Arrays are equal if they are the same length and corresponding values are equal.</li>
+<li>Boxes are equal to themselves and not equal to other boxes that
+happen to hold the same value.</li>
+<li>Lambda functions are equal if they were created by the same function
+definition and bound values (values captured from an enclosing block
+scope) are equal.  Otherwise functions are not equal, even if their
+definitions are identical.  (Top-level functions are not values and
+can not be tested for equality.)</li>
+</ul>
+<p>Like all binary operators, <code>==</code> and <code>!=</code> evaluate their operands
+left to right.  (Exponentiation associates right to left, but
+evaluates left to right.)</p>
+<p>Numbers may be compared with the <code>&lt;</code> operator.  Operator <code>&lt;</code> may
+also be overloaded for use with values with type tags.</p>
+<p>Values also have an internal order.  This order is visible when
+values are used as map keys; iteration over a map proceeds in key
+order.  This order does not otherwise affect execution.
+Overloading operator <code>&lt;</code> does not change this order.</p>
+<p>The internal order on values looks first at type tag, then at
+basic type, then at value for two values with the same type.</p>
+<p>Standard types sort in the order</p>
+<p></p><div class="compact-list"><ol>
+<li><code>undefined</code></li>
+<li><code>boolean</code></li>
+<li><code>number</code></li>
+<li><code>string</code></li>
+<li><code>array</code></li>
+<li><code>map</code></li>
+<li><code>box</code></li>
+<li><code>builtin</code></li>
+<li><code>function</code></div></li>
+</ol>
+<p>Type tags sort in the order they are declared, and after all
+predefined types.  Declaration order is a global property based on
+when a module is first seen in the graph of imports.  A module can not
+force a particular declaration order by reordering its own imports.
+So type tag order is deterministic, but not necessarily predictable
+except for two type tags defined in the same module.</p>
+<p>If both values have the same type tag, the type comparison repeats
+with the standard type.  For example, consider the type definition below:</p>
+<pre><code>predicate anything(x) { true; }
+type Anything typecheck anything;
+</code></pre>
+<p>Given this definition, the value <code>0</code> comes before <code>true as Anything</code>, which comes before <code>0 as Anything</code>. In other words:</p>
+<pre><code>0 &lt; (true as Anything) &lt; (0 as Anything)
+</code></pre>
+<p>If two objects of the same type are not equal, order is defined by these rules:</p>
+<ul>
+<li><code>false</code> sorts before <code>true</code></li>
+<li>Numbers follow the obvious order, except <code>-0</code> and <code>0</code> are the same.</li>
+<li>Strings sort by Unicode character values, not in any language-related collating sequence.</li>
+<li>Arrays sort first by size, and then based on the first unequal element.</li>
+<li>Maps sort as if they were arrays of [key,value] arrays sorted by key.</li>
+<li>Boxes sort by order of creation.</li>
+<li>Builtins sort by order of creation.</li>
+<li>Functions sort first by an arbitrary order on all expression
+function declarations, and then by bound values compared in an
+arbitrary but deterministic order.</li>
+</ul>
+<p>Enums can also be compared with comparison operators as long as the same enum (same type, element, and version) is on both sides of the comparison. <code>EnumA.X &lt; EnumA.Y</code> will evaluate to <code>true</code> if <code>X</code> comes before <code>Y</code> in the definition of <code>EnumA</code>, but <code>EnumA.X &lt; EnumB.Y</code> will throw an error.</p>
+</div>
+</body>
+</html>

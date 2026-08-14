@@ -62,13 +62,68 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 11)
+        self.assertEqual(len(responses[1]["result"]["tools"]), 18)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
         self.assertIs(parameters["detailedStrands"], False)
         self.assertNotIn("accessKey", json.dumps(responses))
         self.assertNotIn("secretKey", json.dumps(responses))
+
+    def test_feature_script_reference_tools(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_get_function",
+                    "arguments": {"name": "opExtrude"},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_get_type",
+                    "arguments": {"name": "BoundingType"},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_search",
+                    "arguments": {"query": "sketch region", "limit": 3},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_list_modules",
+                    "arguments": {"category": "Math"},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        op = responses[0]["result"]["structuredContent"]
+        self.assertEqual(op["name"], "opExtrude")
+        self.assertEqual(op["module"], "geomOperations.fs")
+        self.assertIn("context is Context", op["signature"])
+        self.assertTrue(op["parameters"])
+        bounding = responses[1]["result"]["structuredContent"]
+        self.assertEqual(bounding["kind"], "enum")
+        self.assertTrue(bounding["values"])
+        search = responses[2]["result"]["structuredContent"]["results"]
+        self.assertTrue(search)
+        self.assertTrue(all("score" in result for result in search))
+        modules = responses[3]["result"]["structuredContent"]["modules"]
+        self.assertTrue(modules)
+        self.assertTrue(all(m["category"] == "Math" for m in modules))
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([

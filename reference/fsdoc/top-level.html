@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Top-level constructs</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li class="fs-active-link"><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Top-Level Constructs</h1>
+<p>FeatureScript has several types of <em>top-level</em> constructs you can put directly into a module.  These are imports, subroutines (functions, predicates, operator overloads), constant declarations, and type (enum and custom type) declarations.  A top-level construct may be <em>exported</em> by prefixing it with the <code>export</code> keyword, to make the symbol it defines visible to modules importing this module.</p>
+<h4>Imports</h4>
+<p>An <em>import</em> construct imports an Onshape tab (which may be a Feature Studio, a Part Studio, or an uploaded file) as a FeatureScript module.  It has the form <code>import(path : &quot;some path&quot;, version : &quot;some version&quot;);</code>.  Currently an import may be of one of three forms (the third of which may disappear):</p>
+<ol>
+<li>A tab in the current document.  In this case, the path needs to be the tab id
+(the 24-character string after the <code>/e/</code> in the URL when looking at the tab.  The version is populated automatically on commit to be the latest microversion of the tab.</li>
+<li>A tab in a version of another document.  In this case, the path needs to be of the form <code>documentId/versionId/tabId</code>.  These ids are 24-character strings
+found after <code>/documents/</code>, <code>/v/</code>, and <code>/e/</code> in the URL, respectively.
+The version needs to be the microversion of the tab in that version (which is not trivial to determine; we&#39;re working on it).</li>
+<li>A tab from the standard library.  In this case, the path needs to be of the form <code>onshape/std/tabName.fs</code> and the version is the version name, like <code>255.0</code>.</li>
+</ol>
+<p>Like other top-level constructs, an import may be exported, which makes the imported symbols visible to other imports.  An import may also be used with a namespace, in which case all symbols it brings in can only be accessed through that namespace.</p>
+<pre><code>    myNamespace::import(path : &#39;onshape/std/math.fs&#39;, version : &#39;255.0&#39;);
+    const PI2 = myNamespace::PI * 2;
+</code></pre>
+<h4>Subroutines</h4>
+<p>FeatureScript has several types of subroutines: functions, predicates, operator overloads, and lambda functions (which are not top-level constructs).  Every kind of subroutine takes zero or more arguments and returns a value.  The arguments may have type constraints specified using the <code>is</code> keyword for overload resolution and type safety.</p>
+<h5>Functions</h5>
+<p>A function is a subroutine similar to what other languages have: it takes arguments, executes statements in its body and returns a value.</p>
+<pre><code>    function fourthPower(x)
+    {
+        const square = x * x;
+        return square * square;
+    }
+</code></pre>
+<p>If a function executes a <code>return</code> without a value or reaches the closing brace without returning, it returns <code>undefined</code>.
+A function may have a return type constraint (e.g., <code>function fourthPower(x) returns number { ... }</code>) which triggers an error if a value that does not satisfy the type constraint is returned.</p>
+<h5>Predicates</h5>
+<p>A <em>predicate</em> is a special type of subroutine that always returns a boolean.
+No assignments or statements with a side effect are allowed inside a
+predicate.  No variable declarations are allowed, except for the
+loop variable as in <code>for (var ... in ...) ...</code>.</p>
+<p>A predicate either <em>succeeds</em> or <em>fails</em>.  A predicate succeeds
+if and only if every expression statement executed evaluates to true.  An expression
+statement is an expression followed by a semicolon.
+It does not include conditions for loops or <code>if</code> statements.</p>
+<pre><code>predicate canBeUsed(x, y)
+{
+    isUseful(x); // Expression statement
+    if (y is array) // Not an expression statement, but controls whether the following code block is evaluated
+    {
+        for (element in y) // Creates loop variable &quot;element&quot;
+        {
+            element is UsefulType; // Expression statement evaluated on every element in y
+        }
+    }
+}
+</code></pre>
+<p>Statements that are not executed do not matter.  In the above example, the <code>for</code> loop may never be executed.</p>
+<p>A predicate fails and returns false immediately if any expression statement evaluates to false.  A
+predicate raises an exception if any expression statement does not evaluate to <code>true</code> or <code>false</code>.</p>
+<p>Predicates are often used in preconditions.  A typecheck for a custom type
+must be a predicate.</p>
+<h5>Operator Overloads</h5>
+<p>FeatureScript supports overloading the following operators: <code>+ - * / % ^ &lt;</code>.  An overload is declared as follows.</p>
+<pre><code>    operator*(x is Vector, y is number)
+    {
+        ...
+    }
+</code></pre>
+<p>An operator overload must have two arguments, with the exception of <code>-</code>, which may have one (to overload negation).  At least one argument must have a custom type or enumeration constraint.</p>
+<p>When operator <code>+</code> is overloaded, that overload is also applied to <code>+=</code> and similarly for <code>- * / % ^</code>.
+The operator <code>&lt;</code> must be declared to return a boolean.
+When operator <code>&lt;</code> is overloaded, that overload is also called when <code>&gt; &lt;= &gt;=</code> is used.</p>
+<h5>Preconditions</h5>
+<p>Any subroutine may have a <em>precondition</em>.  A precondition has
+assertions about arguments.  For example, if an argument
+must be a positive integer for the function to behave sensibly, then this should be checked in a
+precondition.</p>
+<p>A precondition is written between the function arguments
+(and return type, if any) and body.  A precondition is
+the keyword <code>precondition</code> plus one statement.  Usually
+the statement will be a block statement with several
+statements inside.</p>
+<pre><code>function sqrt(n is number) returns number
+precondition n &gt;= 0;
+{ ... }
+
+
+function makeArray(n is number) returns array
+precondition
+{
+    isInteger(n);
+    n &gt; 0;
+}
+{
+    ...
+}
+</code></pre>
+<p>The precondition is evaluated like a predicate.  If one of the expression statements of the precondition fails, an exception is raised and the subroutine call is aborted.
+Preconditions are also used to define <a href="uispec.html">feature dialogs</a>.</p>
+<h5>Lambda functions</h5>
+<p>Functions may be declared inside other functions or initializers of
+top-level constants.  In FeatureScript (and many other languages) these functions are called
+<em>lambdas</em>. Lambda functions can be specified either with the <code>function</code> keyword, or can use
+the shorter <code>=&gt;</code> form, similar to JavaScript.</p>
+<p>Unlike top-level functions, lambdas are values.  They can
+be assigned to variables and used in expressions.  Lambdas
+do not have names of their own, but may be assigned to
+variables, passed to other functions, or used inside of other expressions.</p>
+<pre><code>const zero = function() { return 0; };
+const doubled = (val) =&gt; val * 2;
+</code></pre>
+<p>All functions have the same standard type, <code>function</code>.  The expression
+<code>value is function</code> returns true if a value is a lambda.
+There is no way to test argument type, argument count, or return type.
+Calling a lambda with the wrong type or number of arguments
+results in a runtime error.</p>
+<h5>Overload resolution</h5>
+<p>Multiple top-level subroutines may be declared with the same name but different argument numbers and type constraints.  These subroutines are said to <em>overload</em> against each other.  A predicate cannot have the same name as a function.</p>
+<p>When a function or a predicate is called or an overloadable operator is used, FeatureScript performs overload resolution based on argument types to determine which subroutine to call.  Overload resolution finds the <em>most-specific satisfying</em> overload.</p>
+<p>A subroutine declaration is a <em>satisfying</em> overload if it has the same number of arguments as the call and the arguments satisfy the type constraints.  For instance, <code>function foo(x is map)</code> is a satisfying overload for <code>foo({})</code> or <code>foo(meter)</code> (because <code>meter</code> is a map with a type tag) but not <code>foo({}, 1)</code> or <code>foo(&#39;abc&#39;)</code>.</p>
+<p>Overload 1 is <em>more specific</em> than Overload 2 if every argument in Overload 1 is at least as specific as the corresponding argument in Overload 2 and at least one argument is more specific.  A type tag constraint is more specific than a standard type constraint and that is more specific than an unconstrained argument.  For example, <code>function foo(x is ValueWithUnits, y is number)</code> is more specific than <code>function foo(x is map, y)</code>, but is not more specific than <code>foo(x is map, y is NumberWithTag)</code>.</p>
+<p>If a satisfying overload is not found or there is no single <em>most-specific</em> satisfying overload, an exception is raised.</p>
+<h4>Constant declarations</h4>
+<p>A constant may be declared as a top-level construct in a module.  The syntax is the same as for the <code>const</code> statement (see <a href="syntax.html#statement-types">Statement types</a>).  The initializer may call functions and reference other constants, but cycles are not allowed: there must be an order in which constants can be initialized.  A top-level constant may also not contain a box or a builtin.</p>
+<h4>Enumeration declarations</h4>
+<p>An enumeration is declared as follows.</p>
+<pre><code>enum Weekend { SATURDAY, SUNDAY }
+</code></pre>
+<p>Enums should generally be referred to using the dot syntax: <code>Weekend.SATURDAY</code>.
+The representation of <code>Weekend.SATURDAY</code> is the string <code>&#39;SATURDAY&#39;</code> with the type tag <code>Weekend</code>.
+The expression <code>Weekend</code> itself evaluates to a map with keys <code>&#39;SATURDAY&#39;</code> and <code>&#39;SUNDAY&#39;</code> and the values being the enum values.
+Note that this map is not traversed in the order that the enum is declared.</p>
+<h4>Custom type declarations</h4>
+<p>The following declares and exports the type <code>Person</code>.</p>
+<pre><code>export type Person typecheck canBePerson;
+export predicate canBePerson(value)
+{
+    value is map;
+    value.firstName is string;
+    value.age is number;
+    value.age &gt; 0;
+}
+</code></pre>
+<p>The typecheck predicate currently only serves as documentation for the type.  In the future, at least in some cases,
+it will be executed on values with the type tag and report warnings on failure.</p>
+</div>
+</body>
+</html>

@@ -2,5 +2,5 @@ onshape-credentials.json
 __pycache__/
 *.pyc
 temp/
-outputs/reports/
+examples/branch-cable-trophy/outputs/reports/
 .coverage

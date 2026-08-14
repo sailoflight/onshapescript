@@ -1,0 +1,338 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Imports</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li class="fs-active-link"><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Imports</h1>
+<h2>Direct FeatureScript imports</h2>
+<p>The FeatureScript import system can be used to bring in code or data from other elements into your Feature Studios. In a Feature Studio, you can import another Onshape tab with the import dialog, found by pressing the import button:</p>
+<p><img src="tutorials/images/import-button.png" alt="Import button"></p>
+<p>This dialog allows you to find Feature Studios and other tabs within this workspace and in other documents. Clicking on a tab in the dialog will insert import text into your Feature Studio with a unique id that points to the selected Onshape tab:</p>
+<pre><code>// Workspace import
+import(path : &quot;990d0d558752560035c1bc8e&quot;, version : &quot;e83d3c3d23dea63825b44d09&quot;);
+
+// Linked document import
+import(path : &quot;62bfa9d164ac3029984f7b53/c28fe04f33cbfe2c69f4e894/aa388ed6ebc848668b717010&quot;, version : &quot;56c4b769218439ffa1a4699e&quot;);
+</code></pre>
+<p>Feature Studios cover the path ids (above) with a label (below) containing the human-readable names of that imported document, version, and tab. To reveal the underlying path ids, simply move your cursor into or highlight the text of that label.</p>
+<p><img src="tutorials/images/import-labels.png" alt="Import labels"></p>
+<p>The &quot;Workspace import&quot; above is a reference to another tab in the current workspace. Like all workspace references in Onshape, this import will update automatically when the imported tab is changed.</p>
+<p>The &quot;Linked document import&quot; above is a reference to a tab in another document. Like all linked document references in Onshape, it is fixed to a specific version of that document. When a newer version of that document is created, the link icon will turn blue. At any time, you can click the link icon to update to the latest version, or to point the import to any other version. For more on creating, linking, and updating versions in Onshape, see the <a href="../help/Content/linked-documents.htm">linked documents documentation</a>.</p>
+<p>Importing any type of tab will make a number of symbols visible (see below what symbols each tab type exposes). These symbols may be used directly in the importing Feature Studio:</p>
+<pre><code>var result = importedFunction();
+</code></pre>
+<p>Any import can optionally be prefixed by a namespace. If it is, its symbols may be accessed through the same namespace:</p>
+<pre><code>MyFunctions::import(...);
+...
+x = MyFunctions::importedFunction();
+</code></pre>
+<h3>Importing another Feature Studio</h3>
+<p>When importing another Feature Studio, all the symbols which have been exported become available to the importing Feature Studio. An exported symbol is any top level node which has been declared with the <code>export</code> prefix:</p>
+<pre><code>export function myFunction(x) {...}
+export enum myEnum {...}
+export type myType typecheck p;
+export predicate myPredicate(value) {...}
+</code></pre>
+<p>By default, symbols imported by the current module are not exported by it. However, you can also <code>export</code> an <code>import</code> like any other top level node. This makes sense if, for instance, a module also exports functions that use an imported type or a feature that uses imported enums.</p>
+<pre><code>export import(path : &quot;onshape/std/tool.fs&quot;, version : &quot;&quot;);
+</code></pre>
+<h3>Importing external data</h3>
+<p>To guarantee that Part Studios always regenerate the same way, external data must be uploaded into an Onshape tab before FeatureScript can reference it.</p>
+<p>Importing an uploaded tab imports the constant <code>BLOB_DATA</code>, which is a map with at least the following keys:</p>
+<ul>
+<li><code>mediaType</code>: A string for the mime / media type of the uploaded data, such as &quot;text/csv&quot; or &quot;image/png&quot;</li>
+<li><code>blobType</code>: A less specific type string.  Currently one of &quot;IMAGE&quot;, &quot;CSV&quot;, &quot;JSON&quot;, &quot;TEXT, &quot;&quot;BREP&quot;, &quot;OTHER&quot;</li>
+<li><code>dataId</code>: A string that identifies the data.  Suitable for passing for <code>opImportForeign</code> if <code>blobType</code> is &quot;BREP&quot;.</li>
+</ul>
+<p>Onshape currently understands uploaded image, CSV, JSON, and TEXT files.</p>
+<p>Data in CSV files (parsed using Apache Commons CSV Excel format) can be referenced via the <code>csvData</code> key: the corresponding value is an array.  If the CSV file consists of one record (one line), each entry in the array is a field, represented as a number if the field can be parsed as a number, otherwise represented as a string.  If the CSV file consists of multiple records, each entry in the <code>csvData</code> array is an array corresponding to one record.</p>
+<p>Data in JSON files can be referenced via the <code>jsonData</code> key. The value is of a type corresponding to the top-level entity of the file: it is a map if the entity was an object, an array if the entity was an array, and analogously for other standard types.  Note that the JSON <code>null</code> value has no equivalent in FeatureScript and is imported as <code>undefined</code>. Because an <code>undefined</code> entry in a map is considered nonexistent, this can mean that the imported maps report a smaller size than the number of entries in the JSON.</p>
+<p>Data in TEXT files can be referenced via the <code>textData</code> key: the corresponding value is a String. A UTF-8 encoding is assumed.</p>
+<p>An image will have the keys <code>imageWidth</code> and <code>imageHeight</code> mapped to numbers of pixels. Color data for individual pixels is not currently available to FeatureScript.</p>
+<p>For example, to access the first element in an uploaded CSV file with multiple records:</p>
+<pre><code>MyData::import(path : &quot;...&quot;, version : &quot;...&quot;);
+...
+const firstEntry = MyData::BLOB_DATA.csvData[0][0];
+...
+</code></pre>
+<h3>Importing a Part Studio</h3>
+<p>A Part Studio exports a function named <code>build</code>, which takes a configuration argument (as a map) and returns a context containing everything created in that Part Studio. It is often useful to utilize a Part Studio to create pieces of your feature (which may be transformed or booleaned in FeatureScript), rather than manually writing the code to build complex geometry in FeatureScript.</p>
+<p>The <a href="library.html#module-instantiator.fs">instantiator module</a> provides a convenient mechanism for doing this. A simple feature which uses it to builds a Part Studio, merge in its context, and transform its bodies to a mate connector is below. Naturally, the import should be changed to an import of a Part Studio.</p>
+<pre><code>MyThing::import(path : &quot;&quot;, version : &quot;&quot;);
+
+annotation { &quot;Feature Type Name&quot; : &quot;Add thing&quot; }
+export const addThing = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Mounting mate connector&quot;, &quot;Filter&quot; : BodyType.MATE_CONNECTOR, &quot;MaxNumberOfPicks&quot; : 1 }
+        definition.mountingConnector is Query;
+    }
+    {
+        var thingTransform is Transform = toWorld(evMateConnector(context, {
+               &quot;mateConnector&quot; : definition.mountingConnector
+        }));
+
+        var instantiator = newInstantiator(id + &quot;instantiate&quot;);
+        addInstance(instantiator, MyThing::build, { &quot;transform&quot; : thingTransform });
+        instantiate(context, instantiator);
+    });
+</code></pre>
+<p>This feature can be used to add bodies from the imported part studio and place them correctly all in one feature. Just like with other tab imports, changing the Part Studio will instantly update the feature and any Part Studios referencing the feature, so long as all are in the same workspace.</p>
+<p><img src="tutorials/images/add-thing.png" alt="Using the Add Thing feature"></p>
+<h3>Referencing a sheet metal form or stock geometry in a custom feature</h3>
+<p>To reference a <a href="library.html#module-sheetMetalFormed.fs">sheet metal form</a> or stock geometry in a custom feature, <a href="#importing-a-part-studio">import the Part Studio</a> that owns the form, reconstruct the Part Studio in the current context as <a href="library.html#PartStudioData"><code>PartStudioData</code></a>, and then pass the <code>PartStudioData</code> into the native form tool or connected document.</p>
+<p>For example, the code below references the sheet metal form from the imported Part Studio:</p>
+<pre><code>MyForm::import(path : &quot;&quot;, version : &quot;&quot;);
+
+var formStudioData = {
+    &quot;buildFunction&quot; : MyForm::build,
+    &quot;configuration&quot; : {
+        &quot;Diameter&quot; : definition.diameter,
+        &quot;Height&quot; : definition.height,
+        &quot;Thickness&quot; : definition.thickness
+    },
+    &quot;partQuery&quot; : qEverything(EntityType.BODY)
+} as PartStudioData;
+
+callSubfeatureAndProcessStatus(id, sheetMetalFormed, context, id + (&quot;formed&quot; ~ cs), {
+    &quot;targetFaces&quot; : frontFace,
+    &quot;locations&quot; : qCreatedBy(id + (toString(c) ~ &quot;mateConnector&quot;), EntityType.BODY),
+    &quot;formPartStudio&quot; : formStudioData,
+    &quot;flipDirection&quot; : definition.flipDirection
+});
+</code></pre>
+<h2>Reference parameters</h2>
+<p>A reference parameter is a feature input which allows the user to select any tab in Onshape (provided they have link permission), and provides the geometry or data in that tab to the custom feature. Unlike direct FeatureScript imports, the import of a reference parameter is added to the Part Studio, and the data is passed to the feature. This allows users to change what data a feature is using without changing the code of the feature itself.</p>
+<p>Reference parameters can allow selection of either Part Studios, CSV files, JSON files, images, or imported CAD data.</p>
+<h3>Part Studio</h3>
+<p>A Part Studio reference parameter provides the feature with <a href="library.html#PartStudioData">PartStudioData</a>. This data structure can be passed directly into an <a href="library.html#module-instantiator.fs"><code>instantiaor</code></a> to create the user-selected bodies:</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Place parts&quot; }
+export const placeParts = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Parts&quot; }
+        definition.partStudio is PartStudioData;
+    }
+    {
+        var instantiator = newInstantiator(id + &quot;instantiator&quot;);
+        addInstance(instantiator, definition.partStudio);
+        instantiate(context, instantiator);
+    });
+</code></pre>
+<img alt="Part Studio reference in feature dialog" src="tutorials/images/part-studio-reference-parameter.png"><p>The <code>PartStudioData</code> value contains three fields: a <code>buildFunction</code>, a <code>partQuery</code>, and a <code>configuration</code>, all of which are used directly by the <a href="library.html#addInstance-Instantiator-function-map"><code>addInstance</code></a> function above.</p>
+<p>To instantiate a different set of bodies than what the user selected, you can modify the <code>partQuery</code> before calling the <code>addInstance</code> function. For example, the code below will also instantiate the mate connectors belonging to any selected parts.</p>
+<pre><code>definition.partStudio.partQuery = qUnion([
+        definition.partStudio.partQuery,
+        qMateConnectorsOfParts(definition.partStudio.partQuery)
+    ]);
+addInstance(instantiator, definition.partStudio);
+</code></pre>
+<p><a name="configs"></a>
+Configurations are specified with the configuration input&#39;s FeatureScript ID. FeatureScript IDs can be viewed and modified with the <a href="https://cad.onshape.com/help/Content/PartStudio/managing_configurations.htm#editFsIds">Edit FeatureScript IDs dialog</a>.</p>
+<p>For List configuration inputs, refer to a configuration value in the following format:</p>
+<p><code>PART_STUDIO_NAMESPACE::configInput_conf.configValue</code></p>
+<p>A List configuration input is considered an enum in FeatureScript. The enum type name is the configuration input name plus the <code>_conf</code> suffix. For example, to set the <code>Size</code> configuration input to the <code>Small</code> configuration value, use:</p>
+<pre><code>addInstance(instantiator, PART_STUDIO::build, {
+    &quot;configuration&quot; : {
+        &quot;Size&quot; : PART_STUDIO::Size_conf.Small
+    }
+});
+</code></pre>
+<p>For Checkbox (boolean) configuration inputs, set the boolean directly:</p>
+<pre><code>addInstance(instantiator, PART_STUDIO::build, {
+    &quot;configuration&quot; : {
+        &quot;Has_Fillet&quot; : false
+    }
+});
+</code></pre>
+<p>For Configuration variable inputs, include units for lengths and angles:</p>
+<pre><code>addInstance(instantiator, PART_STUDIO::build, {
+    &quot;configuration&quot; : {
+        &quot;Length&quot; : 1 * inch
+    }
+});
+</code></pre>
+<p>You can also override any configuration inputs in the <code>addInstance</code> function. When doing this, it is recommended that you also annotate the reference parameter with a list of <code>&quot;ComputedConfigurationInputs&quot;</code>. These inputs are then marked as &quot;Computed&quot; and cannot be edited, preventing any user confusion about why their input is being overridden.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Place with length&quot; }
+export const placePartWithLength = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Part Studio&quot;, &quot;ComputedConfigurationInputs&quot; : [ &quot;Length&quot; ] }
+        definition.partStudio is PartStudioData;
+    }
+    {
+        const computedLength = getComputedLength(context, id, definition);
+        const instantiator = newInstantiator(id + &quot;instantiator&quot;);
+        addInstance(instantiator, definition.partStudio, {
+            &quot;configurationOverride&quot; : {
+                &quot;Length&quot; : computedLength
+            }
+        });
+        instantiate(context, instantiator);
+    });
+</code></pre>
+<p><img src="tutorials/images/place-part-with-length.png" alt="Place with length"></p>
+<p>The Part Studio reference dialog by default allows selecting all available <a href="library.html#PartStudioItemType"><code>PartStudioItemType</code></a>s. You can limit selection by specifying a <code>&quot;Filter&quot;</code> containing a union of any number of item types. When setting this filter, it is recommended that you also add a similar filter to the body of your feature, so the user can select the entire Part Studio without providing unexpected geometry to your feature.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Place solids&quot; }
+export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Parts&quot;, &quot;Filter&quot; : PartStudioItemType.SOLID || PartStudioItemType.ENTIRE_PART_STUDIO }
+        definition.parts is PartStudioData;
+    }
+    {
+        definition.parts.partQuery = qBodyType(definition.things.partQuery, BodyType.SOLID);
+
+        const instantiator = newInstantiator(id + &quot;instantiator&quot;);
+        addInstance(instantiator, definition.parts);
+        instantiate(context, instantiator);
+    });
+</code></pre>
+<p>While a reference parameter always refers to a single tab, it will, by default, allow selecting any number of items within that tab. To allow only a single selection, you can add <code>&quot;MaxNumberOfPicks&quot; : 1</code> to the parameter annotation (other values of MaxNumberOfPicks are not yet supported).</p>
+<pre><code>annotation { &quot;Name&quot; : &quot;Sketch profile&quot;, &quot;Filter&quot; : PartStudioItemType.SKETCH, &quot;MaxNumberOfPicks&quot; : 1 }
+definition.sketchProfile is PartStudioData;
+</code></pre>
+<p>For more in-depth examples (or to try out the example features above), see the <a href="https://cad.onshape.com/documents/c407dcc5516019b9d00703fd">reference parameter examples document</a>.</p>
+<h3>Image</h3>
+<p>An image reference parameter provides the feature with <a href="library.html#ImageData">ImageData</a>. The referenced image can be placed into a Part Studio by calling <a href="library.html#skImage">skImage</a>.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Place image&quot; }
+export const placeImage = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Image&quot; }
+        definition.image is ImageData;
+
+        annotation { &quot;Name&quot; : &quot;Image width&quot; }
+        isLength(definition.imageWidth, LENGTH_BOUNDS);
+    }
+    {
+        var sketch1 = newSketch(context, id + &quot;sketch1&quot;, {
+                &quot;sketchPlane&quot; : qCreatedBy(makeId(&quot;Top&quot;), EntityType.FACE)
+        });
+        skImage(sketch1, &quot;image1&quot;, {
+                &quot;blobInfo&quot; : definition.image,
+                &quot;firstCorner&quot; : vector(0 * inch, 0 * inch),
+                &quot;secondCorner&quot; : vector(definition.imageWidth, 0 * inch) // calculate height automatically
+        });
+        skSolve(sketch1);
+    });
+</code></pre>
+<p>For more in-depth examples (or to try out the example feature above), see the <a href="https://cad.onshape.com/documents/c407dcc5516019b9d00703fd">reference parameter examples document</a>.</p>
+<h3>CSV</h3>
+<p>A CSV reference parameter provides the feature with <a href="library.html#TableData">TableData</a>. The referenced data can be used by the feature to create new geometry like points or splines:</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Create 3D spline&quot; }
+export const create3dSpline = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Spline points&quot; }
+        definition.splinePointsTable is TableData;
+    }
+    {
+        const csvUnits = inch;
+        const points = mapArray(definition.splinePointsTable.csvData, function(row) {
+            // map CSV columns 0, 1, and 2 to a vector of X, Y, Z
+            return vector(row[0], row[1], row[2]) * csvUnits;
+        });
+
+        opFitSpline(context, id + &quot;fitSpline1&quot;, {
+                &quot;points&quot; : points
+        });
+    });
+</code></pre>
+<h3>JSON</h3>
+<p>A JSON reference parameter provides the feature with <a href="library.html#JSONData">JSONData</a>. The data can be accessed like any other FeatureScript type.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Sketch text&quot; }
+export const sketchText = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Person data&quot; }
+        definition.personData is JSONData;
+    }
+    {
+        var sketch1 = newSketch(context, id + &quot;sketch1&quot;, {
+                &quot;sketchPlane&quot; : qCreatedBy(makeId(&quot;Top&quot;), EntityType.FACE)
+        });
+        skText(sketch1, &quot;text1&quot;, {
+                &quot;text&quot; : definition.personData.jsonData.firstName,
+                &quot;fontName&quot; : &quot;OpenSans-Regular.ttf&quot;,
+                &quot;firstCorner&quot; : vector(0, 0) * inch,
+                &quot;secondCorner&quot; : vector(1, 1) * inch
+        });
+        skSolve(sketch1);
+    });
+</code></pre>
+<h3>Text</h3>
+<p>A text reference parameter provides the feature with <a href="library.html#TextData">TextData</a>. The data can be accessed as a string, provided that the text file is under 100KB.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Text content&quot; }
+export const textFile = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Text data&quot; }
+        definition.message is TextData;
+    }
+    {
+        var textContent = definition.message.textData;
+        println(textContent);
+    });
+</code></pre>
+<h3>CAD Import</h3>
+<p>A CAD import reference parameter provides the feature with <a href="library.html#CADImportData">CADImportData</a>. The referenced geometry can be placed into a Part Studio by calling <a href="library.html#opImportForeign">opImportForeign</a>. A CAD import reference parameter allows selecting blob tabs with <a href="https://www.onshape.com/cad-blog/import-export-onshape">imported CAD data uploaded to Onshape</a>.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Place import&quot; }
+export const placeBrep = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Brep&quot; }
+        definition.brep is CADImportData;
+    }
+    {
+        if (size(definition.brep) &gt; 0)
+        {
+            opImportForeign(context, id + &quot;importForeign1&quot;, {
+                &quot;blobData&quot; : definition.brep
+            });
+        }
+    });
+</code></pre>
+<p>For more in-depth examples (or to try out the example feature above), see the <a href="https://cad.onshape.com/documents/c407dcc5516019b9d00703fd">reference parameter examples document</a>.</p>
+<h2>Updating imports</h2>
+<p>FeatureScript imports, like all Onshape references, come in two flavors:</p>
+<ul>
+<li><strong>Workspace reference:</strong> Inside the current document and workspace, imports of other tabs will always be up-to-date. Any changes to the other tab will propagate to the current tab without any additional user action.</li>
+<li><strong>Version reference:</strong> Outside the current workspace, imports are always made at a single version (usually, a version of another document). Changes to the other tab will <em>not</em> automatically propagate. Instead, when a new version of the other tab is created, the referencing document always has the choice of whether or not to update.</li>
+</ul>
+<p>In both the FeatureScript import dialog and the reference parameter dialog, the &quot;Current document&quot; tab will default to creating a workspace reference. The &quot;Other documents&quot; tab will always create a version reference.</p>
+<p>In a direct Feature Studio import, the only way to update the import is by deleting the import statement, then using the import dialog to reinsert an import at another version.</p>
+<p>With reference parameters, any feature with a version reference will display a link icon. The icon will turn blue when newer version is created, and a user can click this icon at any time to update to the latest version (or select any other version).
+<img src="tutorials/images/update-linked-document-icon.png" alt="Update linked document button"></p>
+</div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Gate the detailed model against feature, part, name, and bounds invariants."""
+
+import json
+
+import _paths  # noqa: E402  (puts ROOT on sys.path; see _paths.py)
+
+from onshape_fs_mcp.client import REPORT_DIR
+from onshape_fs_mcp.operations import check_model
+
+report = check_model("detailed")
+REPORT_DIR.mkdir(parents=True, exist_ok=True)
+(REPORT_DIR / "model-check.json").write_text(
+    json.dumps(report, indent=2) + "\n",
+    encoding="utf-8",
+)
+print(json.dumps(report, indent=2))
+if not report["ok"]:
+    raise SystemExit(1)

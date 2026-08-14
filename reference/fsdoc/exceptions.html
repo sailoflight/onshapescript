@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Exception handling</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li class="fs-active-link"><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Exception handling</h1>
+<p>Exceptions are used to report and possibly handle error conditions.
+An exception is <em>raised</em> when an error occurs and optionally <em>caught</em>
+if the error should not terminate the program.</p>
+<p>An exception might be raised for many reasons, including</p>
+<ul>
+<li>An invalid numeric operation like square root of a negative number</li>
+<li>A precondition failing</li>
+<li>A map lookup (<code>.</code> or <code>[]</code> operator) on <code>undefined</code></li>
+<li>A failing operation, evaluation, or feature</li>
+</ul>
+<p>An exception is caught if it is raised while a <code>try</code> is active.
+Features and evaluation of feature parameters are inside of a try.
+Otherwise, the program terminates if an exception is not caught.</p>
+<p>There are two forms of <code>try</code>, statement and expression.</p>
+<p>Expression try looks like</p>
+<pre><code>try (0/0)
+try (f(x) - f(y))
+</code></pre>
+<p>An expression is surrounded by parentheses and preceded by <code>try</code>.
+If an exception is raised while evaluating the expression, the
+result is <code>undefined</code>.  The caller is responsible for handling
+the result.  The expression</p>
+<pre><code>try (0/0) - 0
+</code></pre>
+<p>will raise another exception due to the invalid operation <code>undefined - 0</code>.</p>
+<p>Statement try looks like</p>
+<pre><code>try { f(x); }
+try { f(x); } catch { fail(); }
+try { f(x); } catch (e) { analyze(e); }
+</code></pre>
+<p>The block statement (i.e. surrounded with braces) after <code>try</code> is known
+as a <em>try block</em>, and the block statement after <code>catch</code> is known as a
+<em>catch block</em>.</p>
+<p>A try block is aborted as soon as an exception is raised.  If there
+is no catch block, execution continues with the next statement after
+the try block.  If there is a catch block, it is executed when an
+exception is raised inside the try block.  (Inside includes inside
+functions called from the try block.)</p>
+<p>Catch blocks are only executed when an exception is raised.
+Otherwise execution skips over them.</p>
+<p>In the last example, the exception value is available for inspection.
+Exceptions are values just like any other.  Language errors are
+usually strings and library errors are usually maps with a <code>message</code>
+field of type <code>ErrorStringEnum</code>.</p>
+<p>Finally, an exception may be raised with a <code>throw</code> statement.</p>
+<pre><code>throw;
+throw &quot;an error has occurred&quot;;
+throw { message : ErrorStringEnum.TOO_MANY_ENTITIES_SELECTED }
+try { f(); } catch (e) { throw e; }
+</code></pre>
+<p>If more than one try statement or expression is active, the most
+recently entered try handles the exception.  A handler may rethrow the
+exception, as in the last example above, and the next handler will
+have a chance.  (A catch block does not handle exceptions thrown
+inside itself.)</p>
+<p>Any raised exception is reported in the notices flyout whether or not it
+is caught.  To suppress this reporting for exceptions that are expected
+to happen, <code>try silent</code> may be used in either the statement or the
+expression form as follows:</p>
+<pre><code>var x = try silent (myMap.submapThatMayNotExist.subMapKey);
+try silent { plane = evPlane(context, { face : mightBePlane }); }
+</code></pre>
+<p>A <code>try silent</code> suppresses reporting of all exceptions inside it and
+therefore has the potential of making code difficult to debug; it should
+be used with caution and around limited and well-understood code.</p>
+</div>
+</body>
+</html>

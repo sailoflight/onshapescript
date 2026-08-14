@@ -1,0 +1,226 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Syntax and semantics</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li class="fs-active-link"><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Syntax and Semantics</h1>
+<p>FeatureScript syntax is similar to JavaScript and other C-like
+languages (C, C++, C#, Java).</p>
+<p>Two general considerations about program evaluation should be
+mentioned here.</p>
+<p>Some values are described as &quot;must be&quot; a certain type.  The system may
+warn if an operand is obviously wrong, like <code>0</code> where a boolean is
+expected, even if the code might not be executed.  Otherwise an
+exception is raised when the incorrect type is found during execution.</p>
+<p>In general, components of an expression execute from left to right,
+with each one complete before the next is started.  For example, in
+<code>x\[f1()\](f2(), f3())</code>, the function expression <code>x[f1()]</code> comes first,
+then <code>f2()</code>, then <code>f3()</code>.  Most FeatureScript expressions are not
+sensitive to evaluation order.</p>
+<h4>Statement types</h4>
+<p>A <em>variable declaration</em> begins with with <code>var</code> and the variable to
+be declared.  It may have a type restriction and an initializer.</p>
+<pre><code>var x;
+var y = 0;
+var z is Vector = vector(0, 0);
+</code></pre>
+<p>If a variable has a type it must also have an initializer.</p>
+<p>A <em>constant declaration</em> is like a variable declaration except the
+<code>const</code> keyword is used and an initial value is required.  A
+constant cannot be modified after initialization.</p>
+<pre><code>const one = 1;
+const e is number = exp(1);
+</code></pre>
+<p>An <em>assignment statement</em> modifies a variable or part of a variable.
+The value to be modified appears at the left.  It is optionally followed
+by accessors, dots and square braces, to modify only part of the value.</p>
+<pre><code>a = 1;          // scalar
+b.c = false;    // map
+b[&#39;c&#39;] = false; // same as previous
+d[] = 0;        // box
+e[0] = 0;       // map or array
+f.g.h[] = 0;    // box in map in map
+</code></pre>
+<p>An <em>expression statement</em> is an expression followed by a semicolon.
+Normally the expression will be a call to a function that does something;
+otherwise the expression probably won&#39;t have any effect.</p>
+<pre><code>x;   // valid reference to variable x, but does nothing
+f(); // calls a function that might do something
+</code></pre>
+<p>A <em>block statement</em> is a sequence of statements in curly braces.
+Statements are executed in sequence.</p>
+<pre><code>{
+    var x = 0;
+    f(x);
+}
+</code></pre>
+<p>A <em>return statement</em> exits the current function, or the innermost
+function if inside more than one.  A return value may be provided.
+If none is provided the function returns <code>undefined</code>.  Either way,
+the type of the return value must be the same as any declared
+function return type.</p>
+<pre><code>return; // = return undefined
+return 0;
+</code></pre>
+<p>An <em>if statement</em> works in the usual way.  The condition must be a
+boolean. The statement (usually a block statement) after <code>if</code> executes
+if the condition is true.  If the condition is false and there is an
+else statement, the else statement executes.</p>
+<p>FeatureScript has three types of loop statements, <code>while</code> and two forms
+of <code>for</code>.</p>
+<p>A <em>while loop</em> executes a statement as long as a condition is true.
+The condition must be a boolean.</p>
+<pre><code>while (!done)
+{
+    x += 1;
+    done = f(x);
+}
+</code></pre>
+<p>A <em>for loop</em> works in the usual way: <code>for (init; cond; incr)</code> executes
+<code>init</code> (which may declare a variable), executes the loop body as long
+as <code>cond</code> (which must be a boolean) is true, and executes <code>incr</code> after
+each loop iteration unless the loop is exited with <code>break</code>.  <code>Incr</code>
+(the &quot;increment&quot;) must be a function call or an assignment.</p>
+<pre><code>for (var i = 0; i != 10; i += 1)
+    f(i);
+</code></pre>
+<p>A <em>for-in loop</em> applies the loop body to each element of a container.
+It can be used with either one (<code>for (var a in x) stmt;</code>) or two
+(<code>for (var a, b in x) stmt;</code>) variables. It starts by evaluating <code>x</code>
+(which must be an array or a map), then the body statement is
+executed once for each item in <code>x</code>. If two variables are
+used, then <code>a</code> will be bound to the key (for a map) or index (for an
+array) and <code>b</code> will be bound to the value. If one variable is used,
+it will be bound to each item (for an array), or a new map in the
+format of <code>{ key: ..., value: ... }</code> (if <code>x</code> is a map).  The <code>var</code> keyword
+may be omitted; then a previously-declared variable from the surrounding
+scope is used. For maps, the loop follows the standard order of keys; see
+<a href="relational.html">Equality and ordering</a>.</p>
+<pre><code>// one-variable iteration over an array
+for (var x in [1, 2, 3])
+    println(x); // Prints: 1, 2, 3
+
+// one-variable iteration over a map
+for (var x in { &quot;a&quot;: 1, &quot;b&quot;: 2, &quot;c&quot;: 3 })
+{
+    var key = x.key;
+    var value = x.value;
+    println(key ~ &quot;=&quot; ~ value); // Prints: a=1, b=2, c=3
+}
+
+// two-variables, map
+for (var key, value in { a: 1, b: 2, c: 3 })
+    println(key ~ &quot;=&quot; ~ value)  // Prints: a=1, b=2, c=3
+
+// two-variables, array
+for (var index, value in [100, 200, 300])
+    println(index ~ &quot;=&quot; ~ value)  // Prints: 0=100, 1=200, 2=300
+</code></pre>
+<p>A <em>break statement</em> (<code>break;</code>) stops execution of the innermost loop,
+continuing with the statement after the loop.</p>
+<p>A <em>continue statement</em> (<code>continue;</code>) exits out of the current iteration
+of the loop without exiting the loop.  In a for loop the loop increment
+is executed.</p>
+<p>Try, catch, and throw statements are used in exception handling.
+See <a href="exceptions.html">Exceptions</a>.</p>
+<h4>Expression types</h4>
+<p>Literal expression.  A literal can be a constant expression like <code>1</code>
+or <code>&quot;Hello, world&quot;</code>, or can construct a container object, like
+<code>[1, &quot;Hello, world&quot;]</code>.  See <a href="type-tags.html">Types and type tags</a>.</p>
+<p>Variable references are simply the name of the variable; there
+is no special syntax like <code>$</code> before the name.</p>
+<p>Function call expressions are a top level function or expression
+followed by a comma-separated argument list in parentheses.
+If the expression evaluates to a value, it must be a function,
+it must expect the same number of arguments, and all the <code>is</code>
+constraints in the argument list must be satisfied in the
+same way as for an <code>is</code> expression.  If the expression does
+not evaluate to a function, it must be an identifier naming
+a top level function or functions.  See
+<a href="top-level.html#overload-resolution">Overload resolution</a>.</p>
+<p>Function call expressions support an &quot;arrow&quot; syntax that extracts
+the first argument. E.g., <code>x-&gt;f(y, z)</code> is equivalent to <code>f(x, y, z)</code>.
+Any expression may be given for the arguments (in this case <code>x</code>, <code>y</code>,
+and <code>z</code>), but the function name (in this case <code>f</code>) must be an
+identifier. All arguments must be provided. This syntax is useful for
+flattening nested function calls: for example, while
+<code>myArray-&gt;max()-&gt;clamp(0, 1)-&gt;roundToPrecision(5)</code> is equivalent to
+<code>roundToPrecision(clamp(max(myArray), 0, 1), 5)</code>, the former is easier
+to write and read.</p>
+<p>A lambda expression (also called an anonymous function) is introduced with the <code>function</code> keyword
+followed by an argument list and function body. A shorter alternative form (similar to lambda expressions in JavaScript) is also supported: a single parameter or a parameter list, followed by a <code>=&gt;</code>, and then followed by an expression or function body. For example <code>x =&gt; x^2</code> or
+<code>(a is number, b is number) =&gt; a * b</code> or <code>(a, b) =&gt; { const c = a^2; return b * c; }</code>.
+See <a href="top-level.html#lambda-functions">Lambda functions</a>.</p>
+<p>An expression surrounded by parentheses and preceded by <code>try</code>
+yields <code>undefined</code> if an exception is raised during execution.
+See <a href="exceptions.html">Exceptions</a>.</p>
+<p>Components of a container can be accessed with <code>[]</code>.  If the
+left hand side is a box, no value appears inside.  Otherwise
+an array index for an array or a map key for a map is inside.
+An array index must be a number, a non-negative integer.
+A map may also be accessed with the dot (<code>.</code>) operator; the
+right hand side is string without quotation marks.  This
+form is only valid if the key is a valid token, starting
+with a letter or underscore, containing letters, numbers,
+and underscore, and not a keyword used in the language.</p>
+<pre><code>x[];  // box access
+x[1]; // array or map access
+x.y;  // map access, x[&#39;y&#39;]
+x.y.z; // map access, (x.y).z
+</code></pre>
+<p>Unary operators are <code>-</code> for numeric negation and <code>!</code> for boolean
+negation (not).</p>
+<p>Binary operators are <code>+</code> <code>-</code> <code>\*</code> <code>/</code> <code>%</code> <code>^</code> <code>\~</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code>
+<code>==</code> <code>!=</code> <code>&amp;&amp;</code> <code>||</code>.  They have the usual meanings except <code>^</code> is used
+for exponentiation and <code>\~</code> for string concatenation.  The sign of
+the result of <code>%</code> is the sign of the second operand.</p>
+<p>Type expressions are an expression, the keyword <code>as</code> or <code>is</code>, and a
+type name.  The <code>as</code> operator adds or removes a type tag.  The <code>is</code>
+operator tests whether an expression is a type.  See <a href="type-tags.html">Types and
+values</a>.</p>
+<pre><code>4 as number;
+vector(0,0) as array;
+x is Vector;
+</code></pre>
+<p>FeatureScript has &quot;short-circuiting&quot; logical operators <code>&amp;&amp;</code> and <code>||</code>.
+They do not evaluate their second operand unless they need to.
+If the first operand of <code>&amp;&amp;</code> is false, the result is false.
+If the first operand of <code>||</code> is true, the result is true.
+Otherwise, the second operand must be a boolean and provides the
+result of the expression.</p>
+<p>FeatureScript has the same conditional <code>cond ? expr1 : expr2</code> operator
+found in other C-like languages.  The condition expression must be a
+boolean.  If it is true, the result is the expression after <code>?</code>.  If
+it is false, the result is the expression after <code>:</code>.</p>
+</div>
+</body>
+</html>

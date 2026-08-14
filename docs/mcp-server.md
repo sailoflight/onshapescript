@@ -35,6 +35,22 @@ configuration committed to source control, prompts, or tool input.
 
 ## Tool catalog
 
+### FeatureScript reference tools — local and offline
+
+These read the vendored reference under `reference/` and never contact Onshape
+or the network. They are the primary FeatureScript lookup tools. See
+`docs/fs-assistant.md` for the recommended workflow.
+
+| Tool | Behavior |
+|---|---|
+| `fs_list_modules` | Lists standard library modules grouped by category (optional filter). |
+| `fs_list_functions` | Lists functions/types/constants/predicates with signatures and summaries, filtered by module/category/kind/prefix. |
+| `fs_get_function` | Full entry: signature, parameters (type, requirement, description, example), return type, module. |
+| `fs_get_type` | Type/enum definition with every allowed value. |
+| `fs_search` | Ranked keyword search across the entire reference. |
+| `fs_guide_section` | One FsDoc guide page, or a section of it, as plain text with fenced code blocks. |
+| `fs_library_source` | The real standard library implementation source, optionally the window around one function. |
+
 ### Local and read-only
 
 | Tool | Behavior |
@@ -93,7 +109,7 @@ python3 -m py_compile mcp_server.py onshape_tools/*.py scripts/*.py
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 11-tool discovery;
+- MCP initialization and 18-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

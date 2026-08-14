@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Defining feature types</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li class="fs-active-link"><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Defining feature types</h1>
+<p>Features are the fundamental unit of CAD, and they are also the fundamental unit of FeatureScript. The FeatureScript inside a feature type can encompass anything from attaching some commonly used geometry, to wrapping one of Onshape&#39;s features in a more convenient interface, to generating a full part in one feature.</p>
+<p>A simple example of a feature type definition is below:</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Fillet Everything&quot; }
+export const filletEverything = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Fillet radius&quot; }
+        isLength(definition.filletRadius, BLEND_BOUNDS);
+    }
+    {
+        opFillet(context, id + &quot;fillet1&quot;, {
+                &quot;entities&quot; : qBodyType(qEverything(EntityType.EDGE), BodyType.SOLID),
+                &quot;radius&quot; : definition.filletRadius
+        });
+    });
+</code></pre>
+<p>The input to this feature type is defined in the <code>precondition</code> block of code, which defines a one-dimensional length parameter named &quot;Fillet radius&quot;.</p>
+<p>The behavior of the feature is defined in the bottom block of code. The statement inside that block calls the <a href="library.html#opFillet-Context-Id-map"><code>opFillet</code></a> operation (the same one used in Onshape&#39;s fillet feature). The <code>radius</code> of the fillet is set to the <code>filletRadius</code> provided by the user. The <code>entities</code> to fillet are defined with a <a href="library.html#module-query.fs"><code>Query</code></a> for every edge in the Part Studio.</p>
+<p><img src="tutorials/images/fillet-everything-1.png" alt="Fillet everything at end of feature tree"></p>
+<p>The FeatureScript inside a custom feature gets executed as part of the Part Studio&#39;s regeneration. This means the code inside the feature type function will run for every instance of the feature, every time its context or its definition changes, including:</p>
+<ul>
+<li>When the feature is first added.</li>
+<li>When one of its definition&#39;s parameters (i.e. <code>filletRadius</code>) gets updated.</li>
+<li>When any upstream feature is modified, deleted, or suppressed</li>
+<li>When the rollback bar moves from before to after the feature</li>
+</ul>
+<p>Moving the Fillet Everything feature up in the feature tree will cause it to fillet only the edges which were defined when the Fillet Everything feature was created:
+<img src="tutorials/images/fillet-everything-2.png" alt="Fillet everything before hole"></p>
+<p>Suppressing an extrude above the Fillet Everything feature (and thus removing edges) notably will NOT cause the Fillet Everything feature to break with an error like &quot;missing edges&quot;. This is because no explicit references to the edges are passed into or stored by the feature. Rather, the feature reevaluates the edge <code>Query</code> every time the feature is run.</p>
+<p><img src="tutorials/images/fillet-everything-3.png" alt="Fillet everything with extrude 3 suppressed"></p>
+</div>
+</body>
+</html>

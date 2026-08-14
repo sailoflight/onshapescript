@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Custom tables</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li class="fs-active-link"><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Custom tables</h1>
+<p>FeatureScript custom tables can be used to display useful data in Part Studios.</p>
+<p>A custom table type, like a custom feature type, is defined with FeatureScript code in a Feature Studio, and can be used in any Part Studio. The table type defines a function to run on a fully regenerated Part Studio, which produces either a <a href="library.html#Table"><code>Table</code></a> (to show one table) or a <a href="library.html#TableArray"><code>TableArray</code></a> (to show multiple). This output is displayed as a read-only table, which can be accessed anywhere by a user who has added the table type to their tables.</p>
+<p>For example, the table type definition below returns a single table listing the volume of every part.</p>
+<pre><code>annotation { &quot;Table Type Name&quot; : &quot;Part volumes&quot; }
+export const partVolumes = defineTable(function(context is Context, definition is map) returns Table
+    precondition
+    {
+    }
+    {
+        var columns = [tableColumnDefinition(&quot;name&quot;, &quot;Part name&quot;),
+                       tableColumnDefinition(&quot;volume&quot;, &quot;Volume&quot;)];
+
+        var rows = [];
+        for (var part in evaluateQuery(context, qAllModifiableSolidBodies()))
+        {
+            var partName = getProperty(context, { &quot;entity&quot; : part, &quot;propertyType&quot; : PropertyType.NAME } );
+            var volume = evVolume(context, { &quot;entities&quot; : part });
+            rows = append(rows, tableRow({ &quot;name&quot; : partName, &quot;volume&quot; : volume }));
+        }
+
+        return table(&quot;Part volumes&quot;, columns, rows);
+    });
+</code></pre>
+<p><img src="tutorials/images/part-volume-table.png" alt="Custom table displaying part volumes"></p>
+<p>The table function can access any data that a custom feature can access: all geometry of the Part Studio, all its variables, all its attributes, as well as any FeatureScript functionality from in the Onshape Standard Library or other Feature Studios. Additionally, from a table function, you can use the <a href="library.html#getProperty-Context-map"><code>getProperty()</code></a> function to access the values of any part properties.</p>
+<p><img src="tutorials/images/hole-table.png" alt="Onshape hole table"></p>
+<p>The Onshape hole table is a table type defined in the Onshape Standard Library. Just like Onshape&#39;s standard features are implemented using the same FeatureScript functionality custom features have access to, Part Studio hole tables are implemented using the functionality available to custom tables.</p>
+<h2>Table content</h2>
+<p>A table consists of rows and columns. Column definitions are constructed with the <a href="library.html#tableColumnDefinition-string-"><code>tableColumnDefinition(...)</code></a> functions, which define an internal id, the user-facing name of the column, and a cell alignment for the column (left, right, or center).</p>
+<p>Rows are constructed with the <a href="library.html#tableRow-map"><code>tableRow(...)</code></a> functions, whose <code>columnIdToCell</code> arguments set the contents of all the row&#39;s cells. The keys in the <code>columnIdToCell</code> map should match the ids of the table columns (though columns can be skipped to leave cells blank).</p>
+<p>The value in each cell may be any of the following:</p>
+<p></p><div class="spacious-list"><ul>
+<li><strong>String</strong> : Any string will be displayed as-is inside the table cell</li>
+<li><strong>ValueWithUnits</strong> : Will be displayed in the cell in a human readable format (e.g. <code>1.23 in</code>) with the precision and units of the end user&#39;s document workspace.</li>
+<li><strong><a href="library.html#TemplateString">TemplateString</a></strong> : Values with units may be inserted into template strings, so that they may still be shown with the correct precision and units while being part of other text in the cell. For example, a cell value of <code>templateString(&quot;diam = #d&quot;, { &quot;d&quot; : someDiameter })</code> might display as &quot;diam = 1.23 in&quot; in a workspace with inch units.</li>
+<li><strong><a href="library.html#TableCellError">TableCellError</a></strong> : In the event of unexpected or problematic geometry, a table cell may be displayed with a red background by passing in e.g. <code>tableCellError(&quot;bad value&quot;, &quot;Bad value encountered&quot;)</code>. The second argument is displayed in a tooltip when hovering over the erroneous cell, and either argument may be a <code>TemplateString</code>.</li>
+</ul>
+</div>
+Values with units and `TemplateString`s may also be used in the table title and column names.<h4>Cross-highlighting</h4>
+<p>Rows and/or columns may be given <code>entities</code> to cross-highlight in their constructors. These entities will be highlighted when a user hovers their mouse over the table cells. Additionally, table rows will highlight when the user hovers over its <code>entities</code>, and will scroll to the relevant entities when they are selected.</p>
+<h4>Printing</h4>
+<p>For debugging purposes, a table may also be output as a string in the FeatureScript console, which will format the table in a human-readable fashion:</p>
+<pre><code>println(table(&quot;Part volumes&quot;, columns, rows));
+</code></pre>
+<h2>Table parameters</h2>
+<p>Like custom features, custom tables can be defined with input parameters. They are defined the same way that custom feature inputs are defined, but are limited to <a href="uispec.html#booleans">booleans</a>, <a href="uispec.html#strings">strings</a>, <a href="uispec.html#enums">enums</a>, and <a href="uispec.html#quantities">quantities</a>.</p>
+<p>For example, the precondition of the table type below allows the user to set their own threshold for detecting small fillet radii, and optionally allows computing the size of the geometry being listed:</p>
+<pre><code>precondition
+{
+    annotation { &quot;Name&quot; : &quot;Minimum fillet radius&quot; }
+    isLength(definition.minimumFilletRadius, NONNEGATIVE_ZERO_DEFAULT_LENGTH_BOUNDS);
+
+    annotation { &quot;Name&quot; : &quot;Calculate size&quot; }
+    definition.calculateSize is boolean;
+}
+</code></pre>
+<p><img src="tutorials/images/fillet-radius-input.png" alt="Custom table inputs"></p>
+<p>Like custom features, custom tables are fully recomputed each time one of these inputs changes.</p>
+<h2>Using custom tables with custom features</h2>
+<p>It is often useful to show data from custom features in a custom table. For instance, the <a href="https://cad.onshape.com/documents/5742c8cde4b06c68b362d748/w/b493e0cb681bbf9497d9f4b3/e/baf861561c7a73e43fc319b4">FeatureScript Spur Gear feature</a> is defined in the same document as a custom table which displays data about the gears that have been created:
+<img src="tutorials/images/gear-table.png" alt="Gear table"></p>
+<p>These measurements displayed are all either parameters of the spur gear feature, or are computed while running the spur gear feature. To avoid extra work and inaccuracy from measuring these gears at the end of regeneration, the Spur Gear feature simply sets <a href="library.html#module-attributes.fs">attributes</a> on the gear parts created. The Gears table can read these attributes and display them in a table.</p>
+</div>
+</body>
+</html>

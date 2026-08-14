@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Feature output</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li class="fs-active-link"><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Feature output</h1>
+<p>Naturally, the most useful output of a feature is the geometry changed and/or created by the feature. However, there are a number of other ways a feature can output useful information, some of which are primarily useful for debugging your own features, and some of which can provide information to the end user of a feature type.</p>
+<h3>Print</h3>
+<p><code>print</code> and <code>println</code> are two functions defined in the Onshape Standard Library. You may pass any variable into these functions, including string literals.</p>
+<pre><code>print(&quot;x is &quot;);     // Prints the string &quot;x is &quot;
+println(x);         // Prints a string representation of the value x, followed by a newline
+</code></pre>
+<p>Like any other FeatureScript statements, the above code will run inside a Part Studio when the feature containing them is added. Their output will be visible in the FeatureScript notices flyout:</p>
+<p><img src="tutorials/images/printed-text.png" alt="Printed text"></p>
+<p><code>println</code> uses the <code>toString()</code> method defined for a type. To see a (generally more verbose) literal output, you can convert the value to its raw string representation by concatenating it the value with an empty string:</p>
+<pre><code>println(1 * meter);         // Prints &quot;1 meter&quot;
+println(&quot;&quot; ~ (1 * meter));  // Prints &quot;ValueWithUnits : { &quot;unit&quot; : UnitSpec : { &quot;meter&quot; : 1 } , &quot;value&quot; : 1 }&quot;
+</code></pre>
+<h3>Debug</h3>
+<p>When writing a feature type, it is often useful to see the where the entities and geometry related to a given feature are positioned in the Part Studio.</p>
+<p>The graphical output of debug is only visible while the feature dialog is open.</p>
+<p>By calling the <code>debug</code> function on any <code>Query</code>, you can see the entities matching the query in the Part Studio:</p>
+<pre><code>debug(context, qAdjacent(definition.edge1, AdjacencyType.EDGE, EntityType.FACE));
+debug(context, qAdjacent(definition.edge2, AdjacencyType.VERTEX, EntityType.FACE));
+</code></pre>
+<p><img src="tutorials/images/debug-adjacency.png" alt="Debug example"></p>
+<p>Calling the <code>debug</code> function on geometric types, like <code>Line</code> and <code>Vector</code>, shows a representation of the geometry they represent:</p>
+<pre><code>var myLine is Line = evEdgeTangentLine(context, {
+    &quot;edge&quot; : definition.edge1,
+    &quot;parameter&quot; : 0.5
+});
+var myPoint is Vector = myLine.origin + myLine.direction * 2.5 * inch;
+
+debug(context, myLine);
+debug(context, myPoint);
+</code></pre>
+<p><img src="tutorials/images/debug-geometry.png" alt="Debug geometry example"></p>
+<p>For more examples of data which may be debugged, see the <a href="library.html#module-debug.fs">debug module</a>.</p>
+<h3>Timers</h3>
+<p>FeatureScript provides the <code>startTimer</code> and <code>printTimer</code> methods for rough performance profiling. A typical usage is:</p>
+<pre><code>startTimer();
+possiblyExpensiveFunction();
+printTimer();
+</code></pre>
+<p>The output will be the number of elapsed wall-clock milliseconds printed to the notices flyout, as with <code>print</code>.</p>
+<p>Multiple timers may be used simultaneously by identifying them with strings:</p>
+<pre><code>startTimer(&quot;overall&quot;);
+expensiveCall1();
+for (var x in someRange)
+{
+    startTimer(&quot;individual call&quot;); // resets the timer
+    expensiveCall2();
+    printTimer(&quot;individual call&quot;);
+}
+printTimer(&quot;overall&quot;);
+</code></pre>
+<p>The reported timings may vary for a variety of reasons.  If the <code>startTimer</code>/<code>printTimer</code> calls are in different features,
+the timing may be meaningless because the features may be regenerated at different times.</p>
+<h3>Error Handling</h3>
+<p>When developing robust custom features, error handling has two sides: being prepared for errors that operations and evaluation functions throw and reporting meaningful errors to the user of the feature.  Feature errors may be reported at three different severity levels:</p>
+<ul>
+<li>Info, using <code>reportFeatureInfo</code> creates a blue bubble with the message while the feature is being edited.</li>
+<li>Warning, using <code>reportFeatureWarning</code> creates a blue bubble and turns the feature red in the feature list.</li>
+<li>Error, using <code>throw regenError(...)</code> undoes all context changes the feature has made (making the feature a no-op) and turns the feature red.</li>
+</ul>
+<p>The default error flow is for any thrown error to be propagated all the way to the top level feature in the Part Studio.  For example, if the custom feature includes an <code>opFillet</code> and the geometry cannot be filleted, <code>opFillet</code> will throw a regeneration error with <code>ErrorStringEnum.FILLET_FAILED</code> as the status. If the custom feature does not catch the error, it will fail and the user will see: &quot;Failed to fillet selections.&quot;  If the custom feature is something like a fillet pocket, that is a reasonable error message.  If it is something like a rib-with-fillet, an adjustment of the error message is helpful:</p>
+<pre><code>...
+try
+{
+    opFillet(context, id + &quot;fillet&quot;, { &quot;entities&quot; : ribPartEdges, &quot;radius&quot; : definition.filletRadius });
+}
+catch
+{
+    throw regenError(&quot;Failed to fillet the interface between the rib and the selected part.&quot;, ribPartEdges);
+}
+...
+</code></pre>
+<p>Adding the ribPartEdges argument to <code>regenError</code> will cause the edges that failed to fillet to highlight in red, giving the user a hint of where the problem is.
+In other cases, it makes sense for the feature not to fail even if one of the operations or evaluation functions fails.  For example, a feature that makes multiple
+notches of some kind may be structured as:</p>
+<pre><code>...
+var failedCount is number = 0;
+for (var notch in notches)
+{
+    try
+    {
+        makeNotch(context, notch);
+    }
+    catch
+    {
+        setErrorEntities(context, id, { &quot;entities&quot; : notch.locationQuery });
+        failedCount += 1;
+    }
+}
+if (failedCount == size(notches))
+    throw regenError(&quot;Failed to create notches&quot;);
+if (failedCount &gt; 0)
+    reportFeatureWarning(context, id, &quot;Failed to create &quot; ~ failedCount ~ &quot; notches.&quot;);
+...
+</code></pre>
+<p>In this case, the feature fails when all notches fail and reports a warning when some of the notches fail.  For details about FeatureScript exceptions, see
+<a href="exceptions.html">Exception handling</a>.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Feature UI</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li class="fs-active-link"><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Feature UI</h1>
+<p>The user interface to both custom and standard features is a feature dialog. This page describes methods to create the inputs to these feature dialogs, and two alternative ways of updating the parameters dynamically.</p>
+<h2>Defining a feature dialog</h2>
+<p>Onshape creates the feature dialog by doing a static analysis (rather than an execution) of the feature declaration, primarily of the precondition.
+If the feature declaration does not match the allowed form, warnings are reported and the feature is not made available to Part Studios. A minimal valid feature declaration is:</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Fancy Fillet&quot; /* May have additional options */}
+export const fancyFillet = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        // Parameter specifications go here
+    }
+    {
+        // Feature Body
+    });
+</code></pre>
+<p>This declaration can be easily extended in three places: The feature annotation, the feature precondition, and the feature body.</p>
+<h3>Feature annotations</h3>
+<p>A constant needs a <code>&quot;Feature Type Name&quot;</code> to be processed as a feature. Additionally, the following other fields can optionally be specified in the annotation map (with strings or arrays of strings):</p>
+<p></p><div class="spacious-list"><ul>
+<li><code>&quot;Manipulator Change Function&quot;</code>: Name of the function to be called whenever a manipulator that this feature created is moved.  See <a href="#manipulator-change-function">below</a>.</li>
+<li><code>&quot;Editing Logic Function&quot;</code>: Name of the function to be called whenever the user changes this feature definition.  See <a href="#editing-logic-function">below</a>.</li>
+<li><code>&quot;Filter Selector&quot;</code>: An array of strings used to find this feature in the feature list, when input as search terms after a colon. For example, if a feature specifies <code>&quot;Filter Selector&quot; : [&quot;foo&quot;, &quot;bar&quot;]</code>, then entering <code>:foo</code> or <code>:bar</code> in the feature list filter will show the feature.</li>
+<li><code>&quot;Feature Name Template&quot;</code>: A template for naming new features, replacing the default of using the Feature Type Name. See variable.fs for an example.</li>
+<li><code>&quot;Tooltip Template&quot;</code>: A template for feature tooltips, using the same syntax as the Feature Type Name. See variable.fs for an example.</li>
+<li><code>&quot;UIHint&quot;</code>: <a href="#uihints">Additional UI options</a>, such as <code>UIHint.NO_PREVIEW_PROVIDED</code>, which prevents the preview slider from appearing.</li>
+<li><code>”Feature Type Description”</code>: A <a href="#description">description</a> of what the feature does and how to use it, to be displayed in feature tooltips and the “Search tools” panel.</li>
+<li><code>&quot;Icon&quot;</code>: An <a href="#icons">icon</a> to display for the feature.</li>
+<li><code>&quot;Description Image&quot;</code>: A JPG, PNG, or SVG file to display as the <a href="#description-images">description image</a> for the feature.</div></li>
+</ul>
+<h2>Feature parameters</h2>
+<p>The parameter specification simultaneously serves as a validity check for the feature and a description of the UI for inputting that parameter.
+Any parameter specification may be annotated with a <code>&quot;Name&quot;</code>, specifying the user-facing name of the parameter.</p>
+<p>Parameter specifications may be factored out into predicates (e.g. usages of <a href="library.html#booleanStepScopePredicate-map"><code>booleanStepScopePredicate</code></a> in std). Parameters may also be made <a href="#conditional-visibility">conditional</a> by putting them in <code>if</code> statements.</p>
+<p>Code snippets for the parameter specifications described in this section are available inside a Feature Studio in the parameter snippets menu:</p>
+<p><img src="tutorials/images/parameter-snippets.png" alt="Parameter snippets menu"></p>
+<h3>Booleans</h3>
+<p>The specification of a boolean parameter in the precondition uses the <code>is</code> operator on the indicated definition field:</p>
+<div class="fs-block-row">
+<pre>
+annotation { "Name" : "My Boolean", "Default" : true }
+definition.myBoolean is boolean;
+</pre>
+<img alt="Boolean in feature dialog" src="tutorials/images/boolean-parameter.png">
+</div><p>Boolean parameters are rendered as a checkbox by default, though this may be changed via <a href="#uihints"><code>UIHint</code></a>. The <code>&quot;Default&quot;</code> field is optional and will be <code>false</code> if unspecified.</p>
+<h3>Strings</h3>
+<p>A string parameter is specified similarly:</p>
+<div class="fs-block-row">
+<pre>
+annotation { "Name" : "My String", "Default" : "My default value" }
+definition.myString is string;
+</pre>
+<img alt="String in feature dialog" src="tutorials/images/string-parameter.png">
+</div><p>This creates a text box, whose input can be any FeatureScript <a href="variables.html#String"><code>string</code></a>. The <code>&quot;Default&quot;</code> field is optional and will be empty if unspecified.</p>
+<p>To set limits on the number of characters allowed, the <code>&quot;MaxLength&quot;</code> and <code>&quot;MinLength&quot;</code> annotation fields may be used.</p>
+<h3>Enums</h3>
+<p>An enum parameter is specified using the <code>is</code> expression and must refer to an enum that this module exports. Each individual enumeration value may have a user-visible <code>&quot;Name&quot;</code> annotation:</p>
+<div class="fs-block-row">
+<pre>
+export enum MyOption
+{
+    annotation { "Name" : "Option One" }
+    ONE,
+    annotation { "Name" : "Option Two" }
+    TWO
+}
+...
+annotation { "Name" : "My Enum" }
+definition.myEnum is MyOption;
+</pre>
+<img alt="Enum in feature dialog" src="tutorials/images/enum-parameter.png">
+</div><p>By default, an enum parameter is rendered as a dropdown menu with an option for every enum value, though this may be changed by providing a <a href="#uihints"><code>UIHint</code></a>. For instance, <code>UIHint.HORIZONTAL_ENUM</code> will display the enum values as a group of tabs.</p>
+<p>Any of the following fields can be specified in the annotation map of an enum parameter definition:</p>
+<p></p><div class="spacious-list"><ul>
+<li><code>&quot;Name&quot;</code>: A user-visible name for the parameter.</li>
+<li><code>&quot;Default&quot;</code>: The name of the value that should be the default. If unspecified, the first value will be used.</li>
+<li><code>&quot;Icon&quot;</code>: An <a href="#icons">icon</a> to be displayed alongside the parameter.</li>
+<li><code>&quot;UIHint&quot;</code>: <a href="#uihints">Additional UI options</a>.</div></li>
+</ul>
+<p>On the enum itself, each value may be annotated with one or more of the following:</p>
+<p></p><div class="spacious-list"><ul>
+<li><code>&quot;Name&quot;</code>: A user-visible name for the value.</li>
+<li><code>&quot;Icon&quot;</code>: An <a href="#icons">icon</a> to be displayed alongside the value.</li>
+<li><code>&quot;Hidden&quot;</code>: If <code>true</code>, the value will be hidden from end users. This can be used to hide a value that is no longer supported, for example.</div></li>
+</ul>
+<h3>Quantities</h3>
+<p>A quantity parameter represents a value with units. For instance, a one-dimensional length parameter may be specified with an <code>isLength</code> predicate:</p>
+<div class="fs-block-row">
+<pre>
+annotation { "Name" : "My Length" }
+isLength(definition.myLength, LENGTH_BOUNDS);
+</pre>
+<img alt="Length in feature dialog" src="tutorials/images/length-parameter.png">
+</div><p>A quantity is rendered as a text box into which a number, a number with units, or a mathematical expression may be typed.</p>
+<p>We currently support the following quantity and predicates to specify them:</p>
+<ul>
+<li>Length: <code>isLength</code></li>
+<li>Angle: <code>isAngle</code></li>
+<li>Integer: <code>isInteger</code></li>
+<li>Real: <code>isReal</code></li>
+<li>Anything: <code>isAnything</code></li>
+</ul>
+<p><code>isAnything</code> allows any expression with any units (see <a href="#parameter-expressions">below</a>) or even any FeatureScript type.</p>
+<p>The other predicates require a bounds argument which specifies both the bounds and the default value. The <a href="library.html#module-valueBounds.fs">value bounds module</a> defines several common quantity bounds, but you can also define custom value bounds inline. For example, the following predicate specifies a default length of 1.75 inches:</p>
+<pre><code>annotation { &quot;Name&quot; : &quot;My Length&quot; }
+isLength(definition.myLength, { (inch) : [ 0, 1.75, 10000 ] } as LengthBoundSpec);
+</code></pre>
+<p>A quantity parameter can be annotated with an <a href="#icons">icon</a>.</p>
+<h4>Parameter expressions</h4>
+<p>Any time a feature requires user-specified parameters, it is also possible to enter an expression. For example, all of the following expressions can be typed directly into the entry field for a numeric parameter:</p>
+<ul>
+<li><code>6</code></li>
+<li><code>22/7 mm</code></li>
+<li><code>sqrt(1 + sin(61deg)) / 8</code></li>
+<li><code>(round(#myWidth, .1mm) + 2 inches)</code> (assuming a variable named <code>myWidth</code> has been created)</li>
+</ul>
+<p>See <a href="library.html#module-math.fs">the FeatureScript math module</a> for a list of all defined mathematical functions. For more details on numeric parameter expressions, including a list of accepted unit abbreviations, see the <a href="https://cad.onshape.com/help/Content/numeric-fields.htm">help documentation</a>.</p>
+<p>Parameter expressions are evaluated in two steps: First, they are pre-processed to convert units and variables to their true values. In particular, unit abbreviations such as <code>2 in</code> are expanded to <code>2 * inch</code>, and variables such as <code>#foo</code> are replaced by calls to <code>getVariable(&quot;foo&quot;)</code>. Then, the resulting expression is directly executed as FeatureScript. As a result, any valid FeatureScript expression can be entered into a parameter field (as long as the expression evaluates to the correct type).</p>
+<p>Here are some advanced examples of FeatureScript functionality in parameter expressions:</p>
+<ul>
+<li>Array indexing: <code>[3, 1, 4, 1, 5][#index]</code></li>
+<li>Ternary operators: <code>(#myNum % 2 == 0) ? #myNum / 2 : 3 * #myNum + 1</code></li>
+<li>Lambda functions: <code>(function(x) { return (x^2 + 1) in; })(1)</code></li>
+<li>Vector math: <code>squaredNorm(cross(vector(1, 1, 2) * meter, vector(3, 5, 8) * meter))</code></li>
+</ul>
+<p>An <code>isAnything</code> precondition accepts any parameter expression, regardless of its type. This can be used to enter values such as booleans and strings into custom features as expressions (which can refer to variables), or to enter other types such as vectors or lambda functions. The default value of an <code>isAnything</code> precondition will be placed into the parameter field, and therefore must be a string whose contents evaluate to a valid parameter expression, such as <code>&quot;57&quot;</code>, <code>&quot;\&quot;My string\&quot;&quot;</code>, <code>&quot;true&quot;</code>, or <code>&quot;function(){ return \&quot;Hello, world!\&quot; }&quot;</code>.</p>
+<h3>Queries</h3>
+<p>When the user selects entities (vertices, edges, faces, and bodies), they are passed to the feature as a query.  The minimal query parameter
+specification is <code>definition.myParameter is Query;</code>.  There are two query-specific annotations allowed that restrict what can be selected:</p>
+<ul>
+<li><code>&quot;MaxNumberOfPicks&quot;</code>, which must be an integer literal</li>
+<li><code>&quot;Filter&quot;</code>, which must be an expression as described below</li>
+</ul>
+<p>Note that the feature should not rely on the queries satisfying the filter or evaluating to at most MaxNumberOfPicks because changes to
+upstream features may change the type of the selected entity or turn a single selected entity into multiple.</p>
+<p>The <code>&quot;Filter&quot;</code> expression can contain values of the following enums:</p>
+<ul>
+<li><a href="library.html#BodyType"><code>BodyType</code></a></li>
+<li><a href="library.html#EntityType"><code>EntityType</code></a></li>
+<li><a href="library.html#GeometryType"><code>GeometryType</code></a></li>
+<li><a href="library.html#ConstructionObject"><code>ConstructionObject</code></a></li>
+<li><a href="library.html#AllowMeshGeometry"><code>AllowMeshGeometry</code></a></li>
+<li><a href="library.html#AllowFlattenedGeometry"><code>AllowFlattenedGeometry</code></a></li>
+<li><a href="library.html#ActiveSheetMetal"><code>ActiveSheetMetal</code></a></li>
+<li><a href="library.html#SheetMetalDefinitionEntityType"><code>SheetMetalDefinitionEntityType</code></a></li>
+<li><a href="library.html#ModifiableEntityOnly"><code>ModifiableEntityOnly</code></a></li>
+<li><a href="library.html#AllowEdgePoint"><code>AllowEdgePoint</code></a></li>
+<li><a href="library.html#SketchObject"><code>SketchObject</code></a></li>
+<li><a href="library.html#EdgeTopology"><code>EdgeTopology</code></a></li>
+<li><a href="library.html#QueryFilterCompound"><code>QueryFilterCompound</code></a></li>
+</ul>
+<p>These values may be combined using <code>&amp;&amp;</code>, <code>||</code>, and <code>!</code>, even though such an expression could not be evaluated outside of an annotation.
+For example, to allow only at most two sketch circles or arcs, use:</p>
+<pre><code>annotation { &quot;Name&quot; : &quot;Round things&quot;,
+             &quot;Filter&quot; : (GeometryType.CIRCLE || GeometryType.ARC) &amp;&amp; SketchObject.YES,
+             &quot;MaxNumberOfPicks&quot; : 2 }
+definition.roundThings is Query;
+</code></pre>
+<img alt="Query in feature dialog" src="tutorials/images/query-parameter.png"><p>These filters are only applied on the client during selection; because of changes to features earlier in the feature list,
+the actual query passed in may evaluate to entities that do not actually pass the filters, so it is up to the feature
+author to check or filter the input inside the feature body.  Some filters like <code>QueryFilterCompound</code> do not have corresponding queries.</p>
+<h3>References</h3>
+<p>Custom features often need to use geometry or data contained in other Onshape tabs. Reference parameters allow a user to select a Part Studio, image, or CSV tab to reference.</p>
+<p>Like all Onshape references, if this other tab is in the same document, the feature will be kept up-to-date with any changes to the other tab.
+If the other tab is in another document, its data is kept at a version, and the feature displays a link icon which allows the user to update that version
+if desired.</p>
+<pre>
+annotation { "Name" : "Part Studio", "Filter" : PartStudioItemType.SOLID || PartStudioItemType.ENTIRE_PART_STUDIO }
+definition.myPartStudio is PartStudioData;
+</pre>
+<img alt="Part Studio reference in feature dialog" src="tutorials/images/part-studio-reference-parameter-solid.png"><p>A detailed overview of all types of reference parameters can be found in the <a href="imports.html#reference-parameters">FeatureScript imports documentation</a>.</p>
+<p>Example features using reference parameters can be found in the <a href="https://cad.onshape.com/documents/c407dcc5516019b9d00703fd">Reference parameter examples document</a>.</p>
+<h3>Lookup tables</h3>
+<p>A lookup table is a UI built around specifying a parameter (or set of parameters) though a decision tree. This is similar to
+selecting an option from an <a href="#enums">enum</a> value, but each option can have additional sub-options, each sub-option may have
+sub-sub-options, etc. A typical use is navigating to a standard size, which you can try out in Onshape&#39;s Hole feature.</p>
+<p>An example of a feature using a lookup table is below:</p>
+<pre><code>const ml is ValueWithUnits = centimeter ^ 3;
+const oz is ValueWithUnits = 29.5735 * ml;
+
+export const sizeTable = {
+        &quot;name&quot; : &quot;region&quot;,
+        &quot;displayName&quot; : &quot;Region&quot;,
+        &quot;default&quot; : &quot;EU&quot;,
+        &quot;entries&quot; : {
+            &quot;EU&quot; : {
+                &quot;name&quot; : &quot;size&quot;,
+                &quot;displayName&quot; : &quot;Size&quot;,
+                &quot;default&quot; : &quot;Medium&quot;,
+                &quot;entries&quot; : {
+                    &quot;Small&quot; : 250 * ml,
+                    &quot;Medium&quot; : 350 * ml,
+                    &quot;Large&quot; : 500 * ml
+                }
+            },
+            &quot;US&quot; : {
+                &quot;name&quot; : &quot;size&quot;,
+                &quot;displayName&quot; : &quot;Size&quot;,
+                &quot;default&quot; : &quot;Large&quot;,
+                &quot;entries&quot; : {
+                    &quot;Medium&quot; : 16 * oz,
+                    &quot;Large&quot; : 32 * oz,
+                    &quot;Supersize&quot; : 64 * oz
+                }
+            }
+        }
+    };
+
+annotation { &quot;Feature Type Name&quot; : &quot;Soda&quot; }
+export const soda = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { &quot;Name&quot; : &quot;Soda size&quot;, &quot;Lookup Table&quot; : sizeTable }
+        definition.size is LookupTablePath;
+    }
+    {
+        var size is ValueWithUnits = getLookupTable(sizeTable, definition.size);
+
+        fCylinder(context, id + &quot;cylinder1&quot;, {
+                &quot;bottomCenter&quot; : vector(0, 0, 0) * inch,
+                &quot;topCenter&quot; : vector(0, 0, 1) * size ^ (1/3),
+                &quot;radius&quot; : size ^ (1/3) / sqrt(PI)
+        });
+    });
+</code></pre>
+<img alt="Lookup table parameter" src="tutorials/images/lookup-table-parameter.png"><p>A lookup table is a <a href="https://en.wikipedia.org/wiki/Tree_(data_structure)">tree</a> data structure, defined as a FeatureScript
+<a href="variables.html#map">map</a> with a specific format. The root node of the tree specifies the FeatureScript <code>&quot;name&quot;</code> of the option
+(in the above example, &quot;region&quot;), the <code>&quot;displayName&quot;</code> of the option to show in the dialog (above, &quot;Region&quot;), and, optionally, the <code>&quot;default&quot;</code>
+value of the option (above, &quot;EU&quot;).</p>
+<p>The root node finally specifies a map of <code>&quot;entries&quot;</code>. The key of each entry is the user-visible name of that option. The value of each entry
+may be one of two things:</p>
+<p></p><div class="compact-list">
+1. If more choices are needed, the entry value will be the next node of the decision tree, with the same form as the root node: a map
+of `"name"`, `"displayName"`, optional `"default"`, and another map of `"entries"`.
+2. If no more are choices needed, the entry value will be final value of the parameter (above, the volumes of e.g. `250 * ml`).
+</div><p>Successive nodes of the decision tree may be nested arbitrarily deep, but every possible path should terminate in a final value.</p>
+<p>The parameter&#39;s final value may be of any form. One lookup table can specify the value of multiple parameters by setting each final value
+to a map of several parameters.</p>
+<p>A parameter based on the lookup table is declared with type <code>LookupTablePath</code> and annotated with its associated <code>&quot;LookupTable&quot;</code>. The
+<code>LookupTablePath</code> given in the definition can then be resolved to the final value of the parameter with the
+<a href="library.html#getLookupTable-map-LookupTablePath"><code>getLookupTable</code></a> function.</p>
+<h3>Arrays</h3>
+<p>An array parameter contains a FeatureScript <a href="variables.html#array">array</a> of items, where each item contains one or more inner parameters. The inner parameters may be of any parameter type (though one array parameter cannot be nested inside another). A user can add any number of items to the array parameter, and may click on the item names to expand or collapse the parameters within.</p>
+<div class="fs-block-row">
+<pre>
+annotation { "Name" : "Profiles",
+    "Item name" : "Profile",
+    "Item label template" : "Profile (#width)" }
+definition.profiles is array;<p>for (var profile in definition.profiles)
+{
+    annotation { &quot;Name&quot; : &quot;Width&quot; }
+    isLength(profile.width, LENGTH_BOUNDS);<br>
+    annotation { &quot;Name&quot; : &quot;Make square&quot; }
+    profile.isSquare is boolean;
+}
+</pre>
+<img alt="Array parameter feature dialog" src="tutorials/images/array-parameter.png"></p>
+</div><p>The value of an array parameter is an array of maps, e.g.:</p>
+<pre><code>[
+    { &quot;width&quot; : 0.9 * inch, &quot;isSquare&quot; : false },
+    { &quot;width&quot; : 1.2 * inch, &quot;isSquare&quot; : true }
+]
+</code></pre>
+<p>As with any FeatureScript array, the items inside can be accessed (via <code>definition.profiles[0]</code> ) or iterated through (via <code>for (var profile in definition.profiles) {}</code> ).</p>
+<p>The annotation for an array parameter can include the following fields:</p>
+<p></p><div class="spacious-list"><ul>
+<li><code>&quot;Item name&quot;</code>: The name on the add button.</li>
+<li><code>&quot;Item label template&quot;</code>: The label above each item. Computed values of the inner parameters can be included in the label using the same <code>#parameterName</code> syntax used in the feature name template.</li>
+<li><code>&quot;Driven query&quot;</code>: Specifies a single inner query parameter, and makes the array parameter selection-driven. A selection-driven array parameter has no add button. Instead, when a user selects an entity, a new item is added, and that item&#39;s driven query parameter is populated with the selected entity. As long as the array parameter is focused (blue), all entities in the driven query of all items are highlighted in the graphics view. Clicking to remove a highlighted entity will remove the it from driven query parameters, and remove any newly empty items. Thus, the user&#39;s interaction with a selection-driven array parameter is very similar to their interaction with a single query parameter.</li>
+<li><code>&quot;Show labels only&quot;</code>: Whether or not to only show the label for each item. This option removes the add button and the expander to the left of the item label, disabling the ability to add or expand and edit items. Unlike when using <code>UIHint.READ_ONLY</code> on an array parameter, items may still be removed, or the array may be cleared. This can be useful for an array parameter whose entries don&#39;t need to be edited manually (for example, if they&#39;re changed only in editing logic or manipulator change functions) but should still be allowed to be removed.</li>
+<li><code>&quot;UIHint&quot;</code>: <a href="#uihints">Additional UI options</a>, which can include <code>UIHint.COLLAPSE_ARRAY_ITEMS</code> to create new items and present newly opened dialogs with all array items collapsed by default.</div></li>
+</ul>
+<p>The <a href="#uihints"><code>UIHint</code></a> <code>UIHint.MATCH_LAST_ARRAY_ITEM</code> can be used on an inner parameter to set its default value according to the last item in the current list, if it exists.</p>
+<p>Note that inner parameter names must be unique across the entire feature (even though they are not stored directly on the <code>definition</code> map).</p>
+<h3>Parameter groups</h3>
+<p>Parameters can be combined into a collapsible group and can be nested. Parameter groups can be useful for simplifying large feature dialogs and for indicating which parameters belong together.
+To define a parameter group, enclose it in a statement block and annotate it with <code>Group Name</code>, e.g.:</p>
+<pre><code>annotation { &quot;Group Name&quot; : &quot;My Group&quot; }
+{
+    annotation { &quot;Name&quot; : &quot;My Boolean&quot; }
+    definition.myBoolean is boolean;
+
+    annotation { &quot;Name&quot; : &quot;My Length&quot; }
+    isLength(definition.myLength, LENGTH_BOUNDS);
+}
+</code></pre>
+<p>By default, when a feature dialog is opened, groups are collapsed.  To override that behavior, add <code>&quot;Collapsed By Default&quot; : false</code> to the annotation.
+The group chevron can be put on the same line as a preceding boolean parameter by adding <code>&quot;Driving Parameter&quot; : &quot;parameterId&quot;</code> to the group annotation.
+A possible use-case is to combine this with an if statement, as follows:</p>
+<pre><code>annotation { &quot;Name&quot; : &quot;Additional Options&quot; }
+definition.additionalOptions is boolean;
+
+if (definition.additionalOptions)
+{
+    annotation { &quot;Group Name&quot; : &quot;Options&quot;, &quot;Collapsed By Default&quot; : false, &quot;Driving Parameter&quot; : &quot;additionalOptions&quot; }
+    {
+        annotation { &quot;Name&quot; : &quot;Option&quot; }
+        definition.option is string;
+    }
+}
+</code></pre>
+<h2>UIHints</h2>
+<p>A parameter may have one or more <a href="library.html#UIHint"><code>&quot;UIHint&quot;</code></a> strings specified in the annotation. For example, <code>UIHint.OPPOSITE_DIRECTION</code> causes a boolean to be rendered as an opposite direction button. Typically, this is used in tandem with a length parameter, as shown below:</p>
+<div class="fs-block-row">
+<pre>
+annotation { "Name" : "Flip", "UIHint" : UIHint.OPPOSITE_DIRECTION }
+definition.isFlipped is boolean;
+</pre>
+<img alt="Opposite direction in feature dialog" src="tutorials/images/opposite-direction.png">
+</div><p>Multiple hints can be specified in an array (e.g. <code>[ UIHint.OPPOSITE_DIRECTION, UIHint.REMEMBER_PREVIOUS_VALUE ]</code>). Most hints are type-specific, but any parameter may have <code>UIHint.ALWAYS_HIDDEN</code> to prevent it from ever appearing in the dialog. This can be useful for keeping hidden state in the definition for use by manipulators or editing logic.</p>
+<p>Some values are intended for Onshape internal use. These may not work or may change behavior in future versions. The <a href="library.html#UIHint"><code>UIHint</code> enum</a> in the Standard Library contains more information on this as well as the full set of available options.</p>
+<h2>Conditional visibility</h2>
+<p>Some parameters only make sense for certain settings of other parameters.
+To express this, the specifications for conditionally visible parameters can be put in <code>if</code> statements referencing already specified parameters.
+For example:</p>
+<pre><code>    ...
+    precondition
+    {
+        definition.useCustomLength is boolean;
+        if (definition.useCustomLength)
+            isLength(definition.customLength, LENGTH_BOUNDS);
+    }
+    ...
+</code></pre>
+<p>The conditions for the if statements may include comparisons of prior boolean and enum parameters to fixed values using <code>==</code> and <code>!=</code>.
+They may also include the logical operators <code>&amp;&amp;</code>, <code>||</code>, and <code>!</code>.  The <code>if</code> statements may be nested.</p>
+<p>A current limitation is that a parameter specification can only appear once per feature,
+and so, for example, cannot appear with different annotations in different branches of an <code>if</code> statement.
+If this behavior is desired, we recommend you use two different parameter names, and merge them inside the function.</p>
+<h2>Description</h2>
+<p>A description can be added to a feature or parameter through the <code>”Feature Type Description”</code> or <code>”Description”</code> fields (respectively) in the annotation map.</p>
+<p>Descriptions are displayed in the &quot;Search Tools&quot; panel and in the feature/parameter tooltip.</p>
+<p>Descriptions can be split up into multiple lines using the <code>\~</code> operator, and their content can contain basic HTML tags, but not images or external links.</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Slot&quot;,
+             &quot;Feature Type Description&quot; : &quot;Creates a rectangular slot in a selected part.&lt;br&gt;&quot; ~
+                                          &quot;This feature is an &lt;b&gt;example&lt;/b&gt;&quot;
+ }
+export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+            annotation { &quot;Name&quot; : &quot;Slot length&quot;,
+                         &quot;Description&quot; : &quot;Distance from the slot&#39;s end to its furthest extent along the outside of the part&quot; }
+            isLength(definition.slotLength, LENGTH_BOUNDS);
+    }
+...
+</code></pre>
+<div>
+<img alt="Feature description display" src="tutorials/images/feature-description.png" width="45%">
+<img alt="Parameter description display" src="tutorials/images/parameter-description.png" width="45%">
+</div><h2>Icons</h2>
+<p>A custom feature icon is specified by <a href="imports.html#importing-external-data">uploading the icon as an SVG blob tab and referencing it</a>:</p>
+<pre><code>IconNamespace::import(...);
+
+annotation { &quot;Feature Type Name&quot; : &quot;MyFeature&quot;, &quot;Icon&quot; : IconNamespace::BLOB_DATA }
+export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)
+...
+</code></pre>
+<p>An enum or quantity parameter icon is specified analogously:</p>
+<div class="fs-block-row">
+<pre>
+annotation { "Name" : "My Length", "Icon" : IconNamespace::BLOB_DATA }
+isLength(definition.myLength, LENGTH_BOUNDS);
+</pre>
+<img alt="Quantity with icon" src="tutorials/images/quantity-parameter-icon.png">
+</div><p>Feature icons are displayed in grayscale to be consistent with our standard feature icons, whereas parameter icons allow color.</p>
+<p>It is also possible to reference parameter icons that are used by the standard Onshape features. Instead of specifying an imported blob resource, an entry in the <a href="library.html#Icon"><code>Icon</code> enum</a> may be used as the value of any <code>&quot;Icon&quot;</code> annotation field, as in the example below, which adds icons to the values of an enum parameter:</p>
+<div class="fs-block-row">
+<pre>
+export enum AxisEnum {
+    annotation { "Name" : "Along X", "Icon" : Icon.ALONG_X }
+    ALONG_X,
+    annotation { "Name" : "Along Y", "Icon" : Icon.ALONG_Y }
+    ALONG_Y,
+    annotation { "Name" : "Along Z", "Icon" : Icon.ALONG_Z }
+    ALONG_Z
+}
+...
+annotation { "Name" : "Axis" }
+definition.axis is AxisEnum;
+</pre>
+<img alt="Enum values with icons" src="tutorials/images/enum-parameter-value-icons.png">
+</div><h2>Description images</h2>
+<p>A custom feature description image is specified by <a href="imports.html#importing-external-data">uploading the image as a JPG, PNG, or SVG blob tab and referencing it</a>:</p>
+<pre><code>ImageNamespace::import(...);
+
+annotation { &quot;Feature Type Name&quot; : &quot;MyFeature&quot;, &quot;Description Image&quot; : ImageNamespace::BLOB_DATA }
+export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)
+...
+</code></pre>
+<p>The example below demonstrates the Fillet Everything custom feature with a &quot;Description&quot;, an &quot;Icon&quot;, and a screen capture of the feature in the Part Studio display imported into the document for reuse as the feature&#39;s &quot;Description Image&quot;.</p>
+<div>
+<img alt="Feature description image display in toolip" src="tutorials/images/feature-description-image-tooltip.png" width="45%">
+<img alt="Feature description image display in Search panel" src="tutorials/images/feature-description-image-search.png" width="45%">
+</div><p>Feature description images are displayed following the <a href="#description">feature description</a> in the feature tooltip and in the &quot;Search Tools&quot; panel. Features can have description images, but unlike icons, parameters cannot. The description image will be displayed in its native size if possible, but will be shrunk uniformly to fit in the two areas it is displayed. Both areas are typically close to 300px by 300px, so images near that size work well.</p>
+<h2>Manipulator change function</h2>
+<p>The manipulator change function allows you to specify manipulator behavior in a very flexible way.  It is typically declared as:</p>
+<pre><code>export function onManipulatorChange(context is Context, definition is map, newManipulators is map) returns map
+{
+    // modify the definition based on what&#39;s in newManipulators
+    ...
+
+    return definition;
+}
+</code></pre>
+<p>The idea is that when the feature regenerates, it defines some manipulators using <code>addManipulators</code> to be shown on the screen.
+When a user drags one of these manipulators, the manipulator change function gets called.  It can look at the context, the
+feature definition, and the manipulator changes, and change the feature definition in response.  Thus, a manipulator does not
+have to be tied to a particular parameter and could modify a group of parameters all at once.</p>
+<p>See the <a href="library.html#module-manipulator.fs">manipulator module</a> for a simple example.</p>
+<h3>Manipulator change function arguments</h3>
+<p></p><div class="spacious-list"><ul>
+<li>The <code>context</code> is passed in at a state immediately prior to the feature.  After the manipulator change function is executed, it will be rolled
+back to that same state, so changes made to the context will not persist.</li>
+<li>The <code>definition</code> map is almost exactly as passed into the feature function.  The difference is that if the feature specifies programmatic defaults
+for some parameters, they will not be applied prior to the manipulator change function call.</li>
+<li>The <code>newManipulators</code> map has exactly one entry.  The key is one of the manipulator id strings that were passed into the <code>addManipulators</code> function when the feature regenerated. The value is a <code>Manipulator</code> that corresponds to the new value of the manipulator; it&#39;s the same as the value that was passed into <code>addManipulators</code> during regeneration, with the exception of some parameters that change as a result of the manipulator interaction:<ul>
+<li><code>offset</code> for the <code>LINEAR_1D</code> and <code>LINEAR_3D</code> (triad) manipulators</li>
+<li><code>angle</code> for the <code>ANGULAR</code> manipulator</li>
+<li><code>flipped</code> for the <code>FLIP</code> manipulator</li>
+<li><code>transform</code> for the <code>TRIAD_FULL</code> manipulator</div></li>
+</ul>
+</li>
+</ul>
+<h3>Manipulator change function return value</h3>
+<p>The return value is a map like <code>definition</code> with some of the parameters modified.  The parameter types that can be changed are:</p>
+<ul>
+<li>Boolean</li>
+<li>String</li>
+<li>Enum</li>
+<li>Query</li>
+<li>LookupTablePath</li>
+<li>Quantity: can be specified either as a value (<code>ValueWithUnits</code> if appropriate) or, unless the quantity is <code>isAnything</code>, as a <code>string</code>.  If a <code>string</code> is used, Onshape will set the expression for the quantity to that string.  For instance, the returned definition might include <code>width : &quot;3/8 in&quot;</code> so that the user sees that instead of &quot;0.375 in&quot;.</li>
+</ul>
+<h2>Editing logic function</h2>
+<p>If an editing logic function is specified, it is called whenever the feature definition is changed either explicitly by the user or with a manipulator (but see isCreating in <a href="#editing-logic-function-arguments">arguments</a>).  It can make additional feature definition changes based on the context and the users&#39; edits.  The editing logic function is primarily intended for setting default parameters in an intelligent manner.</p>
+<p>For example, the <code>modifyFillet</code> feature in <code>std/modifyFillet.fs</code> uses it to set the fillet radius based on the current radius of the selected fillet.  The <code>extrude</code> feature uses it to set the opposite direction parameter as well as the boolean merge scope.  The <code>cPlane</code> feature uses it to set the plane type based on the preselection.</p>
+<p>A word of caution: it is easy to abuse the editing logic function to create a user experience that is more annoying than helpful.  Enjoy editing logic responsibly.</p>
+<h3>Editing logic function arguments</h3>
+<p>An editing logic function may have between four and seven arguments.  A declaration with seven arguments looks like:</p>
+<pre><code>export function onFeatureChange(context is Context, id is Id, oldDefinition is map, definition is map,
+                                isCreating is boolean, specifiedParameters is map, hiddenBodies is Query) returns map
+{
+    // modify the definition
+    ...
+
+    return definition;
+}
+</code></pre>
+<p>The first four arguments are required.</p>
+<ul>
+<li>The <code>context</code> is passed in at a state immediately prior to the feature.  After the editing logic function is executed, it will be rolled
+back to that same state, so changes made to the context will not persist.</li>
+<li>The <code>id</code> is the feature id in question.</li>
+<li>The <code>oldDefinition</code> map is the feature definition prior to the changes that caused the editing logic function to be invoked.  If the feature specifies programmatic defaults for some parameters, they will not be applied prior to the editing logic function call.</li>
+<li>The <code>definition</code> map is the feature definition that includes the changes that caused the editing logic function to be invoked.  As above, defaults are not applied.  A no-op editing logic function just returns the unmodified definition.  The editing logic function can tell if a parameter has been changed by comparing its value in <code>definition</code> and <code>oldDefinition</code>.</li>
+</ul>
+<p>Any (or all) of the remaining three arguments may be omitted, but those that remain must appear in the same order relative to each other.  Omitting unused arguments
+may result in better performance.</p>
+<ul>
+<li>The <code>isCreating</code> boolean is set to <code>true</code> if the feature is being created and <code>false</code> if it is being edited, having been committed at least once.  <strong>Note:</strong> If <code>isCreating</code> is omitted, the editing logic function will only be called when the feature is being created.</li>
+<li>The <code>specifiedParameters</code> map indicates which parameters have been set by the user since the feature dialog opened.  The ids of those parameters that have been specified map to true and those that have not map to false.</li>
+<li>The <code>hiddenBodies</code> query evaluates to all of the bodies have been hidden by the user (that information is not accessible from the context).  It is used for example to avoid automatically adding invisible bodies to an <code>extrude</code> merge scope.</li>
+<li>The <code>clickedButton</code> string indicates which button parameter was clicked to trigger the editing logic function. If no button was clicked, <code>clickedButton</code> is the empty string.</li>
+</ul>
+<h3>Editing logic function return value</h3>
+<p>The return value is a map following the same rules as the return value for the <a href="#manipulator-change-function-return-value">manipulator change function</a>.</p>
+</div>
+</body>
+</html>

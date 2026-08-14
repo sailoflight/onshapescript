@@ -1,0 +1,296 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Values and types</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li class="fs-active-link"><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Values and Types</h1>
+<h2>Variables and constants</h2>
+<p>Variables and constants associate a name with a FeatureScript value. Variables are declared with the <code>var</code> keyword, and constants are declared with the <code>const</code> keyword:</p>
+<pre><code>var x = 1;
+const y = 2;
+</code></pre>
+<p>The value of a variable may be changed at any point later on.</p>
+<pre><code>x = 3; // succeeds
+</code></pre>
+<p>The value of a constant, once it is set, can never be changed.</p>
+<pre><code>y = 3; // error: cannot assign to constant y
+</code></pre>
+<h4>Value semantics</h4>
+<p>FeatureScript values always behave as if copied on assignment, and references to values are not shared (unless a <a href="#Box"><code>box</code></a> is used):</p>
+<pre><code>var a = 10;
+var b = a;
+a = 20;
+
+println(a);     // prints &quot;20&quot;
+println(b);     // prints &quot;10&quot;
+</code></pre>
+<p>Inside a function, the passed in arguments and the return values also behave as if a deep copy were made.</p>
+<h4>Statement blocks</h4>
+<p>A statement block is delimited with braces (<code>{}</code>). Blocks can be added around any set of statements, and are used as part of many control flow structures.</p>
+<p>A statement block defines a variable scope. Variables and constants are only visible inside the scope where they are defined:</p>
+<pre><code>var visible = &quot;hello&quot;;
+if (condition)
+{
+    var invisible = &quot;hello&quot;;
+}
+println(visible);       // prints &quot;hello&quot;
+println(invisible);     // semantic error: variable invisible not found
+</code></pre>
+<h4>Unset variables</h4>
+<p>If a variable is declared, but no value is assigned, its value is set to <a href="#undefined"><code>undefined</code></a>.</p>
+<pre><code>var u;
+println(u);             // prints &quot;undefined&quot;
+</code></pre>
+<h4>Type constraints</h4>
+<p>By default, a variable&#39;s type is unconstrained, and may change on assignment. A variable or constant may be declared to always be a certain type by adding the &#39;<code>is</code>&#39; keyword and a type name following the variable name:</p>
+<pre><code>var x = 1;
+var y is number = 1;
+
+x = &quot;string&quot;;           // succeeds
+y = &quot;string&quot;;           // runtime error: type mismatch
+</code></pre>
+<p>Variables with type constraints must be initialized immediately to a value matching that type.</p>
+<pre><code>var nil is number = 0;  // succeeds
+const n is number = 10; // succeeds
+
+var nil3 is number;                 // parse error: variable with type must be initialized
+var nil2 is number = undefined;     // runtime error: value assigned to variable should be number, was undefined
+</code></pre>
+<h2>Standard types</h2>
+<p>All values in FeatureScript have exactly one standard type. The standard types in FeatureScript are <code>boolean</code>, <code>number</code>, <code>string</code>, <code>array</code>, <code>map</code>, <code>box</code>, <code>function</code>, <code>builtin</code>, and <code>undefined</code>.</p>
+<h4>Boolean</h4>
+<p>A <code>boolean</code> may be one of two values, defined with the literals <code>true</code> and <code>false</code>.</p>
+<pre><code>var shouldCut = true;
+</code></pre>
+<h4>Number</h4>
+<p>A <code>number</code> is a 64-bit floating point number, conforming to the  IEEE double-precision standard. A integer is simply a special case of number, and does not have a its own standard type.</p>
+<p><code>number</code> literals can be declared in any of the following ways:</p>
+<pre><code>var one = 1;
+var alsoOne = 1.0;
+var bitLess = -.01;
+var million = 1e6;
+var infinity = inf;
+</code></pre>
+<p>The value of <code>NaN</code> (not a number) does not exist in FeatureScript. Operations which return <code>NaN</code> in other languages, such as the square root of a negative number, will instead throw an error immediately.</p>
+<h4>String</h4>
+<p>A <code>string</code> is a series of characters representing text.</p>
+<p><code>string</code> literals can be in either single quotes or double quotes (which are treated identically), and may contain common escape sequences.</p>
+<pre><code>var message1 = &quot;Hello, world!&quot;;
+var message2 = &#39;FeatureScript,\nnot FutureScript&#39;;
+var message3 = &quot;Smile \u263A&quot;;
+</code></pre>
+<p>The simplest way of working with strings is with regular expressions, using a few functions defined in the <a href="library.html#module-string.fs">string</a> module:</p>
+<pre><code>var str = replace(&quot;The answer to everything is 42.&quot;, &quot;[1-9]+&quot;, &quot;smarter features&quot;);
+</code></pre>
+<h4>Array</h4>
+<p>An <code>array</code> is an ordered list of values, which need not be of the same type.</p>
+<p>An <code>array</code> literal can be declared with brackets:</p>
+<pre><code>var empty = [];
+var numbers = [1, 2, 3];
+var things = [&quot;1&quot;, 2, [&quot;inner&quot;, &quot;array&quot;]];
+</code></pre>
+<p>Array elements are accessed and changed by indexing into the array with a zero-based index:</p>
+<pre><code>var x = numbers[0];         // x is 1
+x = things[2][1];           // x is &quot;array&quot;
+
+var index = 1;
+x = numbers[index];         // x is 2
+
+x = empty[0];               // Throws out-of-range error
+
+things[2] = 42;             // things is now [&quot;1&quot;, 2, 42]
+</code></pre>
+<p>The safe navigation operator <code>?[...]</code> can be used to access array elemets:</p>
+<pre><code>var x = undefined;          // x is undefined
+var z = x?[1];              // z is undefined
+</code></pre>
+<p>Simple array manipulations can be done with functions defined in the <a href="library.html#module-containers.fs">containers</a> module:</p>
+<pre><code>var s = size(numbers);              // s is 3
+var arr = makeArray(3);             // arr is [undefined, undefined, undefined]
+var arrFalse = makeArray(3, false); // arrFalse is [false, false, false]
+
+numbers = append(numbers, 4);                   // numbers is [1, 2, 3, 4]
+numbers = concatenateArrays([numbers, [5, 6]]); // numbers is [1, 2, 3, 4, 5, 6]
+numbers = resize(numbers, 3);                   // numbers is [1, 2, 3]
+</code></pre>
+<p>Iteration over an array can be done with a simple for loop:</p>
+<pre><code>for (item in collection)
+{
+    println(item);
+}
+</code></pre>
+<h4>Map</h4>
+<p>A <code>map</code> is an collection of key-value pairs which allow the value to be quickly accessed by its key.</p>
+<p>A <code>map</code> literal is declared inside braces, with commas separating key-value pairs, and colons separating keys from values.</p>
+<pre><code>var map1 = {};
+var map2 = { &quot;a&quot; : 1 };
+</code></pre>
+<p>Any value may be used as a map key, and a deep copy of the value is used. String keys may be written with or without quotes. However, if a visible variable exists with the same name as a map key, this must be disambiguated, either by adding quotes (to indicate the string), or by adding parentheses (to indicate the variable).</p>
+<pre><code>var b = 2;
+var map3 = {
+    one : 1,
+    (b) : &quot;two&quot;,
+    3.5 : &quot;three point five&quot;
+};
+// map3 is { &quot;one&quot; : 1, 2 : &quot;two&quot;, 3.5 : &quot;three point five&quot; }
+</code></pre>
+<p>Map elements are accessed or changed using the map key. If the map key is a string that is a valid identifier, dot syntax may be used.</p>
+<p>Map elements can be accessed using the safe navigation operator <code>?.</code>.  This eliminates the need for explicit checks and conditional handling.</p>
+<pre><code>var val = map2.a;       // v is 1
+val = map2[&quot;a&quot;];        // v is 1
+
+map2.a = 0;             // map2 is now { &quot;a&quot; : 0 }
+map2.b = 1;             // map2 is now { &quot;a&quot; : 0, &quot;b&quot; : 1 }
+
+var map4 = undefined;
+var d = map4?.a;        // d is undefined
+</code></pre>
+<p>If a key does not exist on the map, the result is undefined. A map value can never be <code>undefined</code>, and setting the value to <code>undefined</code> removes the element from the map.</p>
+<pre><code>val = map2.c;           // val is undefined
+map2.b = undefined      // map2 is now { &quot;a&quot; : 0 }
+</code></pre>
+<p>Simple map manipulations can be done with functions defined in the <a href="library.html#module-containers.fs">containers</a> module:</p>
+<pre><code>s = size(map2)                  // s is 1
+x = isValueIn(&quot;two&quot;, map3);     // x is true
+</code></pre>
+<p>Maps can also be iterated over with a for loop:</p>
+<pre><code>for (var key, value in myMap)
+{
+    println(&quot;Key: &quot; ~ key ~ &quot;, Value: &quot; ~ value);
+}
+</code></pre>
+<p>In FeatureScript, maps are ordered deterministically. However, this ordering can be unintuitive, especially if the keys are of different types. See <a href="relational.html">Equality and ordering</a> for details.</p>
+<h4>Box</h4>
+<p>As mentioned above, value semantics are ubiquitous in FeatureScript. Function parameters are passed by value, function returns are returned by value, and variable assignment is always by value.</p>
+<p>Reference semantics are useful when, for example, a function needs to modify one of its inputs, or two variables need to point to the same underlying data. This can be accomplished with <code>box</code>es.</p>
+<p>A <code>box</code> literal can be declared with <code>new box(value)</code>:</p>
+<pre><code>var b1 = new box(1);    // b1 is a box containing the number 1
+var b2 = b1;            // b2 is a box equal to b1, containing the same number 1
+var b3 = new box(b1);   // b3 is a box containing the box b1
+</code></pre>
+<p>The value inside a box is accessed and changed by adding empty brackets after the box. The safe navigation operator can be used to avoid runtime errors by handling cases where value of box is undefined:</p>
+<pre><code>var b = b1[];           // b is 1
+
+b1[] = &quot;new value&quot;;     // b1 now contains &quot;new value&quot;
+println(b1[]);          // prints &quot;new value&quot;
+println(b2[]);          // prints &quot;new value&quot;
+println(b3[][]);        // prints &quot;new value&quot;
+
+var b4 = undefined;     // b4 is undefined
+var b5 = b4?[];         // b5 is undefined
+</code></pre>
+<h4>Function</h4>
+<p>Generally, functions are declared at the <a href="top-level.html">top level</a> of a module. However, it is often useful to use a function as a variable, called a lambda function.</p>
+<p>A <code>function</code> literal can be assigned to a variable as follows:</p>
+<pre><code>var f = function(x) { return x + 1; };
+var f = x =&gt; x + 1;
+</code></pre>
+<p>The <code>=&gt;</code> syntax supports a single parameter without parentheses or a full parameter list,
+and either an expression or a function body. For example:</p>
+<pre><code>const twice = (v is ValueWithUnits) returns ValueWithUnits =&gt; v * 2;
+const thrice = (v is ValueWithUnits) =&gt; { return v * 3; };
+var fourfold = v =&gt; v * 4;
+var apply = (f is function, val) =&gt; f(val);
+var doubled = (val is ValueWithUnits) =&gt; apply(twice, val);
+var cascaded = (a =&gt; b =&gt; c =&gt; a * b + c)(4)(5)(6);  // value is 26
+</code></pre>
+<p>This function can be called with arguments, just like any other function.</p>
+<pre><code>var sum = f(1);         // sum is 2
+</code></pre>
+<p>One example of a lambda function is in the Standard Library&#39;s sort function:</p>
+<pre><code>var edgeQuery is Query = qEverything(EntityType.EDGE);
+var edges is array = evaluateQuery(context, edgeQuery);
+
+var sortedEdges = sort(edges, function(edge1, edge2) {
+    return evLength(context, edge1) -
+           evLength(context, edge2);
+});
+// sortedEdges is an array of edge queries, from shortest to longest
+</code></pre>
+<p>Another omnipresent example is in a feature type declaration:</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;My Feature&quot; }
+export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        // Define the parameters of the feature type
+    }
+    {
+        // Define the function&#39;s action
+    });
+</code></pre>
+<p><code>defineFeature</code> takes a lambda function as a parameter, and returns another lambda which calls the function passed in, along with some setup and cleanup.</p>
+<h4>Builtin</h4>
+<p>A <code>builtin</code> is a black box, whose contents cannot be accessed or changed directly in FeatureScript. A <code>builtin</code> is designed to be created by and passed into functions in the Onshape Standard Library. Examples of <code>builtin</code>s are a <a href="library.html#Context"><code>Context</code></a>, which stores the geometry of a Part Studio, and a <a href="library.html#Sketch"><code>Sketch</code></a>, which stores the geometry of a sketch.</p>
+<h4>Undefined</h4>
+<p><code>undefined</code> is a special type which can take only one value, also named <code>undefined</code>.</p>
+<p><code>undefined</code> is intended to be the FeatureScript representation of a value which does not exist. It is the result of a failed <code>try()</code> expression, an unset variable, or a nonexistent <code>map</code> entry.</p>
+<h2>Type tags</h2>
+<p>Custom types and enums exist throughout the standard library, and may be defined as <a href="top-level.html">top-level constructs</a>. In addition to its standard type, a FeatureScript variable may have a type tag assigned, which represents a more specific contract that the variable should uphold.</p>
+<p>A type tag may be checked with the <code>is</code> operator, which returns a <code>boolean</code>:</p>
+<pre><code>if (x is Vector)
+{
+    // do something
+}
+</code></pre>
+<h3>Enums</h3>
+<p>An enum is an enumeration of a finite set of choices.</p>
+<pre><code>export enum LumberSize
+{
+    TWO_BY_FOUR,
+    TWO_BY_SIX,
+    TWO_BY_EIGHT
+}
+</code></pre>
+<p>An enum value is a string which is one of the enum&#39;s choices, tagged with the enum&#39;s type.  For example, LumberSize.TWO_BY_FOUR is the string &quot;TWO_BY_FOUR&quot; of with the type tag LumberSize.</p>
+<pre><code>var size is LumberSize = LumberSize.TWO_BY_FOUR;
+</code></pre>
+<h3>Custom types</h3>
+<p>A custom type defines the conditions for a member inside a <code>typecheck</code>, which must be defined as a top-level <a href="top-level.html#Predicates">predicate</a>.</p>
+<pre><code>export type Lumber typecheck isLumber;
+
+export predicate isLumber(value)
+{
+    value is map;
+    value.size is LumberSize;
+    isLength(value.length);
+}
+</code></pre>
+<p>A custom type generally exports a constructor from the same module which exports the type. The standard naming convention is for custom types to begin with an upper-case letter, and for the constructor name to match the type name with a lower-case first letter.</p>
+<pre><code>export function lumber(size is LumberSize, length is ValueWithUnits)
+{
+    return { &quot;size&quot; : size, &quot;length&quot; : length } as Lumber;
+}
+</code></pre>
+<p>The <code>as</code> keyword, as used above, will attach the given type tag to any value. It should be used with caution, since it&#39;s possible to attach a type tag to a value which does not satisfy the type&#39;s typecheck.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Create a slot feature</title>
+<link rel="stylesheet" href="../fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="../index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="create-a-slot-feature.html">Slot Tutorial</a>
+</div>
+<ul>
+<li class="fs-active-link"><a href="create-a-slot-feature.html">Create a slot feature</a><li><a href="add-sketch-geometry.html">Add sketch geometry</a></ul>
+</div><div class="fs-doc-body"><h1>Create a slot feature in FeatureScript</h1>
+<p>In this series of tutorials, we will create a slot feature, designed for joining two laser-cut parts. Eventually, we will use this feature to make large assemblies of laser-cuttable parts which are joined with slot features.</p>
+<div class="fs-image-row fs-image-row-large">
+   <img src="images/slot-feature-onshape.png" alt="Onshape Slot feature">
+   <img src="images/laser-cut-elk.png" alt="Full laser cut assembly">
+</div><p>The slot feature is just one example of what FeatureScript can do, but each tutorial in the series introduces concepts which can be applied to a wide variety of features.</p>
+<p>In the first tutorial, we&#39;ll walk through how to:</p>
+<ul>
+<li>Create a new &quot;Slot&quot; feature type</li>
+<li>Specify the feature&#39;s inputs</li>
+<li>Define the feature&#39;s behavior</li>
+<li>Use instances of the feature in a Part Studio</li>
+</ul>
+<h2>Motivation</h2>
+<p>A slot is simple to create with or without using FeatureScript. However, encapsulating the behavior in a custom feature provides some key advantages:</p>
+<p><strong>Interface control:</strong> With FeatureScript, we can fully specify the feature dialog interface, and optimize the workflow. In this tutorial, our feature&#39;s input will include the sketched path, but in future tutorials, we improve this interface so that we can create a pair of slots with just two selections.</p>
+<p><strong>Update everywhere:</strong> Each instance of a &quot;Slot&quot; feature points to the same feature definition, so each time we improve our slot feature, every instance in the document is immediately updated. When using features from a different document, a user can update by repointing their document to any published version of the feature.</p>
+<p><strong>Error handling:</strong> When invalid inputs are entered, errors can be reported to help diagnose what&#39;s wrong. With this workflow, the end user will immediately see if they&#39;ve made a slot that won&#39;t fit, or won&#39;t laser cut: reported errors will turn a feature red in the feature tree.</p>
+<p><strong>Quality assurance:</strong> Your features will have more knowledge about their purpose than generic Onshape features, so their specific edge cases can be handled better. This, in combination with error handling, can mean the end user is less likely to make mistakes.</p>
+<h2>Video overview</h2>
+<p>This video shows the creation of the slot feature. It demonstrates what a FeatureScript workflow can look like, and creates the same &quot;Slot&quot; feature type that the tutorial will guide you through below.</p>
+<video controls>
+   <source src="videos/slot-tutorial.mp4" type="video/mp4">
+   Your browser does not support the video tag.
+</video><h2>Step-by-step guide</h2>
+<p>This guide will take you step by step through the actions shown in the video above, explaining what the FeatureScript does and why. Major FeatureScript concepts will be marked in <strong>bold</strong> when they are explained.</p>
+<div class="fs-note"><p class=fs-note-label>READING FEATURESCRIPT TUTORIALS</p>
+<p>In this and all other FeatureScript tutorials, changes to the code will always be mentioned in code blocks, like those below. The surrounding instructions will tell you about that code and what to do with it. In addition, the code block's color gives an indication about what action needs to be taken:</p>
+<pre class="fs-code-insertion">Green indicates that this code should be <b>inserted</b> into the Feature Studio.</pre>
+<pre class="fs-code-deletion">Red indicates that this code should be <b>deleted</b> from the Feature Studio.</pre>
+<pre class="fs-code-change">Yellow indicates that this code should be <b>changed</b>. The newly changed code is <span>highlighted</span>.</pre>
+<pre class="fs-code-final">Blue indicates that this code is <b>unchanged</b> or <b>final</b>.</pre>
+</div><h3>Create a feature definition</h3>
+<ol>
+<li><p>Start by creating a new Feature Studio tab in a new Onshape document:</p>
+<p><img src="images/new-feature-studio.png" alt="Create new Feature Studio"></p>
+<p>A Feature Studio is a place for editing FeatureScript where you can define functions to be used as <strong>feature types</strong>. All of Onshape&#39;s native feature types, from extrude to helix, are also written as FeatureScript feature types in the <a href="../../documents/12312312345abcabcabcdeff">Onshape Standard Library</a>. Custom feature types that you write here will be treated like Onshape feature types in the Part Studio.</p>
+</li>
+<li><p>In the Feature Studio, in the top-left corner, click the &quot;New feature&quot; button.</p>
+<p>This will insert the following code, which is the minimum template for defining an empty feature type:</p>
+<pre class="fs-code-insertion">
+annotation { "Feature Type Name" : "My Feature" }
+export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        // Define the parameters of the feature type
+    }
+    {
+        // Define the function's action
+    });
+</pre><p>For more information about the structure and pieces of a feature definition, see <a href="../feature-types.html">Writing features</a>.</p>
+<p></p><div class="fs-note"><p class=fs-note-label>NOTE</p>
+In the Feature Studio, the code inserted by the "New feature" button has several sections of text marked as **autocomplete regions**. If you look closely, you can identify these regions by a thin, gray box outline:<p><img src="images/autocomplete-region.png" alt="Autocompletion regions"></p>
+<p>Autocomplete regions are temporary navigation aids designed to help you write features quickly, and generally indicate the regions of inserted text that you are likely to change.  You can navigate your cursor through these regions using the following keyboard shortcuts:</p>
+<ul>
+<li><kbd>tab</kbd> : Select next autocomplete region</li>
+<li><kbd>shift-tab</kbd> : Select previous autocomplete region</li>
+<li><kbd>escape</kbd> : Dismiss all autocomplete regions</li>
+</ul>
+<p>Moving your cursor outside a region (with the mouse or arrow keys) will also dismiss all autocomplete regions.</p>
+</div>
+</li>
+<li><p>After pressing the &quot;New feature&quot; button, you should see the text <code>&quot;My Feature&quot;</code> highlighted. This field is a <a href="../variables.html#strings"><code>string</code></a> which defines the user-visible name of the feature type. This name is seen when a user inserts the feature, and in default feature names (e.g. &quot;Extrude 1&quot;). The feature type name can include whitespace, and can be changed at any time without affecting Part Studios&#39; behavior or other FeatureScript code.</p>
+<p>Change the feature type name to <code>&quot;Slot&quot;</code>:</p>
+<pre class="fs-code-change">
+annotation { "Feature Type Name" : <span>"Slot"</span> }
+</pre>
+</li>
+<li><p>Select the text <code>myFeature</code> on the next line (with autocomplete regions, you can press <code>tab</code> to select the next field). This is the FeatureScript name of this feature function. The function name is used by any FeatureScript calls that create this feature, <em>including features created in the Part Studio</em>. Thus, changing this name after creating features will break all features created with the old name. This name cannot include whitespace or special characters.</p>
+<p>Change the FeatureScript function name to &quot;<code>slot</code>&quot;:</p>
+<pre class="fs-code-change">
+export const <span>slot</span> = defineFeature(function(context is Context, id is Id, definition is map)
+</pre></li>
+</ol>
+<p>Your Feature Studio should now look like this (but with a different FeatureScript version and import version):</p>
+<pre class="fs-code-final">
+FeatureScript 1890;
+import(path : "onshape/std/common.fs", version : "1890.0");
+
+annotation { "Feature Type Name" : "Slot" }
+export const slot = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        // Define the parameters of the feature type
+    }
+    {
+        // Define the function's action
+    });
+</pre><h3>Define the feature&#39;s input parameters</h3>
+<ol>
+<li><p>Select the next region: &quot;<code>// Define the parameters of the feature type</code>&quot;. This section of code, between the two curly braces, is the function&#39;s precondition. The precondition is used, in part, to define a feature&#39;s <a href="../uispec.html#parameters">input parameters</a>. The text highlighted is a <a href="../tokens.html">comment</a>, which does not affect FeatureScript evaluation.</p>
+<p>Delete this comment:</p>
+ <pre class="fs-code-deletion">
+// Define the parameters of the feature type
+</pre>
+</li>
+<li><p>Our feature&#39;s first input parameter will be an edge which defines the slot path. Input parameters to features are stored in its <code>definition</code>: a <a href="../variables.html#maps"><code>map</code></a> whose keys are strings. These parameters can later be accessed from the <code>definition</code> to define how the feature should be built.</p>
+<p>All geometry in FeatureScript is passed into features as <a href="../modeling.html#queries">Queries</a>, so we will define a query parameter.</p>
+<p>Start typing &quot;query&quot;. The autocompletion menu will expand below your cursor as you type. One of the autocompletions you should be able to see is &quot;Query parameter&quot;, a snippet of code which, when placed in a feature precondition, defines a query parameter.</p>
+<p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+Typing in a Feature Studio will often bring up a context-sensitive **autocomplete menu**. This menu shows a list of one or more autocompletions which match what you're typing:<p><img src="images/autocomplete-menu.png" alt="Autocomplete menu"></p>
+<p>The flyout on the right side shows a preview of the text you will autocomplete, along with a short description. Autocomplete will show FeatureScript functions (including features), types, enums, and snippets (i.e. short FeatureScript code templates).</p>
+<p>When an autocompletion menu is open, you can use the following shortcuts to navigate the menu:</p>
+<ul>
+<li><kbd>up/down arrow keys</kbd> : Select next/previous item in menu</li>
+<li><kbd>enter</kbd> : Insert selected autocompletion</li>
+<li><kbd>escape</kbd> : Remove the autocompletion menu</div></li>
+</ul>
+<p>Use the arrow keys (if necessary) to select the &quot;Query parameter&quot; snippet, and press enter to insert the autocompletion. This will insert the following code:</p>
+<pre class="fs-code-insertion">
+annotation { "Name" : "My Query", "Filter" : EntityType.FACE, "MaxNumberOfPicks" : 1 }
+definition.parameter is Query;
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+The code above represents a feature **parameter**, which the user will pass into the feature, and FeatureScript code will use. The parameter is defined on the second line, which asserts that the field "`parameter`" on the definition is a `Query` for geometry.<p>The first line is an <a href="../annotations.html">annotation</a>, associated with the line that defines the parameter. The information in this annotation indicates how Onshape should create an entry for this parameter in the feature dialog.</p>
+</div><p>After inserting the Query parameter autocompletion, you should see the text <code>&quot;My Query&quot;</code> highlighted. This is the user-visible name of the parameter. Query parameter names are visible in the feature dialog when the field is empty.</p>
+<p>Change the user-visible parameter name to <code>&quot;Slot path&quot;</code>:</p>
+<pre class="fs-code-change">
+annotation { "Name" : <span>"Slot path"</span>, "Filter" : EntityType.FACE, "MaxNumberOfPicks" : 1 }
+definition.parameter is Query;
+</pre><p>Select the next region: &quot;<code>EntityType.FACE</code>&quot;. This field represents a filter that controls which geometric entities can be accepted by the parameter. You can filter by <a href="../library.html#EntityType">EntityType</a>, <a href="../library.html#GeometryType">GeometryType</a>, <a href="../library.html#BodyType">BodyType</a>, and <a href="../uispec.html#queries">more</a>.</p>
+<p>To allow only edges, change the filter to &quot;<code>EntityType.EDGE</code>&quot;:</p>
+<pre class="fs-code-change">
+annotation { "Name" : "Slot path", "Filter" : EntityType.<span>EDGE</span>, "MaxNumberOfPicks" : 1 }
+definition.parameter is Query;
+</pre><p>Select the next region: &quot;<code>1</code>&quot;. This field represents the maximum number of selections the user can make in this field. This field can also be removed to allow infinite selections.</p>
+<p>To allow just one edge selection, leave the default of <code>1</code>:</p>
+<pre class="fs-code-final">
+annotation { "Name" : "Slot path", "Filter" : EntityType.EDGE, "MaxNumberOfPicks" : <span>1</span> }
+definition.parameter is Query;
+</pre><p>Select the next region: &quot;<code>parameter</code>&quot;. This is the FeatureScript-visible name of this parameter, which will later be used to access this parameter within the function&#39;s body. The value of this parameter is stored as a <a href="../library.html#module-query.fs"><code>Query</code></a> on a map named &quot;<code>definition</code>&quot;.</p>
+<p>Change the FeatureScript parameter name to &quot;<code>slotPath</code>&quot;:</p>
+<pre class="fs-code-change">
+annotation { "Name" : "Slot path", "Filter" : EntityType.FACE, "MaxNumberOfPicks" : 1 }
+definition.<span>slotPath</span> is Query;
+</pre>
+</li>
+<li><p>The second parameter will define the part to cut. Since this parameter will also take in model geometry, we will use another query parameter.</p>
+<p>On the line after the slot path parameter, start typing &quot;query&quot;, and select the autocompletion for &quot;Query parameter&quot;:</p>
+<pre class="fs-code-insertion">
+annotation { "Name" : "My Query", "Filter" : EntityType.FACE, "MaxNumberOfPicks" : 1 }
+definition.parameter is Query;
+</pre><p>Fill out its fields with the following:</p>
+<pre class="fs-code-change">
+annotation { "Name" : <span>"Part to cut"</span>, "Filter" : <span>EntityType.BODY && BodyType.SOLID</span>, "MaxNumberOfPicks" : 1 }
+definition.<span>partToCut</span> is Query;
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+The filter above specifies that a user can select any full part in the Part Studio to use for this parameter.<p>Any selectable piece of topology in Onshape (edges, vertices, parts, etc.) is known as an <strong>entity</strong>. Every entity has an <strong>EntityType</strong> and a <strong>BodyType</strong> which specify what kind of geometry it represents.</p>
+<p>The <a href="../library.html#EntityType">EntityType</a> <code>BODY</code> specifies a full, independent object in the Part Studio. A <code>BODY</code> is often a part, but it can also be things of lower dimension. The dimension of a body is distinguished by its <a href="../library.html#BodyType">BodyType</a>:</p>
+<ul>
+<li><code>BodyType.SOLID</code>, as in the filter above, specifies an independent three-dimensional part (such as the result of extruding a sketch region)</li>
+<li><code>BodyType.SHEET</code> specifies an independent two-dimensional surface (such as the default planes, or the result of extruding a sketch edge)</li>
+<li><code>BodyType.WIRE</code> specifies an independent one-dimensional path (such as the result of a helix feature)</li>
+<li><code>BodyType.POINT</code> specifies a independent zero-dimensional point (such as the origin, or the result of <a href="../library.html#opPoint-Context-Id-map">opPoint</a>)</li>
+</ul>
+<p>Entities which are not <code>EntityType.BODY</code>, like a single face of a part, are always children of some other entity. The other <code>EntityType</code>s specify child entities of a certain dimension:</p>
+<ul>
+<li><code>EntityType.FACE</code> specifies a two-dimensional child</li>
+<li><code>EntityType.EDGE</code> specifies a one-dimensional child</li>
+<li><code>EntityType.VERTEX</code> specifies a zero-dimensional child</li>
+</ul>
+<p>A child entity will have a <code>BodyType</code> which matches dimension of its owner body.</p>
+<p>For more information on combining these and other filters, refer to the documentation on <a href="../uispec.html#queries">query parameters</a>.</p>
+</div>
+</li>
+<li><p>The final feature parameter will define the width of the slot. Since this parameter is a one-dimensional distance, we will use a length parameter.</p>
+<p>On the line after the slot path parameter, start typing &quot;length&quot;, and select the autocompletion for &quot;Length parameter&quot;:</p>
+<pre class="fs-code-insertion">
+annotation { "Name" : "My Length" }
+isLength(definition.parameter, LENGTH_BOUNDS);
+</pre><p>Fill out its fields to name the parameter:</p>
+<pre class="fs-code-change">
+annotation { "Name" : <span>"Width"</span> }
+isLength(definition.<span>width</span>, LENGTH_BOUNDS);
+</pre>
+</li>
+<li><p>Add blank lines between the parameters for code readability. Your final precondition should now look as follows:</p>
+<pre class="fs-code-final">
+precondition
+{
+    annotation { "Name" : "Slot path", "Filter" : EntityType.EDGE, "MaxNumberOfPicks" : 1 }
+    definition.slotPath is Query;
+
+    annotation { "Name" : "Part to cut", "Filter" : EntityType.BODY && BodyType.SOLID, "MaxNumberOfPicks" : 1 }
+    definition.partToCut is Query;
+
+    annotation { "Name" : "Width" }
+    isLength(definition.width, LENGTH_BOUNDS);
+}
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+FeatureScript is a whitespace insensitive language. This means that, as long as you aren't breaking up individual words or strings, you can insert or remove spaces and newlines anywhere without affecting the meaning.
+</div><p>At this point, your Feature Studio should be free of errors. You can determine this by looking at the FeatureScript notices indicator on the right side of the top navbar. If there are no errors, this icon will be gray. If there are only warnings, it will be yellow. If there are errors, it will be red:</p>
+<div class="fs-image-row fs-image-row-extra-small">
+   <img src="images/fs-notice-no-error.png" alt="No errors">
+   <img src="images/fs-notice-warning.png" alt="Warnings">
+   <img src="images/fs-notice-errors.png" alt="Errors">
+</div>
+![FeatureScript notices indicator](images/featurescript-notices-indicator.png)</li>
+</ol>
+<h3>Create an instance of your feature</h3>
+<ol>
+<li><p>To commit the changes you&#39;ve made to your Feature Studio, press the &quot;Commit&quot; button in the FeatureScript toolbar:</p>
+<p><img src="images/commit-button.png" alt="Commit button"></p>
+<p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+The FeatureScript you write is always being saved in the cloud, just like other Onshape tabs. However, because code is usually not sensible as it's being typed, FeatureScript changes are not immediately visible to *other* tabs. For this, you will need to **commit** your changes.<p>You can think of &quot;commit&quot; as &quot;Update the whole document with these changes&quot;. Once changes to a Feature Studio are committed, Part Studios which depend on that Feature Studio will regenerate when you switch to them. If this causes run-time errors, those errors will appear in the FeatureScript notices flyout at this point.</p>
+<p>If you have changed a Feature Studio but not committed, you will see an asterisk before the element name on the Feature Studio tab, indicating the presence of uncommited changes:</p>
+<p><img src="images/commit-status.png" alt="Commit status indicator"></p>
+<p>If you close a browser tab with uncommitted changes, nothing is lost. You&#39;ll still see these uncommitted changes in the Feature Studio when you return.</p>
+</div>
+</li>
+<li><p>Switch to <em>Part Studio 1</em>. In this Part Studio, make some geometry that the slot feature can be tested on. Create a sketch with internal, perpendicular edges, like the one below, and extrude it:</p>
+<p><img src="images/part-studio-sketch.png" alt="Part Studio sketch"></p>
+</li>
+<li><p>You should see a new icon in the toolbar for your new custom &quot;Slot&quot; feature. This dropdown menu will show all the custom feature types defined in this workspace.</p>
+<p><img src="images/featurescript-menu.png" alt="FeatureScript menu"></p>
+<p>The name &quot;Slot&quot; seen here comes from the &quot;Feature Type Name&quot; you defined in the Feature Studio earlier. The icon for the feature is created automatically with the first two letter of that name.</p>
+</li>
+<li><p>Click the Slot feature button. This will pull up a feature dialog for your feature. If your precondition is written correctly, this feature dialog should look like this:</p>
+<p><img src="images/slot-feature-dialog.png" alt="Slot feature dialog"></p>
+</li>
+<li><p>As input to your feature, choose an internal edge for the slot, choose the extruded part as the part to cut, and set the width to &quot;3mm&quot;.</p>
+<p><img src="images/completed-feature-dialog.png" alt="Completed feature dialog"></p>
+<p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+When selecting the slot path, only edges are selectable. When selecting the part to cut, only solid bodies are selectable. This is the effect of setting the `"Filter"` field on the two query parameters.
+</div></li>
+</ol>
+<h3>Define the Feature&#39;s behavior</h3>
+<p>The feature you created currently has no effect because the body of the feature function is empty. A feature function body is a block of code which will execute for each feature of this type, every time a Part Studio is regenerated.</p>
+<p>In this section, we will use the following operations in the function body to create the slot:</p>
+<p></p><div class="compact-list"><ol>
+<li><strong>Extrude</strong> the slot edge as a surface</li>
+<li><strong>Thicken</strong> the surface</li>
+<li><strong>Subtract</strong> the result from the part to cut.</div></li>
+</ol>
+<p>Because these operations are wholly contained within the Slot feature, the end user will not see these operations in their feature tree: just a single feature named e.g. &quot;Slot 1&quot;. The feature will also clean up after itself, so the end user will never see any intermediate geometry created.</p>
+<ol>
+<li><p>Switch back to the Feature Studio. In the feature&#39;s body (between the second pair of braces), there should still be a comment saying &quot;<code>// Define the function&#39;s action</code>&quot;.</p>
+<p>Delete this comment:</p>
+<pre class="fs-code-deletion">
+// Define the function's action
+</pre>
+</li>
+<li><p>The first operation will extrude the sketch edge.</p>
+<p>In the feature&#39;s body, type &quot;<code>opExtrude</code>&quot;, and select the autocompletion for the <code>opExtrude</code> function.</p>
+<p><img src="images/extrude-autocomplete-menu.png" alt="Extrude autocomplete menu"></p>
+<p>This will insert the following code:</p>
+<pre class="fs-code-insertion">
+opExtrude(context, id + "extrude1", {
+        "entities" : entities,
+        "direction" : evOwnerSketchPlane(context, {"entity" : entities}).normal,
+        "endBound" : BoundingType.BLIND,
+        "endDepth" : 1 * inch
+});
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+Functions in the standard library with the "`op`" prefix are **operations**. These functions all perform some change to the context which modifies its geometry.<p>Often, there will also be a feature function which calls the operation (in the case of extruding, the <code>extrude</code> feature calls the <code>opExtrude</code> function). The feature is wrapper which provides a nice Part Studio interface on top of that operation, sometimes with additional operations (for instance, the <code>extrude</code> includes additional parameters to optionally add a boolean and a draft). In FeatureScript, it&#39;s often a better idea to call the operation directly.</p>
+</div><p>After insertion, you should see the parameter &quot;<code>context</code>&quot; highlighted. This is the <a href="../library.html#Context"><code>Context</code></a>, a data structure which contains all geometry in the Part Studio. Almost always, your features will involve a single <code>Context</code> named &quot;<code>context</code>&quot;, passed in from the Part Studio. Here, we pass it on to the <code>extrude</code> function so that <code>extrude</code> can create geometry in the Part Studio.</p>
+<p>The default autocompletion of &quot;<code>context</code>&quot; makes sense, so leave it.</p>
+<pre class="fs-code-final">
+opExtrude(<span>context</span>, id + "extrude1", {
+        "entities" : entities,
+        "direction" : evOwnerSketchPlane(context, {"entity" : entities}).normal,
+        "endBound" : BoundingType.BLIND,
+        "endDepth" : 1 * inch
+});
+</pre><p>With the tab key or the mouse, select the next parameter: <code>id + &quot;extrude1&quot;</code>. This is the <a href="../library.html#Id"><code>Id</code></a>, a unique identifier for the extrude operation being performed.</p>
+<p>The default <code>Id</code> is already unique and descriptive, so leave it.</p>
+<pre class="fs-code-final">
+opExtrude(context, <span>id + "extrude1"</span>, {
+        "entities" : entities,
+        "direction" : evOwnerSketchPlane(context, {"entity" : entities}).normal,
+        "endBound" : BoundingType.BLIND,
+        "endDepth" : 1 * inch
+});
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+An **Id** is a hierarchical identifier for a specific operation or feature. When the Part Studio creates a slot feature, a unique `Id`, named "`id`", is passed in. Each slot feature created will have a different unique id.<p>The expression <code>id + &quot;extrude1&quot;</code> creates a sub-id of this feature&#39;s <code>id</code>. We use the sub-id to label this specific invocation of the <code>extrude</code> feature. Thus, each instance of a slot will contain an instance of an extrude, all labeled uniquely (<code>idForSlot1 + &quot;extrude1&quot;</code>, <code>idForSlot2 + &quot;extrude1&quot;</code>, etc.).</p>
+<p>As we will see soon, any <code>Id</code> can be used in a later operation to specify the geometry created by the feature or operation with that id. This will include any geometry created by sub-ids.</p>
+</div><p>Select the text next to the <code>&quot;entities&quot;</code> field. This field defines what geometry should be extruded. We want to extrude the sketch edge passed in. This edge is stored on on the <code>definition</code> as <code>slotPath</code>, as we defined in the precondition.</p>
+<p>Change the entities field to <code>definition.slotPath</code>:</p>
+<pre class="fs-code-change">
+opExtrude(context, id + "extrude1", {
+        "entities" : <span>definition.slotPath</span>,
+        "direction" : evOwnerSketchPlane(context, {"entity" : entities}).normal,
+        "endBound" : BoundingType.BLIND,
+        "endDepth" : 1 * inch
+});
+</pre><p>Select the text next to the <code>&quot;direction&quot;</code> field. This field defined what direction to extrude in. We want this feature to extrude the surface perpendicular to the sketch normal.</p>
+<p>The default autocompletion makes a call to the <code>evOwnerSketchPlane</code> get the correct direction vector. We want to do the same, but instead evaluate the owner sketch of the <code>slotPath</code>.</p>
+<pre class="fs-code-change">
+opExtrude(context, id + "extrude1", {
+        "entities" : definition.slotPath,
+        "direction" : evOwnerSketchPlane(context, {"entity" : <span>definition.slotPath</span>}).normal,
+        "endBound" : BoundingType.BLIND,
+        "endDepth" : 1 * inch
+});
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+Functions from the standard library with the "`ev`" prefix are **evaluations**. These functions all obtain data and/or measurements from the entities inside a context.<p>The result of an evaluation function is a value which can be used in subsequent calculations. For instance, <a href="../library.html#evOwnerSketchPlane-Context-map"><code>evOwnerSketchPlane</code></a> returns a value with type <a href="../library.html#Plane"><code>Plane</code></a>. A <code>Plane</code> has the information define its position and orientation in 3D space, including a 3D unit <a href="../library.html#Vector"><code>Vector</code></a> defining the plane&#39;s normal direction. Above, we use this <code>normal</code> field above as the extrude direction.</p>
+</div><p>Press tab to select the text next to the <code>&quot;endBound&quot;</code> field. This field specifies a <code>BoundingType</code>: one of <code>BLIND</code>, <code>THROUGH_ALL</code>, etc.</p>
+<p>Change the endBound to &quot;<code>BoundingType.THROUGH_ALL</code>&quot;:</p>
+<pre class="fs-code-change">
+opExtrude(context, id + "extrude1", {
+        "entities" : definition.slotPath,
+        "direction" : evOwnerSketchPlane(context, {"entity" : definition.slotPath}).normal,
+        "endBound" : BoundingType.<span>THROUGH_ALL</span>,
+        "endDepth" : 1 * inch
+});
+</pre><p>Press tab to select the text next to the <code>&quot;depth&quot;</code> field. Since we&#39;ve chosen a <code>THROUGH_ALL</code> extrude, this field isn&#39;t necessary.</p>
+<p>Delete the entire depth parameter:</p>
+<pre class="fs-code-deletion">
+opExtrude(context, id + "extrude1", {
+        "entities" : definition.slotPath,
+        "direction" : evOwnerSketchPlane(context, {"entity" : definition.slotPath}).normal,
+        "endBound" : BoundingType.THROUGH_ALL,
+        <span>"endDepth" : 1 * inch</span>
+});
+</pre><p>In its place, we will specify that the start bound of the extrude should also be <code>THROUGH_ALL</code>.</p>
+<p>This addition gives us some extra robustness in making sure the slot cuts properly. In the one instance we&#39;ve made in a Part Studio, we defined the slot sketch on the <em>bottom</em> surface of the part, so the sketch normal points directly into the part. However, we want this feature to still work if a user puts a sketch on the <em>top</em> surface, or in the center, or even off of the part.</p>
+<p>Add the field <code>&quot;startBound&quot; : BoundingType.THROUGH_ALL</code> as the last field in the extrude call:</p>
+<pre class="fs-code-insertion">
+opExtrude(context, id + "extrude1", {
+        "entities" : definition.slotPath,
+        "direction" : evOwnerSketchPlane(context, {"entity" : definition.slotPath}).normal,
+        "endBound" : BoundingType.THROUGH_ALL,
+        <span>"startBound" : BoundingType.THROUGH_ALL</span>
+});
+</pre><p>Press the commit button. At this point, your FeatureScript notices panel should be free of errors.</p>
+<p>If you switch back to the Part Studio, you should see a surface extruded from the edge in your slot feature in two directions:</p>
+<p><img src="images/second-direction-extrude.png" alt="Part Studio after second direction extrude"></p>
+</li>
+<li><p>The next operation will thicken the surface to the slot width.</p>
+<p>After the <code>extrude</code> call, type and select the autocompletion for <a href="../library.html#opThicken-Context-Id-map"><code>opThicken</code></a>. This will insert the following code:</p>
+<pre class="fs-code-insertion">
+opThicken(context, id + "thicken1", {
+        "entities" : entities,
+        "thickness1" : 0.1 * inch,
+        "thickness2" : 0.1 * inch
+});
+</pre><p>For this operation, the <code>context</code> should be left as &quot;<code>context</code>&quot;, as usual. The <code>Id</code> default of &quot;<code>id + &quot;thicken1&quot;</code>&quot; is unique and descriptive, so leave that too.</p>
+<p>The <code>&quot;entities&quot;</code> should specify the surface to thicken. Specify a query for the surface we just created using <a href="../library.html#qCreatedBy-Id-EntityType"><code>qCreatedBy</code></a>, passing in the id of the first extrude:</p>
+<pre class="fs-code-change">
+opThicken(context, id + "thicken1", {
+        "entities" : <span>qCreatedBy(id + "extrude1", EntityType.BODY)</span>,
+        "thickness1" : 0.1 * inch,
+        "thickness2" : 0.1 * inch
+});
+</pre><p></p><div class="fs-note"><p class="fs-note-label">NOTE</p>
+A **Query**, like `qCreatedBy`, is a way to refer to topological entities (vertices, edges, faces, and bodies) in FeatureScript.<p>You can think of a query as an order form for entities, with one or more criteria that the specified entities must satisfy. The query itself does not contain the entities. Rather a query specifies a set of entities in a context (remember: the context contains all the geometry). When you pass a query into an operation function, that function uses the query <em>and</em> the context to perform the operation on the right entities.</p>
+<p>Other examples of queries are the two query parameters you&#39;ve defined: <code>slotPath</code> and <code>partToCut</code>. These queries are generated automatically when a user selects entities, and stored in the fields <code>definition.slotPath</code> and <code>definition.partToCut</code>. The generated queries refer to the selected entities in a robust way so that features can be resistant to upstream changes. For instance, if a user selects an edge on the cap face of an extrude, then later flips the direction of that extrude, they&#39;ll find the downstream feature now has the same edge selected on the opposite side of the extrude, as expected.</p>
+<p>A query may evaluate to zero, one, or many entities. To see all the queries FeatureScript has available, refer to the <a href="../library.html#module-query.fs">Query module</a>.</p>
+</div><p><code>thickness1</code> and <code>thickness2</code> specify how much to thicken on each side of the surface. Let&#39;s make the slot symmetric, and thicken each side by half the slot width:</p>
+<pre class="fs-code-change">
+opThicken(context, id + "thicken1", {
+        "entities" : qCreatedBy(id + "extrude1", EntityType.BODY),
+        "thickness1" : <span>definition.width / 2</span>,
+        "thickness2" : <span>definition.width / 2</span>
+});
+</pre><p>Press the commit button. In your Part Studio, you should see the thickened surface: a new solid body in your <code>Context</code>.</p>
+<div class="fs-image-row fs-image-row-small">
+   <img src="images/thickened-parts-list.png" alt="Thickened surface in parts list">
+   <img src="images/thickened-surface.png" alt="Thickened surface">
+</div>
+</li>
+<li><p>The thicken operation did not delete the original extruded surface, so let&#39;s clean that up now. Type and select the autocompletion for <a href="../library.html#opDeleteBodies-Context-Id-map"><code>opDeleteBodies</code></a>. This will insert:</p>
+<pre class="fs-code-insertion">
+opDeleteBodies(context, id + "deleteBodies1", {
+        "entities" : entities
+});
+</pre><p>Leave the default <code>Context</code> and <code>Id</code>, and set the <code>&quot;entities&quot;</code> to &quot;<code>qCreatedBy(id + &quot;extrude1&quot;, EntityType.BODY)</code>&quot;, the same query for the surface body created by the extrusion:</p>
+<pre class="fs-code-change">
+opDeleteBodies(context, id + "deleteBodies1", {
+        "entities" : <span>qCreatedBy(id + "extrude1", EntityType.BODY)</span>
+});
+</pre><p>In your Part Studio, you should see the extruded surface disappear, but the new thickened body should still be present:</p>
+<div class="fs-image-row fs-image-row-small">
+   <img src="images/deleted-parts-list.png" alt="Deleted surface in parts list">
+   <img src="images/deleted-surface.png" alt="Deleted surface">
+</div>
+</li>
+<li><p>The final operation will subtract the thickened surface from the specified &quot;Part to cut&quot;. Type and select the autocompletion for <a href="../library.html#opBoolean-Context-Id-map"><code>opBoolean</code></a>:</p>
+<pre class="fs-code-insertion">
+opBoolean(context, id + "boolean1", {
+        "tools" : tools,
+        "operationType" : BooleanOperationType.UNION
+});
+</pre><p>Leave the default <code>Context</code> and <code>Id</code>, and set the following parameters:</p>
+<ul>
+<li><code>&quot;tools&quot;</code>, the parts to subtract, should be the result of the Thicken operation: &quot;<code>qCreatedBy(id + &quot;thicken1&quot;, EntityType.BODY)</code>&quot;</li>
+<li><code>&quot;targets&quot;</code>, the parts to be cut, should be set to the part set on the definition: &quot;<code>definition.partToCut</code>&quot;</li>
+<li><code>&quot;operationType&quot;</code>, the boolean operation to perform, should be &quot;<code>BooleanOperationType.SUBTRACTION</code>&quot;</li>
+</ul>
+<pre class="fs-code-change">
+opBoolean(context, id + "boolean1", {
+        "tools" : <span>qCreatedBy(id + "thicken1", EntityType.BODY)</span>,
+        <span>"targets" : definition.partToCut,</span>
+        "operationType" : BooleanOperationType.<span>SUBTRACTION</span>
+});
+</pre><p>In your Part Studio, you should now see the slot correctly cut out of your part, and the thickened body deleted:</p>
+<p><img src="images/slot-subtraction.png" alt="Slot subtraction"></p>
+</li>
+</ol>
+<p>Congratulations! You&#39;ve just completed your first FeatureScript feature.</p>
+<p>Feel free to play around with the feature. The slot feature function will be called again (i.e. regenerated) every time you change a slot feature&#39;s parameters, or change a feature upstream of a slot feature in the feature tree. After you update a Feature Studio and commit your changes, dependent Part Studios will also be regenerated.</p>
+<p>Try creating test cases for this feature. Where does the feature succeed? Where does it not do what you expect? How could the design be improved?</p>
+<h2>Review</h2>
+<p>In this tutorial, we&#39;ve discussed how to:</p>
+<p></p><div class="spacious-list"><ul>
+<li>Create a new <strong>feature type</strong></li>
+<li>Define definition <strong>parameters</strong></li>
+<li>Filter for different kinds of geometry by <strong>EntityType</strong> and <strong>BodyType</strong></li>
+<li>Modify geometry with <strong>operations</strong></li>
+<li>Keep track of operations and features with hierarchical <strong>ids</strong></li>
+<li>Get geometrical information from entities with <strong>evaluations</strong></li>
+<li>Specify geometry with <strong>queries</strong></li>
+<li>Update other tabs via <strong>commit</strong></li>
+<li>Add code quickly with the <strong>autocomplete menu</strong></li>
+<li>Navigate inserted code with <strong>autocomplete regions</strong></div></li>
+</ul>
+<p>In the next tutorials, we will cover more FeatureScript topics while refactoring the way our slot feature is created and improving its behavior.</p>
+<h2>Final feature code</h2>
+<p>Included here is the final code written in this tutorial. Note that your FeatureScript version and Onshape Standard Library version may be different.</p>
+<pre class="fs-code-final">
+FeatureScript 1890;
+import(path : "onshape/std/common.fs", version : "1890.0");
+
+annotation { "Feature Type Name" : "Slot" }
+export const slot = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { "Name" : "Slot path", "Filter" : EntityType.EDGE, "MaxNumberOfPicks" : 1 }
+        definition.slotPath is Query;
+
+        annotation { "Name" : "Part to cut", "Filter" : EntityType.BODY && BodyType.SOLID, "MaxNumberOfPicks" : 1 }
+        definition.partToCut is Query;
+
+        annotation { "Name" : "Width" }
+        isLength(definition.width, LENGTH_BOUNDS);
+    }
+    {
+        opExtrude(context, id + "extrude1", {
+               "entities" : definition.slotPath,
+               "direction" : evOwnerSketchPlane(context, {"entity" : definition.slotPath}).normal,
+               "endBound" : BoundingType.THROUGH_ALL,
+               "startBound" : BoundingType.THROUGH_ALL
+        });
+
+        opThicken(context, id + "thicken1", {
+               "entities" : qCreatedBy(id + "extrude1", EntityType.BODY),
+               "thickness1" : definition.width / 2,
+               "thickness2" : definition.width / 2
+        });
+
+        opDeleteBodies(context, id + "delete1", {
+               "entities" : qCreatedBy(id + "extrude1", EntityType.BODY)
+        });
+
+        opBoolean(context, id + "boolean1", {
+               "tools" : qCreatedBy(id + "thicken1", EntityType.BODY),
+               "targets" : definition.partToCut,
+               "operationType" : BooleanOperationType.SUBTRACTION
+        });
+
+    });
+</pre>
+</div>
+</body>
+</html>

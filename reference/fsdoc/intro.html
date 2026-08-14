@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Introduction</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li class="fs-active-link"><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Introduction</h1>
+<h3>FeatureScript in Onshape</h3>
+<p>Onshape&#39;s Part Studios are written in FeatureScript. User actions that modify a Part Studio, under the hood, actually modify a representation of the Part Studio consisting of FeatureScript code.</p>
+<p>You can see the underlying FeatureScript of any Part Studio by right-clicking its tab and clicking &quot;Show code&quot;:
+<img src="tutorials/images/part-studio-code.png" alt="FeatureScript in Onshape"></p>
+<p>The individual components of a Part Studio&#39;s FeatureScript are familiar concepts for programmers of other languages:</p>
+<p></p><div class="spacious-list"><ul>
+<li>A <em>feature type</em> is a FeatureScript <em>function</em>.<ul>
+<li>The feature types in Onshape&#39;s default toolbar (like extrude and helix) are defined as functions in the <a href="library.html">Onshape Standard Library</a>.</li>
+<li>Custom feature types are defined in Feature Studios.</li>
+</ul>
+</li>
+<li>A <em>feature</em> in the feature tree is a <em>function call</em>.</li>
+<li>Feature <em>parameters</em> are contained in the function&#39;s <em>arguments</em>.</li>
+<li>A <em>Part Studio</em> defines a <em>build function</em>, containing a function call for every feature.</li>
+<li>The <em>geometry</em> of a Part Studio is the <em>output</em> of the build function.</li>
+<li>Part Studio <em>regeneration</em>, triggered when features are updated, is <em>execution</em> of the build function.</li>
+<li>The <em>rollback bar</em> is a <em>return statement</em> in the build function, causing subsequent features not to run.</div></li>
+</ul>
+<p>In addition to custom features, FeatureScript can be used to define <a href="tables.html">custom tables</a> as functions that compute the data in the table by executing once a Part Studio has finished regenerating.</p>
+<h3>Feature Studios</h3>
+<p>Feature types (along with other user-defined functions, types, etc.) are defined in Feature Studios within Onshape documents. Onshape&#39;s standard features are defined in the Feature Studios of a <a href="/documents/12312312345abcabcabcdeff">public document</a>, where their source code may be viewed.</p>
+<p>Feature Studios, Part Studios, and many types of data tabs in Onshape have a FeatureScript representation. These tabs, called &quot;modules&quot;, can be <a href="imports.html">imported</a> into Feature Studios, either in the same document or from versions of linked documents. This consistent interface makes code and data reuse simple and reliable.</p>
+<p>One consequence of Feature Studios living inside Onshape documents is that they share the version control and sharing systems used by the rest of Onshape, complete with permissions, versions, branches, and a full history of edits.</p>
+<p>See also:</p>
+<ul>
+<li><a href="https://cad.onshape.com/help/Content/FeatureStudio/feature_studios.htm">Onshape Help: Feature Studios</a> - Documentation for using Onshape&#39;s Feature Studios UI.</li>
+<li><a href="https://cad.onshape.com/help/Content/Home/featurescript_co_complete.htm">Onshape Labs: FeatureScript Co-Complete</a> - Instructions on enabling AI to contextually suggest and complete FeatureScript code as you develop in a Feature Studio.</li>
+<li><a href="https://ace.c9.io/">Ace</a> - Feature Studios are implemented based on the Ace editor and many Ace <a href="https://github.com/ajaxorg/ace/wiki/Default-Keyboard-Shortcuts">shortcuts</a> work in a Feature Studio.</li>
+</ul>
+<h3>Language fundamentals</h3>
+<p>FeatureScript&#39;s basic syntax is designed to look and feel familiar to programmers of other C-family languages like C++, JavaScript, or Java. The language is fully whitespace insensitive, and FeatureScript statements always end in a semicolon. <code>/\* block comments \*/</code> and <code>// end of line comments</code> can be added in the standard way.</p>
+<p>Determinism is a core principle of FeatureScript. At Onshape we believe that models must regenerate the same way every time, everywhere. Thus, FeatureScript has no concept of undefined behavior, and execution cannot be influenced by external input, time, or randomness.</p>
+<p>FeatureScript discourages hidden state and shared references. Value semantics are used everywhere, and when references are needed, a distinctive syntax (using <a href="variables.html#box">boxes</a>) makes it obvious. Assignment, argument passing, and function return values all behave as if making deep copies.</p>
+<h3>Clean geometric calculation</h3>
+<p>FeatureScript is strongly typed and dynamically typed, and overloads for functions and operators can be cleanly defined for each FeatureScript type.</p>
+<p>The Standard Library defines natural overloads for operators (like <code>+</code> and <code>\*</code>) on geometric types (like <code>Vector</code> and <code>Transform</code>). This makes calculations involving these types simple and readable:</p>
+<pre><code>var v is Vector = vector(1, 2) + vector(3, 4);
+var transformedPoint = transform2 * transform1 * originalPoint;
+</code></pre>
+<p>FeatureScript is also a natural fit for working with units. Operator overloads are defined to create a <code>ValueWithUnits</code>:</p>
+<pre><code>const width is ValueWithUnits = 1.5 * inch;
+const angle is ValueWithUnits = 30 * degree;
+const area  is ValueWithUnits = 12 * centimeter^2;
+</code></pre>
+<p>These values know their own dimensionality (length, angle, etc.), but don&#39;t differentiate unit systems (like meters vs. inches) making <code>1 * meter</code> equal to and indistinguishable from <code>1000 * millimeter</code>.</p>
+<p>Overloads on <code>ValueWithUnits</code> make math with units straightforward:</p>
+<pre><code>var squareArea = (3 * meter + 3 * inch)^2;                              // Has area units
+
+var pendulumPeriod = 2 * PI * sqrt(armLength / (9.8 * meter/second^2)); // Has time units
+
+var numberOfBricks = floor(wallLength / brickLength);                   // Has no units
+
+var nonsense = (3 * meter) + (3 * degree);                              // Throws an error from unit mismatch
+</code></pre>
+<p>Values with units also play nicely with vectors and transforms. The code below asserts that a point transformed by rotation around the z-axis is equal to the same point constructed trigonometrically:</p>
+<pre><code>const start is Vector = vector(2, 0, 0) * inch;
+const zAxis is Line   = line(vector(0, 0, 0) * inch, vector(0, 0, 1));
+const end   is Vector = rotationAround(zAxis, 30 * degree) * start;
+
+const goal  is Vector = vector(cos(30 * degree), sin(30 * degree), 0) * (2 * inch);
+
+println(tolerantEquals(end, goal)); // Prints &quot;true&quot;
+</code></pre>
+<p>For more on units, vectors, geometry, and other math in FeatureScript, see the <a href="library.html#category-Math">math section</a> of the Standard Library documentation.</p>
+</div>
+</body>
+</html>

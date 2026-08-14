@@ -9,8 +9,9 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable
 
-from onshape_tools.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
-from onshape_tools.operations import (
+from onshape_fs_mcp import fs_reference
+from onshape_fs_mcp.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
+from onshape_fs_mcp.operations import (
     check_model,
     create_validation_part_studio,
     feature_studio_status,
@@ -24,7 +25,7 @@ from onshape_tools.operations import (
 )
 
 SERVER_NAME = "onshape-branch-cable-trophy"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 PROTOCOL_VERSION = "2025-06-18"
 
 
@@ -66,6 +67,19 @@ VIEW_SCHEMA = {
     "enum": ["front", "right", "top", "iso", "reference_like"],
 }
 MODE_SCHEMA = {"type": "string", "enum": ["detailed", "simplified"]}
+FS_KIND_SCHEMA = {
+    "type": "string",
+    "enum": ["function", "type", "const", "predicate"],
+    "description": (
+        "function = callable FeatureScript function; type = type/enum definitions; "
+        "const = named constant values; predicate = typecheck predicates."
+    ),
+}
+GUIDE_PAGE_SCHEMA = {
+    "type": "string",
+    "enum": fs_reference.PAGES,
+    "description": "One of the vendored FsDoc guide pages (intro, feature-types, modeling, ...).",
+}
 
 
 def _local_state(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -303,6 +317,110 @@ TOOLS: list[dict[str, Any]] = [
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
+    # --- FeatureScript reference tools (local, offline) ---------------------
+    {
+        "name": "fs_list_modules",
+        "description": (
+            "List the FeatureScript standard library modules (geometry.fs, query.fs, sweep.fs, ...), "
+            "grouped by the reference site's categories (Modeling, Math, Onshape features, Utilities, "
+            "enums). Optionally filter to one category. Local and offline; useful before looking up "
+            "functions so you know which module to search."
+        ),
+        "inputSchema": object_schema({
+            "category": {"type": "string", "description": "Optional category filter (exact case-insensitive)."},
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_list_functions",
+        "description": (
+            "List FeatureScript functions (or types/constants/predicates when kind is set), each with its "
+            "module, signature, and one-line summary. Filter by module, category, kind, or a name prefix, "
+            "and cap the result with limit. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "module": {"type": "string", "description": "Optional module file (e.g. 'sweep' or 'sweep.fs')."},
+            "category": {"type": "string"},
+            "kind": FS_KIND_SCHEMA,
+            "prefix": {"type": "string", "description": "Only names starting with this prefix (case-insensitive)."},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_get_function",
+        "description": (
+            "Return the full reference entry for one FeatureScript function: exact signature, every "
+            "parameter with its type, requirement (Optional / Required), description and example, plus the "
+            "return type and module. Use for exact API details before writing FeatureScript. Constants and "
+            "typecheck predicates are also addressable via kind. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "name": {"type": "string"},
+            "module": {"type": "string", "description": "Disambiguate when the name exists in several modules."},
+            "kind": FS_KIND_SCHEMA,
+        }, ["name"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_get_type",
+        "description": (
+            "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, "
+            "EntityType): its kind, description, and each allowed value with type and description. Use it "
+            "when a function parameter references a type you need to understand. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "name": {"type": "string"},
+            "module": {"type": "string"},
+        }, ["name"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_search",
+        "description": (
+            "Keyword search across every FunctionScript function, type, constant, and predicate in the "
+            "vendored reference. Results are ranked by how strongly the query tokens match the name, "
+            "signature, parameter types, and description. Use this when you know roughly what you want but "
+            "not the exact name (for example 'sketch region extrude'). Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "query": {"type": "string"},
+            "module": {"type": "string"},
+            "category": {"type": "string"},
+            "kind": FS_KIND_SCHEMA,
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+        }, ["query"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_guide_section",
+        "description": (
+            "Return a section of the official FeatureScript language guide as plain text, with code blocks "
+            "fenced. Omit 'section' to get the whole page plus its heading outline; pass a section title to "
+            "narrow to one heading (matching is case-insensitive substring). Use this for language concepts "
+            "(feature types, the UI specification, queries, modeling) rather than individual functions. "
+            "Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "page": GUIDE_PAGE_SCHEMA,
+            "section": {"type": "string", "description": "Optional heading to narrow to."},
+        }, ["page"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_library_source",
+        "description": (
+            "Return the actual FeatureScript standard library source for a module (for example 'geometry', "
+            "'query', 'sweep') from the vendored mirror. With 'function' set, returns only the window "
+            "around that function's definition plus its usage line numbers. The real implementation is the "
+            "highest-fidelity reference for how Onshape writes FeatureScript. Local and offline."
+        ),
+        "inputSchema": object_schema({
+            "module": {"type": "string"},
+            "function": {"type": "string", "description": "Optional; extract the definition window for this function."},
+        }, ["module"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
 ]
 
 HANDLERS: dict[str, ToolHandler] = {
@@ -320,6 +438,46 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_create_validation_part_studio": _create_part_studio,
     "onshape_instantiate_feature": _instantiate,
     "onshape_run_validation_pipeline": _pipeline,
+    # FeatureScript reference tools (local, offline)
+    "fs_list_modules": lambda arguments: {
+        "categories": fs_reference.list_categories(),
+        "modules": fs_reference.list_modules(category=arguments.get("category")),
+    },
+    "fs_list_functions": lambda arguments: {
+        "functions": fs_reference.list_functions(
+            module=arguments.get("module"),
+            category=arguments.get("category"),
+            kind=arguments.get("kind"),
+            prefix=arguments.get("prefix"),
+            limit=arguments.get("limit", 50),
+        ),
+    },
+    "fs_get_function": lambda arguments: fs_reference.get_function(
+        name=arguments["name"],
+        module=arguments.get("module"),
+        kind=arguments.get("kind"),
+    ),
+    "fs_get_type": lambda arguments: fs_reference.get_type(
+        name=arguments["name"],
+        module=arguments.get("module"),
+    ),
+    "fs_search": lambda arguments: {
+        "results": fs_reference.search(
+            query=arguments["query"],
+            module=arguments.get("module"),
+            category=arguments.get("category"),
+            kind=arguments.get("kind"),
+            limit=arguments.get("limit", 20),
+        ),
+    },
+    "fs_guide_section": lambda arguments: fs_reference.guide_section(
+        page=arguments["page"],
+        section=arguments.get("section"),
+    ),
+    "fs_library_source": lambda arguments: fs_reference.library_source(
+        module=arguments["module"],
+        function=arguments.get("function"),
+    ),
 }
 
 
@@ -378,8 +536,12 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             "instructions": (
-                "Use read-only inspection tools unless the user explicitly requests a cloud mutation. "
-                "Mutating tools require confirm_mutation=true and never return credentials."
+                "This server assists with writing Onshape FeatureScript and with testing it in Onshape. "
+                "For FeatureScript questions, use the offline reference tools first (fs_search, "
+                "fs_get_function, fs_get_type, fs_guide_section, fs_library_source): the standard library "
+                "is rarely present in language-model training data, so look up exact signatures before "
+                "writing code. Use read-only inspection tools unless the user explicitly requests a cloud "
+                "mutation; mutating tools require confirm_mutation=true and never return credentials."
             ),
         })
     if method == "ping":

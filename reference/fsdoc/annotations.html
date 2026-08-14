@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="shortcut icon" href="/favicon.png">
+<title>Annotations</title>
+<link rel="stylesheet" href="fs-doc.css" type="text/css">
+<!-- Fix for BEL-51181: The document domain is manually set to 'onshape.com'
+    in the app, so when firefox (inexplicably) needs to access the opener,
+    there's a permission error unless the current domain matches. -->
+<script>
+var newDomain = 'onshape.com';
+if (document.domain.endsWith(newDomain)) {
+  document.domain = newDomain;
+}
+</script>
+</head>
+<body>
+<div class="fs-sidebar">
+<div class="fs-logo"><a href="index.html">FeatureScript</a></div><div class="fs-section-heading">
+<a href="index.html">Welcome to FeatureScript</a>
+</div>
+<ul>
+<li><a href="tutorials/create-a-slot-feature.html"><i>Tutorials</i></a><li><a href="library.html"><i>Standard Library documentation</i></a><li><a href="/documents/12312312345abcabcabcdeff" target="_blank"><i>Standard Library source</i></a></ul>
+<div class="fs-section-heading">
+<a href="intro.html">FeatureScript guide</a>
+</div>
+<ul>
+<li><a href="intro.html">Introduction</a><li><a href="feature-types.html">Defining feature types</a><li><a href="uispec.html">Feature UI</a><li><a href="output.html">Feature output</a><li><a href="variables.html">Values and types</a><li><a href="modeling.html">Modeling</a><li><a href="tables.html">Custom tables</a><li><a href="computed-part-properties.html">Computed part properties</a><li><a href="imports.html">Imports</a><li><a href="debugging-in-feature-studios.html">Debugging in Feature Studios</a></ul>
+<div class="fs-section-heading">
+<a href="tokens.html">Language reference</a>
+</div>
+<ul>
+<li><a href="tokens.html">Lexical conventions</a><li><a href="type-tags.html">Types and type tags</a><li><a href="top-level.html">Top-level constructs</a><li><a href="syntax.html">Syntax and semantics</a><li class="fs-active-link"><a href="annotations.html">Annotations</a><li><a href="exceptions.html">Exception handling</a><li><a href="relational.html">Equality and ordering</a></ul>
+</div><div class="fs-doc-body"><h1>Annotations</h1>
+<p>Top level declarations, enumeration values, and statements may have
+<em>annotations</em>.  An annotation is a set of key+value pairs written as a
+map literal.  Annotations are interpreted by system software and are
+not visible to programs.</p>
+<p>Annotation keys should be strings.</p>
+<p>Annotation values are usually strings or enumerations, but other valid
+expressions may be used.  However, these expressions do
+not have access to function local variables even if they appear inside
+a function.  The system may ignore erroneous values.</p>
+<p>Annotations are used to define the user interface for features.  For
+example, consider the definition</p>
+<pre><code>export enum BooleanOperationType
+{
+    annotation {&quot;Name&quot; : &quot;Union&quot;}
+    UNION,
+    annotation {&quot;Name&quot; : &quot;Subtract&quot;}
+    SUBTRACTION,
+    annotation {&quot;Name&quot; : &quot;Intersect&quot;}
+    INTERSECTION,
+    annotation {&quot;Hidden&quot; : true}
+    SUBTRACT_COMPLEMENT
+}
+</code></pre>
+<p>The annotations take effect when <code>BooleanOperationType</code> is used as a
+feature parameter.  Then the names appear in the feature menu except
+for the hidden value which is not available to users.  (In this case
+the hidden value is meant for use in FeatureScript code.)</p>
+<p>A feature has an annotation like</p>
+<pre><code>annotation { &quot;Feature Type Name&quot; : &quot;Fillet&quot; }
+</code></pre>
+<p>The &quot;Feature Type Name&quot; is required on all features.</p>
+</div>
+</body>
+</html>
