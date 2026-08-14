@@ -123,13 +123,11 @@ def main() -> int:
 
     # ---- C. Cross-version import boundary (upload probes) ----------------
     def import_probe(version: str) -> dict:
-        # The body must READ definition.size: featurespecs are emitted per
-        # definition.* field the body uses (gap-probe 2026-08-14). A feature
-        # with an empty body — or a body that never reads `definition` — yields
-        # 0 specs for any import version, indistinguishable from a version-
-        # boundary rejection. Mirror the proven 1-spec shape of
-        # experiments/01-three-layer.fs so a rejected import is the ONLY way
-        # to get specCount 0 (plus errorType/errorMessages).
+        # The precondition must carry a BOUND SPEC: a feature emits a parameter
+        # spec only for precondition params with one (symbol-sweep 2026-08-14 —
+        # bare isLength yields specCount 0 for ANY import version, body
+        # irrelevant). Mirror experiments/01-three-layer.fs so a rejected
+        # import is the ONLY way to get specCount 0 (plus errorType/4xx).
         source = (
             f"FeatureScript {version};\n"
             f'import(path : "onshape/std/geometry.fs", version : "{version}.0");\n\n'
@@ -137,7 +135,7 @@ def main() -> int:
             "export const importBoundaryProbe = defineFeature(function(context is Context, id is Id, definition is map)\n"
             "    precondition\n"
             "    {\n"
-            "        isLength(definition.size);\n"
+            "        isLength(definition.size, { (millimeter) : [1, 2, 3] } as LengthBoundSpec);\n"
             "    }\n"
             "    {\n"
             "        opExtrude(context, id + \"extrude\", {\n"

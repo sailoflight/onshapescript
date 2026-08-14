@@ -89,11 +89,13 @@ reference does not document. Full run log: `live/README.md` (15 experiments,
   `defineFeature` function signature, or referencing an absent symbol in a
   `precondition` (`GBTErrorStringEnum`, `isString`, `isArray`), fails at save
   time with `featureSpecs` empty. The earlier "stale import (`2960.0`)" example
-  is now **confounded**: `featurespecs` are only emitted for `definition.*`
-  fields the body actually reads, and that experiment's body never reads
-  `definition` — so its 0 specs may be a probe artifact, not a version
-  rejection (gap-probe 2026-08-14). Use an eval with a definition-reading body
-  to test version behavior instead.
+  is now **confounded**: `featurespecs` are only emitted for precondition
+  params carrying a bound spec (e.g. `{ (millimeter) : [...] } as
+  LengthBoundSpec`); a bare `isLength` emits no spec regardless of body —
+  symbol-sweep 2026-08-14 proved this by uploading a definition-reading body
+  and still getting `specCount 0`. So experiment 06 (no precondition at all)
+  needs a bound-spec probe to test version behavior; `scripts/live_gap_probe.py`
+  and `scripts/live_symbol_sweep.py` carry the corrected probe.
 - **`featureSpecs` empty is ambiguous.** A file of plain functions (compiles
   fine) also returns empty; only annotated export features appear. No error
   field exists on `featurespecs`, the Feature Studio GET, or the document
@@ -215,4 +217,17 @@ Rules that save quota:
   another bulk run. It needs a probe whose feature body reads `definition.*`:
   `specCount 0` is ambiguous otherwise (empty bodies emit no specs at any
   version — gap-probe 2026-08-14; `scripts/live_gap_probe.py` is fixed).
+- **Quota tests: minimize the unit whose crash is total; bundle only what is
+  free to bundle.** A bundled eval is 1 call whether it holds 1 symbol or 10
+  (clean bundles PASS in bulk), so large bundles are efficient — but a failing
+  bundle binary-splits at 1 call per revealed symbol, so over-bundling symbols
+  likely to fail is costly. More importantly, a quota run must **save
+  incrementally**: `scripts/live_symbol_sweep.py` first run only wrote at the
+  end and a single unattributable runtime error (a value-typed predicate
+  deref'ing a `5` dummy: "Attempt to dereference non-container 5") recursed its
+  binary split forever until the API 429'd — losing all 61 calls' results.
+  Fixes: save after every recorded symbol; stop splitting at a 1-element bundle
+  (record UNATTRIBUTABLE and move on); pass a `vector(1,2,3)` dummy for
+  `value`-typed params, not `5`, so structural predicates (is2dDirection,
+  isLengthVector, …) don't deref the dummy at runtime.
 

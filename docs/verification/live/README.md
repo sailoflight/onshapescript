@@ -139,22 +139,24 @@ eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10
 **B. render_preview（唯一零真实调用记录的工具）✅**：iso 300×300 → 57927 字节
 PNG（sha256 d676c853…），1 调用。渲染通路端到端可用。
 
-**C. 跨版本 import 边界 —— 探测自身有缺陷，边界仍未测出**
+**C. 跨版本 import 边界 —— 探测仍有缺陷，上界未测出；但 spec 发射机制已定位**
 3029/3044/3035 三个 import 版本全部 `specCount:0` + `errorType/errorMessages`
 全空 + 上传非 4xx → 编译器都**接受**了这些 source（import 版本 ≤ 运行时 3044
-兼容）。但 0 specs 不是"接受"的证据：**feature spec 只对 body 实际读取的
-`definition.*` 参数发射**。探测用空 body（`{ }`）→ 0 specs；对照实验 06
-（import 2960.0，body 有 opExtrude 但**不引用 definition**）也是 0 specs 无错误
-文本；而全部 1-spec 实验（01/02/04/08/09/10/12…）的 body 都引用了
-`definition.*`。
+兼容）。0 specs 不是"接受"的证据，但 symbol-sweep 补出的对照把它解释清楚了：
+**feature spec 只对 precondition 里带 bound spec 的参数发射**（实验
+01/02/04/05/08/09/10/12/14/15 全部 1-spec，precondition 全部有
+`{ (millimeter) : [...] } as LengthBoundSpec`）；裸 `isLength(definition.size)`
+无论 body 读不读 definition 都是 0 specs（sweep 的 import 探测 body 用
+`opExtrude(... "endDepth" : definition.size)` 仍 0 specs——证明**body 无关**，
+纠正了本轮早先"body 读参数才发射"的推断）。
 
-由此**实验 06 的旧结论被推翻/混淆**："import 旧版本 2960.0 是签名层错误"——06
-的 body 不读 definition，0 specs 未必是版本拒绝。仍成立的签名层 0-spec 案例：
-缺 context（实验 03）、precondition 引用不存在的符号（07/11/13），这些与 body
-是否读参数无关。上界探测（import > 服务器，如 3050）分支也因"empty ≠ ok"走了
-3035 二分而没跑到。修复：`import_probe` 已改为 body 用
-`opExtrude(... "endDepth" : definition.size)`（复刻实验 01 的 1-spec 形状），
-下次按需跑才能测出上界。
+由此**实验 06 的旧结论进一步被混淆**："import 旧版本 2960.0 是签名层错误"——
+06 根本没有 precondition（无 bound spec），0 specs 完全可由"无参数 UI"解释，
+未必是版本拒绝。仍成立的签名层 0-spec 案例：缺 context（实验 03）、precondition
+引用不存在的符号（07/11/13）——这些是真实编译失败。修复：import probe 的
+precondition 已改为带 bound spec（`isLength(definition.size, { (millimeter) :
+[1,2,3] } as LengthBoundSpec)`），这样"接受"→1 spec、"版本拒绝"→0 specs +
+errorType。上界（import > 服务器，3050）仍未测出，需再跑一次修正后的探测。
 
 **D. REST 只读端点（getDocument / getDocumentVersions / getDocumentWorkspaces）**
 **未跑到**——C 分区耗掉 9 次后预算尽。已把 D 提到 C 之前，保证 3 次只读必跑。

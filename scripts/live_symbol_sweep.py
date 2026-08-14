@@ -1,34 +1,39 @@
 #!/usr/bin/env python3
-"""A-tier existence sweep: every constants/types/predicates/non-Context function
-in the vendored FsDoc mirror against the deployed FeatureScript runtime, plus
-the cross-version import boundary (the named remaining unknown).
+"""A-tier existence sweep: constants/types/predicates/non-Context functions in
+the vendored FsDoc mirror against the deployed FeatureScript runtime, plus the
+cross-version import boundary (the named remaining unknown).
 
 Oracle & cost model (proven by scripts/live_is_probe.py):
 - A bundle of VALID expressions compiles clean in 1 eval -> every symbol in it
   exists (PASS). The compiler stops at the first error, so a failing bundle
-  reveals ONE symbol per eval; it is dropped and the rest re-evaluated until
-  the bundle is clean.
+  reveals ONE symbol per eval; it is dropped and the rest re-evaluated.
 - Verdicts from the error text: "Call X(...) does not match X(...)" => X exists
-  (my arg was wrong); "Function X with N argument(s) not found" => drift
-  candidate (the mirror documents X but the runtime has no such overload — the
-  isUvVector signal); "Could not resolve symbol X" / "Variable X not found" =>
-  MISSING.
+  (arg mismatch); "Function X with N argument(s) not found" => drift candidate
+  (the isUvVector signal); "Could not resolve symbol X"/"Variable X not found"
+  => MISSING. A bundle reduced to 1 symbol whose error still names nothing
+  (e.g. "Attempt to dereference non-container 5") is recorded as RUNTIME-ERROR
+  and NOT split further (bounded — an unbounded split recursed forever and 429'd
+  the first run).
 - Functions taking a Context cannot be dummy-called (Context is server-built),
-  so they are excluded from the batch sweep (the zero-cost mirror already
-  validates them; they are not batch-sweepable by eval).
+  so they are excluded from the batch sweep.
 
-Sections run in priority order and the run stops at --budget (default 99) via
-onshape_fs_mcp.budget.BudgetGuard:
-  1. import boundary  (upload probes, ~9 calls) — the named unknown
-  2. constants        (129 bare values, bundles of 12)
-  3. predicates       (115 arity-matched calls, bundles of 8)
-  4. types            (270 bare names; feasibility probe decides)
-  5. functions        (non-Context, arity+type-matched calls, bundles of 5)
+Resume & budget (user 2026-08-14): results are SAVED AFTER EVERY RECORD (a
+crash keeps everything verified so far), every log line carries a timestamp,
+symbols already recorded are skipped on re-run, and --budget 0 (default) sizes
+the run from the UNVERIFIED remainder instead of a flat 99 each time.
+
+Rate limit: 2s baseline throttle (matches the is*/gap probes ~1 req/s that ran
+clean) plus a single 30s cooldown+retry on 429 (the client already retries
+1s/2s/4s internally; a second rapid retry loop just adds to the flood).
+
+Sections in priority order: import boundary (corrected bound-spec probe,
+control 3044 -> upper bound 3050), constants, predicates, types, functions.
 
 Results -> docs/verification/live/live-symbol-sweep.json
 """
 import argparse
 import json
+import math
 import re
 import sys
 import time
@@ -45,8 +50,7 @@ INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
 OUT = ROOT / "docs" / "verification" / "live" / "live-symbol-sweep.json"
 
 # Dummy arg expression per FS parameter type. Anything not listed falls back to
-# "5" -> "Call X(...) does not match" -> EXISTS (arg mismatch), still confirms
-# existence, at the cost of one split per wrong call.
+# "5" -> "Call X(...) does not match" -> EXISTS (arg mismatch).
 DUMMY = {
     "map": "{}",
     "Query": "qEverything(EntityType.BODY)",
@@ -54,8 +58,11 @@ DUMMY = {
     "number": "5",
     "Real": "5",
     "integer": "5",
-    "value": "5",
-    "val": "5",
+    # A vector, not 5: value-typed predicates that inspect structure
+    # (is2dDirection, isLengthVector, isUnitlessVector, ...) do `value[0]` and
+    # deref a bare number at runtime ("Attempt to dereference non-container 5").
+    "value": "vector(1, 2, 3)",
+    "val": "vector(1, 2, 3)",
     "string": "\"x\"",
     "Id": "\"x\"",
     "boolean": "true",
@@ -68,18 +75,18 @@ DUMMY = {
     "BodyType": "BodyType.SOLID",
 }
 
-# Error-text -> verdict. Order matters: the specific "with N arg(s) not found"
-# (drift flag) must beat the generic "Function X with" (exists).
 _MISSING = re.compile(r"Could not resolve symbol ([A-Za-z_]\w*)|Variable ([A-Za-z_]\w*) not found")
 _DRIFT = re.compile(r"Function ([A-Za-z_]\w*) with \d+ argument\(s\) not found")
 _EXISTS = re.compile(r"Call ([A-Za-z_]\w*)\(|Cannot reference function ([A-Za-z_]\w*)|Function ([A-Za-z_]\w*) with")
 _RUNTIME = re.compile(r"Attempt to dereference non-container|Runtime exception|Cannot .* non-container")
-_NAME = re.compile(r"([A-Za-z_]\w*)")
+
+
+def ts() -> str:
+    return time.strftime("%H:%M:%S")
 
 
 def parse_signature(sig: str) -> list[tuple[str, str]]:
-    """Return [(param_name, type)] from a signature string like
-    'f(a is number, b is map @optional)'.  Unparseable params get type '?'."""
+    """Return [(param_name, type)] from a signature string. Unparseable -> '?'."""
     m = re.match(r"[\w.]+\s*\((.*)\)\s*$", sig or "")
     if not m or not (m.group(1) or "").strip():
         return []
@@ -95,7 +102,7 @@ def parse_signature(sig: str) -> list[tuple[str, str]]:
 
 def gen_call(f: dict) -> str | None:
     """A valid-ish call expression for f, or None if f takes a Context (not
-    batch-sweepable: Context is server-built)."""
+    batch-sweepable)."""
     ps = parse_signature(f.get("signature"))
     if not ps:
         return f"{f['name']}()" if f.get("signature", "").endswith("()") else None
@@ -106,18 +113,19 @@ def gen_call(f: dict) -> str | None:
 
 
 class Sweep:
-    def __init__(self, guard: BudgetGuard, part_studio_id: str, results: dict, out: Path):
+    def __init__(self, guard: BudgetGuard, part_studio_id: str, results: dict,
+                 out: Path, done: set):
         self.guard = guard
         self.part_studio_id = part_studio_id
         self.results = results
         self.symbols = results["symbols"]
         self.out = out
+        self.done = done
         self.budget_stopped = False
 
     def save(self) -> None:
-        """Write current state to disk. Called after every record so a crash or
-        a budget stop never loses verified symbols (the first run crashed and
-        lost all 61 calls' results — it only wrote at the end)."""
+        """Write current state to disk after every record so a crash, a budget
+        stop, or a 429 never loses already-verified symbols."""
         self.results["final"] = self.guard.summary()
         self.results["budgetStopped"] = self.budget_stopped
         self.out.write_text(json.dumps(self.results, ensure_ascii=False, indent=1) + "\n")
@@ -125,10 +133,22 @@ class Sweep:
     def run_bundle(self, section: str, names: list[tuple[str, str]]) -> list[str]:
         body = ", ".join(expr for _, expr in names)
         script = f"function(context is Context, id is Id) {{ return [{body}]; }}"
-        time.sleep(0.2)  # stay under the Onshape rate limit (429 in the first run)
-        r = eval_featurescript(script, part_studio_id=self.part_studio_id,
-                               client=self.guard.client)
-        return r["errors"]
+        time.sleep(2.0)  # global throttle; the is*/gap probes ran clean ~1 req/s
+        try:
+            r = eval_featurescript(script, part_studio_id=self.part_studio_id,
+                                   client=self.guard.client)
+            return r["errors"]
+        except RuntimeError as exc:
+            if "429" not in str(exc):
+                raise
+            # The client already retried with 1s/2s/4s backoff; out-wait the
+            # rate-limit window once, then give up (incremental save keeps all
+            # prior results).
+            print(f"[{ts()}] [429] cooling down 30s in {section}", flush=True)
+            time.sleep(30)
+            r = eval_featurescript(script, part_studio_id=self.part_studio_id,
+                                   client=self.guard.client)
+            return r["errors"]
 
     def attribute(self, err: str, names: list[tuple[str, str]]) -> str | None:
         pool = {n for n, _ in names}
@@ -155,7 +175,7 @@ class Sweep:
     def record(self, name, call, verdict, err) -> None:
         self.symbols[name] = {"call": call, "verdict": verdict,
                               "error": err[:220] if err else None}
-        print(f"[{verdict}] {name}: {(err or '')[:110]}", flush=True)
+        print(f"[{ts()}] [{verdict}] {name}: {(err or '')[:110]}", flush=True)
         self.save()
 
     def probe(self, section: str, bundle: list[tuple[str, str]]) -> None:
@@ -163,7 +183,7 @@ class Sweep:
             return
         if self.guard.exceeded():
             self.budget_stopped = True
-            print(f"[budget] spent {self.guard.spent}/{self.guard.budget}; "
+            print(f"[{ts()}] [budget] spent {self.guard.spent}/{self.guard.budget}; "
                   f"{section} left {len(bundle)} unverified", flush=True)
             self.save()
             return
@@ -176,15 +196,13 @@ class Sweep:
         victim = self.attribute(err, bundle)
         if victim is None:
             if len(bundle) == 1:
-                # A single call that still names no symbol (e.g. a runtime error
-                # like "Attempt to dereference non-container 5"). Record it and
-                # STOP — the first run recursed forever here (bundle[0:] == the
-                # same bundle) and 429'd. The symbol is known (it is the bundle)
-                # and the error text says why it could not be verified.
+                # Single call whose error names no symbol (e.g. a runtime error).
+                # Record and STOP — never recurse on a 1-element bundle (the
+                # first run did and 429'd in an infinite split).
                 self.record(bundle[0][0], bundle[0][1], self.verdict(err), err)
                 return
             mid = len(bundle) // 2
-            print(f"[split] {section} unattributable: {err[:90]}", flush=True)
+            print(f"[{ts()}] [split] {section} unattributable: {err[:90]}", flush=True)
             self.probe(section, bundle[:mid])
             self.probe(section, bundle[mid:])
             return
@@ -192,20 +210,25 @@ class Sweep:
         self.probe(section, [b for b in bundle if b[0] != victim])
 
     def sweep(self, section: str, names: list[tuple[str, str]], size: int) -> None:
-        if self.guard.exceeded():
-            self.budget_stopped = True
+        todo = [(n, e) for n, e in names if n not in self.done]
+        if not todo:
+            print(f"[{ts()}] --- {section}: all verified, skipping", flush=True)
             return
-        print(f"--- {section}: {len(names)} symbols @ {size}/bundle "
-              f"(spent {self.guard.spent}/{self.guard.budget})")
-        for i in range(0, len(names), size):
-            self.probe(section, names[i:i + size])
+        print(f"[{ts()}] --- {section}: {len(todo)} unverified @ {size}/bundle "
+              f"(spent {self.guard.spent}/{self.guard.budget})", flush=True)
+        for i in range(0, len(todo), size):
+            self.probe(section, todo[i:i + size])
             if self.guard.exceeded():
                 break
 
 
 def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
-    """Cross-version import probes (fixed definition-reading body, see
-    docs/verification/live/experiments/import-boundary/)."""
+    """Cross-version import probes with the CORRECTED precondition (annotation +
+    bound spec, mirroring experiments/01-three-layer.fs exactly — a bare
+    isLength yields specCount 0 for any version, so the earlier runs' 0-spec
+    results could not discriminate acceptance). Always re-probes the CONTROL
+    3044 (the deployed runtime — it cannot be rejected, so 1 spec confirms the
+    probe now emits specs) before probing the upper bound 3050."""
     def probe(version: str) -> dict:
         source = (
             f"FeatureScript {version};\n"
@@ -214,7 +237,8 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
             "export const importBoundaryProbe = defineFeature(function(context is Context, id is Id, definition is map)\n"
             "    precondition\n"
             "    {\n"
-            "        isLength(definition.size);\n"
+            '        annotation { "Name" : "Size" }\n'
+            "        isLength(definition.size, { (millimeter) : [14, 18, 28] } as LengthBoundSpec);\n"
             "    }\n"
             "    {\n"
             "        opExtrude(context, id + \"extrude\", {\n"
@@ -227,6 +251,7 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
         )
         path = f"/api/featurestudios/d/{did}/w/{wid}/e/{EXPERIMENT_FS_ID}"
         current = guard.client.request("GET", path)
+        time.sleep(2.0)
         try:
             updated = guard.client.request(
                 "POST", path,
@@ -242,6 +267,7 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
             )
         except RuntimeError as exc:
             return {"declared": version, "postError": str(exc)[:150]}
+        time.sleep(2.0)
         specs = guard.client.request("GET", path + "/featurespecs", timeout=300)
         feature_specs = specs.get("featureSpecs", [])
         lang_version = None
@@ -257,31 +283,34 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
         }
 
     results = {}
-    for version in ("3029", "3044"):
-        if guard.exceeded():
-            break
-        results[version] = probe(version)
-        print(f"[import:{version}] {json.dumps(results[version])[:160]}")
-    if not guard.exceeded():
-        if results.get("3044", {}).get("compile") == "ok":
-            results["3050"] = probe("3050")   # expect rejection -> upper bound
-        else:
-            results["3035"] = probe("3035")   # bisect the failure
-        print(f"[import:bisect] {json.dumps(results[list(results)[-1]])[:160]}")
+    control = probe("3044")                     # control: deployed runtime, must accept
+    results["3044"] = control
+    print(f"[{ts()}] [import:3044] {json.dumps(control)[:160]}", flush=True)
+    if control.get("compile") == "ok":
+        results["3050"] = probe("3050")         # upper bound: expect rejection
+        print(f"[{ts()}] [import:3050] {json.dumps(results['3050'])[:160]}", flush=True)
     return results
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--budget", type=int, default=99,
-                        help="max ledgered API calls this run (default 99)")
+    parser.add_argument("--budget", type=int, default=0,
+                        help="max ledgered calls; 0 (default) sizes from the "
+                             "unverified remainder instead of a flat 99")
     parser.add_argument("--part-studio-id", default=DEFAULT_PART_STUDIO_ID)
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args()
 
-    guard = BudgetGuard(args.budget, "symbol existence sweep")
-    client = guard.client
-    did, wid = client.state["documentId"], client.state["workspaceId"]
+    # Resume: keep everything already verified; the budget then only covers the
+    # remainder, so a re-run after progress is cheap instead of 99 each time.
+    prev: dict = {}
+    if args.out.exists():
+        try:
+            prev = json.loads(args.out.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            prev = {}
+    symbols = prev.get("symbols", {})
+    done = set(symbols)
 
     idx = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
     funcs: dict[str, dict] = {}
@@ -292,29 +321,47 @@ def main() -> int:
         preds.setdefault(p["name"], p)
     consts = sorted({c["name"] for c in idx["constants"]})
     types = sorted({t["name"] for t in idx["types"]})
-
     all_callable = {**funcs, **preds}
     no_ctx = [n for n, f in all_callable.items() if gen_call(f) is not None]
-    print(f"sweeping {len(consts)} constants, {len(types)} types, "
-          f"{len(preds)} predicates, {len(no_ctx)}/{len(all_callable)} "
-          f"callables (no Context); import boundary first. "
-          f"preflight OK, annual remaining {guard.summary()['annualRemaining']}")
 
-    results = {"budget": guard.summary(), "importBoundary": {}, "symbols": {}}
-    sweep = Sweep(guard, args.part_studio_id, results, args.out)
+    if args.budget <= 0:
+        unv = {
+            "constants": sum(1 for c in consts if c not in done),
+            "predicates": sum(1 for p in preds if p not in done),
+            "types": sum(1 for t in types if t != "Context" and t not in done),
+            "functions": sum(1 for n in no_ctx if n not in done),
+        }
+        auto = 6  # import control + boundary
+        auto += math.ceil(unv["constants"] / 12)
+        auto += math.ceil(unv["predicates"] / 8)
+        auto += math.ceil(unv["types"] / 10) + 1  # + feasibility probe
+        auto += math.ceil(unv["functions"] / 5)
+        args.budget = min(99, int(auto * 1.4) + 8)
+        print(f"[{ts()}] auto budget: {auto} est -> {args.budget} "
+              f"(unverified {unv})", flush=True)
 
-    results["importBoundary"] = import_boundary(guard, did, wid)
-    sweep.save()  # the import boundary is the named unknown; never lose it
+    guard = BudgetGuard(args.budget, "symbol existence sweep")
+    did, wid = guard.client.state["documentId"], guard.client.state["workspaceId"]
+    print(f"[{ts()}] preflight OK, annual remaining "
+          f"{guard.summary()['annualRemaining']}; import boundary first",
+          flush=True)
+
+    results = {"budget": guard.summary(), "importBoundary": prev.get("importBoundary", {}),
+               "symbols": symbols}
+    sweep = Sweep(guard, args.part_studio_id, results, args.out, done)
+
+    results["importBoundary"].update(import_boundary(guard, did, wid))
+    sweep.save()
 
     sweep.sweep("constants", [(c, c) for c in consts], 12)
     sweep.sweep("predicates", [(p, gen_call(preds[p])) for p in sorted(preds)], 8)
     # types: bare type names are value expressions if the runtime allows it.
-    if not guard.exceeded():
+    if "Context" not in done and not guard.exceeded():
         sweep.probe("types-feasibility", [("Context", "Context")])
     if not guard.exceeded() and sweep.symbols.get("Context", {}).get("verdict") == "PASS":
         sweep.sweep("types", [(t, t) for t in types if t != "Context"], 10)
     elif not guard.exceeded():
-        print("--- types skipped: bare type names are not value expressions", flush=True)
+        print(f"[{ts()}] --- types skipped: bare type names are not value expressions", flush=True)
 
     sweep.sweep("functions", [(n, gen_call(all_callable[n])) for n in sorted(no_ctx)], 5)
 
@@ -323,8 +370,9 @@ def main() -> int:
     for r in results["symbols"].values():
         v = r["verdict"]
         verdicts[v] = verdicts.get(v, 0) + 1
-    print(f"\nspent {guard.spent}/{guard.budget} ledgered calls; verdicts={verdicts}")
-    print(f"wrote {args.out}")
+    print(f"[{ts()}] spent {guard.spent}/{guard.budget} ledgered calls; "
+          f"total symbols verified {len(results['symbols'])}, verdicts={verdicts}")
+    print(f"[{ts()}] wrote {args.out}")
     return 0
 
 

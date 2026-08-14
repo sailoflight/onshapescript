@@ -1,0 +1,47 @@
+{
+ "budget": {
+  "label": "symbol existence sweep",
+  "budget": 99,
+  "spent": 0,
+  "remaining": 99,
+  "annualRemaining": 1829
+ },
+ "importBoundary": {
+  "3029": {
+   "declared": "3029",
+   "specCount": 0,
+   "compile": "empty",
+   "errorType": null,
+   "errorMessages": null,
+   "languageVersion": null,
+   "microversionSkew": false
+  },
+  "3044": {
+   "declared": "3044",
+   "specCount": 0,
+   "compile": "empty",
+   "errorType": null,
+   "errorMessages": null,
+   "languageVersion": null,
+   "microversionSkew": false
+  },
+  "3035": {
+   "declared": "3035",
+   "specCount": 0,
+   "compile": "empty",
+   "errorType": null,
+   "errorMessages": null,
+   "languageVersion": null,
+   "microversionSkew": false
+  }
+ },
+ "symbols": {},
+ "final": {
+  "label": "symbol existence sweep",
+  "budget": 99,
+  "spent": 9,
+  "remaining": 90,
+  "annualRemaining": 1829
+ },
+ "budgetStopped": false
+}
