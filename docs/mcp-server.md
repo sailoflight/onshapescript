@@ -155,7 +155,7 @@ python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/br
 A credentialed read-only integration smoke test was run against the configured
 workspace. It verified:
 
-- MCP initialization and 28-tool discovery;
+- MCP initialization and 29-tool discovery;
 - the compiled `branchCableTrophyDisplay` spec with 21 parameters;
 - Part Studio custom-feature status `OK` and exactly 132 parts;
 - bounds within the validation contract;

@@ -15,6 +15,7 @@ from onshape_fs_mcp.operations import (
     api_usage,
     check_model,
     create_validation_part_studio,
+    eval_featurescript,
     feature_studio_status,
     instantiate_feature,
     list_document_elements,
@@ -95,7 +96,10 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
             note = "live check skipped: no credentials configured"
         else:
             try:
-                live_version = feature_studio_status().get("libraryVersion")
+                # Live server version comes from the feature specs' languageVersion
+                # (the FS GET reports libraryVersion=0 always; live verification
+                # found languageVersion=3029 on a working Feature Studio).
+                live_version = feature_studio_status().get("languageVersion")
             except Exception as error:
                 note = f"live check failed: {type(error).__name__}: {error}"
     result = fs_reference.check_version(
@@ -230,6 +234,48 @@ def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+# Session guard for the quota-costly eval tool: documents-first, eval sparingly.
+EVAL_BUDGET_MAX = 10
+_eval_budget_used = 0
+
+
+def _eval_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate a FeatureScript snippet on the live server.
+
+    Costs 1 API call every time. Guarded by (1) preflight quota check, (2) a
+    per-session call budget (confirm_mutation=true to exceed it), and (3) a
+    cost report in the response so the caller sees each call's quota impact.
+    """
+    global _eval_budget_used
+    script = arguments.get("script")
+    if not script or not isinstance(script, str) or not script.strip():
+        raise ValueError("script must be a non-empty string")
+    pre = preflight(1, "eval_featurescript")
+    if not pre["canProceed"]:
+        raise ValueError(pre["blockedReason"])
+    if _eval_budget_used >= EVAL_BUDGET_MAX and arguments.get("confirm_mutation") is not True:
+        raise ValueError(
+            f"eval has used {_eval_budget_used}/{EVAL_BUDGET_MAX} calls this session; "
+            "pass confirm_mutation=true to spend beyond the session budget"
+        )
+    outcome = eval_featurescript(
+        script,
+        part_studio_id=arguments.get("part_studio_id"),
+    )
+    _eval_budget_used += 1
+    usage = api_usage()
+    return {
+        "result": outcome,
+        "evalCallsThisSession": _eval_budget_used,
+        "evalBudgetMax": EVAL_BUDGET_MAX,
+        "quota": {
+            "consumed": usage.get("consumed"),
+            "remaining": usage.get("remaining"),
+            "annualLimit": usage.get("annualLimit"),
+        },
+    }
+
+
 ToolHandler = Callable[[dict[str, Any]], Any]
 TOOLS: list[dict[str, Any]] = [
     # --- FeatureScript reference tools (local, offline) ---------------------
@@ -266,14 +312,16 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "fs_update_reference",
         "description": (
-            "Update the vendored FeatureScript reference: re-fetch the official FsDoc pages and the "
-            "standard library from the mirror, then rebuild index.json / guide.json / quick.json. "
-            "Returns only a compact change summary (version before/after, counts and sample names of "
-            "added/removed/changed functions) so the caller does not have to hold the delta in context - "
-            "afterwards all fs_* lookup tools serve the fresh corpus. With include_onshape_api it also "
-            "re-fetches the live Onshape REST API OpenAPI spec, the auth/error-handling docs, and rebuilds "
-            "the onshape_api_* indexes (the REST spec fetch needs onshape-credentials.json; without it that "
-            "part is skipped with a note). "
+            "Update the vendored FeatureScript reference from FREE sources only - the official FsDoc pages "
+            "and the standard-library mirror (both public HTTP/GitHub, ZERO Onshape API quota). Re-fetches "
+            "them and rebuilds index.json / guide.json / quick.json. Returns only a compact change summary "
+            "(version before/after, counts and sample names of added/removed/changed functions) so the "
+            "caller does not have to hold the delta in context - afterwards all fs_* lookup tools serve the "
+            "fresh corpus. With include_onshape_api it also re-fetches the live Onshape REST API OpenAPI "
+            "spec and the auth/error docs and rebuilds the onshape_api_* indexes (that REST fetch needs "
+            "credentials and costs 1 quota call; without it that part is skipped with a note). "
+            "Note: it does NOT detect the live FeatureScript server version - that check costs quota, so it "
+            "lives in fs_check_version's include_live (which already spends a call), not here. "
             "This performs network downloads and overwrites files under reference/, so it requires "
             "confirm_mutation=true."
         ),
@@ -544,6 +592,37 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     {
+        "name": "onshape_eval_featurescript",
+        "description": (
+            "Evaluate a FeatureScript snippet on the live Onshape server. ⚠️ Each call spends 1 API call "
+            "of the annual quota. Document-first discipline: BEFORE calling this, use the free local tools "
+            "(fs_get_function, fs_search, fs_library_source, fs_quick_reference) which answer from the "
+            "vendored docs at zero cost; call this only when (a) the vendored docs lack the symbol, "
+            "(b) a documented signature conflicts with what you need, or (c) you must confirm version-"
+            "specific behavior the 2960 docs do not cover (the live server is currently FeatureScript "
+            "3044). The script MUST evaluate to a two-argument anonymous function the server calls with "
+            "(context, id), e.g. 'function(context is Context, id is Id) { return 5; }'. Three guards: "
+            "preflight blocks when quota is low; a 10-call-per-session budget (confirm_mutation=true to "
+            "exceed); and the response reports consumed/remaining so the cost of every call is visible. "
+            "Returns console output, compile errors/warnings, and the flattened result value."
+        ),
+        "inputSchema": object_schema({
+            "script": {
+                "type": "string",
+                "description": "FeatureScript snippet evaluating to a two-argument anonymous function, e.g. 'function(context is Context, id is Id) { return evBoundingBox(context, qEverything(EntityType.BODY)); }'",
+            },
+            "part_studio_id": {
+                "type": "string",
+                "description": "Optional Part Studio element id to evaluate against; defaults to the configured partStudioId.",
+            },
+            "confirm_mutation": {
+                "type": "boolean",
+                "description": "set true to allow spending beyond the 10-call-per-session eval budget.",
+            },
+        }, ["script"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
         "name": "onshape_list_document_elements",
         "description": (
             "List elements in the configured Onshape workspace, including names, element types, IDs, and "
@@ -669,6 +748,7 @@ TOOLS: list[dict[str, Any]] = [
 HANDLERS: dict[str, ToolHandler] = {
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
+    "onshape_eval_featurescript": _eval_featurescript,
     "onshape_get_parameter_set": _parameter_set,
     "onshape_build_parameter_payload": _parameter_payload,
     "onshape_list_document_elements": lambda _: {"elements": list_document_elements()},

@@ -18,14 +18,14 @@ docs/verification/     zero-cost corpus verification + LLM experience docs (API 
 tests/                 offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (28)
+## MCP tools (29)
 
 **FeatureScript reference — local, offline** (the core value):
 
 | Tool | Purpose |
 |---|---|
-| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health, the REST API spec version, and an optional latest-version probe (`check_latest`) that also checks the live REST spec version |
-| `fs_update_reference` | Re-fetch the official docs + std library and rebuild the indexes; returns a compact change summary (version before/after, added/removed/changed counts). Optionally also refreshes the REST API spec (`include_onshape_api`). Mutating: requires `confirm_mutation=true` |
+| `fs_check_version` | Verify the vendored reference version; warn `docs-behind` for newer targets, plus index-consistency health, the REST API spec version, and an optional latest-version probe (`check_latest`). `include_live` reports the real Feature Studio version (from the feature specs' `languageVersion` — costs 1 quota call) |
+| `fs_update_reference` | Re-fetch the official docs + std library from FREE sources (FsDoc pages + mirror, zero API quota) and rebuild the indexes; returns a compact change summary. Optionally also refreshes the REST API spec (`include_onshape_api`, 1 quota call). Live server-version detection deliberately lives in `fs_check_version include_live`, not here. Mutating: requires `confirm_mutation=true` |
 | `fs_quick_reference` | The curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call |
 | `fs_list_modules` | Standard library modules grouped by category |
 | `fs_list_functions` | Functions/types/constants/predicates with signatures, filtered |
@@ -52,7 +52,10 @@ read-only `onshape_get_project_state`, `onshape_get_parameter_set`,
 `onshape_build_parameter_payload`, `onshape_api_quota` (API-quota budget,
 zero network cost), `onshape_list_document_elements`,
 `onshape_get_feature_studio_status`, `onshape_check_model`,
-`onshape_render_preview`; mutating (require `confirm_mutation=true`)
+`onshape_render_preview`; `onshape_eval_featurescript` (evaluate a FeatureScript
+snippet on the **live server** — 1 quota call each, document-first guarded, to
+confirm version-specific behavior the 2960 docs lack; the live server is
+currently FeatureScript **3044**); mutating (require `confirm_mutation=true`)
 `onshape_upload_feature_studio`, `onshape_create_validation_part_studio`,
 `onshape_instantiate_feature`, `onshape_run_validation_pipeline` — **every**
 mutating tool preflights against the API-quota budget first (upload ~4 calls,

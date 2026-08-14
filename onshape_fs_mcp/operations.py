@@ -165,11 +165,21 @@ def feature_studio_status(client: OnshapeClient | None = None) -> dict[str, Any]
         }
         for item in specs.get("featureSpecs", [])
     ]
+    # Live verification showed the FS GET reports libraryVersion=0 always; the
+    # real FeatureScript version appears as languageVersion on the feature
+    # specs (e.g. 3029). Read it from there.
+    language_version: Any = None
+    for item in specs.get("featureSpecs", []):
+        lv = (item.get("message") or {}).get("languageVersion")
+        if lv:
+            language_version = lv
+            break
     return {
         "featureStudioId": state["featureStudioId"],
         "microversionId": current.get("microversionId"),
         "sourceMicroversion": current.get("sourceMicroversion"),
-        "libraryVersion": current.get("libraryVersion"),
+        "libraryVersion": current.get("libraryVersion"),  # always 0; see languageVersion
+        "languageVersion": language_version,
         "featureSpecs": summary,
         "expectedFeatureAvailable": any(item["featureType"] == FEATURE_TYPE for item in summary),
     }
@@ -399,6 +409,57 @@ def render_all_previews(
         result.pop("base64", None)
         results.append(result)
     return results
+
+
+def eval_featurescript(
+    script: str,
+    part_studio_id: str | None = None,
+    client: OnshapeClient | None = None,
+) -> dict[str, Any]:
+    """Evaluate a FeatureScript snippet on the live server (1 API call).
+
+    The script must evaluate to a two-argument anonymous function, e.g.
+    ``function(context is Context, id is Id) { return 5; }`` — the server calls
+    it with (context, id) and returns the result. This is the only way to probe
+    real version-specific (e.g. 3044) semantics the vendored 2960 docs do not
+    cover, and its notices give detailed compile errors that instantiation does
+    not. Callers should gate this behind preflight() — it costs 1 quota call.
+    """
+    client = client or OnshapeClient()
+    state = client.state
+    did, wid, eid = resolve_part_studio_id(client, part_studio_id)
+    response = client.request(
+        "POST",
+        f"/api/partstudios/d/{did}/w/{wid}/e/{eid}/featurescript",
+        {"script": script},
+        timeout=300,
+    )
+    notices = response.get("notices") or []
+    errors = [
+        n.get("message", {}).get("message")
+        for n in notices
+        if n.get("message", {}).get("level") == "ERROR"
+    ]
+    warnings = [
+        n.get("message", {}).get("message")
+        for n in notices
+        if n.get("message", {}).get("level") == "WARNING"
+    ]
+
+    def _flatten(value: Any) -> Any:
+        # BTFSValue* envelopes: {"type": ..., "message": {"value": ...}}.
+        if isinstance(value, dict) and "message" in value:
+            return value.get("message", {}).get("value")
+        return value
+
+    return {
+        "featureScriptVersion": response.get("libraryVersion"),
+        "console": response.get("console"),
+        "errors": errors,
+        "warnings": warnings,
+        "result": _flatten(response.get("result")),
+        "raw": response,
+    }
 
 
 # Official annual API-call limits (see onshape_api_error_codes / limits page).

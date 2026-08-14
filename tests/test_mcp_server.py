@@ -71,7 +71,9 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
-        self.assertEqual(len(responses[1]["result"]["tools"]), 28)
+        tools = responses[1]["result"]["tools"]
+        self.assertEqual(len(tools), 29)
+        self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -371,6 +373,32 @@ class McpServerTest(unittest.TestCase):
         pre3 = operations.preflight_run(client=cl3)
         self.assertTrue(pre3["canProceed"])
         self.assertIn("No annual quota configured", pre3["details"]["note"])
+
+    def test_eval_requires_script_before_any_network(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_eval_featurescript",
+                    "arguments": {},
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_eval_featurescript",
+                    "arguments": {"script": "   "},
+                },
+            },
+        ])
+        for response in responses:
+            self.assertTrue(response["result"]["isError"])
+            self.assertIn("script must be a non-empty string",
+                          response["result"]["content"][0]["text"])
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([

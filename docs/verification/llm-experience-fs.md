@@ -145,3 +145,23 @@ reference does not document. Full run log: `live/README.md` (15 experiments,
   (upload 3-4 + create Part Studio 1 + POST feature 1), and it is the only
   layer that exercises the body.
 
+### `evalfeaturescript` as the live-doc tool (live, verified)
+
+The server's `POST .../featurescript` (via `onshape_eval_featurescript`) is the
+only cheap way to confirm real semantics the 2960 docs lack:
+
+- **The script must evaluate to a two-argument anonymous function.** The server
+  calls it with `(context, id)`; anything else fails with "script does not
+  evaluate to a function" or an arity error. Working shape:
+  `function(context is Context, id is Id) { return 5; }` → result `5`.
+- **Its `notices` carry detailed compile errors** (`level`, `type: PARSE`,
+  message, stack location) — far more diagnostic than instantiation's bare
+  `featureStatus=ERROR`. Use eval to find *why* a body fails before spending
+  instantiation calls.
+- **The eval response's `libraryVersion` is the live deployment version** —
+  **3044** at the time of writing, ahead of both the vendored 2960 and the
+  trophy's 3029 header. (The featurespecs `languageVersion` reflects the
+  content's declared version; eval's `libraryVersion` reports the server's.)
+  `fs_check_version include_live` reads the Feature Studio's declared version;
+  eval is the way to see the true deployed one.
+
