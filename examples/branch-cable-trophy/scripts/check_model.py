@@ -4,10 +4,12 @@
 import json
 
 import _paths  # noqa: E402  (puts ROOT on sys.path; see _paths.py)
+import _guard  # noqa: E402
 
 from onshape_fs_mcp.client import REPORT_DIR
 from onshape_fs_mcp.operations import check_model
 
+_guard.require_live(3, "check_model")
 report = check_model("detailed")
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 (REPORT_DIR / "model-check.json").write_text(

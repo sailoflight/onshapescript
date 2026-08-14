@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from onshape_fs_mcp import fs_reference, onshape_api_reference, onshape_api_docs, project_docs
+from onshape_fs_mcp.budget import live_blocker
 from onshape_fs_mcp.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
 from onshape_fs_mcp.operations import (
     api_usage,
@@ -20,8 +21,7 @@ from onshape_fs_mcp.operations import (
     instantiate_feature,
     list_document_elements,
     load_parameter_set,
-    preflight,
-    preflight_run,
+    PIPELINE_ESTIMATE,
     public_state,
     render_preview,
     run_validation_pipeline,
@@ -104,13 +104,17 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
         if not CREDENTIALS_PATH.is_file():
             note = "live check skipped: no credentials configured"
         else:
-            try:
-                # Refreshes the cached version too (feature_studio_status records
-                # what it reads). languageVersion is the Feature Studio content's
-                # version; the deployed runtime (3044) is observed via eval.
-                live_version = feature_studio_status().get("languageVersion")
-            except Exception as error:
-                note = f"live check failed: {type(error).__name__}: {error}"
+            blocker = live_blocker(2, "fs_check_version include_live")
+            if blocker:
+                note = f"live check skipped: {blocker}"
+            else:
+                try:
+                    # Refreshes the cached version too (feature_studio_status records
+                    # what it reads). languageVersion is the Feature Studio content's
+                    # version; the deployed runtime (3044) is observed via eval.
+                    live_version = feature_studio_status().get("languageVersion")
+                except Exception as error:
+                    note = f"live check failed: {type(error).__name__}: {error}"
     result = fs_reference.check_version(
         target=arguments.get("target"), live_version=live_version
     )
@@ -137,20 +141,31 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
         except Exception as error:
             result["latestCheckNote"] = f"latest check failed: {type(error).__name__}: {error}"
         # REST API spec version probe (cheap /api/build call, needs credentials)
-        try:
-            rest_latest = onshape_api_reference.fetch_latest_version()
-            result["onshapeApiLatestVersion"] = rest_latest["version"]
-            vendored_rest = result.get("onshapeApiSpecVersion", {}).get("specVersion")
-            result["onshapeApiUpdateAvailable"] = (
-                bool(vendored_rest)
-                and onshape_api_reference.version_is_newer(
-                    rest_latest["version"], vendored_rest
-                )
-            )
-        except Exception as error:
+        if not CREDENTIALS_PATH.is_file():
             result["onshapeApiLatestCheckNote"] = (
-                f"REST spec latest check failed: {type(error).__name__}: {error}"
+                "REST spec latest check skipped: no credentials configured"
             )
+        else:
+            blocker = live_blocker(1, "fs_check_version check_latest REST probe")
+            if blocker:
+                result["onshapeApiLatestCheckNote"] = (
+                    f"REST spec latest check skipped: {blocker}"
+                )
+            else:
+                try:
+                    rest_latest = onshape_api_reference.fetch_latest_version()
+                    result["onshapeApiLatestVersion"] = rest_latest["version"]
+                    vendored_rest = result.get("onshapeApiSpecVersion", {}).get("specVersion")
+                    result["onshapeApiUpdateAvailable"] = (
+                        bool(vendored_rest)
+                        and onshape_api_reference.version_is_newer(
+                            rest_latest["version"], vendored_rest
+                        )
+                    )
+                except Exception as error:
+                    result["onshapeApiLatestCheckNote"] = (
+                        f"REST spec latest check failed: {type(error).__name__}: {error}"
+                    )
     if note:
         result["liveCheckNote"] = note
     return result
@@ -158,9 +173,12 @@ def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _update_reference(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
-    return fs_reference.update_reference(
-        include_onshape_api=bool(arguments.get("include_onshape_api", False))
-    )
+    include_api = bool(arguments.get("include_onshape_api", False))
+    if include_api:
+        # Re-fetching the live OpenAPI spec (scripts/fetch_onshape_api.py)
+        # costs 1 quota call; gate it like any other live request.
+        _require_live(1, "fs_update_reference include_onshape_api")
+    return fs_reference.update_reference(include_onshape_api=include_api)
 
 
 def _local_state(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -184,6 +202,7 @@ def _parameter_payload(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _render_preview(arguments: dict[str, Any]) -> dict[str, Any]:
+    _require_live(1, "render_preview")
     result = render_preview(
         view=arguments["view"],
         width=int(arguments.get("width", 900)),
@@ -202,20 +221,31 @@ def _confirm(arguments: dict[str, Any]) -> None:
         raise ValueError("confirm_mutation must be true for this mutating tool")
 
 
+def _require_live(estimate_calls: int, label: str) -> None:
+    """Refuse a live request when the account is rate-limit held or the annual
+    quota would be exceeded. The single gate every live tool checks BEFORE its
+    first request."""
+    blocker = live_blocker(estimate_calls, label)
+    if blocker:
+        raise ValueError(blocker)
+
+
 def _preflight_or_raise(estimate_calls: int, label: str) -> None:
-    pre = preflight(estimate_calls, label)
-    if not pre["canProceed"]:
-        raise ValueError(pre["blockedReason"])
+    _require_live(estimate_calls, label)
 
 
 def _upload(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
-    _preflight_or_raise(4, "upload_feature_studio")
+    if arguments.get("dry_run"):
+        return upload_feature_studio(dry_run=True)
+    _preflight_or_raise(3, "upload_feature_studio")
     return upload_feature_studio()
 
 
 def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
+    if arguments.get("dry_run"):
+        return create_validation_part_studio(dry_run=True)
     _preflight_or_raise(1, "create_validation_part_studio")
     return create_validation_part_studio(
         name=arguments.get("name", "Cable trophy model validation"),
@@ -225,10 +255,17 @@ def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _instantiate(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
-    _preflight_or_raise(2, "instantiate_feature")
     overrides = arguments.get("overrides")
     if overrides is not None and not isinstance(overrides, dict):
         raise ValueError("overrides must be an object")
+    if arguments.get("dry_run"):
+        return instantiate_feature(
+            parameter_set=arguments.get("parameter_set", "default"),
+            overrides=overrides,
+            part_studio_id=arguments.get("part_studio_id"),
+            dry_run=True,
+        )
+    _preflight_or_raise(2, "instantiate_feature")
     return instantiate_feature(
         parameter_set=arguments.get("parameter_set", "default"),
         overrides=overrides,
@@ -238,16 +275,17 @@ def _instantiate(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
-    preflight = preflight_run(
-        parameter_set=arguments.get("parameter_set", "default"),
-        render=bool(arguments.get("render_previews", True)),
+    parameter_set = arguments.get("parameter_set", "default")
+    render = bool(arguments.get("render_previews", True))
+    if arguments.get("dry_run"):
+        return run_validation_pipeline(
+            parameter_set=parameter_set, render=render, dry_run=True,
+        )
+    _require_live(
+        PIPELINE_ESTIMATE[render],
+        f"validation pipeline (render={'on' if render else 'off'})",
     )
-    if not preflight["canProceed"]:
-        raise ValueError(preflight["blockedReason"])
-    return run_validation_pipeline(
-        parameter_set=arguments.get("parameter_set", "default"),
-        render=bool(arguments.get("render_previews", True)),
-    )
+    return run_validation_pipeline(parameter_set=parameter_set, render=render)
 
 
 # Session guard for the quota-costly eval tool: documents-first, eval sparingly.
@@ -258,17 +296,16 @@ _eval_budget_used = 0
 def _eval_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     """Evaluate a FeatureScript snippet on the live server.
 
-    Costs 1 API call every time. Guarded by (1) preflight quota check, (2) a
-    per-session call budget (confirm_mutation=true to exceed it), and (3) a
-    cost report in the response so the caller sees each call's quota impact.
+    Costs 1 API call every time. Guarded by (1) the rate-limit + quota
+    preflight gate, (2) a per-session call budget (confirm_mutation=true to
+    exceed it), and (3) a cost report in the response so the caller sees each
+    call's quota impact.
     """
     global _eval_budget_used
     script = arguments.get("script")
     if not script or not isinstance(script, str) or not script.strip():
         raise ValueError("script must be a non-empty string")
-    pre = preflight(1, "eval_featurescript")
-    if not pre["canProceed"]:
-        raise ValueError(pre["blockedReason"])
+    _require_live(1, "eval_featurescript")
     if _eval_budget_used >= EVAL_BUDGET_MAX and arguments.get("confirm_mutation") is not True:
         raise ValueError(
             f"eval has used {_eval_budget_used}/{EVAL_BUDGET_MAX} calls this session; "
@@ -297,13 +334,14 @@ TOOLS: list[dict[str, Any]] = [
     # --- FeatureScript reference tools (local, offline) ---------------------
     {
         "name": "fs_check_version",
+        "cost": {"network": "live", "estimated_requests": 0, "max_requests": 3, "mutating": False, "cacheable": True},
         "description": (
             "Verify the vendored FeatureScript reference version and warn when it may be behind the "
             "version you are coding against. Reports the vendored reference version (parsed from the "
             "standard library), your target version, and the last FeatureScript version observed from "
             "already-costly workflow responses (free - captured from featurespecs languageVersion and "
             "eval libraryVersion, so no dedicated call). Pass include_live to refresh that from your "
-            "Feature Studio (1 read-only call, requires credentials). Returns a 'docs-behind' warning "
+            "Feature Studio (2 read-only calls, requires credentials). Returns a 'docs-behind' warning "
             "whenever a newer version is targeted, plus reference-health consistency checks. With "
             "check_latest it also probes the mirror (one small network call) for the newest available "
             "FeatureScript version and the live REST API spec version (needs credentials). Use it "
@@ -330,6 +368,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "fs_update_reference",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 1, "mutating": True, "cacheable": False},
         "description": (
             "Update the vendored FeatureScript reference from FREE sources only - the official FsDoc pages "
             "and the standard-library mirror (both public HTTP/GitHub, ZERO Onshape API quota). Re-fetches "
@@ -670,8 +709,9 @@ TOOLS: list[dict[str, Any]] = [
             "specific behavior the 2960 docs do not cover (the live server is currently FeatureScript "
             "3044). The script MUST evaluate to a two-argument anonymous function the server calls with "
             "(context, id), e.g. 'function(context is Context, id is Id) { return 5; }'. Three guards: "
-            "preflight blocks when quota is low; a 10-call-per-session budget (confirm_mutation=true to "
-            "exceed); and the response reports consumed/remaining so the cost of every call is visible. "
+            "the rate-limit + annual-quota gate blocks when the account is rate-limit held or quota is low; "
+            "a 10-call-per-session budget (confirm_mutation=true to exceed); and the response reports "
+            "consumed/remaining so the cost of every call is visible. "
             "Returns console output, compile errors/warnings, and the flattened result value."
         ),
         "inputSchema": object_schema({
@@ -714,7 +754,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "onshape_check_model",
-        "cost": {"network": "live", "estimated_requests": 3, "max_requests": 4, "mutating": False, "cacheable": False},
+        "cost": {"network": "live", "estimated_requests": 3, "max_requests": 3, "mutating": False, "cacheable": False},
         "description": (
             "Validate an existing Part Studio through read-only Onshape requests. The result checks custom "
             "feature status, exact part count, required part-name prefixes, and bounding limits; it returns "
@@ -761,9 +801,18 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled "
             "branchCableTrophyDisplay specification. This overwrites cloud Feature Studio contents and may "
-            "fail on microversion skew; call only when the user intends that remote mutation."
+            "fail on microversion skew; call only when the user intends that remote mutation. Costs 3 API "
+            "calls (GET + POST + GET featurespecs); run scripts/fs_local_check.py on the source first. "
+            "Pass dry_run=true to see the exact requests without sending them."
         ),
-        "inputSchema": object_schema({"confirm_mutation": mutating_confirmation()}, ["confirm_mutation"]),
+        "inputSchema": object_schema({
+            "confirm_mutation": mutating_confirmation(),
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Construct and return the exact requests (method/URL/body) without sending them.",
+            },
+        }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
     },
     {
@@ -778,12 +827,17 @@ TOOLS: list[dict[str, Any]] = [
             "confirm_mutation": mutating_confirmation(),
             "name": {"type": "string", "default": "Cable trophy model validation"},
             "save_to_project_state": {"type": "boolean", "default": True},
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Construct and return the exact request (method/URL/body) without sending it.",
+            },
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "onshape_instantiate_feature",
-        "cost": {"network": "live", "estimated_requests": 2, "max_requests": 3, "mutating": True, "cacheable": False},
+        "cost": {"network": "live", "estimated_requests": 2, "max_requests": 2, "mutating": True, "cacheable": False},
         "description": (
             "Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit "
             "parameter set and optional known-parameter overrides. Repeated calls add additional cloud features; "
@@ -798,23 +852,33 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "Optional overrides; unknown parameter IDs are rejected.",
             },
             "part_studio_id": {"type": "string"},
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Construct and return the exact requests (method/URL/body) without sending them.",
+            },
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "onshape_run_validation_pipeline",
-        "cost": {"network": "live", "estimated_requests": 10, "max_requests": 15, "mutating": True, "cacheable": False},
+        "cost": {"network": "live", "estimated_requests": 9, "max_requests": 14, "mutating": True, "cacheable": False},
         "description": (
             "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save "
             "that ID to local project state, instantiate the feature, validate invariants, and optionally render "
             "five PNG previews. This performs several cloud and local mutations and requires explicit confirmation. "
-            "Before any call is made it checks the local API-quota budget (~15 calls with render, ~10 without; see "
+            "Before any call is made it checks the local API-quota budget (~14 calls with render, ~9 without; see "
             "onshape_api_quota) and blocks with the shortfall if the annual limit would be exceeded."
         ),
         "inputSchema": object_schema({
             "confirm_mutation": mutating_confirmation(),
             "parameter_set": {**PARAMETER_SET_SCHEMA, "default": "default"},
             "render_previews": {"type": "boolean", "default": True},
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Describe the full pipeline's requests (method/URL/body) without sending them.",
+            },
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
@@ -827,11 +891,20 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_eval_featurescript": _eval_featurescript,
     "onshape_get_parameter_set": _parameter_set,
     "onshape_build_parameter_payload": _parameter_payload,
-    "onshape_list_document_elements": lambda _: {"elements": list_document_elements()},
-    "onshape_get_feature_studio_status": lambda _: feature_studio_status(),
-    "onshape_check_model": lambda arguments: check_model(
-        mode=arguments.get("mode", "detailed"),
-        part_studio_id=arguments.get("part_studio_id"),
+    "onshape_list_document_elements": lambda _: (
+        _require_live(1, "list_document_elements") or
+        {"elements": list_document_elements()}
+    ),
+    "onshape_get_feature_studio_status": lambda _: (
+        _require_live(2, "get_feature_studio_status") or
+        feature_studio_status()
+    ),
+    "onshape_check_model": lambda arguments: (
+        _require_live(3, "check_model") or
+        check_model(
+            mode=arguments.get("mode", "detailed"),
+            part_studio_id=arguments.get("part_studio_id"),
+        )
     ),
     "onshape_render_preview": _render_preview,
     "onshape_upload_feature_studio": _upload,

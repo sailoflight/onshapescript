@@ -25,15 +25,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp.client import OnshapeClient, RateLimited, compact_feature_response  # noqa: E402
-from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
+from onshape_fs_mcp.client import OnshapeClient, RateLimited, RateLimitedHold, compact_feature_response  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"
 FS_ID_PATH = LIVE_DIR / ".fs-id.json"
 RESULTS_PATH = LIVE_DIR / "instance-results.json"
-# Per-run budget is a command-line choice (default 100: ~5 features x ~15
-# calls), gated by BudgetGuard's preflight against remaining annual quota.
+# Per-run budget is a command-line choice (default 100: ~5 features x ~5 calls
+# each — upload 3 + create Part Studio 1 + instantiate 1), gated by
+# BudgetGuard's preflight against remaining annual quota.
 DEFAULT_BUDGET = 100
 
 INSTANCE_TESTS = [
@@ -121,7 +122,11 @@ def instantiate(client, did, wid, fs_id, microversion, ps_id, feature_type, name
 
 
 def main(budget: int) -> int:
-    guard = BudgetGuard(budget, "instantiation verification")
+    try:
+        guard = BudgetGuard(budget, "instantiation verification")
+    except (RateLimitedHold, LiveApiDisabled) as error:
+        print(f"not starting: {error}")
+        return 1
     client = guard.client
     did, wid = client.state["documentId"], client.state["workspaceId"]
     eid = json.loads(FS_ID_PATH.read_text(encoding="utf-8"))["featureStudioId"]

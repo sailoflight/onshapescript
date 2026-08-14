@@ -132,8 +132,8 @@ constructed or a remote request is sent.
 | `onshape_run_validation_pipeline` | Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call. |
 
 **Every mutating tool also preflights against the annual quota budget before
-any remote call** — upload ~4 calls, create 1, instantiate 2, pipeline ~15 with
-render / ~10 without. When the configured budget would be exceeded the tool
+any remote call** — upload ~3 calls, create 1, instantiate 2, pipeline ~14 with
+render / ~9 without. When the configured budget would be exceeded the tool
 blocks with the shortfall instead of spending API calls.
 
 The quota ledger (`config/api-usage.json`, gitignored) is passive: every 2xx/3xx

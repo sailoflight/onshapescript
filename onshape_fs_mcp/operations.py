@@ -97,37 +97,25 @@ def resolve_part_studio_id(
     client: OnshapeClient,
     part_studio_id: str | None = None,
 ) -> tuple[str, str, str]:
-    """Resolve a usable Part Studio, recovering from stale saved element IDs."""
+    """Resolve a usable Part Studio id WITHOUT any implicit network walk.
+
+    Onshape IDs are cached in config/onshape-state.json (constraint: cache
+    stable metadata; refresh is an explicit action). Walking the document
+    (GET elements -> GET parts per studio) is the exact ~10-call trap the quota
+    policy forbids, so this only ever returns the explicit id or the cached
+    one. If neither is present, it raises and tells the caller to pass the id —
+    it never silently re-discovers elements.
+    """
     state = client.state
     did, wid = state["documentId"], state["workspaceId"]
-    if part_studio_id:
-        return did, wid, part_studio_id
-    configured = state.get("partStudioId")
-    elements = client.request("GET", f"/api/documents/d/{did}/w/{wid}/elements")
-    part_studios = [item for item in elements if item.get("elementType") == "PARTSTUDIO"]
-    if not part_studios:
-        raise RuntimeError("The configured workspace contains no Part Studio")
-    candidates: list[tuple[str, int]] = []
-    for item in part_studios:
-        eid = item["id"]
-        parts = client.request("GET", f"/api/parts/d/{did}/w/{wid}/e/{eid}", timeout=600)
-        candidates.append((eid, len(parts)))
-    candidate_ids = {eid for eid, _ in candidates}
-    if configured in candidate_ids:
-        return did, wid, configured
-    expected_counts = {132, 65}
-    validated = [eid for eid, part_count in candidates if part_count in expected_counts]
-    if len(validated) == 1:
-        return did, wid, validated[0]
-    if len(part_studios) == 1:
-        return did, wid, part_studios[0]["id"]
-    available = ", ".join(
-        f"{item.get('name', 'unnamed')} ({item.get('id')})" for item in part_studios
-    )
-    raise RuntimeError(
-        "Configured partStudioId is stale and no unique validated model could be selected; "
-        f"pass part_studio_id explicitly. Available: {available}"
-    )
+    eid = part_studio_id or state.get("partStudioId")
+    if not eid:
+        raise RuntimeError(
+            "No Part Studio id available: pass part_studio_id explicitly, or set "
+            "partStudioId in config/onshape-state.json. Implicit document walking "
+            "is disabled to protect API quota."
+        )
+    return did, wid, eid
 
 
 def list_document_elements(client: OnshapeClient | None = None) -> list[dict[str, Any]]:
@@ -148,6 +136,29 @@ def list_document_elements(client: OnshapeClient | None = None) -> list[dict[str
     ]
 
 
+def _feature_specs_summary(specs: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "featureType": item.get("message", {}).get("featureType"),
+            "featureTypeName": item.get("message", {}).get("featureTypeName"),
+            "parameterCount": len(item.get("message", {}).get("parameters", [])),
+        }
+        for item in specs.get("featureSpecs", [])
+    ]
+
+
+def _first_language_version(specs: dict[str, Any]) -> Any:
+    # Live verification showed the FS GET reports libraryVersion=0 always; the
+    # version the content is compiled at appears as languageVersion on each
+    # feature spec (e.g. 3029). The deployed runtime version (3044) comes from
+    # an eval response's libraryVersion instead — see eval_featurescript.
+    for item in specs.get("featureSpecs", []):
+        lv = (item.get("message") or {}).get("languageVersion")
+        if lv:
+            return lv
+    return None
+
+
 def feature_studio_status(client: OnshapeClient | None = None) -> dict[str, Any]:
     client = client or OnshapeClient()
     state = client.state
@@ -157,24 +168,8 @@ def feature_studio_status(client: OnshapeClient | None = None) -> dict[str, Any]
     )
     current = client.request("GET", path)
     specs = client.request("GET", path + "/featurespecs", timeout=300)
-    summary = [
-        {
-            "featureType": item.get("message", {}).get("featureType"),
-            "featureTypeName": item.get("message", {}).get("featureTypeName"),
-            "parameterCount": len(item.get("message", {}).get("parameters", [])),
-        }
-        for item in specs.get("featureSpecs", [])
-    ]
-    # Live verification showed the FS GET reports libraryVersion=0 always; the
-    # version the content is compiled at appears as languageVersion on each
-    # feature spec (e.g. 3029). The deployed runtime version (3044) comes from
-    # an eval response's libraryVersion instead — see eval_featurescript.
-    language_version: Any = None
-    for item in specs.get("featureSpecs", []):
-        lv = (item.get("message") or {}).get("languageVersion")
-        if lv:
-            language_version = lv
-            break
+    summary = _feature_specs_summary(specs)
+    language_version = _first_language_version(specs)
     record_observed_version(language_version=language_version, client=client)
     return {
         "featureStudioId": state["featureStudioId"],
@@ -213,7 +208,20 @@ def record_observed_version(
         save_state(state)
 
 
-def upload_feature_studio(client: OnshapeClient | None = None) -> dict[str, Any]:
+def _dry_run(requests: list[dict[str, Any]], note: str | None = None) -> dict[str, Any]:
+    """Shape the zero-network dry-run result for a mutating operation."""
+    return {
+        "dryRun": True,
+        "estimatedRequests": len(requests),
+        "requests": requests,
+        "note": note,
+    }
+
+
+def upload_feature_studio(
+    client: OnshapeClient | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
     client = client or OnshapeClient()
     state = client.state
     source = (ROOT / state.get("featureScriptFile", "branchCableTrophyDisplay.fs")).resolve()
@@ -223,6 +231,37 @@ def upload_feature_studio(client: OnshapeClient | None = None) -> dict[str, Any]
         f"/api/featurestudios/d/{state['documentId']}"
         f"/w/{state['workspaceId']}/e/{state['featureStudioId']}"
     )
+    # The POST body needs the current element's serialization/source microversion
+    # and libraryVersion to reject microversion skew, so a live upload is
+    # GET (read those) + POST + GET featurespecs (confirm compilation) = 3 calls.
+    if dry_run:
+        return _dry_run(
+            [
+                {
+                    **client.describe("GET", path),
+                    "note": "read libraryVersion/serializationVersion/sourceMicroversion for the POST below",
+                },
+                {
+                    **client.describe("POST", path, {
+                        "btType": "BTFeatureStudioContents-2239",
+                        "contents": source.read_text(encoding="utf-8"),
+                        "libraryVersion": "<from GET>",
+                        "serializationVersion": "<from GET>",
+                        "sourceMicroversion": "<from GET>",
+                        "rejectMicroversionSkew": True,
+                    }),
+                    "note": "three version fields are filled from the GET response",
+                },
+                {
+                    **client.describe("GET", path + "/featurespecs"),
+                    "note": f"confirm the {FEATURE_TYPE} feature spec actually compiled",
+                },
+            ],
+            note=(
+                "3 API calls (GET + POST + GET featurespecs). Run scripts/fs_local_check.py "
+                "on the source first — a syntactically bad upload still costs quota."
+            ),
+        )
     current = client.request("GET", path)
     updated = client.request(
         "POST",
@@ -237,12 +276,14 @@ def upload_feature_studio(client: OnshapeClient | None = None) -> dict[str, Any]
         },
         timeout=300,
     )
-    status = feature_studio_status(client)
-    if not status["expectedFeatureAvailable"]:
+    specs = client.request("GET", path + "/featurespecs", timeout=300)
+    summary = _feature_specs_summary(specs)
+    if not any(item["featureType"] == FEATURE_TYPE for item in summary):
         raise RuntimeError(f"Expected feature spec {FEATURE_TYPE} was not compiled")
+    record_observed_version(language_version=_first_language_version(specs), client=client)
     return {
         "sourceMicroversion": updated.get("sourceMicroversion"),
-        "featureSpecs": status["featureSpecs"],
+        "featureSpecs": summary,
     }
 
 
@@ -250,14 +291,18 @@ def create_validation_part_studio(
     name: str = "Cable trophy model validation",
     save_to_project_state: bool = True,
     client: OnshapeClient | None = None,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     client = client or OnshapeClient()
     state = client.state
-    created = client.request(
-        "POST",
-        f"/api/partstudios/d/{state['documentId']}/w/{state['workspaceId']}",
-        {"name": name},
-    )
+    path = f"/api/partstudios/d/{state['documentId']}/w/{state['workspaceId']}"
+    body = {"name": name}
+    if dry_run:
+        return _dry_run(
+            [client.describe("POST", path, body)],
+            note="save_to_project_state also rewrites config/onshape-state.json (local, zero quota)",
+        )
+    created = client.request("POST", path, body)
     if save_to_project_state:
         state["partStudioId"] = created["id"]
         save_state(state)
@@ -269,25 +314,9 @@ def create_validation_part_studio(
     }
 
 
-def instantiate_feature(
-    parameter_set: str = "default",
-    overrides: dict[str, Any] | None = None,
-    part_studio_id: str | None = None,
-    client: OnshapeClient | None = None,
-) -> dict[str, Any]:
-    client = client or OnshapeClient()
-    state = client.state
-    did, wid, eid = resolve_part_studio_id(client, part_studio_id)
-    elements = client.request("GET", f"/api/documents/d/{did}/w/{wid}/elements")
-    feature_studio = next(
-        (item for item in elements if item.get("id") == state["featureStudioId"]),
-        None,
-    )
-    if feature_studio is None:
-        raise RuntimeError("Configured Feature Studio is not present in the workspace")
-    namespace = f"e{state['featureStudioId']}::m{feature_studio['microversionId']}"
-    parameters = merged_parameters(parameter_set, overrides)
-    body = {
+def _instantiate_body(parameters: dict[str, Any], namespace: str) -> dict[str, Any]:
+    """The explicit custom-feature POST body, shared by live + dry_run."""
+    return {
         "btType": "BTFeatureDefinitionCall-1406",
         "feature": {
             "btType": "BTMFeature-134",
@@ -299,12 +328,49 @@ def instantiate_feature(
             "suppressed": False,
         },
     }
-    response = client.request(
-        "POST",
-        f"/api/v9/partstudios/d/{did}/w/{wid}/e/{eid}/features",
-        body,
-        timeout=900,
+
+
+def instantiate_feature(
+    parameter_set: str = "default",
+    overrides: dict[str, Any] | None = None,
+    part_studio_id: str | None = None,
+    client: OnshapeClient | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    client = client or OnshapeClient()
+    state = client.state
+    did, wid, eid = resolve_part_studio_id(client, part_studio_id)
+    elements_path = f"/api/documents/d/{did}/w/{wid}/elements"
+    features_path = f"/api/v9/partstudios/d/{did}/w/{wid}/e/{eid}/features"
+    parameters = merged_parameters(parameter_set, overrides)
+    if dry_run:
+        return _dry_run(
+            [
+                {
+                    **client.describe("GET", elements_path),
+                    "note": "read the Feature Studio's current microversionId to build the namespace",
+                },
+                {
+                    **client.describe("POST", features_path, _instantiate_body(
+                        parameters, f"e{state['featureStudioId']}::m<microversionId>",
+                    )),
+                    "note": "namespace microversion is filled from the GET above",
+                },
+            ],
+            note=(
+                "2 API calls (GET elements + POST feature). The namespace is "
+                "e{featureStudioId}::m{current feature studio microversion}."
+            ),
+        )
+    elements = client.request("GET", elements_path)
+    feature_studio = next(
+        (item for item in elements if item.get("id") == state["featureStudioId"]),
+        None,
     )
+    if feature_studio is None:
+        raise RuntimeError("Configured Feature Studio is not present in the workspace")
+    namespace = f"e{state['featureStudioId']}::m{feature_studio['microversionId']}"
+    response = client.request("POST", features_path, _instantiate_body(parameters, namespace), timeout=900)
     summary = compact_feature_response(response)
     if summary["featureStatus"] != "OK":
         raise RuntimeError(
@@ -500,9 +566,9 @@ ANNUAL_LIMITS = {
     "standard": 2500,      # per user
 }
 # Per-run API call estimate for run_validation_pipeline, counted from the
-# actual operations it performs (upload: 4, create: 1, instantiate: 2,
+# actual operations it performs (upload: 3, create: 1, instantiate: 2,
 # check_model: 3, plus 5 render views when render is on).
-PIPELINE_ESTIMATE = {True: 15, False: 10}
+PIPELINE_ESTIMATE = {True: 14, False: 9}
 
 
 def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
@@ -602,7 +668,7 @@ def preflight_run(
     )
     if result.get("blockedReason"):
         result["blockedReason"] += (
-            f" render_previews=false halves the cost to ~{PIPELINE_ESTIMATE[False]}."
+            f" render_previews=false reduces the cost to ~{PIPELINE_ESTIMATE[False]}."
         )
     return result
 
@@ -611,11 +677,32 @@ def run_validation_pipeline(
     parameter_set: str = "default",
     render: bool = True,
     client: OnshapeClient | None = None,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     """Run the mutating upload/create/instantiate/check/render pipeline."""
     if parameter_set not in PARAMETER_PATHS:
         raise ValueError(f"Unknown parameter set: {parameter_set}")
     client = client or OnshapeClient()
+    if dry_run:
+        # Describe the full sequence without any network request. The
+        # instantiate + check + render steps target the Part Studio the create
+        # step would return, so their ids are placeholders here.
+        return {
+            "dryRun": True,
+            "estimatedRequests": PIPELINE_ESTIMATE[bool(render)],
+            "steps": {
+                "upload": upload_feature_studio(client, dry_run=True),
+                "createPartStudio": create_validation_part_studio(client=client, dry_run=True),
+                "instantiate": instantiate_feature(
+                    parameter_set,
+                    part_studio_id="<id from create>",
+                    client=client,
+                    dry_run=True,
+                ),
+                "checkModel": "3 GET (features + boundingboxes + parts) on the new Part Studio",
+                "render": "5 GET shadedviews (one per view)" if render else "skipped",
+            },
+        }
     result: dict[str, Any] = {}
     result["upload"] = upload_feature_studio(client)
     result["partStudio"] = create_validation_part_studio(client=client)

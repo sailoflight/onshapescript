@@ -29,8 +29,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
-from onshape_fs_mcp.client import RateLimited  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_fs_mcp.client import RateLimited, rate_limit_reason  # noqa: E402
 from onshape_fs_mcp.operations import (  # noqa: E402
     eval_featurescript,
     render_preview,
@@ -48,6 +48,16 @@ def main() -> int:
     parser.add_argument("--budget", type=int, default=22,
                         help="max ledgered API calls this run (default 22)")
     args = parser.parse_args()
+
+    if not live_api_enabled():
+        print("aborting before any call: LIVE_API_ENABLED is not set to 1 "
+              "(real API requests must be explicit)")
+        return 0
+
+    rl = rate_limit_reason()
+    if rl:
+        print(f"aborting before any call: {rl}")
+        return 0
 
     guard = BudgetGuard(args.budget, "gap-closure probe")
     client = guard.client

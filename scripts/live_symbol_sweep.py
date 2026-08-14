@@ -41,8 +41,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
-from onshape_fs_mcp.client import RateLimited  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_fs_mcp.client import RateLimited, rate_limit_reason  # noqa: E402
 from onshape_fs_mcp.operations import eval_featurescript  # noqa: E402
 
 DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
@@ -88,19 +88,9 @@ def ts() -> str:
 
 def rate_limited() -> str | None:
     """Return a reason string if the account is under a long rate-limit hold,
-    else None. Onshape's Retry-After landed at 73094s (~20h) on 2026-08-14, so
-    a run would only burn futile retries; abort before the first call instead."""
-    usage = ROOT / "config" / "api-usage.json"
-    try:
-        d = json.loads(usage.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    retry_after = int(d.get("lastRetryAfter") or 0)
-    remaining = str(d.get("lastRateLimitRemaining") or "")
-    if remaining == "0" and retry_after > 60:
-        return (f"Onshape rate-limited: Retry-After {retry_after}s "
-                f"(~{retry_after // 3600}h), rate-limit remaining 0")
-    return None
+    else None. Delegates to the shared client.rate_limit_reason so every live
+    entrypoint (MCP server + scripts) uses one gate."""
+    return rate_limit_reason()
 
 
 def parse_signature(sig: str) -> list[tuple[str, str]]:
@@ -316,6 +306,11 @@ def main() -> int:
     parser.add_argument("--part-studio-id", default=DEFAULT_PART_STUDIO_ID)
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args()
+
+    if not live_api_enabled():
+        print(f"[{ts()}] aborting before any call: LIVE_API_ENABLED is not set "
+              "to 1 (real API requests must be explicit)", flush=True)
+        return 0
 
     rl = rate_limited()
     if rl:

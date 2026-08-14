@@ -69,8 +69,8 @@ confirm version-specific behavior the 2960 docs lack; the live server is
 currently FeatureScript **3044**); mutating (require `confirm_mutation=true`)
 `onshape_upload_feature_studio`, `onshape_create_validation_part_studio`,
 `onshape_instantiate_feature`, `onshape_run_validation_pipeline` — **every**
-mutating tool preflights against the API-quota budget first (upload ~4 calls,
-create 1, instantiate 2, pipeline ~15 with render / ~10 without) and blocks with
+mutating tool preflights against the API-quota budget first (upload ~3 calls,
+create 1, instantiate 2, pipeline ~14 with render / ~9 without) and blocks with
 the shortfall if the annual limit would be exceeded.
 
 See `docs/mcp-server.md` for the complete catalog, security boundary, and tests.

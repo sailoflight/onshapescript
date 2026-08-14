@@ -58,7 +58,7 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
 - Orient with `onshape_api_list_tags` (42 domain groups), search with
   `onshape_api_search`, then `onshape_api_endpoint` + `onshape_api_schema` for
   exact parameters and response shapes.
-- Before a mutating batch (the validation pipeline is ~15 calls, ~10 without
+- Before a mutating batch (the validation pipeline is ~14 calls, ~9 without
   rendering), check `onshape_api_quota`; the pipeline itself preflights and
   blocks if the annual budget would be exceeded.
 
@@ -84,9 +84,9 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
   deployed runtime, e.g. 3044). The create-Part-Studio response
   (`BTDocumentElementInfo`) carries **no** FeatureScript version field — never
   spend a call expecting it there.
-- **Per-step real cost** (counted from the actual operations): upload ~4,
+- **Per-step real cost** (counted from the actual operations): upload ~3,
   create Part Studio 1, instantiate 2, `evalfeaturescript` 1, validation
-  pipeline 15 with render / 10 without. `check_latest` on `fs_check_version`
+  pipeline 14 with render / 9 without. `check_latest` on `fs_check_version`
   costs 1 (the `/api/build` REST-spec probe); the plain version check and
   `fs_update_reference` (without `include_onshape_api`) cost **0**.
 - **A version mismatch on `import` is a save-time failure** — the upload

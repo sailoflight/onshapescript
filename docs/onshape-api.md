@@ -72,10 +72,10 @@ OpenAPI spec), so the budget is built passively at zero extra API cost:
   limit (enterprise 10000 / professional 5000 / standard 2500), or
   `{"annualLimit": N}` directly.
 - `onshape_api_quota` reports configured limit, consumed, remaining, and how
-  many validation-pipeline runs fit (15 calls with render, 10 without).
+  many validation-pipeline runs fit (14 calls with render, 9 without).
 - `onshape_run_validation_pipeline` runs a preflight check before mutating and
   blocks with the shortfall if the budget would be exhausted. `render_previews:
-  false` halves the cost.
+  false` drops the five render calls (14 → 9).
 
 The ledger is an estimate — other clients and UI usage also consume the server
 limit — so treat it as a budget guardrail, with 402 as the authoritative signal.

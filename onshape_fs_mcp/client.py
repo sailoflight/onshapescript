@@ -58,6 +58,66 @@ class RateLimited(RuntimeError):
     and wait instead of hammering the rate limit."""
 
 
+class RateLimitedHold(RuntimeError):
+    """Raised BEFORE any request when the ledger shows the account is still
+    under a long rate-limit hold (rate-limit remaining 0 with a large
+    Retry-After). Like RateLimited, callers must exit and wait — never retry."""
+
+
+def rate_limit_reason(usage: dict[str, Any] | None = None) -> str | None:
+    """Return a reason string if the account is under a long rate-limit hold,
+    else None. Zero network cost: reads the passive usage ledger only.
+
+    Onshape's Retry-After landed at ~72910s (~20h) on 2026-08-14 with
+    rate-limit remaining 0, so a run started during the hold would only burn
+    futile requests. Every live entrypoint (MCP server + scripts) gates on this
+    BEFORE the first request.
+    """
+    if usage is None:
+        try:
+            usage = load_json(USAGE_PATH)
+        except Exception:
+            return None
+    retry_after = int(usage.get("lastRetryAfter") or 0)
+    remaining = str(usage.get("lastRateLimitRemaining") or "")
+    if remaining == "0" and retry_after > 60:
+        return (
+            f"Onshape rate-limited: Retry-After {retry_after}s "
+            f"(~{retry_after // 3600}h), rate-limit remaining 0"
+        )
+    return None
+
+
+class LiveApiDisabled(RuntimeError):
+    """Raised when a live request is attempted while LIVE_API_ENABLED is off.
+
+    The protocol's top constraint is that real API requests are explicit, not a
+    script default — so the flag defaults to off and the transport refuses to
+    send any request until the operator opts in.
+    """
+
+
+def live_api_enabled() -> bool:
+    """Whether live Onshape API calls are explicitly allowed.
+
+    Reads LIVE_API_ENABLED (truthy values: 1 / true / yes / on). Default off:
+    real requests must be explicit, per the protocol's top constraint. Zero
+    network cost; checked by the transport (OnshapeClient.request) and by every
+    live entrypoint's gate.
+    """
+    return os.environ.get("LIVE_API_ENABLED", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _live_disabled_reason(label: str) -> str:
+    return (
+        f"Live Onshape API calls are disabled (LIVE_API_ENABLED not set to 1). "
+        f"Real requests must be explicit: set LIVE_API_ENABLED=1 to allow "
+        f"'{label}'. Dry runs and all offline tools still work."
+    )
+
+
 class OnshapeClient:
     def __init__(self) -> None:
         credentials = load_json(CREDENTIALS_PATH)
@@ -101,6 +161,14 @@ class OnshapeClient:
         remaining = headers.get("x-rate-limit-remaining") if headers else None
         if remaining is not None:
             usage["lastRateLimitRemaining"] = str(remaining)
+            # A healthy remaining count means any prior Retry-After hold has
+            # cleared. Clear it so api_usage stops surfacing a stale wait time
+            # (e.g. the 72910s from 2026-08-14's burst) after recovery.
+            try:
+                if int(str(remaining)) > 0:
+                    usage["lastRetryAfter"] = None
+            except ValueError:
+                pass
         retry_after = headers.get("retry-after") if headers else None
         if retry_after is not None:
             usage["lastRetryAfter"] = str(retry_after)
@@ -127,6 +195,11 @@ class OnshapeClient:
         query: dict[str, Any] | None = None,
         timeout: int = 180,
     ) -> Any:
+        # Transport-level backstop: a real request is never sent while the
+        # explicit opt-in is off, regardless of whether a caller forgot to gate
+        # at its own entrypoint. Dry runs and offline tools never reach here.
+        if not live_api_enabled():
+            raise LiveApiDisabled(_live_disabled_reason(f"{method} {path}"))
         url = self.base_url + path
         if query:
             url += "?" + urllib.parse.urlencode(query, doseq=True)
@@ -193,8 +266,30 @@ class OnshapeClient:
                 last_error = error
             if attempt < attempts - 1:
                 time.sleep(2 ** attempt)
-        self._record_usage(method, path, None, None)
         raise RuntimeError(f"Onshape request failed after retries: {last_error}")
+
+    def describe(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        query: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build the exact request request() would send — method, URL, headers,
+        body — WITHOUT sending it. The Authorization header is redacted (secrets
+        must never reach dry-run output, logs, or fixtures). This is the shared
+        request builder behind dry_run so a dry run shows the real payload, not
+        a re-typed approximation."""
+        url = self.base_url + path
+        if query:
+            url += "?" + urllib.parse.urlencode(query, doseq=True)
+        headers = {
+            "Authorization": "<REDACTED>",
+            "Accept": "application/json;charset=UTF-8; qs=0.09",
+        }
+        if body is not None:
+            headers["Content-Type"] = "application/json;charset=UTF-8; qs=0.09"
+        return {"method": method, "url": url, "headers": headers, "body": body}
 
 
 def save_state(state: dict[str, Any]) -> None:

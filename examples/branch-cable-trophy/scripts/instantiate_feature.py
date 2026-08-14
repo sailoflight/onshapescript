@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import _paths  # noqa: E402  (puts ROOT on sys.path; see _paths.py)
+import _guard  # noqa: E402
 
 from onshape_fs_mcp.client import DEFAULT_PARAMETERS_PATH, load_json
 from onshape_fs_mcp.operations import PARAMETER_PATHS, instantiate_feature
@@ -19,6 +20,7 @@ parameter_set = next(
      if args.parameters.resolve() == path.resolve()),
     None,
 )
+_guard.require_live(2, "instantiate_feature")
 if parameter_set is None:
     summary = instantiate_feature("default", overrides=load_json(args.parameters))
 else:

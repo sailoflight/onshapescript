@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -427,6 +429,7 @@ class McpServerTest(unittest.TestCase):
         self.assertTrue(pre3["canProceed"])
         self.assertIn("No annual quota configured", pre3["details"]["note"])
 
+    @mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"})
     def test_budget_guard_preflights_and_tracks_spend(self) -> None:
         from onshape_fs_mcp import budget as budget_module
         from onshape_fs_mcp import client as client_module

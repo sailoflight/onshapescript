@@ -19,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from onshape_fs_mcp.budget import live_blocker  # noqa: E402
 from onshape_fs_mcp.client import OnshapeClient  # noqa: E402
 
 ONSHAPE_API_DIR = ROOT / "reference" / "raw" / "onshape-api"
@@ -38,6 +39,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="only print the sha256")
     args = parser.parse_args()
+
+    # /api/openapi costs 1 quota call; gate before constructing the client.
+    blocker = live_blocker(1, "fetch_onshape_api")
+    if blocker:
+        print(f"refusing to fetch: {blocker}", file=sys.stderr)
+        return 1
 
     client = OnshapeClient()
     spec = client.request("GET", "/api/openapi", timeout=300)

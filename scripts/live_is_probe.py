@@ -22,7 +22,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_fs_mcp.client import rate_limit_reason  # noqa: E402
 from onshape_fs_mcp.operations import eval_featurescript  # noqa: E402
 
 DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
@@ -153,6 +154,16 @@ def main() -> int:
                         default=ROOT / "docs" / "verification" / "live" / "live-is-predicates.json",
                         help="where to write results")
     args = parser.parse_args()
+
+    if not live_api_enabled():
+        print("aborting before any call: LIVE_API_ENABLED is not set to 1 "
+              "(real API requests must be explicit)")
+        return 0
+
+    rl = rate_limit_reason()
+    if rl:
+        print(f"aborting before any call: {rl}")
+        return 0
 
     guard = BudgetGuard(args.budget, "is* predicate probe")
     print(f"probing {len(CANDIDATES)} candidates against deployed runtime "

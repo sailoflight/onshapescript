@@ -206,7 +206,7 @@
   {
    "page": "mcp-server",
    "path": "docs/mcp-server.md",
-   "sha256": "aff703cfc4f792ad38e608355ba9f03dc01e4ac1389619569ee34e780a9e1361",
+   "sha256": "f7d746a53db3c2913486cc61f63aa93959042d23dfe56434961323a717521166",
    "title": "Local MCP server",
    "sections": [
     {
@@ -505,7 +505,7 @@
       },
       {
        "type": "para",
-       "text": "Every mutating tool also preflights against the annual quota budget before any remote call — upload ~4 calls, create 1, instantiate 2, pipeline ~15 with render / ~10 without. When the configured budget would be exceeded the tool blocks with the shortfall instead of spending API calls."
+       "text": "Every mutating tool also preflights against the annual quota budget before any remote call — upload ~3 calls, create 1, instantiate 2, pipeline ~14 with render / ~9 without. When the configured budget would be exceeded the tool blocks with the shortfall instead of spending API calls."
       },
       {
        "type": "para",
@@ -605,7 +605,7 @@
   {
    "page": "onshape-api",
    "path": "docs/onshape-api.md",
-   "sha256": "e4c9fb78ea09d3f6c95f4cce56bf5a286b854a9b8e3bcee7ba13d1da4a5b1d72",
+   "sha256": "499944ea8e258275a984390eb30df01eb800f23223e1be07fa5f58c882235020",
    "title": "Onshape REST API reference",
    "sections": [
     {
@@ -752,11 +752,11 @@
          "depth": 0
         },
         {
-         "text": "onshape_api_quota reports configured limit, consumed, remaining, and how many validation-pipeline runs fit (15 calls with render, 10 without).",
+         "text": "onshape_api_quota reports configured limit, consumed, remaining, and how many validation-pipeline runs fit (14 calls with render, 9 without).",
          "depth": 0
         },
         {
-         "text": "onshape_run_validation_pipeline runs a preflight check before mutating and blocks with the shortfall if the budget would be exhausted. `render_previews: false` halves the cost.",
+         "text": "onshape_run_validation_pipeline runs a preflight check before mutating and blocks with the shortfall if the budget would be exhausted. `render_previews: false` drops the five render calls (14 → 9).",
          "depth": 0
         }
        ]
@@ -917,7 +917,7 @@
   {
    "page": "llm-experience-fs",
    "path": "docs/verification/llm-experience-fs.md",
-   "sha256": "a33caf091d932900878e9e8c06e796c631f4546a7d607270c86ac4ed9db2aa43",
+   "sha256": "01cb2d54f2b5bab2686b720384958cc37ba778a1914b02bdc00809b188575df5",
    "title": "LLM experience: FeatureScript language",
    "sections": [
     {
@@ -1073,7 +1073,7 @@
          "depth": 0
         },
         {
-         "text": "Signature-layer errors give 0 specs. Dropping context from the defineFeature function signature, importing an older std version than the Feature Studio (2960.0 vs 3029.0), or referencing an absent symbol in a precondition (GBTErrorStringEnum, isString, isArray) all fail at save time with featureSpecs empty.",
+         "text": "Signature-layer errors give 0 specs. Dropping context from the defineFeature function signature, or referencing an absent symbol in a precondition (GBTErrorStringEnum, isString, isArray), fails at save time with featureSpecs empty. The earlier \"stale import (2960.0)\" example is now confounded: featurespecs are only emitted for precondition params carrying a bound spec (e.g. `{ (millimeter) : [...] } as LengthBoundSpec); a bare isLength` emits no spec regardless of body — symbol-sweep 2026-08-14 proved this by uploading a definition-reading body and still getting specCount 0. So experiment 06 (no precondition at all) needs a bound-spec probe to test version behavior; scripts/live_gap_probe.py and scripts/live_symbol_sweep.py carry the corrected probe.",
          "depth": 0
         },
         {
@@ -1128,7 +1128,7 @@
          "depth": 0
         },
         {
-         "text": "This is why instantiation is the real cost: ~5 calls per feature (upload 3-4 + create Part Studio 1 + POST feature 1), and it is the only layer that exercises the body.",
+         "text": "This is why instantiation is the real cost: ~5 calls per feature (upload 3 + create Part Studio 1 + POST feature 1), and it is the only layer that exercises the body.",
          "depth": 0
         }
        ]
@@ -1151,7 +1151,7 @@
          "depth": 0
         },
         {
-         "text": "Pass part_studio_id explicitly in probe loops. Without it, each eval re-resolves the target Part Studio by walking the document (~1 elements GET + ~N parts GETs ≈ 10 ledger calls). With it, one eval is exactly 1 call — the difference between a 33-symbol probe costing ~34 calls and ~130.",
+         "text": "Pass part_studio_id explicitly in probe loops. The resolver no longer walks the document: it returns the explicit id or the cached config/onshape-state.json partStudioId, and raises if neither is present (the old ~10-call implicit walk is disabled). With it, one eval is exactly 1 call.",
          "depth": 0
         },
         {
@@ -1159,7 +1159,7 @@
          "depth": 0
         },
         {
-         "text": "The eval response's libraryVersion is the live deployment version — 3044 at the time of writing, ahead of both the vendored 2960 and the trophy's 3029 header. (The featurespecs languageVersion reflects the content's declared version; eval's libraryVersion reports the server's.) fs_check_version reports the last observed of both for free — they are cached from workflow responses (feature_studio_status / eval), never fetched by a dedicated call. include_live (1 call) only refreshes the Feature Studio's declared version; eval is the way to see the true deployed one, and its result is cached too.",
+         "text": "The eval response's libraryVersion is the live deployment version — 3044 at the time of writing, ahead of both the vendored 2960 and the trophy's 3029 header. (The featurespecs languageVersion reflects the content's declared version; eval's libraryVersion reports the server's.) fs_check_version reports the last observed of both for free — they are cached from workflow responses (feature_studio_status / eval), never fetched by a dedicated call. include_live (2 calls) only refreshes the Feature Studio's declared version; eval is the way to see the true deployed one, and its result is cached too.",
          "depth": 0
         }
        ]
@@ -1189,7 +1189,7 @@
         ],
         [
          "featurespecs (via upload / onshape_get_feature_studio_status)",
-         "~4 / 1",
+         "~3 / 2",
          "Signature + precondition only. Body is not compiled at save"
         ],
         [
@@ -1212,7 +1212,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Never compile-probe with uploads. A bad body costs the same ~4 calls as a good one and returns nothing (0 specs is ambiguous — plain functions also give 0). Use eval for body semantics; it returns real error text.",
+         "text": "Never compile-probe with uploads. A bad body costs the same ~3 calls as a good one and returns nothing (0 specs is ambiguous — plain functions also give 0). Use eval for body semantics; it returns real error text.",
          "depth": 0
         },
         {
@@ -1224,7 +1224,15 @@
          "depth": 0
         },
         {
-         "text": "Do not batch-verify what a real task will verify on demand. The remaining unknowns (exact is* set at 3044, cross-version import boundary vs the deployed runtime) are cheap to answer inside the specific task that needs them, via eval — not by another bulk run.",
+         "text": "Do not batch-verify what a real task will verify on demand. The cross-version import boundary now has strong evidence (symbol-sweep 2026-08-14): a probe whose precondition matches experiments/01 exactly (annotation { \"Name\" } + { (millimeter) : [...] } as LengthBoundSpec — that bound-spec/annotation pair is what emits a parameter spec; a bare isLength emits none at any version) returns **specCount 0 at import 3044.0**, while the recorded experiments at 3029.0 return 1 spec — so the boundary is 3029 < version ≤ 3044 (silent rejection, no error text). Confirm with 3029/3050 probes when the rate limit clears. Never probe versions with a bare precondition — specCount 0 is meaningless without the bound spec.",
+         "depth": 0
+        },
+        {
+         "text": "429 is never retried (user policy 2026-08-14). Onshape's Retry-After hit 73094s (~20h) with Rate-Limit-Remaining 0. client.request raises RateLimited immediately (wait time persisted to config/api-usage.json); every quota script re-raises it, writes the error to its results file, and exits — no retry, no skipping to the next task. Hard budgets everywhere: a --budget total cap preflighted against the annual quota, plus per-operation checks (e.g. an import version probe costs 3 calls and is only started if all 3 fit the remaining budget).",
+         "depth": 0
+        },
+        {
+         "text": "**Quota tests: minimize the unit whose crash is total; bundle only what is free to bundle.** A bundled eval is 1 call whether it holds 1 symbol or 10 (clean bundles PASS in bulk), so large bundles are efficient — but a failing bundle binary-splits at 1 call per revealed symbol, so over-bundling symbols likely to fail is costly. More importantly, a quota run must **save incrementally**: scripts/live_symbol_sweep.py first run only wrote at the end and a single unattributable runtime error (a value-typed predicate deref'ing a 5 dummy: \"Attempt to dereference non-container 5\") recursed its binary split forever until the API 429'd — losing all 61 calls' results. Fixes: save after every recorded symbol; stop splitting at a 1-element bundle (record UNATTRIBUTABLE and move on); pass a vector(1,2,3) dummy for value-typed params, not 5, so structural predicates (is2dDirection, isLengthVector, …) don't deref the dummy at runtime.",
          "depth": 0
         }
        ]
@@ -1236,7 +1244,7 @@
   {
    "page": "llm-experience-api",
    "path": "docs/verification/llm-experience-api.md",
-   "sha256": "0f4d7a25c77dc7d9906bab871f947562fe9d26c7ee458b7b7e818c4517d5ee5e",
+   "sha256": "fff3639d8b1e62da176c4636ab816e0592d9ce1ccee392488b4ae8946a5b3893",
    "title": "LLM experience: Onshape REST API",
    "sections": [
     {
@@ -1369,7 +1377,7 @@
          "depth": 0
         },
         {
-         "text": "Before a mutating batch (the validation pipeline is ~15 calls, ~10 without rendering), check onshape_api_quota; the pipeline itself preflights and blocks if the annual budget would be exceeded.",
+         "text": "Before a mutating batch (the validation pipeline is ~14 calls, ~9 without rendering), check onshape_api_quota; the pipeline itself preflights and blocks if the annual budget would be exceeded.",
          "depth": 0
         }
        ]
@@ -1400,7 +1408,7 @@
          "depth": 0
         },
         {
-         "text": "Per-step real cost (counted from the actual operations): upload ~4, create Part Studio 1, instantiate 2, evalfeaturescript 1, validation pipeline 15 with render / 10 without. check_latest on fs_check_version costs 1 (the /api/build REST-spec probe); the plain version check and fs_update_reference (without include_onshape_api) cost 0.",
+         "text": "Per-step real cost (counted from the actual operations): upload ~3, create Part Studio 1, instantiate 2, evalfeaturescript 1, validation pipeline 14 with render / 9 without. check_latest on fs_check_version costs 1 (the /api/build REST-spec probe); the plain version check and fs_update_reference (without include_onshape_api) cost 0.",
          "depth": 0
         },
         {
@@ -1420,7 +1428,7 @@
   {
    "page": "live-verification",
    "path": "docs/verification/live/README.md",
-   "sha256": "9df00b546b929c5d40fcdcc999f5d0245e98f7265106c6c3d857f442862508fd",
+   "sha256": "77a647d7b5d9a5bfc2388fb433a2632628d53de19c528f4add9d0b2875e3df32",
    "title": "Live FeatureScript verification — 实测记录",
    "sections": [
     {
@@ -1430,6 +1438,10 @@
       {
        "type": "para",
        "text": "目标：用真实 Onshape 服务器验证 docs/verification/llm-experience-fs.md 的 语言论断。总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
+      },
+      {
+       "type": "para",
+       "text": "> 2026-08-14 更新 — 15/15 已定案，勿重跑：下面表格里的 ⚠/❌ 是相对当时 > 文档断言的\"意外\"，其结论已吸收进 experiments.json 的修正期望（02/05/08/15 > 改为 compile-ok：body 不编译；07/11/13 改为 compile-error：服务器上符号不存在）。 > 2026-08-14 意外实跑已对活服务器重确认 15/15 全部符合当前期望（FeatureScript > 3029，45 次调用）。完整 46 次调用 trace 与\"不要重跑\"说明见 > reconfirm-2026-08-14.json；results.json 顶部注记 > 解释了 expect 列的旧 manifest 背景。"
       }
      ]
     },
@@ -1709,6 +1721,83 @@
       {
        "type": "para",
        "text": "代价教训：探测循环没传 part_studio_id 时，resolve_part_studio_id 每次 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用）， 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号 共 12 次）。教训已写入 llm-experience-fs.md 的 eval 小节。"
+      },
+      {
+       "type": "para",
+       "text": "---"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "追加：gap-probe 收尾（2026-08-14，22 次预算，ledger 469 → 482）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "scripts/live_gap_probe.py 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1 次——guard 在分区边界检查，最后一个分区可整体越界）。结果在 gap-probe-results.json。"
+      },
+      {
+       "type": "para",
+       "text": "A. 语言特性 eval（runtime 3044，每次恰好 1 调用，全部 ✅ errors 空）"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "concat_units_trig：\"part\" ~ 3 → \"part3\"；(5*mm)/2 → 0.0025 m； sin(90degree) → 1.0；10inch + 1*inch → 0.2794 m。单位运算 + 三角函数 角度制实测成立。",
+         "depth": 0
+        },
+        {
+         "text": "control_flow：for-in、while、for (k, v in map)、lambda 赋值全通过， 结果 [9.0, 42.0, 3.0] 逐项精确。",
+         "depth": 0
+        },
+        {
+         "text": "query_typecheck：q is Query → true；qNthElement(q, 0) 返回 NTH_ELEMENT 查询结构（qCreatedBy 的实体类型/filter 全链路）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "B. render_preview（唯一零真实调用记录的工具）✅：iso 300×300 → 57927 字节 PNG（sha256 d676c853…），1 调用。渲染通路端到端可用。"
+      },
+      {
+       "type": "para",
+       "text": "C. 跨版本 import 边界 —— 探测仍有缺陷，上界未测出；但 spec 发射机制已定位 3029/3044/3035 三个 import 版本全部 specCount:0 + errorType/errorMessages 全空 + 上传非 4xx → 编译器都接受了这些 source（import 版本 ≤ 运行时 3044 兼容）。0 specs 不是\"接受\"的证据，但 symbol-sweep 补出的对照把它解释清楚了： feature spec 只对 precondition 里带 bound spec 的参数发射（实验 01/02/04/05/08/09/10/12/14/15 全部 1-spec，precondition 全部有 { (millimeter) : [...] } as LengthBoundSpec）；裸 isLength(definition.size) 无论 body 读不读 definition 都是 0 specs（sweep 的 import 探测 body 用 opExtrude(... \"endDepth\" : definition.size) 仍 0 specs——证明body 无关， 纠正了本轮早先\"body 读参数才发射\"的推断）。"
+      },
+      {
+       "type": "para",
+       "text": "由此实验 06 的旧结论进一步被混淆：\"import 旧版本 2960.0 是签名层错误\"—— 06 根本没有 precondition（无 bound spec），0 specs 完全可由\"无参数 UI\"解释， 未必是版本拒绝。仍成立的签名层 0-spec 案例：缺 context（实验 03）、precondition 引用不存在的符号（07/11/13）——这些是真实编译失败。修复：import probe 的 precondition 已改为带 bound spec（isLength(definition.size, { (millimeter) : [1,2,3] } as LengthBoundSpec)），这样\"接受\"→1 spec、\"版本拒绝\"→0 specs + errorType。上界（import > 服务器，3050）仍未测出，需再跑一次修正后的探测。"
+      },
+      {
+       "type": "para",
+       "text": "D. REST 只读端点（getDocument / getDocumentVersions / getDocumentWorkspaces） 未跑到——C 分区耗掉 9 次后预算尽。已把 D 提到 C 之前，保证 3 次只读必跑。"
+      },
+      {
+       "type": "para",
+       "text": "配额账目：ledger 469 → 482（+13；本轮 spent 13/12），真实 = 119 + 482 = 601/2500（剩 ~1899）。"
+      },
+      {
+       "type": "para",
+       "text": "---"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "追加：symbol-sweep 与 import 边界强证据（2026-08-14，账户被限流 ~20h）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "scripts/live_symbol_sweep.py（已含：时间戳日志、增量落盘、断点续跑跳过已验证 符号、--budget 0 按未验证余量自适应、2s 节流、429 永不重试）。首轮 bug 白烧 61 次（无限二分 + 429），第二轮修好组件但账户限流。当前账户 Retry-After 72910s（~20h）、Rate-Limit-Remaining 0——2026-08-14 当天探测耗尽突发额度， sweep 暂停，限流过后续跑只补未验证部分。"
+      },
+      {
+       "type": "para",
+       "text": "import 边界（强证据但未定论，需限流后确认）：修正形状（precondition 带 annotation { \"Name\" } + as LengthBoundSpec，与实验 01 逐字一致）在 版本 3044.0 → specCount 0（run-4/run-5 两次复现，errorType/errorMessages 全空、非 4xx）；而同形状的实验（3029.0）历史记录 → 1 spec。同一文档/FS/流程 只差版本 → import 3044.0 被静默拒绝（0 specs 无错误文本），边界位于 3029 < 版本 ≤ 3044。这与 eval libraryVersion 报告 3044 并不矛盾——报告的是 运行时版本，FS 编译支持的 std import 上限仍可能是 3029（奖杯/实验声明版本）。 待限流解除后用修正探测复测 3029（应 1 spec）与 3050（应 0 specs）坐实。"
+      },
+      {
+       "type": "para",
+       "text": "429 策略（用户 2026-08-14 指令，已实现）：client.request 对 429 永不重试 ——立即抛 RateLimited（等待时间已写入 ledger 的 lastRetryAfter）；所有额度 脚本（sweep/gap_probe/is_probe/run_live_tests/run_instance_tests）重新抛出 RateLimited 而非吞掉继续，脚本把错误写入结果文件并退出，严禁重试、严禁跳过 下一任务。硬额度预算：每脚本 --budget（总额上限）+ preflight 对年额度 + import 每次版本探测前检查剩余 ≥ 3 次调用。"
       }
      ]
     }

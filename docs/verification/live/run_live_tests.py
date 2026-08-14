@@ -27,8 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]  # repo root: .../docs/verification/live -> .../docs/verification -> .../docs -> root
 sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp.client import OnshapeClient, RateLimited, load_json  # noqa: E402
-from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
+from onshape_fs_mcp.client import OnshapeClient, RateLimited, RateLimitedHold, load_json  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"
@@ -110,7 +110,11 @@ def upload_and_compile(
 
 def main(budget: int) -> int:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    guard = BudgetGuard(budget, "live compile experiments")
+    try:
+        guard = BudgetGuard(budget, "live compile experiments")
+    except (RateLimitedHold, LiveApiDisabled) as error:
+        print(f"not starting: {error}")
+        return 1
     client = guard.client
     did, wid = client.state["documentId"], client.state["workspaceId"]
     start_consumed = guard.start

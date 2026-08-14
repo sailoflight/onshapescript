@@ -75,8 +75,10 @@ documents only the `definition` map fields (see `fs_get_function` on an `op*`).
 ## Live verification findings (real server, budget 200 calls)
 
 Verifying the corpus against a real Feature Studio exposed mechanisms the
-reference does not document. Full run log: `live/README.md` (15 experiments,
-8/15 matched expectation).
+reference does not document. Full run log: `live/README.md` (15 experiments;
+the 7 rows that surprised the original expectations are now absorbed into the
+corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see
+`live/reconfirm-2026-08-14.json`).
 
 - **`featurespecs` compiles only the signature/precondition, not the body.**
   A feature whose body calls an undefined function (`qDoesNotExist(...)`),
@@ -158,7 +160,7 @@ reference does not document. Full run log: `live/README.md` (15 experiments,
   error from a runtime/empty-query error — treat ERROR as "the body did not
   complete", then reason about why.
 - This is why instantiation is the real cost: ~5 calls per feature
-  (upload 3-4 + create Part Studio 1 + POST feature 1), and it is the only
+  (upload 3 + create Part Studio 1 + POST feature 1), and it is the only
   layer that exercises the body.
 
 ### `evalfeaturescript` as the live-doc tool (live, verified)
@@ -170,10 +172,11 @@ only cheap way to confirm real semantics the 2960 docs lack:
   calls it with `(context, id)`; anything else fails with "script does not
   evaluate to a function" or an arity error. Working shape:
   `function(context is Context, id is Id) { return 5; }` → result `5`.
-- **Pass `part_studio_id` explicitly in probe loops.** Without it, each eval
-  re-resolves the target Part Studio by walking the document (~1 elements GET +
-  ~N parts GETs ≈ 10 ledger calls). With it, one eval is exactly 1 call — the
-  difference between a 33-symbol probe costing ~34 calls and ~130.
+- **Pass `part_studio_id` explicitly in probe loops.** The resolver no longer
+  walks the document: it returns the explicit id or the cached
+  `config/onshape-state.json` `partStudioId`, and raises if neither is present
+  (the old ~10-call implicit walk is disabled). With it, one eval is exactly
+  1 call.
 - **Its `notices` carry detailed compile errors** (`level`, `type: PARSE`,
   message, stack location) — far more diagnostic than instantiation's bare
   `featureStatus=ERROR`. Use eval to find *why* a body fails before spending
@@ -184,7 +187,7 @@ only cheap way to confirm real semantics the 2960 docs lack:
   content's declared version; eval's `libraryVersion` reports the server's.)
   `fs_check_version` reports the **last observed** of both for free — they are
   cached from workflow responses (`feature_studio_status` / `eval`), never
-  fetched by a dedicated call. `include_live` (1 call) only refreshes the
+  fetched by a dedicated call. `include_live` (2 calls) only refreshes the
   Feature Studio's declared version; eval is the way to see the true deployed
   one, and its result is cached too.
 
@@ -195,13 +198,13 @@ Confirmed by ~310 live calls. Cost-per-step below is real API calls:
 | Step | Cost | What it proves |
 |---|---|---|
 | `scripts/fs_local_check.py` | 0 | Structure (hard) + body symbols absent from the vendored index (warning) |
-| `featurespecs` (via upload / `onshape_get_feature_studio_status`) | ~4 / 1 | **Signature + precondition only.** Body is not compiled at save |
+| `featurespecs` (via upload / `onshape_get_feature_studio_status`) | ~3 / 2 | **Signature + precondition only.** Body is not compiled at save |
 | `onshape_eval_featurescript` | 1 | Any semantics the 2960 docs lack, with detailed compile errors in `notices`. Cheapest way to learn *why* a body fails |
 | Instantiate (`POST .../features`) | 2 | The only layer that executes the body — but ERROR is opaque (no message) |
 
 Rules that save quota:
 
-- **Never compile-probe with uploads.** A bad body costs the same ~4 calls as a
+- **Never compile-probe with uploads.** A bad body costs the same ~3 calls as a
   good one and returns nothing (0 specs is ambiguous — plain functions also give
   0). Use eval for body semantics; it returns real error text.
 - **A version mismatch is a save-time (signature-layer) error** — check
