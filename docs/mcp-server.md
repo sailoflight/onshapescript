@@ -103,7 +103,7 @@ Local protocol and mutation-guard tests do not contact Onshape:
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile mcp_server.py onshape_tools/*.py scripts/*.py
+python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/branch-cable-trophy/scripts/*.py
 ```
 
 A credentialed read-only integration smoke test was run against the configured
