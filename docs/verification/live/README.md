@@ -91,7 +91,7 @@ symbols risk。results 在 `results.json`。重跑：
 
 ```bash
 python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截
-python3 docs/verification/live/run_live_tests.py                      # 需调整 MAX_BUDGET
+python3 docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏
 ```
 
 ---

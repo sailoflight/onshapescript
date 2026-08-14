@@ -26,12 +26,15 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from onshape_fs_mcp.client import OnshapeClient, compact_feature_response  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"
 FS_ID_PATH = LIVE_DIR / ".fs-id.json"
 RESULTS_PATH = LIVE_DIR / "instance-results.json"
-MAX_BUDGET = 100
+# Per-run budget is a command-line choice (default 100: ~5 features x ~15
+# calls), gated by BudgetGuard's preflight against remaining annual quota.
+DEFAULT_BUDGET = 100
 
 INSTANCE_TESTS = [
     {"file": "01-three-layer.fs", "featureType": "threeLayerProbe",
@@ -113,17 +116,17 @@ def instantiate(client, did, wid, fs_id, microversion, ps_id, feature_type, name
         return {"ok": False, "detail": f"rejected at instantiation: {str(error)[:300]}"}
 
 
-def main() -> int:
-    client = OnshapeClient()
+def main(budget: int) -> int:
+    guard = BudgetGuard(budget, "instantiation verification")
+    client = guard.client
     did, wid = client.state["documentId"], client.state["workspaceId"]
     eid = json.loads(FS_ID_PATH.read_text(encoding="utf-8"))["featureStudioId"]
-    start = int(client._usage.get("consumed", 0))
+    start = guard.start
     major, version = resolve_version()
 
     results = []
     for spec in INSTANCE_TESTS:
-        spent = int(client._usage.get("consumed", 0)) - start
-        if spent >= MAX_BUDGET:
+        if guard.exceeded():
             results.append({"file": spec["file"], "skipped": "budget"})
             continue
         src = (EXPERIMENTS_DIR / spec["file"]).read_text(encoding="utf-8")
@@ -161,13 +164,23 @@ def main() -> int:
         print(f"    {spec['question']}")
         print(f"    {inst['detail']}")
 
-    total = int(client._usage.get("consumed", 0)) - start
+    total = guard.spent
     outcome = {"startLedger": start, "endLedger": int(client._usage.get("consumed", 0)),
-               "callsSpent": total, "budget": MAX_BUDGET, "results": results}
+               "callsSpent": total, "budget": guard.summary(), "results": results}
     RESULTS_PATH.write_text(json.dumps(outcome, indent=2), encoding="utf-8")
-    print(f"\nspent {total} ledgered calls (budget {MAX_BUDGET})")
+    print(f"\nspent {total} ledgered calls (budget {guard.budget})")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--budget",
+        type=int,
+        default=DEFAULT_BUDGET,
+        help=f"max ledgered API calls this run (default {DEFAULT_BUDGET})",
+    )
+    args = parser.parse_args()
+    raise SystemExit(main(args.budget))

@@ -3,11 +3,18 @@
 plus the 4 the mirror omits (isQuery/isString/isArray/isType), against the
 deployed FeatureScript runtime (eval libraryVersion).
 
-Cost: (1 + number_of_failures) evals, one ledger call each (part_studio_id
-passed explicitly so resolution is skipped). Compiler stops at the first error,
-so bundling reveals ONE failure per eval; each failure is dropped and the rest
-re-evaluated until the bundle is clean.
+Cost: (1 + number_of_failures) evals, one ledger call each. The compiler stops
+at the first error, so bundling reveals ONE failure per eval; each failure is
+dropped and the rest re-evaluated until the bundle is clean.
+
+Budget: gated by onshape_fs_mcp.budget.BudgetGuard — preflighted against the
+remaining annual quota, `--budget` overrides the per-run ceiling (default 40:
+33 candidates x 1 call + margin for splits), and the run stops as soon as the
+budget is spent, writing whatever it has verified. Pass `--part-studio-id`
+explicitly: without it each eval re-resolves the target (~10 ledger calls),
+the exact trap that burned ~126 calls on the first probe run.
 """
+import argparse
 import json
 import re
 import sys
@@ -15,10 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
 from onshape_fs_mcp.operations import eval_featurescript  # noqa: E402
 
-OUT = ROOT / "outputs" / "live-is-predicates.json"
-PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target from the ledger
+DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
 
 CANDIDATES = [
     ("isLength", "isLength(1)"),
@@ -64,13 +71,6 @@ _NAME_RE = re.compile(
 )
 
 
-def run_bundle(names: list[tuple[str, str]]) -> list[str]:
-    body = ", ".join(call for _, call in names)
-    script = f"function(context is Context, id is Id) {{ return [{body}]; }}"
-    r = eval_featurescript(script, part_studio_id=PART_STUDIO_ID)
-    return r["errors"]
-
-
 def attribute(error: str, names: list[tuple[str, str]]) -> str | None:
     m = _NAME_RE.search(error)
     if m:
@@ -82,43 +82,89 @@ def attribute(error: str, names: list[tuple[str, str]]) -> str | None:
     return None
 
 
-results: dict[str, dict] = {}
-pending = list(CANDIDATES)
+class Probe:
+    def __init__(self, guard: BudgetGuard, part_studio_id: str, out: Path):
+        self.guard = guard
+        self.part_studio_id = part_studio_id
+        self.out = out
+        self.results: dict[str, dict] = {}
+        self.pending = list(CANDIDATES)
+        self.budget_stopped = False
+
+    def save(self) -> None:
+        self.out.write_text(
+            json.dumps(
+                {"summary": self.guard.summary(), "budgetStopped": self.budget_stopped,
+                 "results": self.results},
+                ensure_ascii=False, indent=1,
+            ) + "\n"
+        )
+
+    def run_bundle(self, names: list[tuple[str, str]]) -> list[str]:
+        body = ", ".join(call for _, call in names)
+        script = f"function(context is Context, id is Id) {{ return [{body}]; }}"
+        r = eval_featurescript(script, part_studio_id=self.part_studio_id,
+                               client=self.guard.client)
+        return r["errors"]
+
+    def probe(self, bundle: list[tuple[str, str]]) -> None:
+        if not bundle:
+            return
+        if self.guard.exceeded():
+            self.budget_stopped = True
+            print(f"[budget] spent {self.guard.spent}/{self.guard.budget}; "
+                  f"stopping with {len(self.pending)} candidates unverified")
+            self.save()
+            return
+        errors = self.run_bundle(bundle)
+        if not errors:
+            for name, call in bundle:
+                self.results.setdefault(
+                    name, {"call": call, "verdict": "PASS (callable)", "errors": []})
+            self.pending = [c for c in self.pending
+                            if c[0] not in {n for n, _ in bundle}]
+            self.save()
+            return
+        err = errors[0]
+        victim = attribute(err, bundle)
+        if victim is None or victim not in {n for n, _ in bundle}:
+            # Unattributable error (e.g. type error that does not name the call):
+            # binary-split the bundle so each half is attributed on its own.
+            mid = len(bundle) // 2
+            print(f"[split] unattributable: {err[:90]}")
+            self.probe(bundle[:mid])
+            self.probe(bundle[mid:])
+            return
+        self.results.setdefault(
+            victim, {"call": dict(bundle)[victim], "verdict": "FAILED", "errors": [err]})
+        self.pending = [c for c in self.pending if c[0] != victim]
+        self.save()
+        print(f"[fail] {victim}: {err[:80]}")
+        self.probe([c for c in bundle if c[0] != victim])
 
 
-def save() -> None:
-    OUT.write_text(json.dumps(results, ensure_ascii=False, indent=1) + "\n")
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--budget", type=int, default=40,
+                        help="max ledgered API calls this run (default 40)")
+    parser.add_argument("--part-studio-id", default=DEFAULT_PART_STUDIO_ID,
+                        help="target Part Studio for eval (default cached live id)")
+    parser.add_argument("--out", type=Path,
+                        default=ROOT / "docs" / "verification" / "live" / "live-is-predicates.json",
+                        help="where to write results")
+    args = parser.parse_args()
+
+    guard = BudgetGuard(args.budget, "is* predicate probe")
+    print(f"probing {len(CANDIDATES)} candidates against deployed runtime "
+          f"(budget {args.budget} ledgered calls, preflight OK, "
+          f"annual remaining {guard.summary()['annualRemaining']})...")
+    probe = Probe(guard, args.part_studio_id, args.out)
+    probe.probe(probe.pending)
+    summary = guard.summary()
+    print(f"done: {len(probe.results)} verified, {summary['spent']} ledgered calls "
+          f"spent of budget {summary['budget']}; results -> {args.out}")
+    return 0
 
 
-def probe(bundle: list[tuple[str, str]]) -> None:
-    global pending
-    if not bundle:
-        return
-    errors = run_bundle(bundle)
-    if not errors:
-        for name, call in bundle:
-            results.setdefault(name, {"call": call, "verdict": "PASS (callable)", "errors": []})
-        pending = [c for c in pending if c[0] not in {n for n, _ in bundle}]
-        save()
-        return
-    err = errors[0]
-    victim = attribute(err, bundle)
-    if victim is None or victim not in {n for n, _ in bundle}:
-        # Unattributable error (e.g. type error that does not name the call):
-        # binary-split the bundle so each half is attributed on its own.
-        mid = len(bundle) // 2
-        print(f"[split] unattributable: {err[:90]}")
-        probe(bundle[:mid])
-        probe(bundle[mid:])
-        return
-    results.setdefault(victim, {"call": dict(bundle)[victim], "verdict": "FAILED", "errors": [err]})
-    pending = [c for c in pending if c[0] != victim]
-    remaining = [c for c in bundle if c[0] != victim]
-    save()
-    print(f"[fail] {victim}: {err[:80]}")
-    probe(remaining)
-
-
-print(f"probing {len(CANDIDATES)} candidates against deployed runtime...")
-probe(pending)
-print("done; results written to", OUT)
+if __name__ == "__main__":
+    raise SystemExit(main())

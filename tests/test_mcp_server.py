@@ -427,6 +427,33 @@ class McpServerTest(unittest.TestCase):
         self.assertTrue(pre3["canProceed"])
         self.assertIn("No annual quota configured", pre3["details"]["note"])
 
+    def test_budget_guard_preflights_and_tracks_spend(self) -> None:
+        from onshape_fs_mcp import budget as budget_module
+        from onshape_fs_mcp import client as client_module
+
+        # Preflight gate: a per-run budget exceeding remaining annual quota blocks.
+        cl = object.__new__(client_module.OnshapeClient)
+        cl.state = {"apiQuota": {"accountType": "professional"}}  # annual 5000
+        cl._usage = {"consumed": 4950, "calls": []}               # 50 left
+        with self.assertRaises(budget_module.BudgetExceeded):
+            budget_module.BudgetGuard(60, "too big", client=cl)
+
+        # Ledger accounting: spend tracks the passive ledger, not a guess.
+        cl2 = object.__new__(client_module.OnshapeClient)
+        cl2.state = {"apiQuota": {"accountType": "professional"}}
+        cl2._usage = {"consumed": 4900, "calls": []}              # 100 left, budget 20
+        guard = budget_module.BudgetGuard(20, "tracked run", client=cl2)
+        self.assertFalse(guard.exceeded())
+        self.assertEqual(guard.remaining, 20)
+        cl2._usage["consumed"] += 8                               # simulate 8 calls
+        self.assertEqual(guard.spent, 8)
+        self.assertEqual(guard.remaining, 12)
+        self.assertFalse(guard.exceeded())
+        cl2._usage["consumed"] += 12                              # hit the ceiling
+        self.assertTrue(guard.exceeded())
+        self.assertEqual(guard.remaining, 0)
+        self.assertEqual(guard.summary()["annualRemaining"], 100)
+
     def test_record_observed_version_writes_only_on_change(self) -> None:
         import unittest.mock
         from onshape_fs_mcp import client as client_module

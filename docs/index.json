@@ -1420,7 +1420,7 @@
   {
    "page": "live-verification",
    "path": "docs/verification/live/README.md",
-   "sha256": "8af0187b2726e48177803d61dfc181884f084594453b6b964389f880395fd6ec",
+   "sha256": "9df00b546b929c5d40fcdcc999f5d0245e98f7265106c6c3d857f442862508fd",
    "title": "Live FeatureScript verification — 实测记录",
    "sections": [
     {
@@ -1682,7 +1682,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截\npython3 docs/verification/live/run_live_tests.py                      # 需调整 MAX_BUDGET"
+       "text": "python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截\npython3 docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏"
       },
       {
        "type": "para",

@@ -7,8 +7,10 @@ construct, plus what the error says. This turns the zero-cost corpus checks
 (reference vs mirror) into verified language facts.
 
 Budget guard: the annual quota ledger (config/api-usage.json) counts 2xx/3xx
-only. This run stops once it has spent MAX_BUDGET calls beyond its start point.
-A 4xx upload (e.g. a parse error) costs zero ledger calls.
+only. This run is gated by onshape_fs_mcp.budget.BudgetGuard — `--budget N`
+sets the per-run ceiling (default 50), preflighted against the remaining annual
+quota before anything runs; the run stops once it has spent that budget beyond
+its start point. A 4xx upload (e.g. a parse error) costs zero ledger calls.
 
 Creates one dedicated "FS live verification" Feature Studio on first run and
 reuses it (id cached in docs/verification/live/.fs-id.json). The configured
@@ -26,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[3]  # repo root: .../docs/verification/l
 sys.path.insert(0, str(ROOT))
 
 from onshape_fs_mcp.client import OnshapeClient, load_json  # noqa: E402
+from onshape_fs_mcp.budget import BudgetGuard  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"
@@ -34,10 +37,11 @@ RESULTS_PATH = LIVE_DIR / "results.json"
 FS_ID_PATH = LIVE_DIR / ".fs-id.json"
 EXPERIMENT_FS_NAME = "FS live verification"
 
-# This run may spend at most MAX_BUDGET ledgered API calls (2xx/3xx).
-# First run: 100 (exhausted diagnosing syntax). Then +50 authorized for the
-# corrected-form rerun. Set to 50 (15 experiments x ~3 calls).
-MAX_BUDGET = 50
+# Budget is a per-run command-line choice (default 50: 15 experiments x ~3
+# calls), gated by BudgetGuard's preflight against the remaining annual quota —
+# not a hard-coded constant. First run burned ~100 diagnosing syntax; later
+# runs were +50. Pass --budget to override.
+DEFAULT_BUDGET = 50
 
 
 def resolve_version_from_trophy() -> tuple[str, str]:
@@ -102,11 +106,12 @@ def upload_and_compile(
     return {"ok": True, "detail": f"{len(specs['featureSpecs'])} feature spec(s)"}
 
 
-def main() -> int:
+def main(budget: int) -> int:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    client = OnshapeClient()
+    guard = BudgetGuard(budget, "live compile experiments")
+    client = guard.client
     did, wid = client.state["documentId"], client.state["workspaceId"]
-    start_consumed = int(client._usage.get("consumed", 0))
+    start_consumed = guard.start
 
     # Reuse or create the isolated experiment Feature Studio.
     eid = None
@@ -131,8 +136,7 @@ def main() -> int:
     skipped_budget = 0
     for spec in manifest:
         name = spec["file"]
-        spent = int(client._usage.get("consumed", 0)) - start_consumed
-        if spent >= MAX_BUDGET:
+        if guard.exceeded():
             skipped_budget += 1
             results.append({"file": name, "skipped": "budget"})
             continue
@@ -155,12 +159,13 @@ def main() -> int:
         print(f"[{status}] {name}  expected={entry['expect']} actual={entry['actual']}")
         print(f"        {entry['detail']}")
 
-    total_spent = int(client._usage.get("consumed", 0)) - start_consumed
+    total_spent = guard.spent
     outcome = {
         "startLedgerConsumed": start_consumed,
         "endLedgerConsumed": int(client._usage.get("consumed", 0)),
         "callsSpentThisRun": total_spent,
         "skippedForBudget": skipped_budget,
+        "budget": guard.summary(),
         "featureScriptVersion": major,
         "importVersion": version,
         "results": results,
@@ -169,9 +174,19 @@ def main() -> int:
     passed = sum(1 for r in results if r.get("pass"))
     total = sum(1 for r in results if "skipped" not in r)
     print(f"\n{passed}/{total} experiments match expectation; this run spent "
-          f"{total_spent} ledgered calls (budget {MAX_BUDGET})")
+          f"{total_spent} ledgered calls (budget {guard.budget})")
     return 0 if passed == total else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--budget",
+        type=int,
+        default=DEFAULT_BUDGET,
+        help=f"max ledgered API calls this run (default {DEFAULT_BUDGET})",
+    )
+    args = parser.parse_args()
+    raise SystemExit(main(args.budget))
