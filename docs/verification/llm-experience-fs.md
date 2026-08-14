@@ -71,16 +71,33 @@ documents only the `definition` map fields (see `fs_get_function` on an `op*`).
 - Every other cross-reference resolves: parameter types, predicates, constants,
   and guide pages all check out (verified).
 
-## Live verification findings (real server, budget 100 calls)
+## Live verification findings (real server, budget 200 calls)
 
 Verifying the corpus against a real Feature Studio exposed mechanisms the
-reference does not document. Full run log: `live/README.md`.
+reference does not document. Full run log: `live/README.md` (15 experiments,
+8/15 matched expectation).
 
-- **`featureSpecs` empty ≠ compile failure.** A file of plain functions
-  (`function x() { return 5; }`, which compiles fine) returns an empty
-  `featureSpecs` too. Only **annotated export features** appear in the list, so
-  "empty" is ambiguous between "compiled but has no feature" and "compile
-  failed" — you cannot tell them apart from `featurespecs` alone.
+- **`featurespecs` compiles only the signature/precondition, not the body.**
+  A feature whose body calls an undefined function (`qDoesNotExist(...)`),
+  annotates an undefined type (`var x is NotARealType = 5`), mixes units
+  (`5*mm + 2`), or passes a scalar to `opExtrude` all still return **1 spec**.
+  Those errors are deferred until the feature is *instantiated* (POST to a Part
+  Studio). A spec ≠ working body — it only proves the `annotation` + `precondition`
+  signature layer is valid.
+- **Signature-layer errors give 0 specs.** Dropping `context` from the
+  `defineFeature` function signature, importing an older std version than the
+  Feature Studio (`2960.0` vs `3029.0`), or referencing an absent symbol in a
+  `precondition` (`GBTErrorStringEnum`, `isString`, `isArray`) all fail at save
+  time with `featureSpecs` empty.
+- **`featureSpecs` empty is ambiguous.** A file of plain functions (compiles
+  fine) also returns empty; only annotated export features appear. No error
+  field exists on `featurespecs`, the Feature Studio GET, or the document
+  elements list.
+- **`GBTErrorStringEnum` does not exist at the live version.** The official
+  reference links it in `ev*` signatures without a definition block; the live
+  server rejects it at the signature layer too. The same for `isString` /
+  `isArray` in `precondition` (the real `is*` predicate set differs from the
+  vendored mirror — see below).
 - **POST 200 + `microversionSkew:false` ≠ compile success.** The contents save,
   the compile may still fail; `featurespecs` reflects the compile, not the save.
 - **`libraryVersion` is always 0** (on both a long-lived Feature Studio and a
@@ -88,32 +105,19 @@ reference does not document. Full run log: `live/README.md`.
   `.fs` header (`FeatureScript 3029;` + `import version`), and there is no API
   to query a Feature Studio's current version.
 - **Feature definitions must be** `export const NAME = defineFeature(function(
-  context is Context, id is Id, definition is map) precondition { ... }) { ... };`
-  — confirmed against the trophy file. A bare `export function` with `is*`
-  predicates in the signature is the wrong shape and produces no feature spec.
-- **Symbol visibility follows transitive imports.** With only `import
-  geometry.fs`, the symbols the trophy file uses (`isLength`, `opExtrude`,
-  `qCreatedBy`, `qUnion`, `Z_DIRECTION`, `mmVector`, `LengthBoundSpec`,
-  `BoundingType`) are all visible; symbols it never uses (`isQuery`, `evVolume`,
-  `cubicInch`, `ModifyingConstructionError`) are unverified candidates for the
-  compile failures below.
-- **The correct feature shape, confirmed by live probes:** `export const NAME =
-  defineFeature(function(context is Context, id is Id, definition is map)
-  precondition { ... } { ...body... });` — the `precondition` block is followed
-  directly by the body block inside a single `defineFeature(...)` call that ends
-  in `});`. Any variant that closes the parenthesis after `precondition {...}`
-  and puts the body outside is a syntax error and silently yields 0 specs.
-- **Empty `featureSpecs` is ambiguous** and cost ~120 of the 150 budget calls to
-  pin down: it can mean "compiled but the file has no annotated feature",
-  "compile failed", or "the upload was never compiled". There is no error field
-  on `featurespecs`, on the Feature Studio GET, or on the document elements
-  list. The only reliable signal is a known-good feature returning a spec.
-  Until the mechanism is understood, **run a structural/symbol check locally
-  before uploading** (`scripts/fs_local_check.py`) — uploading a syntactically
-  bad file wastes quota and returns no diagnostics.
-- **The vendored predicates index is incomplete for `is*`.** Live-checking the
-  experiments flagged `isQuery`, `isString`, `isArray`, and `isType` as absent
-  from the vendored predicates list even though they are real standard-library
-  predicates. Treat a failed `fs_get_function`/symbol lookup on an `is*`
-  predicate as "mirror gap", not "symbol doesn't exist".
+  context is Context, id is Id, definition is map) precondition { ... }
+  { ...body... });` — confirmed by live probes and the trophy file. The
+  `precondition` block is followed directly by the body block inside one
+  `defineFeature(...)` call ending `});`. Closing the paren after
+  `precondition {...}` and putting the body outside is a syntax error that
+  silently yields 0 specs.
+- **The vendored predicates index is incomplete for `is*`.** `isQuery`,
+  `isString`, `isArray`, `isType` are absent from the mirror; live runs showed
+  some of these (`isString`, `isArray`) genuinely absent from the live
+  `precondition` layer too, while `isLength` is real. Treat an `is*` lookup
+  miss as "mirror gap OR version drift" — verify against the live server.
+- **Because the server does not compile bodies at save time, the local static
+  checker is the only body-level guard.** Run `scripts/fs_local_check.py`
+  before any upload: it catches structural errors (hard) and flags body symbols
+  the server would silently accept at save (`qDoesNotExist`, `NotARealType`).
 

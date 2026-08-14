@@ -1,0 +1,145 @@
+{
+  "startLedgerConsumed": 150,
+  "endLedgerConsumed": 195,
+  "callsSpentThisRun": 45,
+  "skippedForBudget": 0,
+  "featureScriptVersion": "3029",
+  "importVersion": "3029.0",
+  "results": [
+    {
+      "file": "01-three-layer.fs",
+      "claim": "Three-layer q/op/ev model compiles; opExtrude definition is a map with documented fields (entities/direction/endBound/endDepth). Probe F confirmed this structure standalone.",
+      "expect": "compile-ok",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "02-definition-must-be-map.fs",
+      "claim": "op* definition is a map; passing a scalar (opExtrude(..., 5)) is a compile error",
+      "expect": "compile-error",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": false
+    },
+    {
+      "file": "03-context-required.fs",
+      "claim": "op* standard signature is (context, id, definition); a definition without context fails",
+      "expect": "compile-error",
+      "actual": "compile-error",
+      "detail": "no featureSpecs returned ({\"featureSpecs\": [], \"serializationVersion\": \"1.2.21\", \"sourceMicroversion\": \"290cb3bf4e5ab7118a63e2a9\", \"rejectMicroversionSkew\": false, \"microversionSkew\": false, \"libraryVersion\": 0})",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "04-units-arithmetic.fs",
+      "claim": "ValueWithUnits mixed-unit arithmetic (5*mm + 2*cm) compiles",
+      "expect": "compile-ok",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "05-units-mismatch.fs",
+      "claim": "Dimensional mismatch (length + unitless) is a compile error",
+      "expect": "compile-error",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": false
+    },
+    {
+      "file": "06-import-version.fs",
+      "claim": "Importing the vendored 2960.0 against a newer real Feature Studio (3029.0) is a compile error, proving docs are behind",
+      "expect": "compile-error",
+      "actual": "compile-error",
+      "detail": "no featureSpecs returned ({\"featureSpecs\": [], \"serializationVersion\": \"1.2.21\", \"sourceMicroversion\": \"3cb26f8fdea6456ae4023e31\", \"rejectMicroversionSkew\": false, \"microversionSkew\": false, \"libraryVersion\": 0})",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "07-gbt-error-enum.fs",
+      "claim": "GBTErrorStringEnum exists and is a usable enum type; a FAIL here proves the official docs reference a type absent from the live version",
+      "expect": "compile-ok",
+      "actual": "compile-error",
+      "detail": "no featureSpecs returned ({\"featureSpecs\": [], \"serializationVersion\": \"1.2.21\", \"sourceMicroversion\": \"a756fb99666c190a41f14c2c\", \"rejectMicroversionSkew\": false, \"microversionSkew\": false, \"libraryVersion\": 0})",
+      "callsUsed": 0,
+      "pass": false
+    },
+    {
+      "file": "08-unknown-function.fs",
+      "claim": "A misspelled q* query function is a compile error (naming is the grammar)",
+      "expect": "compile-error",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": false
+    },
+    {
+      "file": "09-vector-operators.fs",
+      "claim": "Operator overloads on Vector/ValueWithUnits (+, -, *, /, norm) compile",
+      "expect": "compile-ok",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "10-map-access-cast.fs",
+      "claim": "Map access + `as` number assertion compiles",
+      "expect": "compile-ok",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "11-annotation.fs",
+      "claim": "Feature annotations and is* precondition type-checks compile together",
+      "expect": "compile-ok",
+      "actual": "compile-error",
+      "detail": "no featureSpecs returned ({\"featureSpecs\": [], \"serializationVersion\": \"1.2.21\", \"sourceMicroversion\": \"03e574db329bb719d2940481\", \"rejectMicroversionSkew\": false, \"microversionSkew\": false, \"libraryVersion\": 0})",
+      "callsUsed": 0,
+      "pass": false
+    },
+    {
+      "file": "12-precondition.fs",
+      "claim": "A precondition (is* predicate) compiles; failure surfaces at runtime as a red feature",
+      "expect": "compile-ok",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "13-array-vector-params.fs",
+      "claim": "array parameter type and size() are accepted",
+      "expect": "compile-ok",
+      "actual": "compile-error",
+      "detail": "no featureSpecs returned ({\"featureSpecs\": [], \"serializationVersion\": \"1.2.21\", \"sourceMicroversion\": \"4cc50e67f7e885d631849c18\", \"rejectMicroversionSkew\": false, \"microversionSkew\": false, \"libraryVersion\": 0})",
+      "callsUsed": 0,
+      "pass": false
+    },
+    {
+      "file": "14-id-string-concat.fs",
+      "claim": "Id + string concatenation produces a child feature Id",
+      "expect": "compile-ok",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": true
+    },
+    {
+      "file": "15-unknown-type.fs",
+      "claim": "An unknown type name is a compile error; type names must come from the standard library",
+      "expect": "compile-error",
+      "actual": "compile-ok",
+      "detail": "1 feature spec(s)",
+      "callsUsed": 0,
+      "pass": false
+    }
+  ]
+}
