@@ -3,7 +3,7 @@
   {
    "page": "fs-assistant",
    "path": "onshape_docs/guide/fs-assistant.md",
-   "sha256": "d4815869ed6ff25a6d02371f4984221f043abdb0521e5a95bcb54db312780d33",
+   "sha256": "4dbd0d1569a80914d5307cde4cb86735f5d77ad4c8198a79ce616b399fa000eb",
    "title": "FeatureScript assistance guide",
    "sections": [
     {
@@ -187,7 +187,7 @@
       {
        "type": "code",
        "language": "text",
-       "text": "fs_search(query=\"sketch region\", limit=5)\n  -> {kind, name, module, signature, score, snippet} ranked by relevance\n\nfs_get_function(name=\"opExtrude\")\n  -> signature, module, parameters (with requirement/example), description\n\nfs_get_type(name=\"BoundingType\")\n  -> kind: enum, values: BLIND, UP_TO_NEXT, ...\n\nfs_guide_section(page=\"feature-types\", section=\"precondition\")\n  -> the narrowed section text (or the whole page + heading outline)\n\nfs_library_source(module=\"primitives\", function=\"fCylinder\")\n  -> the definition window from the real std library source\n\nonshape_api_search(query=\"list document elements\")\n  -> {method: GET, path: /documents/d/{did}/{wvm}/{wvmid}/elements,\n      operationId: getElementsInDocument, summary, score}\n\nonshape_api_endpoint(path=\"/documents/d/{did}/{wvm}/{wvmid}/elements\", method=\"get\")\n  -> every parameter (did, wvm with its enum, ...) and the response schema ref\n\nonshape_api_schema(name=\"BTDocumentElementInfo\")\n  -> properties of the response type referenced by the endpoint above\n\nonshape_api_auth()\n  -> the OAuth2 authorization-code workflow (6 steps) + API-key usage\n     (pass section=\"3: Exchange the code for an access token\" for detail)\n\nonshape_api_error_codes(status=429)\n  -> Too Many Requests, category Client Error (4xx), description + next steps,\n     plus the X-Rate-Limit-Remaining / Retry-After header semantics"
+       "text": "fs_search(query=\"sketch region\", limit=5)\n  -> {kind, name, module, signature, score, snippet} ranked by relevance\n\nfs_get_function(name=\"opExtrude\")\n  -> signature, module, parameters (with requirement/example), description\n\nfs_get_type(name=\"BoundingType\")\n  -> kind: enum, values: BLIND, UP_TO_NEXT, ...\n\nfs_guide_section(page=\"feature-types\", section=\"Defining feature types\")\n  -> the narrowed section text (or the whole page + heading outline)\n\nfs_library_source(module=\"primitives\", function=\"fCylinder\")\n  -> the definition window from the real std library source\n\nonshape_api_search(query=\"list document elements\")\n  -> {method: GET, path: /documents/d/{did}/{wvm}/{wvmid}/elements,\n      operationId: getElementsInDocument, summary, score}\n\nonshape_api_endpoint(path=\"/documents/d/{did}/{wvm}/{wvmid}/elements\", method=\"get\")\n  -> every parameter (did, wvm with its enum, ...) and the response schema ref\n\nonshape_api_schema(name=\"BTDocumentElementInfo\")\n  -> properties of the response type referenced by the endpoint above\n\nonshape_api_auth()\n  -> the OAuth2 authorization-code workflow (6 steps) + API-key usage\n     (pass section=\"3: Exchange the code for an access token\" for detail)\n\nonshape_api_error_codes(status=429)\n  -> Too Many Requests, category Client Error (4xx), description + next steps,\n     plus the X-Rate-Limit-Remaining / Retry-After header semantics"
       }
      ]
     },

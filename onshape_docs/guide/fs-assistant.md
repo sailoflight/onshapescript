@@ -137,7 +137,7 @@ fs_get_function(name="opExtrude")
 fs_get_type(name="BoundingType")
   -> kind: enum, values: BLIND, UP_TO_NEXT, ...
 
-fs_guide_section(page="feature-types", section="precondition")
+fs_guide_section(page="feature-types", section="Defining feature types")
   -> the narrowed section text (or the whole page + heading outline)
 
 fs_library_source(module="primitives", function="fCylinder")
