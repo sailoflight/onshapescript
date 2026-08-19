@@ -1,3 +1,4 @@
+.venv/
 onshape-credentials.json
 config/api-usage.json
 config/browser.local.toml
