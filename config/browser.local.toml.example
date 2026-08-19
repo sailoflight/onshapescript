@@ -1,0 +1,9 @@
+# Copy to `config/browser.local.toml` for machine-local overrides.
+# `config/browser.local.toml` is gitignored and merged over `config/browser.toml`.
+
+[browser]
+# headless = true                     # e.g. run headless after the profile is logged in
+# executable_path = "/usr/bin/google-chrome"
+
+[pacing]
+# max_actions_per_minute = 4          # lower the cap on slow machines

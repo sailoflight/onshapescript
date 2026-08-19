@@ -1,9 +1,15 @@
 onshape-credentials.json
 config/api-usage.json
+config/browser.local.toml
+user_data/
 __pycache__/
 *.pyc
 temp/
 examples/branch-cable-trophy/outputs/reports/
 outputs/
-docs/verification/live/.fs-id.json
+onshape_docs/verification/live/.fs-id.json
+dev/watch-sessions/
+dev/spike/
+dev/fixtures-capture/*.har
+dev/fixtures-capture/*.jsonl
 .coverage

@@ -1,0 +1,4 @@
+# Optional dependencies for the onshape_browser_mode layer.
+# The MCP server core stays stdlib-only; browser_* tools import these lazily
+# and report a clear setup error when this extra is not installed.
+playwright>=1.40,<2
