@@ -14,10 +14,17 @@ scripts are run manually.
 
 ## Browser setup
 
+The browser layer runs from the project virtualenv so the MCP server core stays
+stdlib-only:
+
 ```bash
-python3 -m pip install -r requirements-browser.txt
-python3 -m playwright install chrome
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-browser.txt
+PLAYWRIGHT_BROWSERS_PATH="$PWD/.venv/ms-playwright" .venv/bin/playwright install chromium
+# On a normal desktop/workstation with sudo:
+sudo .venv/bin/playwright install-deps chromium
 ```
 
 Then copy `config/browser.local.toml.example` to `config/browser.local.toml`
-for machine-local overrides if needed.
+and set `channel = ""` to use the bundled Chromium (the committed default uses
+`channel = "chrome"` for a real Google Chrome install).
