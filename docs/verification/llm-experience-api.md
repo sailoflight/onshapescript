@@ -90,6 +90,18 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
   pipeline 13 with render / 8 without. `check_latest` on `fs_check_version`
   costs 1 (the `/api/build` REST-spec probe); the plain version check and
   `fs_update_reference` (without `include_onshape_api`) cost **0**.
+- **Instantiate against a stale Feature Studio microversion is silent, not an
+  error.** Microversions are immutable snapshots, so `POST .../features` with a
+  namespace pinning an old microversion succeeds and uses the OLD definition if
+  the Feature Studio was edited on the server after that microversion. The
+  element mirror caches the microversion from upload/status responses and stamps
+  a sync time; instantiate trusts it only within 5 minutes
+  (`MICROVERSION_CACHE_MAX_AGE_SECONDS`) and otherwise re-reads the element list
+  (1 extra call) — but an edit made *inside* that window is undetectable. That is
+  why the validation pipeline threads the microversion from the upload response
+  (same-run) instead of trusting the cache, and why "upload → human edits the
+  Feature Studio in the Onshape UI → instantiate" is a hazard: tell the human
+  not to edit the Feature Studio between upload/status and instantiate.
 - **A version mismatch on `import` is a save-time failure** — the upload
   returns fine but `featurespecs` is empty. Check `fs_check_version` (free)
   before writing `import(path : ..., version : ...)` lines.

@@ -151,6 +151,23 @@ After any other client spends quota, re-read the UI total and set
 the server's real "annual limit exhausted" signal. Without an `apiQuota` config
 the tools degrade to rate-limit-only reporting.
 
+**Instantiate's cached microversion is a mutation-safety window, not a freshness
+guarantee.** `onshape_instantiate_feature` pins the Feature Studio at a
+microversion threaded from a just-finished upload or read from the local element
+mirror (trusted when synced within the last 5 minutes); otherwise it re-reads
+the element list first (2 calls). Onshape microversions are immutable snapshots,
+so an instantiate against an outdated microversion does **not** fail — it
+silently instantiates the OLD Feature Studio definition. Manual edits to the
+Feature Studio in the Onshape UI between an upload/status and a later
+instantiate are therefore undetectable and silently pin the pre-edit snapshot.
+Callers running an "upload then instantiate later" flow should warn the human
+not to edit the Feature Studio in that window, and should prefer the pipeline
+(upload + instantiate in one run, microversion threaded fresh). A standalone
+`onshape_upload_feature_studio` without an immediate instantiate leaves a cached
+microversion behind: a later instantiate re-reads the element list once the
+mirror is older than 5 minutes, but an edit inside that window still slips
+through.
+
 The confirmation field is defense in depth for autonomous MCP clients. It does
 not replace the MCP host's own approval UI. Configure the host to ask before
 mutating tools whenever it supports per-tool permissions.

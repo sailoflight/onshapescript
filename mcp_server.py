@@ -864,7 +864,9 @@ TOOLS: list[dict[str, Any]] = [
             "this requires explicit mutation confirmation and returns the regeneration status. Costs 1 call when "
             "the Feature Studio microversion is threaded from a just-finished upload or read from an element "
             "mirror synced within the last 5 minutes; 2 when the mirror is stale or empty and the current "
-            "microversion must be re-read from the element list."
+            "microversion must be re-read from the element list. A stale microversion silently instantiates the "
+            "OLD Feature Studio definition, so tell the human not to edit the Feature Studio in the Onshape UI "
+            "between an upload/status and this call; prefer the pipeline, which threads the fresh microversion."
         ),
         "inputSchema": object_schema({
             "confirm_mutation": mutating_confirmation(),
