@@ -1,7 +1,7 @@
 # LLM experience: FeatureScript language
 
 What a model actually needs to write correct FeatureScript. Backed by the
-verified corpus (`docs/verification/report.json`, collected by `verify_docs.py`
+verified corpus (`onshape_docs/verification/report.json`, collected by `verify_docs.py`
 against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates,
 210 modules, 18 guide pages).
 
@@ -96,8 +96,8 @@ corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see
   LengthBoundSpec`); a bare `isLength` emits no spec regardless of body —
   symbol-sweep 2026-08-14 proved this by uploading a definition-reading body
   and still getting `specCount 0`. So experiment 06 (no precondition at all)
-  needs a bound-spec probe to test version behavior; `scripts/live_gap_probe.py`
-  and `scripts/live_symbol_sweep.py` carry the corrected probe.
+  needs a bound-spec probe to test version behavior; `onshape_docs/scripts/live_gap_probe.py`
+  and `onshape_docs/scripts/live_symbol_sweep.py` carry the corrected probe.
 - **`featureSpecs` empty is ambiguous.** A file of plain functions (compiles
   fine) also returns empty; only annotated export features appear. No error
   field exists on `featurespecs`, the Feature Studio GET, or the document
@@ -122,8 +122,8 @@ corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see
   silently yields 0 specs.
 - **The vendored `is*` predicate set is accurate except `isUvVector`.**
   Live-verified against the deployed runtime (eval `libraryVersion` 3044;
-  budgeted probe in `docs/verification/live/live-is-predicates.json`, script
-  `scripts/live_is_probe.py`): all 29 mirror `is*` predicates resolve except
+  budgeted probe in `onshape_docs/verification/live/live-is-predicates.json`, script
+  `onshape_docs/scripts/live_is_probe.py`): all 29 mirror `is*` predicates resolve except
   **`isUvVector`**, which the 2960 docs list but the 3044 runtime no longer
   defines (version drift — use `isUnitlessVector` instead; treat any `is*`
   lookup miss as "mirror gap OR version drift" and verify live).
@@ -135,7 +135,7 @@ corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see
   `isWrap{Cone,Cylinder,Plane}(context, val)` — the 1-arg form of these does
   not exist.
 - **Because the server does not compile bodies at save time, the local static
-  checker is the only body-level guard.** Run `scripts/fs_local_check.py`
+  checker is the only body-level guard.** Run `onshape_docs/scripts/fs_local_check.py`
   before any upload: it catches structural errors (hard) and flags body symbols
   the server would silently accept at save (`qDoesNotExist`, `NotARealType`).
 
@@ -197,7 +197,7 @@ Confirmed by ~310 live calls. Cost-per-step below is real API calls:
 
 | Step | Cost | What it proves |
 |---|---|---|
-| `scripts/fs_local_check.py` | 0 | Structure (hard) + body symbols absent from the vendored index (warning) |
+| `onshape_docs/scripts/fs_local_check.py` | 0 | Structure (hard) + body symbols absent from the vendored index (warning) |
 | `featurespecs` (via upload / `onshape_get_feature_studio_status`) | ~3 / 2 | **Signature + precondition only.** Body is not compiled at save |
 | `onshape_eval_featurescript` | 1 | Any semantics the 2960 docs lack, with detailed compile errors in `notices`. Cheapest way to learn *why* a body fails |
 | Instantiate (`POST .../features`) | 1 (cached) / 2 (cold) | The only layer that executes the body — but ERROR is opaque (no message) |
@@ -237,7 +237,7 @@ Rules that save quota:
   (clean bundles PASS in bulk), so large bundles are efficient — but a failing
   bundle binary-splits at 1 call per revealed symbol, so over-bundling symbols
   likely to fail is costly. More importantly, a quota run must **save
-  incrementally**: `scripts/live_symbol_sweep.py` first run only wrote at the
+  incrementally**: `onshape_docs/scripts/live_symbol_sweep.py` first run only wrote at the
   end and a single unattributable runtime error (a value-typed predicate
   deref'ing a `5` dummy: "Attempt to dereference non-container 5") recursed its
   binary split forever until the API 429'd — losing all 61 calls' results.

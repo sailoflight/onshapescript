@@ -39,16 +39,17 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCS_ROOT.parent
+sys.path.insert(0, str(REPO_ROOT))
 from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
 from onshape_rest_api_mode.client import RateLimited, rate_limit_reason  # noqa: E402
 from onshape_rest_api_mode.operations import eval_featurescript  # noqa: E402
 
 DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
 EXPERIMENT_FS_ID = "7a4dedcaeb022728fa37722f"        # expendable "FS live verification" studio
-INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
-OUT = ROOT / "docs" / "verification" / "live" / "live-symbol-sweep.json"
+INDEX_PATH = DOCS_ROOT / "reference" / "index" / "fsdoc" / "index.json"
+OUT = DOCS_ROOT / "verification" / "live" / "live-symbol-sweep.json"
 
 # Dummy arg expression per FS parameter type. Anything not listed falls back to
 # "5" -> "Call X(...) does not match" -> EXISTS (arg mismatch).

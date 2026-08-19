@@ -1,7 +1,7 @@
 # LLM experience: Onshape REST API
 
 What a model actually needs to know to call the Onshape REST API correctly.
-Every claim below is backed by the verified corpus (`docs/verification/report.json`,
+Every claim below is backed by the verified corpus (`onshape_docs/verification/report.json`,
 collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
 
 ## Calling basics

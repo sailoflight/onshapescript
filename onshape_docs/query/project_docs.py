@@ -2,7 +2,7 @@
 """Offline queries over the project's own structured documentation.
 
 The project's LLM-facing markdown (docs/, README.md, examples/) is parsed by
-scripts/build_docs_index.py into docs/index.json with the same typed-block
+onshape_docs/scripts/build_docs_index.py into onshape_docs/index.json with the same typed-block
 schema as the vendored FsDoc guide. This module serves that index to the docs_*
 MCP tools: list pages, read a page or section on demand, and search across all
 of them. Everything is local and deterministic — no network, no Onshape quota.
@@ -16,8 +16,9 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parents[2]
-DOCS_INDEX_PATH = ROOT / "docs" / "index.json"
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DOCS_INDEX_PATH = DOCS_ROOT / "index.json"
 
 _docs: dict[str, Any] | None = None
 
@@ -27,7 +28,7 @@ def _load() -> dict[str, Any]:
     if _docs is None:
         if not DOCS_INDEX_PATH.is_file():
             raise FileNotFoundError(
-                f"{DOCS_INDEX_PATH} is missing; run python3 scripts/build_docs_index.py"
+                f"{DOCS_INDEX_PATH} is missing; run python3 onshape_docs/scripts/build_docs_index.py"
             )
         _docs = json.loads(DOCS_INDEX_PATH.read_text(encoding="utf-8"))
     return _docs
@@ -111,7 +112,7 @@ def _render_sections(sections: list[dict[str, Any]]) -> str:
 def section(page: str, section_name: str | None = None) -> dict[str, Any]:
     """Return a project doc page as text, optionally narrowed to one section.
 
-    Reads docs/index.json (built from the .md files), so page and section
+    Reads onshape_docs/index.json (built from the .md files), so page and section
     lookup is index-driven and on demand; the large markdown is never parsed at
     query time.
     """
@@ -237,7 +238,7 @@ def index_health() -> dict[str, Any]:
     stale: list[str] = []
     pages = _load()["pages"]
     for entry in pages:
-        path = ROOT / entry["path"]
+        path = REPO_ROOT / entry["path"]
         if not path.is_file():
             stale.append(entry["page"])
         elif hashlib.sha256(path.read_bytes()).hexdigest() != entry.get("sha256"):
@@ -247,5 +248,5 @@ def index_health() -> dict[str, Any]:
         "stalePages": stale,
         "pagesIndexed": len(pages),
         "sectionsIndexed": sum(len(p["sections"]) for p in pages),
-        "rebuildHint": "Run python3 scripts/build_docs_index.py to rebuild.",
+        "rebuildHint": "Run python3 onshape_docs/scripts/build_docs_index.py to rebuild.",
     }

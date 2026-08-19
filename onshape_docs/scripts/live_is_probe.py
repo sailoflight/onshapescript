@@ -20,8 +20,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCS_ROOT.parent
+sys.path.insert(0, str(REPO_ROOT))
 from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
 from onshape_rest_api_mode.client import rate_limit_reason  # noqa: E402
 from onshape_rest_api_mode.operations import eval_featurescript  # noqa: E402
@@ -151,7 +152,7 @@ def main() -> int:
     parser.add_argument("--part-studio-id", default=DEFAULT_PART_STUDIO_ID,
                         help="target Part Studio for eval (default cached live id)")
     parser.add_argument("--out", type=Path,
-                        default=ROOT / "docs" / "verification" / "live" / "live-is-predicates.json",
+                        default=DOCS_ROOT / "verification" / "live" / "live-is-predicates.json",
                         help="where to write results")
     args = parser.parse_args()
 

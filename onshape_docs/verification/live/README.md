@@ -1,6 +1,6 @@
 # Live FeatureScript verification — 实测记录
 
-目标：用真实 Onshape 服务器验证 `docs/verification/llm-experience-fs.md` 的
+目标：用真实 Onshape 服务器验证 `onshape_docs/verification/llm-experience-fs.md` 的
 语言论断。**总预算 200 次**（100 + 追加 50 + 追加 50）已全部用尽。
 
 > **2026-08-14 更新 — 15/15 已定案，勿重跑**：下面表格里的 ⚠/❌ 是相对当时
@@ -46,7 +46,7 @@
 
 - **"编译通过"（1 spec）只验证签名/precondition。** body 的正确性只能靠
   实例化验证（POST feature 到 Part Studio），而实例化是 2-3 次额度/feature。
-- **本地静态检查器是唯一的 body 层防线**：`scripts/fs_local_check.py` 的
+- **本地静态检查器是唯一的 body 层防线**：`onshape_docs/scripts/fs_local_check.py` 的
   符号 warning（qDoesNotExist、NotARealType）会在上传前标记 body 错误——
   服务器保存时不报，只能靠本地检查或花实例化额度。
 - **命名即语法在签名层成立**（op*/q*/ev* 拼错会让签名检查失败）；body 层
@@ -88,7 +88,7 @@ ERROR 的 feature 仍被保存（GET features 可见）。LLM 无法从 API 读�
 
 ## 血泪教训 → 静态检查器
 
-约 120 次额度花在调试 FS 语法/结构错误。`scripts/fs_local_check.py` 在
+约 120 次额度花在调试 FS 语法/结构错误。`onshape_docs/scripts/fs_local_check.py` 在
 上传前拦截结构错误（硬错）并标记符号缺失（警告），避免同类浪费。详见
 `README.md` 的 "Zero-cost syntax guard" 段。
 
@@ -98,8 +98,8 @@ ERROR 的 feature 仍被保存（GET features 可见）。LLM 无法从 API 读�
 symbols risk。results 在 `results.json`。重跑：
 
 ```bash
-python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截
-python3 docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏
+python3 onshape_docs/scripts/fs_local_check.py onshape_docs/verification/live/experiments/  # 先本地拦截
+python3 onshape_docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏
 ```
 
 ---
@@ -108,7 +108,7 @@ python3 docs/verification/live/run_live_tests.py --budget 50           # 每轮�
 
 用户授权继续验证剩余悬案，本轮 ledger 311 → 459（+148，真实用量 119+459=**578/2500**）。
 
-方法：`scripts/live_is_probe.py` 用 `onshape_eval_featurescript` 在部署运行时
+方法：`onshape_docs/scripts/live_is_probe.py` 用 `onshape_eval_featurescript` 在部署运行时
 （eval `libraryVersion` **3044**）逐符号/收敛探测。编译器**停在第一个错误**
 → 探测只能一次揭示一个失败符号；`isReal` 等"类型不匹配"错误会直接暴露 3044
 真实签名，而 bare-reference 错误可区分"存在"（Cannot reference function X）
@@ -131,7 +131,7 @@ eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10
 
 ## 追加：gap-probe 收尾（2026-08-14，22 次预算，ledger 469 → 482）
 
-`scripts/live_gap_probe.py` 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1
+`onshape_docs/scripts/live_gap_probe.py` 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1
 次——guard 在分区边界检查，最后一个分区可整体越界）。结果在
 `gap-probe-results.json`。
 
@@ -176,7 +176,7 @@ errorType。上界（import > 服务器，3050）仍未测出，需再跑一次�
 
 ## 追加：symbol-sweep 与 import 边界强证据（2026-08-14，账户被限流 ~20h）
 
-`scripts/live_symbol_sweep.py`（已含：时间戳日志、增量落盘、断点续跑跳过已验证
+`onshape_docs/scripts/live_symbol_sweep.py`（已含：时间戳日志、增量落盘、断点续跑跳过已验证
 符号、`--budget 0` 按未验证余量自适应、2s 节流、429 永不重试）。首轮 bug 白烧
 61 次（无限二分 + 429），第二轮修好组件但账户限流。**当前账户 `Retry-After
 72910s`（~20h）、`Rate-Limit-Remaining 0`**——2026-08-14 当天探测耗尽突发额度，

@@ -16,16 +16,16 @@ verified experience for LLM agents**.
 
 The four corpora verified here are: the vendored FS reference, the vendored
 REST API spec, the vendored auth/error docs, and **the project's own
-documentation index** (`docs/index.json`, built by
-`scripts/build_docs_index.py` from the authored markdown; README.md is the human
+documentation index** (`onshape_docs/index.json`, built by
+`onshape_docs/scripts/build_docs_index.py` from the authored markdown; README.md is the human
 landing page and intentionally not indexed). The markdown files are the
-originals and are kept; `docs/index.json` is a derived, structured copy served
-on demand by the `docs_*` tools (see `docs/mcp-server.md`).
+originals and are kept; `onshape_docs/index.json` is a derived, structured copy served
+on demand by the `docs_*` tools (see `onshape_docs/guide/mcp-server.md`).
 
 ## Run
 
 ```bash
-python3 docs/verification/verify_docs.py
+python3 onshape_docs/verification/verify_docs.py
 ```
 
 The 16 checks verify consistency and integrity of all four corpora:
@@ -37,7 +37,7 @@ The 16 checks verify consistency and integrity of all four corpora:
   well-formedness, security / request-body / response schema references resolve,
   `api_quick.json` surface equals `api_index.json`.
 - **Auth / errors** — page sha256, `errorCodes` well-formedness.
-- **Project docs** — `docs/index.json` page sha256 matches the authored markdown,
+- **Project docs** — `onshape_docs/index.json` page sha256 matches the authored markdown,
   sections well-formed (title + blocks).
 
 ## Known official gaps (recorded, not failures)
@@ -58,6 +58,6 @@ New gaps that appear after a re-fetch will fail the run.
 Green checks are not the goal. The goal is turning verification findings into
 **experience an LLM agent can act on** — so the reference corpus becomes
 self-correcting guidance. The two `llm-experience-*.md` documents are that
-output, and (like every project doc) they are indexed into `docs/index.json`
+output, and (like every project doc) they are indexed into `onshape_docs/index.json`
 and read on demand through `docs_section` / `docs_search` alongside the
 `fs_*` / `onshape_api_*` reference tools.

@@ -14,7 +14,7 @@ that actually burned quota during live verification:
   the mirror may lag the live server, and local defs are fine)
 
 Usage:
-    python3 scripts/fs_local_check.py [FILE...]     # files or directories
+    python3 onshape_docs/scripts/fs_local_check.py [FILE...]     # files or directories
 Exit code: 0 all pass, 1 any structural error.
 
 Structural errors are hard stops; unknown symbols are warnings. Check output is

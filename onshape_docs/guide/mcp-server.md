@@ -37,15 +37,15 @@ configuration committed to source control, prompts, or tool input.
 
 ### FeatureScript reference tools — local and offline
 
-These read the vendored reference under `reference/` and never contact Onshape
+These read the vendored reference under `onshape_docs/reference/` and never contact Onshape
 or the network. They are the primary FeatureScript lookup tools. See
-`docs/fs-assistant.md` for the recommended workflow.
+`onshape_docs/guide/fs-assistant.md` for the recommended workflow.
 
 | Tool | Behavior |
 |---|---|
 | `fs_check_version` | Reports the vendored reference version (parsed from the std library) and warns `docs-behind` when a `target` and/or the Feature Studio version is newer. The last observed real versions (`languageVersion` + `libraryVersion`) are reported **for free** — cached from workflow responses (`feature_studio_status` / `eval`), never a dedicated call; `include_live` refreshes the Feature Studio's declared version (1 read-only call). Also verifies the JSON indexes are consistent with the raw pages and reports `onshapeApiSpecVersion` (the vendored REST API spec version + health). With `check_latest` it probes the mirror (one small network call) plus the live REST spec (1 call) for the newest versions. |
 | `fs_update_reference` | Mutating (requires `confirm_mutation=true`): re-fetches the FsDoc pages + std library and rebuilds the indexes; with `include_onshape_api` it also refreshes the REST API OpenAPI spec (needs credentials). Returns a bounded change summary (version before/after, added/removed/changed counts) so the delta never needs to live in the caller's context. |
-| `fs_quick_reference` | Returns the curated distilled cheat-sheet (`reference/quick-reference.md`), small enough to load in one call for orientation. |
+| `fs_quick_reference` | Returns the curated distilled cheat-sheet (`onshape_docs/reference/quick-reference.md`), small enough to load in one call for orientation. |
 | `fs_list_modules` | Lists standard library modules grouped by category (optional filter). |
 | `fs_list_functions` | Lists functions/types/constants/predicates with signatures and summaries, filtered by module/category/kind/prefix. |
 | `fs_get_function` | Full entry: signature, parameters (type, requirement, description, example), return type, module. |
@@ -56,9 +56,9 @@ or the network. They are the primary FeatureScript lookup tools. See
 
 ### Project docs tools — local and offline
 
-The project's own documentation (`docs/*.md`, `reference/quick-reference.md`,
+The project's own documentation (`onshape_docs/guide/*.md`, `onshape_docs/reference/quick-reference.md`,
 example docs; README.md is the human landing page and intentionally not
-indexed) is parsed into `docs/index.json` by `scripts/build_docs_index.py`
+indexed) is parsed into `onshape_docs/index.json` by `onshape_docs/scripts/build_docs_index.py`
 with the same typed-block schema as the FsDoc guide, so it is searchable and
 readable on demand — the authored `.md` files remain the originals. These tools
 cover the project's own knowledge (tool catalog, workflows, verified lessons),
@@ -73,11 +73,11 @@ distinct from the vendored Onshape reference above.
 ### Onshape REST API reference tools — local and offline
 
 These answer questions about the Onshape REST API surface from the live OpenAPI
-definition vendored under `reference/` (raw spec in `reference/raw/onshape-api/`,
-indexes read from `reference/index/onshape-api/` and
-`reference/quick/onshape-api/`). Like the FeatureScript
+definition vendored under `onshape_docs/reference/` (raw spec in `onshape_docs/reference/raw/onshape-api/`,
+indexes read from `onshape_docs/reference/index/onshape-api/` and
+`onshape_docs/reference/quick/onshape-api/`). Like the FeatureScript
 tools they are offline; only `fs_check_version`/`fs_update_reference` (above)
-and the Onshape REST tools touch the network. See `docs/onshape-api.md` for the
+and the Onshape REST tools touch the network. See `onshape_docs/guide/onshape-api.md` for the
 data, coverage, and the remaining documentation gaps for real operations.
 
 | Tool | Behavior |
@@ -190,7 +190,7 @@ Local protocol and mutation-guard tests do not contact Onshape:
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/branch-cable-trophy/scripts/*.py
+python3 -m py_compile mcp_server.py mcp_main/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
 ```
 
 A credentialed read-only integration smoke test was run against the configured

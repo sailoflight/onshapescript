@@ -2,7 +2,7 @@
 """Parse the vendored Onshape developer docs into structured JSON.
 
 reference/raw/onshape-api-docs/<page>.html are public GitHub Pages documents
-(auth + error handling) fetched by scripts/fetch_onshape_api_docs.py. This
+(auth + error handling) fetched by onshape_docs/scripts/fetch_onshape_api_docs.py. This
 script parses each page's <main> into heading sections with typed blocks and
 emits reference/index/onshape-api-docs/api_docs.json:
 
@@ -183,7 +183,7 @@ def build() -> dict[str, Any]:
         path = DOCS_DIR / f"{page}.html"
         if not path.is_file():
             raise FileNotFoundError(
-                f"{path} is missing; run python3 scripts/fetch_onshape_api_docs.py"
+                f"{path} is missing; run python3 onshape_docs/scripts/fetch_onshape_api_docs.py"
             )
         parser = DocsParser()
         parser.feed(path.read_text(encoding="utf-8", errors="replace"))

@@ -2,8 +2,8 @@
  "pages": [
   {
    "page": "fs-assistant",
-   "path": "docs/fs-assistant.md",
-   "sha256": "62a621b3f0e058942130a3bf6e3638a6dca33f67de5c34cedf1704ed1813f686",
+   "path": "onshape_docs/guide/fs-assistant.md",
+   "sha256": "d4815869ed6ff25a6d02371f4984221f043abdb0521e5a95bcb54db312780d33",
    "title": "FeatureScript assistance guide",
    "sections": [
     {
@@ -12,7 +12,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The reference tools give an LLM agent the same material a human developer works from: the official function/type reference, the language guide, and the actual standard library implementation. Everything is vendored under reference/ and served offline, so there are no network round trips and the answers are deterministic."
+       "text": "The reference tools give an LLM agent the same material a human developer works from: the official function/type reference, the language guide, and the actual standard library implementation. Everything is vendored under onshape_docs/reference/ and served offline, so there are no network round trips and the answers are deterministic."
       }
      ]
     },
@@ -62,7 +62,7 @@
          "depth": 0
         },
         {
-         "text": "Project docs — docs_list / docs_section / docs_search read the project's own documentation (README, docs/mcp-server.md, the verified llm-experience-* lessons, example docs) on demand from docs/index.json. Use these for tool-catalog, workflow, and verification-lesson questions that are not in the vendored reference.",
+         "text": "Project docs — docs_list / docs_section / docs_search read the project's own documentation (README, onshape_docs/guide/mcp-server.md, the verified llm-experience-* lessons, example docs) on demand from onshape_docs/index.json. Use these for tool-catalog, workflow, and verification-lesson questions that are not in the vendored reference.",
          "depth": 0
         }
        ]
@@ -106,29 +106,29 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Vendored material lives in reference/, in three tiers by reading order:"
+       "text": "Vendored material lives in onshape_docs/reference/, in three tiers by reading order:"
       },
       {
        "type": "list",
        "items": [
         {
-         "text": "reference/raw/ — build inputs, never read by the tools: the official FsDoc pages (raw/fsdoc/, including the 1.7 MB library.html), the standard library source (raw/std-library/, mirrored from github.com/javawizard/onshape-std-library-mirror, MIT), the live OpenAPI spec (raw/onshape-api/openapi.json), and the OAuth2 / API-key / error / limits pages (raw/onshape-api-docs/). Kept for provenance and sha256 staleness checks only.",
+         "text": "onshape_docs/reference/raw/ — build inputs, never read by the tools: the official FsDoc pages (raw/fsdoc/, including the 1.7 MB library.html), the standard library source (raw/std-library/, mirrored from github.com/javawizard/onshape-std-library-mirror, MIT), the live OpenAPI spec (raw/onshape-api/openapi.json), and the OAuth2 / API-key / error / limits pages (onshape_docs/reference/raw/onshape-api-docs/). Kept for provenance and sha256 staleness checks only.",
          "depth": 0
         },
         {
-         "text": "reference/quick/ — the cheap first read (tier 1): quick.json (one line per entry: name, kind, module, category, one-line summary across the whole reference plus the guide section titles), api_quick.json (one line per endpoint). Auto-regenerated on every build.",
+         "text": "onshape_docs/reference/quick/ — the cheap first read (tier 1): quick.json (one line per entry: name, kind, module, category, one-line summary across the whole reference plus the guide section titles), api_quick.json (one line per endpoint). Auto-regenerated on every build.",
          "depth": 0
         },
         {
-         "text": "reference/index/ — on-demand full detail (tier 2): fsdoc/index.json (modules, functions, types, constants, predicates, parameters, descriptions; built by scripts/build_fsdoc_index.py), fsdoc/guide.json (every guide/tutorial page parsed into heading sections with typed blocks — paragraph, code, table, list — what fs_guide_section reads and what fs_search kind=guide searches), onshape-api/api_index.json, onshape-api-docs/api_docs.json.",
+         "text": "onshape_docs/reference/index/ — on-demand full detail (tier 2): fsdoc/index.json (modules, functions, types, constants, predicates, parameters, descriptions; built by onshape_docs/scripts/build_fsdoc_index.py), fsdoc/guide.json (every guide/tutorial page parsed into heading sections with typed blocks — paragraph, code, table, list — what fs_guide_section reads and what fs_search kind=guide searches), onshape-api/api_index.json, onshape-api-docs/api_docs.json.",
          "depth": 0
         },
         {
-         "text": "reference/quick-reference.md — the curated, distilled cheat-sheet (the fs_quick_reference tool); authored alongside the docs rather than generated.",
+         "text": "onshape_docs/reference/quick-reference.md — the curated, distilled cheat-sheet (the fs_quick_reference tool); authored alongside the docs rather than generated.",
          "depth": 0
         },
         {
-         "text": "docs/index.json — the project's own documentation (docs/*.md, the quick-reference, example docs; README.md is the human landing page and is intentionally not indexed) parsed into the same typed-block schema as guide.json; served by docs_list / docs_section / docs_search. Built by scripts/build_docs_index.py; the .md files remain the originals.",
+         "text": "onshape_docs/index.json — the project's own documentation (onshape_docs/guide/*.md, the quick-reference, example docs; README.md is the human landing page and is intentionally not indexed) parsed into the same typed-block schema as guide.json; served by docs_list / docs_section / docs_search. Built by onshape_docs/scripts/build_docs_index.py; the .md files remain the originals.",
          "depth": 0
         }
        ]
@@ -140,7 +140,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 scripts/fetch_reference.py\npython3 scripts/build_fsdoc_index.py"
+       "text": "python3 onshape_docs/scripts/fetch_reference.py\npython3 onshape_docs/scripts/build_fsdoc_index.py"
       }
      ]
     },
@@ -150,7 +150,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "fs_check_version compares the vendored reference version (parsed from reference/raw/std-library/featurescriptversionnumber.gen.fs) against the version you intend to compile with:"
+       "text": "fs_check_version compares the vendored reference version (parsed from onshape_docs/reference/raw/std-library/featurescriptversionnumber.gen.fs) against the version you intend to compile with:"
       },
       {
        "type": "code",
@@ -205,8 +205,8 @@
   },
   {
    "page": "mcp-server",
-   "path": "docs/mcp-server.md",
-   "sha256": "f7d746a53db3c2913486cc61f63aa93959042d23dfe56434961323a717521166",
+   "path": "onshape_docs/guide/mcp-server.md",
+   "sha256": "d8d1895bd8a18e8fb4a2e4f3f74a73ab643b689164b7b2edd55e617942eb72a7",
    "title": "Local MCP server",
    "sections": [
     {
@@ -269,7 +269,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These read the vendored reference under reference/ and never contact Onshape or the network. They are the primary FeatureScript lookup tools. See docs/fs-assistant.md for the recommended workflow."
+       "text": "These read the vendored reference under onshape_docs/reference/ and never contact Onshape or the network. They are the primary FeatureScript lookup tools. See onshape_docs/guide/fs-assistant.md for the recommended workflow."
       },
       {
        "type": "table",
@@ -288,7 +288,7 @@
         ],
         [
          "fs_quick_reference",
-         "Returns the curated distilled cheat-sheet (reference/quick-reference.md), small enough to load in one call for orientation."
+         "Returns the curated distilled cheat-sheet (onshape_docs/reference/quick-reference.md), small enough to load in one call for orientation."
         ],
         [
          "fs_list_modules",
@@ -328,7 +328,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The project's own documentation (docs/*.md, reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is parsed into docs/index.json by scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
+       "text": "The project's own documentation (onshape_docs/guide/*.md, onshape_docs/reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is parsed into onshape_docs/index.json by onshape_docs/scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
       },
       {
        "type": "table",
@@ -359,7 +359,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under reference/ (raw spec in reference/raw/onshape-api/, indexes read from reference/index/onshape-api/ and reference/quick/onshape-api/). Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See docs/onshape-api.md for the data, coverage, and the remaining documentation gaps for real operations."
+       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under onshape_docs/reference/ (raw spec in onshape_docs/reference/raw/onshape-api/, indexes read from onshape_docs/reference/index/onshape-api/ and onshape_docs/reference/quick/onshape-api/). Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See onshape_docs/guide/onshape-api.md for the data, coverage, and the remaining documentation gaps for real operations."
       },
       {
        "type": "table",
@@ -444,7 +444,7 @@
         ],
         [
          "onshape_list_document_elements",
-         "Lists elements and current microversions in the configured workspace."
+         "Lists elements and current microversions in the configured workspace — cached (zero API cost) by default; refresh=true re-fetches live."
         ],
         [
          "onshape_get_feature_studio_status",
@@ -505,11 +505,15 @@
       },
       {
        "type": "para",
-       "text": "Every mutating tool also preflights against the annual quota budget before any remote call — upload ~3 calls, create 1, instantiate 2, pipeline ~14 with render / ~9 without. When the configured budget would be exceeded the tool blocks with the shortfall instead of spending API calls."
+       "text": "Every mutating tool also preflights against the annual quota budget before any remote call — upload ~3 calls, create 1, instantiate 1 (microversion cached) / 2 (cold), pipeline ~13 with render / ~8 without. When the configured budget would be exceeded the tool blocks with the shortfall instead of spending API calls."
       },
       {
        "type": "para",
        "text": "The quota ledger (config/api-usage.json, gitignored) is passive: every 2xx/3xx response counts toward the annual limit and each response's X-Rate-Limit-Remaining header is captured — zero extra API calls, because Onshape has no public quota-query endpoint. Configure the annual budget in config/onshape-state.json under apiQuota ({\"accountType\": \"professional\"} maps to the official 5000/year, or set {\"annualLimit\": N} directly). Seed it with your real year-to-date usage — {\"accountType\": \"standard\", \"alreadyConsumed\": 119} — read from the Onshape UI (My Account → Developer); the local ledger is added on top (consumed = alreadyConsumed + ledgerConsumed). After any other client spends quota, re-read the UI total and set alreadyConsumed = UI_total - ledgerConsumed to recalibrate. A 402 response is the server's real \"annual limit exhausted\" signal. Without an apiQuota config the tools degrade to rate-limit-only reporting."
+      },
+      {
+       "type": "para",
+       "text": "Instantiate's cached microversion is a mutation-safety window, not a freshness guarantee. onshape_instantiate_feature pins the Feature Studio at a microversion threaded from a just-finished upload or read from the local element mirror (trusted when synced within the last 5 minutes); otherwise it re-reads the element list first (2 calls). Onshape microversions are immutable snapshots, so an instantiate against an outdated microversion does not fail — it silently instantiates the OLD Feature Studio definition. Manual edits to the Feature Studio in the Onshape UI between an upload/status and a later instantiate are therefore undetectable and silently pin the pre-edit snapshot. Callers running an \"upload then instantiate later\" flow should warn the human not to edit the Feature Studio in that window, and should prefer the pipeline (upload + instantiate in one run, microversion threaded fresh). A standalone onshape_upload_feature_studio without an immediate instantiate leaves a cached microversion behind: a later instantiate re-reads the element list once the mirror is older than 5 minutes, but an edit inside that window still slips through."
       },
       {
        "type": "para",
@@ -559,7 +563,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 -m unittest discover -s tests -v\npython3 -m py_compile mcp_server.py onshape_fs_mcp/*.py scripts/*.py examples/branch-cable-trophy/scripts/*.py"
+       "text": "python3 -m unittest discover -s tests -v\npython3 -m py_compile mcp_server.py mcp_main/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py"
       },
       {
        "type": "para",
@@ -604,8 +608,8 @@
   },
   {
    "page": "onshape-api",
-   "path": "docs/onshape-api.md",
-   "sha256": "499944ea8e258275a984390eb30df01eb800f23223e1be07fa5f58c882235020",
+   "path": "onshape_docs/guide/onshape-api.md",
+   "sha256": "81dc590276af7c2f9f1e4cb0c171c6c04376f160999dad696975c7a663c60cba",
    "title": "Onshape REST API reference",
    "sections": [
     {
@@ -614,7 +618,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The MCP server answers Onshape REST questions offline from two vendored sources: the live OpenAPI definition served at https://cad.onshape.com/api/openapi (raw tier 0: reference/raw/onshape-api/) and the official developer docs for authentication and error handling (reference/raw/onshape-api-docs/). The tiered indexes the tools actually read are under reference/index/onshape-api/ and reference/index/onshape-api-docs/ (see docs/mcp-server.md for the tool behavior table; this page covers the data, its coverage, and the gaps that remain for doing real API operations)."
+       "text": "The MCP server answers Onshape REST questions offline from two vendored sources: the live OpenAPI definition served at https://cad.onshape.com/api/openapi (raw tier 0: onshape_docs/reference/raw/onshape-api/) and the official developer docs for authentication and error handling (onshape_docs/reference/raw/onshape-api-docs/). The tiered indexes the tools actually read are under onshape_docs/reference/index/onshape-api/ and onshape_docs/reference/index/onshape-api-docs/ (see onshape_docs/guide/mcp-server.md for the tool behavior table; this page covers the data, its coverage, and the gaps that remain for doing real API operations)."
       }
      ]
     },
@@ -630,23 +634,23 @@
          "Contents"
         ],
         [
-         "reference/raw/onshape-api/openapi.json",
-         "The raw OpenAPI 3.0.1 spec, pulled live from /api/openapi by scripts/fetch_onshape_api.py (authenticated). Always the running deployment's version."
+         "onshape_docs/reference/raw/onshape-api/openapi.json",
+         "The raw OpenAPI 3.0.1 spec, pulled live from /api/openapi by onshape_docs/scripts/fetch_onshape_api.py (authenticated). Always the running deployment's version."
         ],
         [
-         "reference/index/onshape-api/api_index.json",
-         "Flattened by scripts/build_onshape_api_index.py (tier 2): tags, endpoints (path, method, operationId, summary, parameters, requestBody, security, responses), schemas, plus specVersion, baseUrl, securitySchemes, globalSecurity, sourceSha256."
+         "onshape_docs/reference/index/onshape-api/api_index.json",
+         "Flattened by onshape_docs/scripts/build_onshape_api_index.py (tier 2): tags, endpoints (path, method, operationId, summary, parameters, requestBody, security, responses), schemas, plus specVersion, baseUrl, securitySchemes, globalSecurity, sourceSha256."
         ],
         [
-         "reference/quick/onshape-api/api_quick.json",
+         "onshape_docs/reference/quick/onshape-api/api_quick.json",
          "One line per endpoint (path/method/operationId/summary/hasRequestBody) for cheap machine indexing (tier 1)."
         ],
         [
-         "reference/raw/onshape-api-docs/errors.html limits.html oauth.html apikeys.html",
+         "onshape_docs/reference/raw/onshape-api-docs/errors.html limits.html oauth.html apikeys.html",
          "Public Onshape developer docs (GitHub Pages, plain HTTP — zero API-token cost): response codes, rate/annual limits, the OAuth2 workflow, and API-key usage."
         ],
         [
-         "reference/index/onshape-api-docs/api_docs.json",
+         "onshape_docs/reference/index/onshape-api-docs/api_docs.json",
          "Those pages parsed into heading sections with typed blocks, plus a flattened errorCodes table."
         ]
        ]
@@ -706,7 +710,7 @@
         ],
         [
          "Workflow guides",
-         "The OpenAPI gives endpoints, not how to combine them (upload FeatureScript → compile → instantiate → validate). The project's own operations.py + examples/ encode the worked version of this.",
+         "The OpenAPI gives endpoints, not how to combine them (upload FeatureScript → compile → instantiate → validate). The project's own onshape_rest_api_mode/operations.py + examples/ encode the worked version of this.",
          "onshape-public.github.io/docs/api-adv/ + local code"
         ]
        ]
@@ -752,11 +756,11 @@
          "depth": 0
         },
         {
-         "text": "onshape_api_quota reports configured limit, consumed, remaining, and how many validation-pipeline runs fit (14 calls with render, 9 without).",
+         "text": "onshape_api_quota reports configured limit, consumed, remaining, and how many validation-pipeline runs fit (13 calls with render, 8 without).",
          "depth": 0
         },
         {
-         "text": "onshape_run_validation_pipeline runs a preflight check before mutating and blocks with the shortfall if the budget would be exhausted. `render_previews: false` drops the five render calls (14 → 9).",
+         "text": "onshape_run_validation_pipeline runs a preflight check before mutating and blocks with the shortfall if the budget would be exhausted. `render_previews: false` drops the five render calls (13 → 8).",
          "depth": 0
         }
        ]
@@ -774,7 +778,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 scripts/fetch_onshape_api.py          # needs onshape-credentials.json\npython3 scripts/build_onshape_api_index.py\npython3 scripts/fetch_onshape_api_docs.py     # public pages, no credentials\npython3 scripts/build_onshape_api_docs_index.py"
+       "text": "python3 onshape_docs/scripts/fetch_onshape_api.py          # needs onshape-credentials.json\npython3 onshape_docs/scripts/build_onshape_api_index.py\npython3 onshape_docs/scripts/fetch_onshape_api_docs.py     # public pages, no credentials\npython3 onshape_docs/scripts/build_onshape_api_docs_index.py"
       },
       {
        "type": "para",
@@ -786,8 +790,8 @@
   },
   {
    "page": "verification",
-   "path": "docs/verification/README.md",
-   "sha256": "f4dddb121f2d144af037994985a349afa67776fe9af043f4a6d5101a5717cff6",
+   "path": "onshape_docs/verification/README.md",
+   "sha256": "88492b028bf6628667668d28dc65544dc90061ff09d3a4776fc81bb015367945",
    "title": "Documentation verification",
    "sections": [
     {
@@ -835,7 +839,7 @@
       },
       {
        "type": "para",
-       "text": "The four corpora verified here are: the vendored FS reference, the vendored REST API spec, the vendored auth/error docs, and the project's own documentation index (docs/index.json, built by scripts/build_docs_index.py from the authored markdown; README.md is the human landing page and intentionally not indexed). The markdown files are the originals and are kept; docs/index.json is a derived, structured copy served on demand by the docs_* tools (see docs/mcp-server.md)."
+       "text": "The four corpora verified here are: the vendored FS reference, the vendored REST API spec, the vendored auth/error docs, and the project's own documentation index (onshape_docs/index.json, built by onshape_docs/scripts/build_docs_index.py from the authored markdown; README.md is the human landing page and intentionally not indexed). The markdown files are the originals and are kept; onshape_docs/index.json is a derived, structured copy served on demand by the docs_* tools (see onshape_docs/guide/mcp-server.md)."
       }
      ]
     },
@@ -846,7 +850,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 docs/verification/verify_docs.py"
+       "text": "python3 onshape_docs/verification/verify_docs.py"
       },
       {
        "type": "para",
@@ -868,7 +872,7 @@
          "depth": 0
         },
         {
-         "text": "Project docs — docs/index.json page sha256 matches the authored markdown, sections well-formed (title + blocks).",
+         "text": "Project docs — onshape_docs/index.json page sha256 matches the authored markdown, sections well-formed (title + blocks).",
          "depth": 0
         }
        ]
@@ -908,7 +912,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Green checks are not the goal. The goal is turning verification findings into experience an LLM agent can act on — so the reference corpus becomes self-correcting guidance. The two llm-experience-.md documents are that output, and (like every project doc) they are indexed into docs/index.json and read on demand through docs_section / docs_search alongside the fs_ / onshape_api_* reference tools."
+       "text": "Green checks are not the goal. The goal is turning verification findings into experience an LLM agent can act on — so the reference corpus becomes self-correcting guidance. The two llm-experience-.md documents are that output, and (like every project doc) they are indexed into onshape_docs/index.json and read on demand through docs_section / docs_search alongside the fs_ / onshape_api_* reference tools."
       }
      ]
     }
@@ -916,8 +920,8 @@
   },
   {
    "page": "llm-experience-fs",
-   "path": "docs/verification/llm-experience-fs.md",
-   "sha256": "01cb2d54f2b5bab2686b720384958cc37ba778a1914b02bdc00809b188575df5",
+   "path": "onshape_docs/verification/llm-experience-fs.md",
+   "sha256": "e64865ac45b91381557250c60e6d0cead4471fdb8021969eb4aefee3b35c3bc9",
    "title": "LLM experience: FeatureScript language",
    "sections": [
     {
@@ -926,7 +930,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "What a model actually needs to write correct FeatureScript. Backed by the verified corpus (docs/verification/report.json, collected by verify_docs.py against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates, 210 modules, 18 guide pages)."
+       "text": "What a model actually needs to write correct FeatureScript. Backed by the verified corpus (onshape_docs/verification/report.json, collected by verify_docs.py against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates, 210 modules, 18 guide pages)."
       }
      ]
     },
@@ -1063,7 +1067,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Verifying the corpus against a real Feature Studio exposed mechanisms the reference does not document. Full run log: live/README.md (15 experiments, 8/15 matched expectation)."
+       "text": "Verifying the corpus against a real Feature Studio exposed mechanisms the reference does not document. Full run log: live/README.md (15 experiments; the 7 rows that surprised the original expectations are now absorbed into the corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see live/reconfirm-2026-08-14.json)."
       },
       {
        "type": "list",
@@ -1073,7 +1077,7 @@
          "depth": 0
         },
         {
-         "text": "Signature-layer errors give 0 specs. Dropping context from the defineFeature function signature, or referencing an absent symbol in a precondition (GBTErrorStringEnum, isString, isArray), fails at save time with featureSpecs empty. The earlier \"stale import (2960.0)\" example is now confounded: featurespecs are only emitted for precondition params carrying a bound spec (e.g. `{ (millimeter) : [...] } as LengthBoundSpec); a bare isLength` emits no spec regardless of body — symbol-sweep 2026-08-14 proved this by uploading a definition-reading body and still getting specCount 0. So experiment 06 (no precondition at all) needs a bound-spec probe to test version behavior; scripts/live_gap_probe.py and scripts/live_symbol_sweep.py carry the corrected probe.",
+         "text": "Signature-layer errors give 0 specs. Dropping context from the defineFeature function signature, or referencing an absent symbol in a precondition (GBTErrorStringEnum, isString, isArray), fails at save time with featureSpecs empty. The earlier \"stale import (2960.0)\" example is now confounded: featurespecs are only emitted for precondition params carrying a bound spec (e.g. `{ (millimeter) : [...] } as LengthBoundSpec); a bare isLength` emits no spec regardless of body — symbol-sweep 2026-08-14 proved this by uploading a definition-reading body and still getting specCount 0. So experiment 06 (no precondition at all) needs a bound-spec probe to test version behavior; onshape_docs/scripts/live_gap_probe.py and onshape_docs/scripts/live_symbol_sweep.py carry the corrected probe.",
          "depth": 0
         },
         {
@@ -1097,11 +1101,11 @@
          "depth": 0
         },
         {
-         "text": "*The vendored is predicate set is accurate except isUvVector.** Live-verified against the deployed runtime (eval libraryVersion 3044; budgeted probe in docs/verification/live/live-is-predicates.json, script scripts/live_is_probe.py): all 29 mirror is* predicates resolve except isUvVector, which the 2960 docs list but the 3044 runtime no longer defines (version drift — use isUnitlessVector instead; treat any is* lookup miss as \"mirror gap OR version drift\" and verify live). isQuery/isString/isArray/isType are not std predicates at 3044 (probe: \"Variable not found\") — the correct precondition form is the is <Type> syntax (definition.x is length), not an isX() call. The 2-arg bound forms are real and keep their 2960 signatures: isReal(value, boundSpec), isSquare(matrix), isTopLevelId(id), isWrap{Cone,Cylinder,Plane}(context, val) — the 1-arg form of these does not exist.",
+         "text": "*The vendored is predicate set is accurate except isUvVector.** Live-verified against the deployed runtime (eval libraryVersion 3044; budgeted probe in onshape_docs/verification/live/live-is-predicates.json, script onshape_docs/scripts/live_is_probe.py): all 29 mirror is* predicates resolve except isUvVector, which the 2960 docs list but the 3044 runtime no longer defines (version drift — use isUnitlessVector instead; treat any is* lookup miss as \"mirror gap OR version drift\" and verify live). isQuery/isString/isArray/isType are not std predicates at 3044 (probe: \"Variable not found\") — the correct precondition form is the is <Type> syntax (definition.x is length), not an isX() call. The 2-arg bound forms are real and keep their 2960 signatures: isReal(value, boundSpec), isSquare(matrix), isTopLevelId(id), isWrap{Cone,Cylinder,Plane}(context, val) — the 1-arg form of these does not exist.",
          "depth": 0
         },
         {
-         "text": "**Because the server does not compile bodies at save time, the local static checker is the only body-level guard.** Run scripts/fs_local_check.py before any upload: it catches structural errors (hard) and flags body symbols the server would silently accept at save (qDoesNotExist, NotARealType).",
+         "text": "**Because the server does not compile bodies at save time, the local static checker is the only body-level guard.** Run onshape_docs/scripts/fs_local_check.py before any upload: it catches structural errors (hard) and flags body symbols the server would silently accept at save (qDoesNotExist, NotARealType).",
          "depth": 0
         }
        ]
@@ -1183,7 +1187,7 @@
          "What it proves"
         ],
         [
-         "scripts/fs_local_check.py",
+         "onshape_docs/scripts/fs_local_check.py",
          "0",
          "Structure (hard) + body symbols absent from the vendored index (warning)"
         ],
@@ -1199,7 +1203,7 @@
         ],
         [
          "Instantiate (POST .../features)",
-         "2",
+         "1 (cached) / 2 (cold)",
          "The only layer that executes the body — but ERROR is opaque (no message)"
         ]
        ]
@@ -1232,7 +1236,7 @@
          "depth": 0
         },
         {
-         "text": "**Quota tests: minimize the unit whose crash is total; bundle only what is free to bundle.** A bundled eval is 1 call whether it holds 1 symbol or 10 (clean bundles PASS in bulk), so large bundles are efficient — but a failing bundle binary-splits at 1 call per revealed symbol, so over-bundling symbols likely to fail is costly. More importantly, a quota run must **save incrementally**: scripts/live_symbol_sweep.py first run only wrote at the end and a single unattributable runtime error (a value-typed predicate deref'ing a 5 dummy: \"Attempt to dereference non-container 5\") recursed its binary split forever until the API 429'd — losing all 61 calls' results. Fixes: save after every recorded symbol; stop splitting at a 1-element bundle (record UNATTRIBUTABLE and move on); pass a vector(1,2,3) dummy for value-typed params, not 5, so structural predicates (is2dDirection, isLengthVector, …) don't deref the dummy at runtime.",
+         "text": "**Quota tests: minimize the unit whose crash is total; bundle only what is free to bundle.** A bundled eval is 1 call whether it holds 1 symbol or 10 (clean bundles PASS in bulk), so large bundles are efficient — but a failing bundle binary-splits at 1 call per revealed symbol, so over-bundling symbols likely to fail is costly. More importantly, a quota run must **save incrementally**: onshape_docs/scripts/live_symbol_sweep.py first run only wrote at the end and a single unattributable runtime error (a value-typed predicate deref'ing a 5 dummy: \"Attempt to dereference non-container 5\") recursed its binary split forever until the API 429'd — losing all 61 calls' results. Fixes: save after every recorded symbol; stop splitting at a 1-element bundle (record UNATTRIBUTABLE and move on); pass a vector(1,2,3) dummy for value-typed params, not 5, so structural predicates (is2dDirection, isLengthVector, …) don't deref the dummy at runtime.",
          "depth": 0
         }
        ]
@@ -1243,8 +1247,8 @@
   },
   {
    "page": "llm-experience-api",
-   "path": "docs/verification/llm-experience-api.md",
-   "sha256": "fff3639d8b1e62da176c4636ab816e0592d9ce1ccee392488b4ae8946a5b3893",
+   "path": "onshape_docs/verification/llm-experience-api.md",
+   "sha256": "6d0a6a9d9a326d541030e9715ed09d979c24e703a3ada9729e6a4684e7073a6d",
    "title": "LLM experience: Onshape REST API",
    "sections": [
     {
@@ -1253,7 +1257,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "What a model actually needs to know to call the Onshape REST API correctly. Every claim below is backed by the verified corpus (docs/verification/report.json, collected by verify_docs.py against REST API 1.219.86205, 302 operations)."
+       "text": "What a model actually needs to know to call the Onshape REST API correctly. Every claim below is backed by the verified corpus (onshape_docs/verification/report.json, collected by verify_docs.py against REST API 1.219.86205, 302 operations)."
       }
      ]
     },
@@ -1377,7 +1381,7 @@
          "depth": 0
         },
         {
-         "text": "Before a mutating batch (the validation pipeline is ~14 calls, ~9 without rendering), check onshape_api_quota; the pipeline itself preflights and blocks if the annual budget would be exceeded.",
+         "text": "Before a mutating batch (the validation pipeline is ~13 calls, ~8 without rendering), check onshape_api_quota; the pipeline itself preflights and blocks if the annual budget would be exceeded.",
          "depth": 0
         }
        ]
@@ -1408,7 +1412,11 @@
          "depth": 0
         },
         {
-         "text": "Per-step real cost (counted from the actual operations): upload ~3, create Part Studio 1, instantiate 2, evalfeaturescript 1, validation pipeline 14 with render / 9 without. check_latest on fs_check_version costs 1 (the /api/build REST-spec probe); the plain version check and fs_update_reference (without include_onshape_api) cost 0.",
+         "text": "Per-step real cost (counted from the actual operations): upload ~3, create Part Studio 1, instantiate 1 (when the Feature Studio microversion is cached from the upload) / 2 (cold), evalfeaturescript 1, validation pipeline 13 with render / 8 without. check_latest on fs_check_version costs 1 (the /api/build REST-spec probe); the plain version check and fs_update_reference (without include_onshape_api) cost 0.",
+         "depth": 0
+        },
+        {
+         "text": "**Instantiate against a stale Feature Studio microversion is silent, not an error.** Microversions are immutable snapshots, so POST .../features with a namespace pinning an old microversion succeeds and uses the OLD definition if the Feature Studio was edited on the server after that microversion. The element mirror caches the microversion from upload/status responses and stamps a sync time; instantiate trusts it only within 5 minutes (MICROVERSION_CACHE_MAX_AGE_SECONDS) and otherwise re-reads the element list (1 extra call) — but an edit made inside that window is undetectable. That is why the validation pipeline threads the microversion from the upload response (same-run) instead of trusting the cache, and why \"upload → human edits the Feature Studio in the Onshape UI → instantiate\" is a hazard: tell the human not to edit the Feature Studio between upload/status and instantiate.",
          "depth": 0
         },
         {
@@ -1427,8 +1435,8 @@
   },
   {
    "page": "live-verification",
-   "path": "docs/verification/live/README.md",
-   "sha256": "77a647d7b5d9a5bfc2388fb433a2632628d53de19c528f4add9d0b2875e3df32",
+   "path": "onshape_docs/verification/live/README.md",
+   "sha256": "2f3a4d5ef069ed3cbfd2dc499493835fcfaf574671aad4975d457d390175b856",
    "title": "Live FeatureScript verification — 实测记录",
    "sections": [
     {
@@ -1437,7 +1445,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "目标：用真实 Onshape 服务器验证 docs/verification/llm-experience-fs.md 的 语言论断。总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
+       "text": "目标：用真实 Onshape 服务器验证 onshape_docs/verification/llm-experience-fs.md 的 语言论断。总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
       },
       {
        "type": "para",
@@ -1560,7 +1568,7 @@
          "depth": 0
         },
         {
-         "text": "本地静态检查器是唯一的 body 层防线：scripts/fs_local_check.py 的 符号 warning（qDoesNotExist、NotARealType）会在上传前标记 body 错误—— 服务器保存时不报，只能靠本地检查或花实例化额度。",
+         "text": "本地静态检查器是唯一的 body 层防线：onshape_docs/scripts/fs_local_check.py 的 符号 warning（qDoesNotExist、NotARealType）会在上传前标记 body 错误—— 服务器保存时不报，只能靠本地检查或花实例化额度。",
          "depth": 0
         },
         {
@@ -1679,7 +1687,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "约 120 次额度花在调试 FS 语法/结构错误。scripts/fs_local_check.py 在 上传前拦截结构错误（硬错）并标记符号缺失（警告），避免同类浪费。详见 README.md 的 \"Zero-cost syntax guard\" 段。"
+       "text": "约 120 次额度花在调试 FS 语法/结构错误。onshape_docs/scripts/fs_local_check.py 在 上传前拦截结构错误（硬错）并标记符号缺失（警告），避免同类浪费。详见 README.md 的 \"Zero-cost syntax guard\" 段。"
       }
      ]
     },
@@ -1694,7 +1702,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 scripts/fs_local_check.py docs/verification/live/experiments/  # 先本地拦截\npython3 docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏"
+       "text": "python3 onshape_docs/scripts/fs_local_check.py onshape_docs/verification/live/experiments/  # 先本地拦截\npython3 onshape_docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏"
       },
       {
        "type": "para",
@@ -1712,7 +1720,7 @@
       },
       {
        "type": "para",
-       "text": "方法：scripts/live_is_probe.py 用 onshape_eval_featurescript 在部署运行时 （eval libraryVersion 3044）逐符号/收敛探测。编译器停在第一个错误 → 探测只能一次揭示一个失败符号；isReal 等\"类型不匹配\"错误会直接暴露 3044 真实签名，而 bare-reference 错误可区分\"存在\"（Cannot reference function X） 与\"缺失\"（Variable X not found）。"
+       "text": "方法：onshape_docs/scripts/live_is_probe.py 用 onshape_eval_featurescript 在部署运行时 （eval libraryVersion 3044）逐符号/收敛探测。编译器停在第一个错误 → 探测只能一次揭示一个失败符号；isReal 等\"类型不匹配\"错误会直接暴露 3044 真实签名，而 bare-reference 错误可区分\"存在\"（Cannot reference function X） 与\"缺失\"（Variable X not found）。"
       },
       {
        "type": "para",
@@ -1734,7 +1742,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "scripts/live_gap_probe.py 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1 次——guard 在分区边界检查，最后一个分区可整体越界）。结果在 gap-probe-results.json。"
+       "text": "onshape_docs/scripts/live_gap_probe.py 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1 次——guard 在分区边界检查，最后一个分区可整体越界）。结果在 gap-probe-results.json。"
       },
       {
        "type": "para",
@@ -1789,7 +1797,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "scripts/live_symbol_sweep.py（已含：时间戳日志、增量落盘、断点续跑跳过已验证 符号、--budget 0 按未验证余量自适应、2s 节流、429 永不重试）。首轮 bug 白烧 61 次（无限二分 + 429），第二轮修好组件但账户限流。当前账户 Retry-After 72910s（~20h）、Rate-Limit-Remaining 0——2026-08-14 当天探测耗尽突发额度， sweep 暂停，限流过后续跑只补未验证部分。"
+       "text": "onshape_docs/scripts/live_symbol_sweep.py（已含：时间戳日志、增量落盘、断点续跑跳过已验证 符号、--budget 0 按未验证余量自适应、2s 节流、429 永不重试）。首轮 bug 白烧 61 次（无限二分 + 429），第二轮修好组件但账户限流。当前账户 Retry-After 72910s（~20h）、Rate-Limit-Remaining 0——2026-08-14 当天探测耗尽突发额度， sweep 暂停，限流过后续跑只补未验证部分。"
       },
       {
        "type": "para",
@@ -1805,8 +1813,8 @@
   },
   {
    "page": "quick-reference",
-   "path": "reference/quick-reference.md",
-   "sha256": "a383c471788f4aa102ed34bf25260530c034cedba78096e706358eae51f36a9f",
+   "path": "onshape_docs/reference/quick-reference.md",
+   "sha256": "7d9af5690151830a3d610100503b361dc23e7ca28bd1dc7d98123b4b8696e7ec",
    "title": "FeatureScript quick reference",
    "sections": [
     {
@@ -1815,7 +1823,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "A distilled cheat-sheet for writing Onshape FeatureScript, synthesized from the vendored official docs (reference/raw/fsdoc/). It is intentionally short enough to read in one shot; drill into reference/index/fsdoc/index.json / the fs_* tools for exact signatures. The vendored reference currently tracks standard library version 2960."
+       "text": "A distilled cheat-sheet for writing Onshape FeatureScript, synthesized from the vendored official docs (onshape_docs/reference/raw/fsdoc/). It is intentionally short enough to read in one shot; drill into onshape_docs/reference/index/fsdoc/index.json / the fs_* tools for exact signatures. The vendored reference currently tracks standard library version 2960."
       }
      ]
     },
@@ -2118,7 +2126,7 @@
          "depth": 0
         },
         {
-         "text": "reference/quick/fsdoc/quick.json holds this same surface as one line per entry for machine indexing; reference/index/fsdoc/index.json has the full detail.",
+         "text": "onshape_docs/reference/quick/fsdoc/quick.json holds this same surface as one line per entry for machine indexing; onshape_docs/reference/index/fsdoc/index.json has the full detail.",
          "depth": 0
         }
        ]
@@ -2129,8 +2137,8 @@
   },
   {
    "page": "reference",
-   "path": "reference/README.md",
-   "sha256": "d4a9106676609c84ba62fccca862f53e1abed110d849b1a0b50bba03f2ff65d8",
+   "path": "onshape_docs/reference/README.md",
+   "sha256": "afc93afd6cd7a1eb74cab428b256f5a949b2bd9c1fc9a461075d20b94d7f8e4c",
    "title": "Vendored reference corpus",
    "sections": [
     {
@@ -2139,7 +2147,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Fetched by scripts/fetch_reference.py (FsDoc + std library) and the scripts/fetch_onshape_api*.py fetchers. Onshape/third-party material, vendored so the local MCP tools answer without a network round trip. Three tiers, in reading order:"
+       "text": "Fetched by onshape_docs/scripts/fetch_reference.py (FsDoc + std library) and the onshape_docs/scripts/fetch_onshape_api*.py fetchers. Onshape/third-party material, vendored so the local MCP tools answer without a network round trip. Three tiers, in reading order:"
       },
       {
        "type": "table",
@@ -2210,7 +2218,7 @@
        "type": "list",
        "items": [
         {
-         "text": "raw/onshape-api/openapi.json — the live Onshape REST API OpenAPI definition, fetched from https://cad.onshape.com/api/openapi with the local credentials by scripts/fetch_onshape_api.py (always the current server version). index/onshape-api/api_index.json and quick/onshape-api/api_quick.json are flattened from it by scripts/build_onshape_api_index.py.",
+         "text": "raw/onshape-api/openapi.json — the live Onshape REST API OpenAPI definition, fetched from https://cad.onshape.com/api/openapi with the local credentials by onshape_docs/scripts/fetch_onshape_api.py (always the current server version). index/onshape-api/api_index.json and quick/onshape-api/api_quick.json are flattened from it by onshape_docs/scripts/build_onshape_api_index.py.",
          "depth": 0
         },
         {
@@ -2227,7 +2235,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The project's own LLM-facing documentation (docs/.md, reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is indexed by scripts/build_docs_index.py into docs/index.json (same typed-block schema as guide.json) and served by the docs_ tools. The markdown files stay the authored originals."
+       "text": "The project's own LLM-facing documentation (onshape_docs/guide/.md, onshape_docs/reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is indexed by onshape_docs/scripts/build_docs_index.py into onshape_docs/index.json (same typed-block schema as guide.json) and served by the docs_ tools. The markdown files stay the authored originals."
       }
      ]
     },
@@ -2237,7 +2245,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Never read raw/ — it exists only as build input and is sha256-pinned by docs/verification/verify_docs.py. For a question: start with a quick/ index (cheap candidate lists), then pull the one entry you need from index/ at full detail. That ordering is exactly what the MCP tools already do (fs_search → fs_get_function); docs/index.json mirrors the project's own markdown the same way (see docs/mcp-server.md)."
+       "text": "Never read raw/ — it exists only as build input and is sha256-pinned by onshape_docs/verification/verify_docs.py. For a question: start with a quick/ index (cheap candidate lists), then pull the one entry you need from index/ at full detail. That ordering is exactly what the MCP tools already do (fs_search → fs_get_function); onshape_docs/index.json mirrors the project's own markdown the same way (see onshape_docs/guide/mcp-server.md)."
       }
      ]
     },
@@ -2252,11 +2260,11 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 scripts/fetch_reference.py\npython3 scripts/build_fsdoc_index.py\npython3 scripts/fetch_onshape_api.py   # needs onshape-credentials.json\npython3 scripts/build_onshape_api_index.py"
+       "text": "python3 onshape_docs/scripts/fetch_reference.py\npython3 onshape_docs/scripts/build_fsdoc_index.py\npython3 onshape_docs/scripts/fetch_onshape_api.py   # needs onshape-credentials.json\npython3 onshape_docs/scripts/build_onshape_api_index.py"
       },
       {
        "type": "para",
-       "text": "reference/quick-reference.md is a curated cheat-sheet authored alongside these files; refresh it by hand when a major version bump changes the API."
+       "text": "onshape_docs/reference/quick-reference.md is a curated cheat-sheet authored alongside these files; refresh it by hand when a major version bump changes the API."
       }
      ]
     }

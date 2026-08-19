@@ -410,7 +410,7 @@ def upload_feature_studio(
                 },
             ],
             note=(
-                "3 API calls (GET + POST + GET featurespecs). Run scripts/fs_local_check.py "
+                "3 API calls (GET + POST + GET featurespecs). Run onshape_docs/scripts/fs_local_check.py "
                 "on the source first — a syntactically bad upload still costs quota."
             ),
         )

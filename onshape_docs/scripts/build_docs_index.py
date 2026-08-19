@@ -2,20 +2,20 @@
 """Parse the project's own markdown docs into a structured JSON index.
 
 The MCP server serves two kinds of corpora: the vendored Onshape material
-(reference/) and the project's own LLM-facing docs (docs/, README.md,
-examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
-indexes the project's own markdown into docs/index.json with the SAME schema as
-reference/index/fsdoc/guide.json — pages -> heading sections -> typed blocks (para,
+(onshape_docs/reference/) and the project's own LLM-facing docs
+(onshape_docs/guide/, onshape_docs/verification/, README.md, examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
+indexes the project's own markdown into onshape_docs/index.json with the SAME
+schema as onshape_docs/reference/index/fsdoc/guide.json — pages -> heading sections -> typed blocks (para,
 code, list, table) — so the project docs are searchable and readable on demand
 through the docs_* tools, never loaded whole.
 
-The markdown files are the authored ORIGINALS and are kept as-is; docs/index.json
+The markdown files are the authored ORIGINALS and are kept as-is; onshape_docs/index.json
 is a derived, indexed copy (each page records its sha256 so staleness is
 detectable). Project-generated docs (the live-verification lessons, experiments)
 keep their raw files too — nothing is deleted here.
 
 Outputs:
-  docs/index.json - {pages: [{page, path, sha256, title, sections}]}
+  onshape_docs/index.json - {pages: [{page, path, sha256, title, sections}]}
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
-DOCS_DIR = ROOT / "docs"
-INDEX_PATH = DOCS_DIR / "index.json"
+DOCS_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = DOCS_ROOT.parent
+INDEX_PATH = DOCS_ROOT / "index.json"
 
 # Ordered slug -> project-relative markdown path. Page order is the docs_list
 # outline order. Add new LLM-facing docs here and re-run the script.
@@ -40,15 +40,15 @@ INDEX_PATH = DOCS_DIR / "index.json"
 # it would make every docs_search return duplicated hits. The LLM-facing
 # corpus is the docs/ tree + the quick-reference + the example docs.
 DOC_PAGES: dict[str, str] = {
-    "fs-assistant": "docs/fs-assistant.md",
-    "mcp-server": "docs/mcp-server.md",
-    "onshape-api": "docs/onshape-api.md",
-    "verification": "docs/verification/README.md",
-    "llm-experience-fs": "docs/verification/llm-experience-fs.md",
-    "llm-experience-api": "docs/verification/llm-experience-api.md",
-    "live-verification": "docs/verification/live/README.md",
-    "quick-reference": "reference/quick-reference.md",
-    "reference": "reference/README.md",
+    "fs-assistant": "onshape_docs/guide/fs-assistant.md",
+    "mcp-server": "onshape_docs/guide/mcp-server.md",
+    "onshape-api": "onshape_docs/guide/onshape-api.md",
+    "verification": "onshape_docs/verification/README.md",
+    "llm-experience-fs": "onshape_docs/verification/llm-experience-fs.md",
+    "llm-experience-api": "onshape_docs/verification/llm-experience-api.md",
+    "live-verification": "onshape_docs/verification/live/README.md",
+    "quick-reference": "onshape_docs/reference/quick-reference.md",
+    "reference": "onshape_docs/reference/README.md",
     "example": "examples/branch-cable-trophy/README.md",
     "example-setup": "examples/branch-cable-trophy/docs/setup.md",
     "example-feature-parameters": "examples/branch-cable-trophy/docs/feature-parameters.md",
@@ -259,7 +259,7 @@ def parse_markdown(text: str, page: str) -> dict[str, Any]:
 def build() -> list[dict[str, Any]]:
     pages: list[dict[str, Any]] = []
     for page, relpath in DOC_PAGES.items():
-        path = ROOT / relpath
+        path = REPO_ROOT / relpath
         if not path.is_file():
             print(f"  skipped (missing): {relpath}", file=sys.stderr)
             continue

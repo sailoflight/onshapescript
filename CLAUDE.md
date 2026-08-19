@@ -81,11 +81,11 @@
   ——验证门逻辑只用 mock 账本（`tests/test_quota_guards.py` 里的 fake client）。
 - 已知额度成本：eval/GET = 1；upload+featurespecs = 3；instantiate = 1（微版本已缓存）/ 2（冷缓存）；
   create_validation_part_studio = 1；validation pipeline = 13（含 render）/ 8（不含）；
-  render = 1；is* 收敛探测每失败符号 +1；上传前必跑 `scripts/fs_local_check.py`（0 调用）。
-- 关键文件：`scripts/fs_local_check.py`、`scripts/live_symbol_sweep.py`（时间戳+增量落盘+
-  断点续跑+自适应预算）、`onshape_fs_mcp/{client,budget,operations}.py`、
-  `docs/verification/{llm-experience-fs,llm-experience-api}.md`、
-  `docs/verification/live/{README,live-is-predicates,live-symbol-sweep}.json`。
+  render = 1；is* 收敛探测每失败符号 +1；上传前必跑 `onshape_docs/scripts/fs_local_check.py`（0 调用）。
+- 关键文件：`onshape_docs/scripts/fs_local_check.py`、`onshape_docs/scripts/live_symbol_sweep.py`（时间戳+增量落盘+
+  断点续跑+自适应预算）、`onshape_rest_api_mode/{client,budget,operations}.py`、
+  `onshape_docs/verification/{llm-experience-fs,llm-experience-api}.md`、
+  `onshape_docs/verification/live/{README,live-is-predicates,live-symbol-sweep}.json`。
 - 验证结论（勿重复 live 验证）：`is*` 谓词集已在 3044 定案；跨版本 import 边界强证据
   为 3029 < 版本 ≤ 3044（静默拒绝）；spec 发射由 precondition 的 bound-spec +
-  `annotation { "Name" }` 触发，与 body 无关。详见 `docs/verification/`。
+  `annotation { "Name" }` 触发，与 body 无关。详见 `onshape_docs/verification/`。

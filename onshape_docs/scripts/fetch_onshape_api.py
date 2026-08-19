@@ -17,12 +17,13 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+DOCS_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = DOCS_ROOT.parent
+sys.path.insert(0, str(REPO_ROOT))
 from onshape_rest_api_mode.budget import live_blocker  # noqa: E402
 from onshape_rest_api_mode.client import OnshapeClient  # noqa: E402
 
-ONSHAPE_API_DIR = ROOT / "reference" / "raw" / "onshape-api"
+ONSHAPE_API_DIR = DOCS_ROOT / "reference" / "raw" / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
 OPENAPI_URL = "https://cad.onshape.com/api/openapi"
 

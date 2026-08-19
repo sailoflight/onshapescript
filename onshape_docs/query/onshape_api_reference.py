@@ -2,7 +2,7 @@
 """Query helpers for the vendored Onshape REST API OpenAPI index.
 
 The MCP onshape_api_* tools read the flattened index built by
-scripts/build_onshape_api_index.py (api_index.json / api_quick.json) and answer
+onshape_docs/scripts/build_onshape_api_index.py (api_index.json / api_quick.json) and answer
 REST questions offline. Nothing here contacts the network or Onshape.
 """
 
@@ -14,12 +14,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
-RAW_DIR = ROOT / "reference" / "raw"
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+RAW_DIR = DOCS_ROOT / "reference" / "raw"
 ONSHAPE_API_DIR = RAW_DIR / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
-API_INDEX_PATH = ROOT / "reference" / "index" / "onshape-api" / "api_index.json"
-API_QUICK_PATH = ROOT / "reference" / "quick" / "onshape-api" / "api_quick.json"
+API_INDEX_PATH = DOCS_ROOT / "reference" / "index" / "onshape-api" / "api_index.json"
+API_QUICK_PATH = DOCS_ROOT / "reference" / "quick" / "onshape-api" / "api_quick.json"
 
 _index: dict[str, Any] | None = None
 _quick: dict[str, Any] | None = None
@@ -35,8 +35,8 @@ def _load_index() -> dict[str, Any]:
     if _index is None:
         if not API_INDEX_PATH.is_file():
             raise FileNotFoundError(
-                f"{API_INDEX_PATH} is missing; run scripts/fetch_onshape_api.py and "
-                "scripts/build_onshape_api_index.py to vendor the reference."
+                f"{API_INDEX_PATH} is missing; run onshape_docs/scripts/fetch_onshape_api.py and "
+                "onshape_docs/scripts/build_onshape_api_index.py to vendor the reference."
             )
         _index = _load_json(API_INDEX_PATH)
     return _index
@@ -47,7 +47,7 @@ def _load_quick() -> dict[str, Any]:
     if _quick is None:
         if not API_QUICK_PATH.is_file():
             raise FileNotFoundError(
-                f"{API_QUICK_PATH} is missing; run scripts/build_onshape_api_index.py."
+                f"{API_QUICK_PATH} is missing; run onshape_docs/scripts/build_onshape_api_index.py."
             )
         _quick = _load_json(API_QUICK_PATH)
     return _quick

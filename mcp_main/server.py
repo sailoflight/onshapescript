@@ -174,7 +174,7 @@ def _update_reference(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
     include_api = bool(arguments.get("include_onshape_api", False))
     if include_api:
-        # Re-fetching the live OpenAPI spec (scripts/fetch_onshape_api.py)
+        # Re-fetching the live OpenAPI spec (onshape_docs/scripts/fetch_onshape_api.py)
         # costs 1 quota call; gate it like any other live request.
         _require_live(1, "fs_update_reference include_onshape_api")
     return fs_reference.update_reference(include_onshape_api=include_api)
@@ -353,7 +353,7 @@ TOOLS: list[dict[str, Any]] = [
             "check_latest it also probes the mirror (one small network call) for the newest available "
             "FeatureScript version and the live REST API spec version (needs credentials). Use it "
             "before writing code against a specific FeatureScript version. Also reports the health of "
-            "the project-docs index (docs/index.json) vs its markdown sources."
+            "the project-docs index (onshape_docs/index.json) vs its markdown sources."
         ),
         "inputSchema": object_schema({
             "target": {
@@ -387,7 +387,7 @@ TOOLS: list[dict[str, Any]] = [
             "credentials and costs 1 quota call; without it that part is skipped with a note). "
             "Note: it does NOT detect the live FeatureScript server version - that check costs quota, so it "
             "lives in fs_check_version's include_live (which already spends a call), not here. "
-            "This performs network downloads and overwrites files under reference/, so it requires "
+            "This performs network downloads and overwrites files under onshape_docs/reference/, so it requires "
             "confirm_mutation=true."
         ),
         "inputSchema": object_schema({
@@ -403,7 +403,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "fs_quick_reference",
         "description": (
-            "Return the curated FeatureScript quick-reference digest (reference/quick-reference.md): a "
+            "Return the curated FeatureScript quick-reference digest (onshape_docs/reference/quick-reference.md): a "
             "distilled cheat-sheet covering the language model, feature anatomy, parameters, queries, the "
             "standard library map, common patterns, and pitfalls. Small enough to load into context in one "
             "call; use it to orient before drilling into fs_get_function/fs_guide_section. Local and offline."
@@ -521,8 +521,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_list",
         "description": (
-            "List every page in the project's own structured documentation index (docs/index.json, built "
-            "from docs/*.md, reference/quick-reference.md, and the example docs; the root README is the "
+            "List every page in the project's own structured documentation index (onshape_docs/index.json, built "
+            "from onshape_docs/guide/*.md, onshape_docs/reference/quick-reference.md, and the example docs; the root README is the "
             "human landing page and is intentionally not indexed): each page's "
             "title, source path, and heading-section outline. Use it to see what project docs exist and "
             "their section titles, then read one with docs_section. This is separate from the vendored "
@@ -534,11 +534,11 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_section",
         "description": (
-            "Read the project's own documentation (docs/mcp-server.md, docs/fs-assistant.md, the "
+            "Read the project's own documentation (onshape_docs/guide/mcp-server.md, onshape_docs/guide/fs-assistant.md, the "
             "verified LLM-experience docs, the example docs) as plain text. Pass page=<page> and optionally "
             "section=<heading> to narrow to one section; without section you get the whole page plus its "
             "heading outline. This is how the project's own knowledge (tool catalog, workflows, live "
-            "verification lessons) is read on demand from docs/index.json. Local and offline."
+            "verification lessons) is read on demand from onshape_docs/index.json. Local and offline."
         ),
         "inputSchema": object_schema({
             "page": {"type": "string", "description": "A project doc page, e.g. 'llm-experience-fs', 'mcp-server', 'quick-reference'. See docs_list for the full list."},
@@ -549,8 +549,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_search",
         "description": (
-            "Keyword search across every section of the project's own documentation (docs/*, "
-            "reference/quick-reference.md, example docs). Results are ranked by how well the query tokens "
+            "Keyword search across every section of the project's own documentation (onshape_docs/guide/*, "
+            "onshape_docs/reference/quick-reference.md, example docs). Results are ranked by how well the query tokens "
             "match the page/section titles and body text. Use this to find which project doc answers a "
             "question (e.g. 'quota', 'eval budget', 'defineFeature'), then read the full section with "
             "docs_section. Local and offline."
@@ -822,7 +822,7 @@ TOOLS: list[dict[str, Any]] = [
             "Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled "
             "branchCableTrophyDisplay specification. This overwrites cloud Feature Studio contents and may "
             "fail on microversion skew; call only when the user intends that remote mutation. Costs 3 API "
-            "calls (GET + POST + GET featurespecs); run scripts/fs_local_check.py on the source first. "
+            "calls (GET + POST + GET featurespecs); run onshape_docs/scripts/fs_local_check.py on the source first. "
             "Pass dry_run=true to see the exact requests without sending them."
         ),
         "inputSchema": object_schema({
@@ -1073,7 +1073,7 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
                 "is rarely present in language-model training data, so look up exact signatures before "
                 "writing code. Read order: start with a search/find tool (cheap candidate list), then "
                 "fs_get_function or fs_guide_section for the one entry you need (full detail) — the "
-                "vendored corpus is tiered (reference/quick/ then reference/index/; reference/raw/ is "
+                "vendored corpus is tiered (onshape_docs/reference/quick/ then onshape_docs/reference/index/; onshape_docs/reference/raw/ is "
                 "build input and never read). The project's own documentation (tool catalog, verified "
                 "experience/lessons, example docs) is served by docs_list / docs_section / docs_search. "
                 "Use read-only inspection tools unless the user explicitly requests a cloud "

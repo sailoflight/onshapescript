@@ -27,8 +27,9 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCS_ROOT.parent
+sys.path.insert(0, str(REPO_ROOT))
 from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
 from onshape_rest_api_mode.client import RateLimited, rate_limit_reason  # noqa: E402
 from onshape_rest_api_mode.operations import (  # noqa: E402
@@ -38,7 +39,7 @@ from onshape_rest_api_mode.operations import (  # noqa: E402
 
 EXPERIMENT_FS_ID = "7a4dedcaeb022728fa37722f"  # expendable "FS live verification" studio
 PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"    # trophy model part studio (from state)
-OUT = ROOT / "docs" / "verification" / "live" / "gap-probe-results.json"
+OUT = DOCS_ROOT / "verification" / "live" / "gap-probe-results.json"
 
 
 def main() -> int:

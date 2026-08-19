@@ -6,10 +6,10 @@ with their raw sources, that the structures are complete, and that
 cross-references resolve. Writes report.json and prints a human summary.
 
 Corpora verified:
-  FS reference   reference/index/fsdoc/{index,guide}.json  vs the raw FsDoc HTML
-  REST API       reference/index/onshape-api/api_index.json vs openapi.json
-  Auth/errors    reference/index/onshape-api-docs/api_docs.json vs the raw HTML
-  Project docs   docs/index.json vs the authored markdown sources
+  FS reference   onshape_docs/reference/index/fsdoc/{index,guide}.json  vs the raw FsDoc HTML
+  REST API       onshape_docs/reference/index/onshape-api/api_index.json vs openapi.json
+  Auth/errors    onshape_docs/reference/index/onshape-api-docs/api_docs.json vs the raw HTML
+  Project docs   onshape_docs/index.json vs the authored markdown sources
 """
 
 from __future__ import annotations
@@ -22,17 +22,18 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 # Tier 0: raw build inputs — only sha256-compared, never loaded for content.
-RAW = ROOT / "reference" / "raw"
+RAW = DOCS_ROOT / "reference" / "raw"
 FSDOC_RAW = RAW / "fsdoc"
 REST_RAW = RAW / "onshape-api"
 AUTH_RAW = RAW / "onshape-api-docs"
 # Tier 1/2: distilled + full-detail indexes — what the MCP tools actually serve.
-FSDOC_INDEX = ROOT / "reference" / "index" / "fsdoc"
-REST_INDEX = ROOT / "reference" / "index" / "onshape-api"
-REST_QUICK = ROOT / "reference" / "quick" / "onshape-api"
-AUTH_INDEX = ROOT / "reference" / "index" / "onshape-api-docs"
+FSDOC_INDEX = DOCS_ROOT / "reference" / "index" / "fsdoc"
+REST_INDEX = DOCS_ROOT / "reference" / "index" / "onshape-api"
+REST_QUICK = DOCS_ROOT / "reference" / "quick" / "onshape-api"
+AUTH_INDEX = DOCS_ROOT / "reference" / "index" / "onshape-api-docs"
 
 checks: list[dict[str, Any]] = []
 stats: dict[str, Any] = {}
@@ -228,11 +229,11 @@ def verify_auth() -> None:
 
 
 def verify_project_docs() -> None:
-    idx = load(ROOT / "docs" / "index.json")
+    idx = load(DOCS_ROOT / "index.json")
     missing = [
         p["page"] for p in idx["pages"]
-        if not (ROOT / p["path"]).is_file()
-        or sha256_of(ROOT / p["path"]) != p["sha256"]
+        if not (REPO_ROOT / p["path"]).is_file()
+        or sha256_of(REPO_ROOT / p["path"]) != p["sha256"]
     ]
     check("Project docs index.json page sha256 all match", not missing,
           f"stale/missing: {missing}" if missing else f"{len(idx['pages'])} pages ok")
@@ -266,7 +267,7 @@ def main() -> int:
         "checks": checks,
         "stats": stats,
     }
-    (ROOT / "docs" / "verification" / "report.json").write_text(
+    (DOCS_ROOT / "verification" / "report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
     )
     print(f"verification: {len(checks) - len(failed)}/{len(checks)} checks passed\n")

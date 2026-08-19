@@ -2,7 +2,7 @@
 """Query helpers for the vendored Onshape auth + error-handling docs.
 
 The MCP onshape_api_auth / onshape_api_error_codes tools read the structured
-api_docs.json built by scripts/build_onshape_api_docs_index.py. These pages are
+api_docs.json built by onshape_docs/scripts/build_onshape_api_docs_index.py. These pages are
 public Onshape developer docs; nothing here contacts the network or Onshape.
 """
 
@@ -12,8 +12,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
-API_DOCS_PATH = ROOT / "reference" / "index" / "onshape-api-docs" / "api_docs.json"
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+API_DOCS_PATH = DOCS_ROOT / "reference" / "index" / "onshape-api-docs" / "api_docs.json"
 
 _docs: dict[str, Any] | None = None
 
@@ -33,8 +33,8 @@ def _load() -> dict[str, Any]:
     if _docs is None:
         if not API_DOCS_PATH.is_file():
             raise FileNotFoundError(
-                f"{API_DOCS_PATH} is missing; run scripts/fetch_onshape_api_docs.py "
-                "and scripts/build_onshape_api_docs_index.py"
+                f"{API_DOCS_PATH} is missing; run onshape_docs/scripts/fetch_onshape_api_docs.py "
+                "and onshape_docs/scripts/build_onshape_api_docs_index.py"
             )
         _docs = json.loads(API_DOCS_PATH.read_text(encoding="utf-8"))
     return _docs

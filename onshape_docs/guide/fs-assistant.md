@@ -3,7 +3,7 @@
 The reference tools give an LLM agent the same material a human developer
 works from: the official function/type reference, the language guide, and the
 actual standard library implementation. Everything is vendored under
-`reference/` and served offline, so there are no network round trips and the
+`onshape_docs/reference/` and served offline, so there are no network round trips and the
 answers are deterministic.
 
 ## Why this matters
@@ -41,8 +41,8 @@ signatures here. The tools below exist to replace guessing with lookup.
 7. **Breadth before depth** — `fs_list_modules` to see the module layout and
    `fs_list_functions` (with `prefix`) when you remember part of a name.
 8. **Project docs** — `docs_list` / `docs_section` / `docs_search` read the
-   project's own documentation (README, `docs/mcp-server.md`, the verified
-   `llm-experience-*` lessons, example docs) on demand from `docs/index.json`.
+   project's own documentation (README, `onshape_docs/guide/mcp-server.md`, the verified
+   `llm-experience-*` lessons, example docs) on demand from `onshape_docs/index.json`.
    Use these for tool-catalog, workflow, and verification-lesson questions that
    are not in the vendored reference.
 
@@ -68,46 +68,46 @@ you *whether* to update before paying for the download.
 
 ## Reference data
 
-Vendored material lives in `reference/`, in three tiers by reading order:
+Vendored material lives in `onshape_docs/reference/`, in three tiers by reading order:
 
-- `reference/raw/` — **build inputs, never read by the tools**: the official
+- `onshape_docs/reference/raw/` — **build inputs, never read by the tools**: the official
   FsDoc pages (`raw/fsdoc/`, including the 1.7 MB `library.html`), the standard
   library source (`raw/std-library/`, mirrored from
   `github.com/javawizard/onshape-std-library-mirror`, MIT), the live OpenAPI
   spec (`raw/onshape-api/openapi.json`), and the OAuth2 / API-key / error /
-  limits pages (`raw/onshape-api-docs/`). Kept for provenance and sha256
+  limits pages (`onshape_docs/reference/raw/onshape-api-docs/`). Kept for provenance and sha256
   staleness checks only.
-- `reference/quick/` — **the cheap first read** (tier 1): `quick.json` (one
+- `onshape_docs/reference/quick/` — **the cheap first read** (tier 1): `quick.json` (one
   line per entry: name, kind, module, category, one-line summary across the
   whole reference plus the guide section titles), `api_quick.json` (one line
   per endpoint). Auto-regenerated on every build.
-- `reference/index/` — **on-demand full detail** (tier 2): `fsdoc/index.json`
+- `onshape_docs/reference/index/` — **on-demand full detail** (tier 2): `fsdoc/index.json`
   (modules, functions, types, constants, predicates, parameters, descriptions;
-  built by `scripts/build_fsdoc_index.py`), `fsdoc/guide.json` (every
+  built by `onshape_docs/scripts/build_fsdoc_index.py`), `fsdoc/guide.json` (every
   guide/tutorial page parsed into heading sections with typed blocks —
   paragraph, code, table, list — what `fs_guide_section` reads and what
   `fs_search kind=guide` searches), `onshape-api/api_index.json`,
   `onshape-api-docs/api_docs.json`.
-- `reference/quick-reference.md` — the curated, distilled cheat-sheet (the
+- `onshape_docs/reference/quick-reference.md` — the curated, distilled cheat-sheet (the
   `fs_quick_reference` tool); authored alongside the docs rather than generated.
-- `docs/index.json` — the project's own documentation (`docs/*.md`,
+- `onshape_docs/index.json` — the project's own documentation (`onshape_docs/guide/*.md`,
   the quick-reference, example docs; README.md is the human landing page and is
   intentionally not indexed) parsed into the same typed-block schema as
   `guide.json`; served by `docs_list` / `docs_section` / `docs_search`. Built
-  by `scripts/build_docs_index.py`; the `.md` files remain the originals.
+  by `onshape_docs/scripts/build_docs_index.py`; the `.md` files remain the originals.
 
 The indexes record `librarySha256` / per-page `sha256` so you can tell whether
 the docs and indexes are in sync. Rebuild after re-fetching:
 
 ```bash
-python3 scripts/fetch_reference.py
-python3 scripts/build_fsdoc_index.py
+python3 onshape_docs/scripts/fetch_reference.py
+python3 onshape_docs/scripts/build_fsdoc_index.py
 ```
 
 ## Version checks
 
 `fs_check_version` compares the vendored reference version (parsed from
-`reference/raw/std-library/featurescriptversionnumber.gen.fs`) against the version
+`onshape_docs/reference/raw/std-library/featurescriptversionnumber.gen.fs`) against the version
 you intend to compile with:
 
 ```text

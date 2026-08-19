@@ -1,10 +1,10 @@
 """Offline FeatureScript reference queries over the vendored official material.
 
 Everything here is local and deterministic: it reads the tier-2 indexes
-`reference/index/fsdoc/index.json` and `reference/index/fsdoc/guide.json`
-(built by scripts/build_fsdoc_index.py), the tier-1 distilled
-`reference/quick/fsdoc/quick.json`, and the tier-0 raw sources under
-`reference/raw/fsdoc/` and `reference/raw/std-library/`.
+`onshape_docs/reference/index/fsdoc/index.json` and `onshape_docs/reference/index/fsdoc/guide.json`
+(built by onshape_docs/scripts/build_fsdoc_index.py), the tier-1 distilled
+`onshape_docs/reference/quick/fsdoc/quick.json`, and the tier-0 raw sources under
+`onshape_docs/reference/raw/fsdoc/` and `onshape_docs/reference/raw/std-library/`.
 No network request is ever made, so these queries are safe to call freely from
 the MCP server.
 
@@ -25,12 +25,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parents[2]
-INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
-GUIDE_PATH = ROOT / "reference" / "index" / "fsdoc" / "guide.json"
-QUICK_REFERENCE_PATH = ROOT / "reference" / "quick-reference.md"
-FSDOC_DIR = ROOT / "reference" / "raw" / "fsdoc"
-STD_LIB_DIR = ROOT / "reference" / "raw" / "std-library"
+DOCS_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+INDEX_PATH = DOCS_ROOT / "reference" / "index" / "fsdoc" / "index.json"
+GUIDE_PATH = DOCS_ROOT / "reference" / "index" / "fsdoc" / "guide.json"
+QUICK_REFERENCE_PATH = DOCS_ROOT / "reference" / "quick-reference.md"
+FSDOC_DIR = DOCS_ROOT / "reference" / "raw" / "fsdoc"
+STD_LIB_DIR = DOCS_ROOT / "reference" / "raw" / "std-library"
 
 KINDS = ("function", "type", "const", "predicate")
 INDEX_KEYS = {
@@ -384,14 +385,14 @@ def _find_page(page: str) -> dict[str, Any]:
         if entry["page"] == page:
             return entry
     raise ValueError(
-        f"guide page '{page}' is not indexed; run `python3 scripts/build_fsdoc_index.py`"
+        f"guide page '{page}' is not indexed; run `python3 onshape_docs/scripts/build_fsdoc_index.py`"
     )
 
 
 def guide_section(page: str, section: str | None = None) -> dict[str, Any]:
     """Return a guide page as text, optionally narrowed to one heading section.
 
-    Reads the structured reference/index/fsdoc/guide.json, so page and section
+    Reads the structured onshape_docs/reference/index/fsdoc/guide.json, so page and section
     lookup is index-driven and on demand; the large HTML is never parsed at
     query time.
     """
@@ -446,7 +447,7 @@ def _source_lines(module: str) -> list[str]:
     path = STD_LIB_DIR / f"{module}.fs"
     if not path.is_file():
         raise ValueError(
-            f"standard library module '{module}' not vendored under reference/raw/std-library"
+            f"standard library module '{module}' not vendored under onshape_docs/reference/raw/std-library"
         )
     return path.read_text(encoding="utf-8").splitlines()
 
@@ -579,8 +580,8 @@ def check_version(target: Any = None, live_version: Any = None) -> dict[str, Any
     status = "unknown"
     warnings: list[str] = []
     refresh_hint = (
-        "Run `python3 scripts/fetch_reference.py` then "
-        "`python3 scripts/build_fsdoc_index.py` to refresh."
+        "Run `python3 onshape_docs/scripts/fetch_reference.py` then "
+        "`python3 onshape_docs/scripts/build_fsdoc_index.py` to refresh."
     )
     v = vendored["version"]
 
@@ -609,11 +610,11 @@ def check_version(target: Any = None, live_version: Any = None) -> dict[str, Any
     health = _reference_health()
     if not health["indexConsistent"]:
         warnings.append(
-            "reference/index/fsdoc/index.json is out of date relative to library.html; rebuild the index."
+            "onshape_docs/reference/index/fsdoc/index.json is out of date relative to library.html; rebuild the index."
         )
     if not health["guideConsistent"]:
         warnings.append(
-            "reference/index/fsdoc/guide.json is out of date relative to the guide pages; rebuild the index."
+            "onshape_docs/reference/index/fsdoc/guide.json is out of date relative to the guide pages; rebuild the index."
         )
 
     return {
@@ -711,7 +712,7 @@ def reference_change_summary(
 
 
 def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> dict[str, Any]:
-    """Fetch the latest docs and rebuild the JSON indexes (mutates reference/).
+    """Fetch the latest docs and rebuild the JSON indexes (mutates onshape_docs/reference/).
 
     Returns a bounded change summary so the caller does not have to hold the
     delta in context; afterwards the query functions serve the fresh corpus.
@@ -727,7 +728,7 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     before = current_versions()
     api_before: Any = None
     api_notes: list[str] = []
-    docs_errors = ROOT / "reference" / "raw" / "onshape-api-docs" / "errors.html"
+    docs_errors = DOCS_ROOT / "reference" / "raw" / "onshape-api-docs" / "errors.html"
     docs_before = (
         hashlib.sha256(docs_errors.read_bytes()).hexdigest()
         if docs_errors.is_file() else None
@@ -743,32 +744,32 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
                 f"{type(error).__name__}: {error}"
             )
     fetch = subprocess.run(
-        [sys.executable, "scripts/fetch_reference.py", "--quiet"],
-        cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+        [sys.executable, str(DOCS_ROOT / "scripts" / "fetch_reference.py"), "--quiet"],
+        cwd=str(DOCS_ROOT), capture_output=True, text=True, timeout=timeout,
     )
     build = subprocess.run(
-        [sys.executable, "scripts/build_fsdoc_index.py"],
-        cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+        [sys.executable, str(DOCS_ROOT / "scripts" / "build_fsdoc_index.py")],
+        cwd=str(DOCS_ROOT), capture_output=True, text=True, timeout=timeout,
     )
     api_after: Any = None
     if include_onshape_api:
         from onshape_docs.query import onshape_api_reference, onshape_api_docs
         fetch_api = subprocess.run(
-            [sys.executable, "scripts/fetch_onshape_api.py", "--quiet"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+            [sys.executable, str(DOCS_ROOT / "scripts" / "fetch_onshape_api.py"), "--quiet"],
+            cwd=str(DOCS_ROOT), capture_output=True, text=True, timeout=timeout,
         )
         build_api = subprocess.run(
-            [sys.executable, "scripts/build_onshape_api_index.py"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+            [sys.executable, str(DOCS_ROOT / "scripts" / "build_onshape_api_index.py")],
+            cwd=str(DOCS_ROOT), capture_output=True, text=True, timeout=timeout,
         )
         # Auth + error-handling docs are public pages: fetch with plain HTTP.
         fetch_docs = subprocess.run(
-            [sys.executable, "scripts/fetch_onshape_api_docs.py", "--quiet"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+            [sys.executable, str(DOCS_ROOT / "scripts" / "fetch_onshape_api_docs.py"), "--quiet"],
+            cwd=str(DOCS_ROOT), capture_output=True, text=True, timeout=timeout,
         )
         build_docs = subprocess.run(
-            [sys.executable, "scripts/build_onshape_api_docs_index.py"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,
+            [sys.executable, str(DOCS_ROOT / "scripts" / "build_onshape_api_docs_index.py")],
+            cwd=str(DOCS_ROOT), capture_output=True, text=True, timeout=timeout,
         )
         if fetch_api.returncode != 0:
             api_notes.append(
@@ -842,10 +843,10 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
 
 
 def quick_reference() -> dict[str, Any]:
-    """Return the curated quick-reference digest (reference/quick-reference.md)."""
+    """Return the curated quick-reference digest (onshape_docs/reference/quick-reference.md)."""
     if not QUICK_REFERENCE_PATH.is_file():
         raise ValueError(
-            "reference/quick-reference.md is missing; it is authored alongside the vendored docs."
+            "onshape_docs/reference/quick-reference.md is missing; it is authored alongside the vendored docs."
         )
     text = QUICK_REFERENCE_PATH.read_text(encoding="utf-8")
     return {"path": str(QUICK_REFERENCE_PATH), "bytes": len(text), "text": text}
