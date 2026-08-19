@@ -971,8 +971,9 @@ TOOLS: list[dict[str, Any]] = [
             "the browser session state, and the current page URL — zero Onshape API quota. "
             "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
             "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
-            "browser_* calls. Playwright is an optional dependency: if it is not installed, this tool "
-            "returns a clear setup error instead of failing the MCP server."
+            "browser_* calls. The browser runs on the Windows host (see tools/windows/README.md); the "
+            "Linux side only relays MCP stdio over the loopback bridge. If Playwright is not installed "
+            "on the Windows host, this tool returns a clear setup error instead of failing the MCP server."
         ),
         "inputSchema": object_schema({
             "action": {
@@ -1005,8 +1006,8 @@ TOOLS: list[dict[str, Any]] = [
             "action='status' reports the recorder state; action='stop' stops recording and returns the report; "
             "action='report' returns the aggregated report. The report is the input for building the "
             "dev/button-map selector/action mapping — combine it with onshape_docs/guide documentation before "
-            "adding a selector to onshape_browser_mode/selectors.py. Playwright is optional; if missing, "
-            "action='start' returns a clear setup error."
+            "adding a selector to onshape_browser_mode/selectors.py. The browser runs on the Windows host; "
+            "if Playwright is missing there, action='start' returns a clear setup error."
         ),
         "inputSchema": object_schema({
             "action": {

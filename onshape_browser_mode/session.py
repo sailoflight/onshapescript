@@ -75,9 +75,10 @@ class BrowserSession:
 
         if not self.playwright_available():
             raise PlaywrightNotInstalled(
-                "Playwright is not installed. Run: "
-                "python3 -m pip install -r requirements-browser.txt && "
-                "python3 -m playwright install chrome"
+                "Playwright is not installed on the Windows browser host. See "
+                "tools/windows/README.md for setup, or run: "
+                "C:\\path\\to\\onshapescript\\.venv\\Scripts\\python.exe -m pip install "
+                "-r tools\\windows\\requirements-browser.txt"
             )
 
         from playwright.sync_api import sync_playwright
@@ -106,9 +107,9 @@ class BrowserSession:
             self._stop_playwright()
             raise BrowserLaunchError(
                 f"Could not launch browser (channel={browser_cfg.channel!r}): {exc}. "
-                "Install Google Chrome or run `python3 -m playwright install chrome`; "
-                "to fall back to bundled Chromium set `channel = \"\"` in "
-                "config/browser.local.toml."
+                "Install Chrome/Edge on the Windows host, or run "
+                "`.venv\\Scripts\\playwright.exe install chrome` there; see "
+                "tools/windows/README.md."
             ) from exc
 
         self._context.add_init_script(_STEALTH_JS)

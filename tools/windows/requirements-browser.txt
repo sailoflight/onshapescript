@@ -1,0 +1,3 @@
+# Windows-side dependencies for onshape_browser_mode.
+# The Linux side is stdlib-only; do not install this on Linux.
+playwright>=1.40,<2

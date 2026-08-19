@@ -14,17 +14,24 @@ scripts are run manually.
 
 ## Browser setup
 
-The browser layer runs from the project virtualenv so the MCP server core stays
-stdlib-only:
+Browser automation runs on Windows, not Linux. The Linux side is stdlib-only and
+only runs the stdio↔TCP relay; the Windows side owns Playwright, Chrome/Edge,
+and the persistent login profile.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-browser.txt
-PLAYWRIGHT_BROWSERS_PATH="$PWD/.venv/ms-playwright" .venv/bin/playwright install chromium
-# On a normal desktop/workstation with sudo:
-sudo .venv/bin/playwright install-deps chromium
+- Windows install + run: see `tools/windows/README.md`
+- Linux MCP client config points at `tools/mcp_tcp_bridge.py`
+
+```json
+{
+  "mcpServers": {
+    "onshape-featurescript": {
+      "command": "python3",
+      "args": ["/home/<user>/code/onshapescript/tools/mcp_tcp_bridge.py", "8766"],
+      "cwd": "/home/<user>/code/onshapescript"
+    }
+  }
+}
 ```
 
-Then copy `config/browser.local.toml.example` to `config/browser.local.toml`
-and set `channel = ""` to use the bundled Chromium (the committed default uses
-`channel = "chrome"` for a real Google Chrome install).
+Do not install `playwright` on Linux; the Linux bridge has zero third-party
+dependencies.
