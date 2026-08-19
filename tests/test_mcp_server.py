@@ -74,8 +74,9 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
         tools = responses[1]["result"]["tools"]
-        self.assertEqual(len(tools), 32)
+        self.assertEqual(len(tools), 33)
         self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
+        self.assertIn("browser_session", {t["name"] for t in tools})
         self.assertIn("docs_list", {t["name"] for t in tools})
         self.assertIn("docs_section", {t["name"] for t in tools})
         self.assertIn("docs_search", {t["name"] for t in tools})
@@ -88,6 +89,24 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("consumed", quota)
         self.assertNotIn("accessKey", json.dumps(responses))
         self.assertNotIn("secretKey", json.dumps(responses))
+
+    def test_browser_session_status_is_offline_and_safe(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "browser_session", "arguments": {"action": "status"}},
+            },
+        ])
+        self.assertEqual(stderr, "")
+        result = responses[0]["result"]
+        self.assertFalse(result.get("isError"))
+        status = result["structuredContent"]
+        self.assertIn("playwrightInstalled", status)
+        self.assertIsInstance(status["playwrightInstalled"], bool)
+        self.assertEqual(status["configured"], True)
+        self.assertIn(status["sessionStatus"], {"uninitialized", "started", "closed", "awaiting_login"})
 
     def test_check_version_reports_docs_behind(self) -> None:
         responses, stderr = invoke([

@@ -295,6 +295,24 @@ def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
     return run_validation_pipeline(parameter_set=parameter_set, render=render)
 
 
+def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Browser session status/login.
+
+    This tool deliberately does NOT spend Onshape API quota. It starts or
+    inspects the persistent Playwright browser profile; Playwright is imported
+    lazily so the server still runs when the optional browser extra is missing.
+    """
+    from onshape_browser_mode.session import get_session
+
+    action = arguments.get("action", "status")
+    session = get_session()
+    if action == "login":
+        return session.open_login_page()
+    if action == "status":
+        return session.status()
+    raise ValueError("action must be 'status' or 'login'")
+
+
 # Session guard for the quota-costly eval tool: documents-first, eval sparingly.
 EVAL_BUDGET_MAX = 10
 _eval_budget_used = 0
@@ -907,10 +925,44 @@ TOOLS: list[dict[str, Any]] = [
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
+    {
+        "name": "browser_session",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 15,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Inspect or establish the persistent Onshape browser session used by the browser_* tools. "
+            "action='status' reports whether Playwright is installed, the persistent profile directory, "
+            "the browser session state, and the current page URL — zero Onshape API quota. "
+            "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
+            "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
+            "browser_* calls. Playwright is an optional dependency: if it is not installed, this tool "
+            "returns a clear setup error instead of failing the MCP server."
+        ),
+        "inputSchema": object_schema({
+            "action": {
+                "type": "string",
+                "enum": ["status", "login"],
+                "default": "status",
+                "description": "status = read-only session report; login = open Onshape sign-in for the human.",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
 
 ]
 
 HANDLERS: dict[str, ToolHandler] = {
+    "browser_session": _browser_session,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
