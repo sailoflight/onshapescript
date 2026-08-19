@@ -7,7 +7,7 @@ construct, plus what the error says. This turns the zero-cost corpus checks
 (reference vs mirror) into verified language facts.
 
 Budget guard: the annual quota ledger (config/api-usage.json) counts 2xx/3xx
-only. This run is gated by onshape_fs_mcp.budget.BudgetGuard — `--budget N`
+only. This run is gated by onshape_rest_api_mode.budget.BudgetGuard — `--budget N`
 sets the per-run ceiling (default 50), preflighted against the remaining annual
 quota before anything runs; the run stops once it has spent that budget beyond
 its start point. A 4xx upload (e.g. a parse error) costs zero ledger calls.
@@ -27,8 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]  # repo root: .../docs/verification/live -> .../docs/verification -> .../docs -> root
 sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp.client import OnshapeClient, RateLimited, RateLimitedHold, load_json  # noqa: E402
-from onshape_fs_mcp.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
+from onshape_rest_api_mode.client import OnshapeClient, RateLimited, RateLimitedHold, load_json  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"

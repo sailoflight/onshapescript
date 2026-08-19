@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline unit tests for the quota-protection gates.
 
-Covers the single-gate design in onshape_fs_mcp.budget (LIVE_API_ENABLED opt-in,
+Covers the single-gate design in onshape_rest_api_mode.budget (LIVE_API_ENABLED opt-in,
 rate-limit hold, annual-quota preflight), the shared request builder's secret
 redaction, the no-implicit-lookup resolver, zero-network dry runs, and the MCP
 cost-metadata <-> gate consistency. No real Onshape API call is ever made.
@@ -21,9 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp import budget as budget_module  # noqa: E402
-from onshape_fs_mcp import client as client_module  # noqa: E402
-from onshape_fs_mcp import operations  # noqa: E402
+from onshape_rest_api_mode import budget as budget_module  # noqa: E402
+from onshape_rest_api_mode import client as client_module  # noqa: E402
+from onshape_rest_api_mode import operations  # noqa: E402
 
 
 def fake_client(state: dict | None = None, usage: dict | None = None) -> client_module.OnshapeClient:

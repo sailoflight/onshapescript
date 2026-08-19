@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = ROOT / "reference" / "raw"
 ONSHAPE_API_DIR = RAW_DIR / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
@@ -244,7 +244,7 @@ def fetch_latest_version(timeout: int = 60) -> dict[str, Any]:
     Uses /api/build, which returns a tiny JSON version block, instead of
     downloading the whole OpenAPI spec. Requires onshape-credentials.json.
     """
-    from onshape_fs_mcp.client import OnshapeClient
+    from onshape_rest_api_mode.client import OnshapeClient
     build = OnshapeClient().request("GET", "/api/build", timeout=timeout)
     version = (build or {}).get("Implementation-Version", "")
     if not version:

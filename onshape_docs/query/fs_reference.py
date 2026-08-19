@@ -25,7 +25,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
 GUIDE_PATH = ROOT / "reference" / "index" / "fsdoc" / "guide.json"
 QUICK_REFERENCE_PATH = ROOT / "reference" / "quick-reference.md"
@@ -734,7 +734,7 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     )
     docs_after: str | None = None
     if include_onshape_api:
-        from onshape_fs_mcp import onshape_api_reference
+        from onshape_docs.query import onshape_api_reference
         try:
             api_before = onshape_api_reference.spec_version().get("specVersion")
         except Exception as error:
@@ -752,7 +752,7 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     )
     api_after: Any = None
     if include_onshape_api:
-        from onshape_fs_mcp import onshape_api_reference, onshape_api_docs
+        from onshape_docs.query import onshape_api_reference, onshape_api_docs
         fetch_api = subprocess.run(
             [sys.executable, "scripts/fetch_onshape_api.py", "--quiet"],
             cwd=str(ROOT), capture_output=True, text=True, timeout=timeout,

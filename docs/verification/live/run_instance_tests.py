@@ -25,8 +25,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from onshape_fs_mcp.client import OnshapeClient, RateLimited, RateLimitedHold, compact_feature_response  # noqa: E402
-from onshape_fs_mcp.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
+from onshape_rest_api_mode.client import OnshapeClient, RateLimited, RateLimitedHold, compact_feature_response  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"

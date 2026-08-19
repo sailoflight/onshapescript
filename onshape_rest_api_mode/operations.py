@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from onshape_fs_mcp.client import (
+from onshape_rest_api_mode.client import (
     DEFAULT_PARAMETERS_PATH,
     PARAMETERS_DIR,
     PREVIEW_DIR,

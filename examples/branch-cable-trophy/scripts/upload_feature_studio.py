@@ -7,8 +7,8 @@ import sys
 import _paths  # noqa: E402  (puts ROOT on sys.path; see _paths.py)
 import _guard  # noqa: E402
 
-from onshape_fs_mcp.client import ROOT, STATE_PATH, load_json
-from onshape_fs_mcp.operations import upload_feature_studio
+from onshape_rest_api_mode.client import ROOT, STATE_PATH, load_json
+from onshape_rest_api_mode.operations import upload_feature_studio
 
 # A syntactically bad upload still costs quota with no diagnostics (featurespecs
 # comes back empty), so run the zero-cost local checker first — it intercepts

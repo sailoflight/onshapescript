@@ -3,7 +3,7 @@
 
 Covers the audit's unverified items (docs/verification/live/README.md + the
 llm-experience docs). Every section logs its real ledger cost and the run stops
-at --budget (default 22), gated by onshape_fs_mcp.budget.BudgetGuard.
+at --budget (default 22), gated by onshape_rest_api_mode.budget.BudgetGuard.
 
   A. quick-reference language features via eval      (~3 calls)
      ~ concat, unit arithmetic, sin(degree), for-in, while, lambda, map
@@ -29,9 +29,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import BudgetGuard, live_api_enabled  # noqa: E402
-from onshape_fs_mcp.client import RateLimited, rate_limit_reason  # noqa: E402
-from onshape_fs_mcp.operations import (  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_rest_api_mode.client import RateLimited, rate_limit_reason  # noqa: E402
+from onshape_rest_api_mode.operations import (  # noqa: E402
     eval_featurescript,
     render_preview,
 )

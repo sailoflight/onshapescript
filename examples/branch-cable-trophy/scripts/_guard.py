@@ -7,14 +7,14 @@ be explicit, not a script default), the passive rate-limit hold, and the
 annual-quota preflight. All three checks are zero network cost.
 
 Import AFTER _paths (it puts the project root on sys.path, which the
-onshape_fs_mcp imports below need):
+onshape_rest_api_mode imports below need):
 
     import _paths  # noqa: E402
     import _guard  # noqa: E402
     _guard.require_live(3, "upload_feature_studio")
 """
 
-from onshape_fs_mcp.budget import live_blocker
+from onshape_rest_api_mode.budget import live_blocker
 
 
 def require_live(estimate_calls: int, label: str) -> None:

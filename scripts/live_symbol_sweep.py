@@ -41,9 +41,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import BudgetGuard, live_api_enabled  # noqa: E402
-from onshape_fs_mcp.client import RateLimited, rate_limit_reason  # noqa: E402
-from onshape_fs_mcp.operations import eval_featurescript  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_rest_api_mode.client import RateLimited, rate_limit_reason  # noqa: E402
+from onshape_rest_api_mode.operations import eval_featurescript  # noqa: E402
 
 DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
 EXPERIMENT_FS_ID = "7a4dedcaeb022728fa37722f"        # expendable "FS live verification" studio

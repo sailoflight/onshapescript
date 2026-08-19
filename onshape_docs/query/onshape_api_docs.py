@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 API_DOCS_PATH = ROOT / "reference" / "index" / "onshape-api-docs" / "api_docs.json"
 
 _docs: dict[str, Any] | None = None

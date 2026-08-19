@@ -7,7 +7,7 @@ Cost: (1 + number_of_failures) evals, one ledger call each. The compiler stops
 at the first error, so bundling reveals ONE failure per eval; each failure is
 dropped and the rest re-evaluated until the bundle is clean.
 
-Budget: gated by onshape_fs_mcp.budget.BudgetGuard — preflighted against the
+Budget: gated by onshape_rest_api_mode.budget.BudgetGuard — preflighted against the
 remaining annual quota, `--budget` overrides the per-run ceiling (default 40:
 33 candidates x 1 call + margin for splits), and the run stops as soon as the
 budget is spent, writing whatever it has verified. Pass `--part-studio-id`
@@ -22,9 +22,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import BudgetGuard, live_api_enabled  # noqa: E402
-from onshape_fs_mcp.client import rate_limit_reason  # noqa: E402
-from onshape_fs_mcp.operations import eval_featurescript  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_rest_api_mode.client import rate_limit_reason  # noqa: E402
+from onshape_rest_api_mode.operations import eval_featurescript  # noqa: E402
 
 DEFAULT_PART_STUDIO_ID = "cb487527c6e1880fc1e64db8"  # cached live target
 

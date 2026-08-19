@@ -8,8 +8,8 @@ from pathlib import Path
 import _paths  # noqa: E402  (puts ROOT on sys.path; see _paths.py)
 import _guard  # noqa: E402
 
-from onshape_fs_mcp.client import DEFAULT_PARAMETERS_PATH, load_json
-from onshape_fs_mcp.operations import PARAMETER_PATHS, instantiate_feature
+from onshape_rest_api_mode.client import DEFAULT_PARAMETERS_PATH, load_json
+from onshape_rest_api_mode.operations import PARAMETER_PATHS, instantiate_feature
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--parameters", type=Path, default=DEFAULT_PARAMETERS_PATH)

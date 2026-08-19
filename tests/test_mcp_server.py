@@ -380,8 +380,8 @@ class McpServerTest(unittest.TestCase):
     def test_api_quota_accounting_and_preflight(self) -> None:
         from pathlib import Path
         import tempfile
-        from onshape_fs_mcp import client as client_module
-        from onshape_fs_mcp import operations
+        from onshape_rest_api_mode import client as client_module
+        from onshape_rest_api_mode import operations
 
         # Passive ledger: 2xx counts, 4xx/402 do not; headers captured.
         tmp = Path(tempfile.mkdtemp()) / "usage.json"
@@ -431,8 +431,8 @@ class McpServerTest(unittest.TestCase):
 
     @mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"})
     def test_budget_guard_preflights_and_tracks_spend(self) -> None:
-        from onshape_fs_mcp import budget as budget_module
-        from onshape_fs_mcp import client as client_module
+        from onshape_rest_api_mode import budget as budget_module
+        from onshape_rest_api_mode import client as client_module
 
         # Preflight gate: a per-run budget exceeding remaining annual quota blocks.
         cl = object.__new__(client_module.OnshapeClient)
@@ -459,8 +459,8 @@ class McpServerTest(unittest.TestCase):
 
     def test_record_observed_version_writes_only_on_change(self) -> None:
         import unittest.mock
-        from onshape_fs_mcp import client as client_module
-        from onshape_fs_mcp import operations
+        from onshape_rest_api_mode import client as client_module
+        from onshape_rest_api_mode import operations
 
         cl = object.__new__(client_module.OnshapeClient)
         cl.state = {"observedServerVersion": {}}

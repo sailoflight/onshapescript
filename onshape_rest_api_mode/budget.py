@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from onshape_fs_mcp.client import (
+from onshape_rest_api_mode.client import (
     LiveApiDisabled,
     OnshapeClient,
     RateLimitedHold,
@@ -27,7 +27,7 @@ from onshape_fs_mcp.client import (
     live_api_enabled,
     rate_limit_reason,
 )
-from onshape_fs_mcp.operations import api_usage, preflight
+from onshape_rest_api_mode.operations import api_usage, preflight
 
 
 class BudgetExceeded(RuntimeError):

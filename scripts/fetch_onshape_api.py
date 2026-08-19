@@ -19,8 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from onshape_fs_mcp.budget import live_blocker  # noqa: E402
-from onshape_fs_mcp.client import OnshapeClient  # noqa: E402
+from onshape_rest_api_mode.budget import live_blocker  # noqa: E402
+from onshape_rest_api_mode.client import OnshapeClient  # noqa: E402
 
 ONSHAPE_API_DIR = ROOT / "reference" / "raw" / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"

@@ -2,10 +2,10 @@
 """Shared preamble for the Branch Cable Trophy example CLI scripts.
 
 Putting the project root on sys.path and pointing the output directory at this
-example must happen before `onshape_fs_mcp` is imported, because the client
+example must happen before `onshape_rest_api_mode` is imported, because the client
 package reads these locations at import time.
 
-Import first in every example script, before any onshape_fs_mcp import:
+Import first in every example script, before any onshape_rest_api_mode import:
 
     from pathlib import Path
     import sys
