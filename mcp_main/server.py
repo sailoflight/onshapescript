@@ -295,6 +295,32 @@ def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
     return run_validation_pipeline(parameter_set=parameter_set, render=render)
 
 
+def _browser_watch(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Record a human-operated Onshape browser session.
+
+    Zero API quota. This tool manages an in-memory recorder that observes URL
+    changes, page opens, network responses, and dialogs while the human clicks
+    through the Onshape UI; the report helps turn observed behavior into a
+    selector/action map.
+    """
+    from onshape_browser_mode.listener import get_recorder
+    from onshape_browser_mode.session import get_session
+
+    recorder = get_recorder()
+    action = arguments.get("action", "status")
+    if action == "status":
+        return recorder.status()
+    if action == "start":
+        session = get_session()
+        page = session.start()
+        return recorder.start(page, session.context)
+    if action == "stop":
+        return recorder.stop()
+    if action == "report":
+        return recorder.report()
+    raise ValueError("action must be 'start', 'status', 'stop', or 'report'")
+
+
 def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
     """Browser session status/login.
 
@@ -958,11 +984,46 @@ TOOLS: list[dict[str, Any]] = [
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
+    {
+        "name": "browser_watch",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Record a human-operated Onshape browser session to learn what UI actions do, without spending "
+            "Onshape API quota. action='start' opens the persistent browser and begins recording page opens, "
+            "URL changes, network responses (URL pattern/method/status/content-type), and dialogs; "
+            "action='status' reports the recorder state; action='stop' stops recording and returns the report; "
+            "action='report' returns the aggregated report. The report is the input for building the "
+            "dev/button-map selector/action mapping — combine it with onshape_docs/guide documentation before "
+            "adding a selector to onshape_browser_mode/selectors.py. Playwright is optional; if missing, "
+            "action='start' returns a clear setup error."
+        ),
+        "inputSchema": object_schema({
+            "action": {
+                "type": "string",
+                "enum": ["start", "status", "stop", "report"],
+                "default": "status",
+                "description": "start = begin recording; status = recorder state; stop = stop and report; report = aggregated report.",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
 
 ]
 
 HANDLERS: dict[str, ToolHandler] = {
     "browser_session": _browser_session,
+    "browser_watch": _browser_watch,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,

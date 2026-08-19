@@ -35,6 +35,16 @@ class BrowserSession:
         self.human_action_required = False
         self.login_confirmed = False
 
+    @property
+    def context(self):
+        """The persistent Playwright context, or None before start()."""
+        return self._context
+
+    @property
+    def page(self):
+        """The working page, or None before start()."""
+        return self._page
+
     @staticmethod
     def playwright_available() -> bool:
         """True when the Playwright package can be imported.

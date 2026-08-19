@@ -74,9 +74,10 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
         tools = responses[1]["result"]["tools"]
-        self.assertEqual(len(tools), 33)
+        self.assertEqual(len(tools), 34)
         self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
         self.assertIn("browser_session", {t["name"] for t in tools})
+        self.assertIn("browser_watch", {t["name"] for t in tools})
         self.assertIn("docs_list", {t["name"] for t in tools})
         self.assertIn("docs_section", {t["name"] for t in tools})
         self.assertIn("docs_search", {t["name"] for t in tools})
@@ -107,6 +108,30 @@ class McpServerTest(unittest.TestCase):
         self.assertIsInstance(status["playwrightInstalled"], bool)
         self.assertEqual(status["configured"], True)
         self.assertIn(status["sessionStatus"], {"uninitialized", "started", "closed", "awaiting_login"})
+
+    def test_browser_watch_status_and_report_are_offline(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "browser_watch", "arguments": {"action": "status"}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "browser_watch", "arguments": {"action": "report"}},
+            },
+        ])
+        self.assertEqual(stderr, "")
+        status = responses[0]["result"]["structuredContent"]
+        self.assertFalse(responses[0]["result"].get("isError"))
+        self.assertIn("eventCount", status)
+        self.assertIn("pagesTracked", status)
+        report = responses[1]["result"]["structuredContent"]
+        self.assertIn("endpoints", report)
+        self.assertIn("uniqueUrls", report)
 
     def test_check_version_reports_docs_behind(self) -> None:
         responses, stderr = invoke([
