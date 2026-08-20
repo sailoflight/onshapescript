@@ -94,12 +94,28 @@ class BrowserSession:
         logged-in browser session. A fresh launch only happens when the context
         is truly gone or unreachable.
         """
-        # 1. Reuse an existing responsive page from the live context.
+        # 1. Reuse an existing responsive page from the live context, preferring
+        #    an already-logged-in Onshape app page (the human may have logged in
+        #    a different tab than the one we last held).
         if self._context is not None:
+            pages = list(self._context.pages or [])
+
+            for page in pages:
+                try:
+                    if not page.is_closed() and _is_onshape_app_url(page.url):
+                        page.evaluate("1 + 1")
+                        self._page = page
+                        self.login_confirmed = True
+                        self.human_action_required = False
+                        page.bring_to_front()
+                        return page
+                except Exception:
+                    continue
+
             candidates: list[Any] = []
             if self._page is not None:
                 candidates.append(self._page)
-            for page in list(self._context.pages or []):
+            for page in pages:
                 if page is not self._page:
                     candidates.append(page)
             for page in candidates:
@@ -259,15 +275,40 @@ class BrowserSession:
         self._playwright = None
 
     def status(self) -> dict[str, Any]:
+        # Report the most useful page, not blindly the last one we held: the
+        # human may have logged in another tab while we were idle.
         page_url = None
-        if self._page is not None and not self._page.is_closed():
+        if self._context is not None:
+            for page in list(self._context.pages or []):
+                try:
+                    if page.is_closed():
+                        continue
+                    url = page.url
+                except Exception:
+                    continue
+                if _is_onshape_app_url(url):
+                    page_url = url
+                    self._page = page
+                    break
+                if page_url is None and page is self._page:
+                    page_url = url
+            if page_url is None and self._page is not None:
+                try:
+                    if not self._page.is_closed():
+                        page_url = self._page.url
+                except Exception:
+                    page_url = None
+        elif self._page is not None:
             try:
-                page_url = self._page.url
+                if not self._page.is_closed():
+                    page_url = self._page.url
             except Exception:
                 page_url = None
+
         login_confirmed = bool(self.login_confirmed or _is_onshape_app_url(page_url))
         if login_confirmed:
             self.login_confirmed = True
+            self.human_action_required = False
         return {
             "playwrightInstalled": self.playwright_available(),
             "configured": True,
