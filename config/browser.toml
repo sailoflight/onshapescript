@@ -6,12 +6,12 @@
 # tools report a clear setup error instead.
 
 [browser]
-channel = "chrome"                    # use the machine's existing Chrome; "msedge" for Edge; no browser download
+channel = "chrome"      # use the machine's existing Chrome/Edge; no browser download
 executable_path = ""                  # optional exact binary path; overrides `channel`
 user_data_dir = "./user_data/onshape_profile"  # persistent login profile, checkout-local
-locale = "en-US"
-timezone = "America/New_York"
-headless = false                      # login requires headed; later runs may opt into headless
+locale = "zh-CN"
+timezone = "Asia/Shanghai"
+headless = false              # ALWAYS false; human watches and completes login/captcha
 
 [pacing]
 min_delay_s = 0.8                     # human-like delay range before/after navigation and clicks

@@ -1,9 +1,9 @@
-# Copy to `config/browser.local.toml` for machine-local overrides.
-# `config/browser.local.toml` is gitignored and merged over `config/browser.toml`.
+# Machine-local overrides (gitignored). Merge priority: config/browser.local.toml > config/browser.toml
+# Example below mirrors taobao-mcp Windows config.local.toml and uses the installed Edge browser.
 
 [browser]
-# headless = true                     # e.g. run headless after the profile is logged in
-# executable_path = "/usr/bin/google-chrome"
+executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 
-[pacing]
-# max_actions_per_minute = 4          # lower the cap on slow machines
+# If the machine has Chrome instead, leave executable_path empty and use the committed
+# channel = "chrome" default. user_data_dir stays "./user_data/onshape_profile" so the
+# Onshape login profile is independent of taobao-mcp.

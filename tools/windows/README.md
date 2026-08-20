@@ -31,16 +31,17 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r tools\windows\requirements-browser.txt
 ```
 
-**不下载浏览器**：使用 Windows 本机已有 Chrome/Edge（与 taobao-mcp 同配置思路）。
-默认 `channel = "chrome"`；若本机只有 Edge，在 `config\browser.local.toml` 中配置：
+**不下载浏览器**：直接复用 taobao-mcp 的浏览器配置思路，使用 Windows 本机已有 Chrome/Edge。
+默认 `channel = "chrome"`；若本机只有 Edge，复制 `config\browser.local.toml.example` 为
+`config\browser.local.toml` 即可（内容与 taobao Windows 配置一致）：
 
 ```toml
 [browser]
-channel = "msedge"
-# 或直接指定 executable_path = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 ```
 
-浏览器用户文件独立存放在 `user_data\onshape_profile`，不会混用系统默认浏览器 profile。
+浏览器用户文件独立存放在 `user_data\onshape_profile`，不会混用系统默认浏览器 profile，
+也不会与 taobao-mcp 的 `user_data\chrome_profile` 冲突。
 
 ## Windows 启动桥接服务
 
