@@ -24,6 +24,7 @@ class BrowserCfg:
     locale: str = "en-US"
     timezone: str = "America/New_York"
     headless: bool = False
+    proxy_server: str = ""  # e.g. "http://127.0.0.1:10808"; empty = no explicit proxy
 
 
 @dataclass(frozen=True)

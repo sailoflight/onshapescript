@@ -339,6 +339,25 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
     raise ValueError("action must be 'status' or 'login'")
 
 
+def _shutdown_browser_session() -> None:
+    """Close the browser session, if one was started, when stdio disconnects.
+
+    Each bridge connection gets a fresh MCP server child. On stdin EOF (the MCP
+    client disconnected) that child must release the persistent Chrome profile,
+    otherwise the next connection fails with a "profile is in use" lock. The
+    import is lazy and the failure is swallowed: this must never turn a normal
+    shutdown into a non-zero exit or extra protocol output.
+    """
+    try:
+        import onshape_browser_mode.session as browser_session
+
+        session = getattr(browser_session, "_session", None)
+        if session is not None and session._status not in ("closed", "uninitialized"):
+            session.close()
+    except Exception:
+        pass
+
+
 # Session guard for the quota-costly eval tool: documents-first, eval sparingly.
 EVAL_BUDGET_MAX = 10
 _eval_budget_used = 0
@@ -1237,6 +1256,10 @@ def serve() -> None:
             payload = json.dumps(outgoing, separators=(",", ":"), ensure_ascii=False)
             stdout_buffer.write(payload.encode("utf-8") + b"\n")
             stdout_buffer.flush()
+
+    # stdin EOF = the stdio client (bridge relay) disconnected. Release the
+    # browser profile so the next connection can open it again.
+    _shutdown_browser_session()
 
 
 if __name__ == "__main__":

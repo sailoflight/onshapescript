@@ -4,6 +4,10 @@
 [browser]
 executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 
+# Local HTTP proxy for reaching Onshape (this machine runs v2rayN/clash on
+# 127.0.0.1:10808). Empty = no explicit proxy.
+proxy_server = "http://127.0.0.1:10808"
+
 # If the machine has Chrome instead, leave executable_path empty and use the committed
 # channel = "chrome" default. user_data_dir stays "./user_data/onshape_profile" so the
 # Onshape login profile is independent of taobao-mcp.

@@ -12,6 +12,7 @@ user_data_dir = "./user_data/onshape_profile"  # persistent login profile, check
 locale = "zh-CN"
 timezone = "Asia/Shanghai"
 headless = false              # ALWAYS false; human watches and completes login/captcha
+proxy_server = ""                     # optional HTTP proxy, e.g. "http://127.0.0.1:10808"; empty = none
 
 [pacing]
 min_delay_s = 0.8                     # human-like delay range before/after navigation and clicks

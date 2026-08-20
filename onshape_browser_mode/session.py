@@ -100,6 +100,8 @@ class BrowserSession:
             launch_kwargs["executable_path"] = browser_cfg.executable_path
         elif browser_cfg.channel:
             launch_kwargs["channel"] = browser_cfg.channel
+        if browser_cfg.proxy_server:
+            launch_kwargs["proxy"] = {"server": browser_cfg.proxy_server}
 
         try:
             self._context = self._playwright.chromium.launch_persistent_context(**launch_kwargs)
