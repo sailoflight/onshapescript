@@ -347,10 +347,27 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
     caller (or the dev/button-map workflow) can choose stable selectors without
     guessing, before any click/navigation is attempted.
     """
-    from onshape_browser_mode.session import get_session
+    from onshape_browser_mode.session import _is_onshape_app_url, get_session
 
     session = get_session()
     page = session.start()
+    session._enforce_single_working_page(page)
+
+    # If the working page is a leftover blank tab (not signin, not an app
+    # page), try the saved Onshape entry URL before inspecting: cookies + entry
+    # URL restore the logged-in page when the session is still valid.
+    try:
+        current_url = page.url
+    except Exception:
+        current_url = None
+    if current_url and "about:blank" in current_url.lower():
+        saved_url = session._load_saved_app_url()
+        if saved_url:
+            try:
+                page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)
+                page.wait_for_timeout(4000)
+            except Exception:
+                pass
 
     max_elements = arguments.get("max_elements", 100)
     if not isinstance(max_elements, int) or max_elements < 1:
@@ -402,6 +419,7 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
         "title": inventory.get("title"),
         "elementCount": len(inventory.get("elements", [])),
         "elements": inventory.get("elements", []),
+        "sessionPages": session.status().get("pages", []),
         "note": (
             "Read-only DOM inventory of the visible interactive elements. "
             "Prefer stable id/data-test/aria attributes over text or class "

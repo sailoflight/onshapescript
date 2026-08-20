@@ -320,14 +320,18 @@ class BrowserSession:
         # Report the most useful page, not blindly the last one we held: the
         # human may have logged in another tab while we were idle.
         page_url = None
+        pages_seen: list[dict[str, Any]] = []
         if self._context is not None:
             for page in list(self._context.pages or []):
                 try:
                     if page.is_closed():
+                        pages_seen.append({"closed": True})
                         continue
                     url = page.url
                 except Exception:
+                    pages_seen.append({"closed": True})
                     continue
+                pages_seen.append({"url": url})
                 if _is_onshape_app_url(url):
                     page_url = url
                     self._page = page
@@ -359,6 +363,7 @@ class BrowserSession:
             "profileDir": str(self.profile_dir()),
             "sessionStatus": self._status,
             "pageUrl": page_url,
+            "pages": pages_seen,
             "headless": self.config.browser.headless,
             "humanActionRequired": self.human_action_required,
             "loginConfirmed": login_confirmed,
