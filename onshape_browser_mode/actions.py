@@ -11,6 +11,7 @@ All functions take a Playwright sync `page` object obtained from
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from onshape_browser_mode.selectors import ACE_EDITOR, FS_COMMIT_BUTTON
@@ -92,3 +93,72 @@ def click_commit(page: Any) -> dict[str, Any]:
         return {"clicked": False, "before": before, "error": f"{type(exc).__name__}: {exc}"}
     after = commit_button_state(page)
     return {"clicked": True, "before": before, "after": after}
+
+
+_DOCUMENT_URL_RE = re.compile(r"/documents/([^/]+)(?:/w/([^/]+))?(?:/e/([^/]+))?")
+
+
+def parse_document_url(url: str) -> dict[str, str | None]:
+    """Extract documentId/workspaceId/elementId from an Onshape URL.
+
+    Handles both the documents-list form (``/documents/<did>``) and the opened
+    tab form (``/documents/<did>/w/<wid>/e/<eid>``). Unknown shapes return all
+    None values, never raise.
+    """
+    match = _DOCUMENT_URL_RE.search(url or "")
+    if not match:
+        return {"documentId": None, "workspaceId": None, "elementId": None}
+    return {
+        "documentId": match.group(1) or None,
+        "workspaceId": match.group(2) or None,
+        "elementId": match.group(3) or None,
+    }
+
+
+def open_document_by_name(
+    page: Any,
+    document_name: str,
+    entry_url: str | None = None,
+) -> dict[str, Any]:
+    """Open a document from the documents list by its visible name.
+
+    This is read-only navigation (no Onshape data is created or changed): go to
+    the documents list, click the matching document link, and wait for the SPA
+    to settle. Returns the resulting URL and parsed ids.
+    """
+    from onshape_browser_mode.session import _is_onshape_app_url
+
+    try:
+        current = page.url
+    except Exception:
+        current = None
+
+    if not _is_onshape_app_url(current) or read_featurescript_editor(page) is not None:
+        pass  # keep going through the list entry to reach the named document
+
+    try:
+        page.goto(
+            entry_url or "https://cad.onshape.com/documents",
+            wait_until="domcontentloaded",
+            timeout=60_000,
+        )
+        page.wait_for_timeout(4000)
+    except Exception as exc:
+        return {"opened": False, "error": f"navigate to documents failed: {exc}", "pageUrl": page.url}
+
+    try:
+        locator = page.get_by_text(document_name, exact=False)
+        count = locator.count()
+        if count == 0:
+            return {"opened": False, "error": f"document not found: {document_name!r}", "pageUrl": page.url}
+        locator.first.click()
+        page.wait_for_timeout(5000)
+    except Exception as exc:
+        return {"opened": False, "error": f"click document failed: {exc}", "pageUrl": page.url}
+
+    url = page.url
+    return {
+        "opened": True,
+        "pageUrl": url,
+        **parse_document_url(url),
+    }

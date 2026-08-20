@@ -751,6 +751,49 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_open_document(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Open a document from the documents list by name (read-only navigation)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    document_name = arguments.get(
+        "document_name", "Branch Cable Trophy Display - FeatureScript"
+    )
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    get_guard().pace()
+    return actions.open_document_by_name(
+        page, document_name, session._load_saved_app_url()
+    )
+
+
+def _browser_read_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Read the current FeatureScript editor source (read-only, 0 quota)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    source = actions.read_featurescript_editor(page)
+    if source is None:
+        return {
+            "read": False,
+            "reason": "FeatureScript editor not open on the current page; use browser_open_document first",
+            "pageUrl": page.url,
+        }
+    return {
+        "read": True,
+        "source": source,
+        "length": len(source),
+        "lineCount": source.count("\n") + 1,
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+    }
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1656,6 +1699,58 @@ TOOLS: list[dict[str, Any]] = [
         }, ["script"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
+    {
+        "name": "browser_open_document",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 20,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Open a document from the Onshape documents list by its visible name. Read-only navigation: "
+            "it goes to the documents list and clicks the matching document link, then returns the resulting "
+            "document/workspace/element ids parsed from the URL. Zero Onshape API quota. Does not create or "
+            "modify any cloud data."
+        ),
+        "inputSchema": object_schema({
+            "document_name": {
+                "type": "string",
+                "default": "Branch Cable Trophy Display - FeatureScript",
+                "description": "Visible document name in the 'owned by me' documents list.",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "browser_read_featurescript",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Read the FeatureScript source currently open in the browser's Ace editor and return it together "
+            "with the document/workspace/element ids parsed from the page URL. Read-only, zero Onshape API "
+            "quota. If no FeatureScript editor is open it returns read=false and suggests "
+            "browser_open_document first."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
 
 ]
 
@@ -1667,6 +1762,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_click": _browser_click,
     "browser_eval": _browser_eval,
     "browser_deploy_featurescript": _browser_deploy_featurescript,
+    "browser_open_document": _browser_open_document,
+    "browser_read_featurescript": _browser_read_featurescript,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
