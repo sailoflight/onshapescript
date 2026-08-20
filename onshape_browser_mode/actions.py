@@ -119,6 +119,36 @@ def parse_document_url(url: str) -> dict[str, str | None]:
     }
 
 
+def create_document(page: Any, name: str = "") -> dict[str, Any]:
+    """Create a new Onshape document from the documents page (0 API quota).
+
+    Goes to the documents list, opens the Create menu, clicks "文档…", fills the
+    document-name input (default "无标题文档" when empty), and clicks "创建".
+    Returns the new document URL and parsed document/workspace ids.
+    """
+    try:
+        page.goto(
+            "https://cad.onshape.com/documents",
+            wait_until="domcontentloaded",
+            timeout=60_000,
+        )
+        page.wait_for_timeout(4000)
+        page.locator("#create-new-type").first.click()
+        page.wait_for_timeout(1000)
+        page.locator(".create-new-document").first.click()
+        page.wait_for_timeout(2000)
+        if name:
+            page.locator("#document-name-input").first.fill(name)
+            page.wait_for_timeout(500)
+        page.locator(".new-document-dialog .btn-primary").first.click()
+        page.wait_for_timeout(8000)
+    except Exception as exc:  # noqa: BLE001 - surface as structured result
+        return {"created": False, "error": f"{type(exc).__name__}: {exc}", "pageUrl": page.url}
+
+    url = page.url
+    return {"created": True, "pageUrl": url, **parse_document_url(url)}
+
+
 def open_document_by_name(
     page: Any,
     document_name: str,

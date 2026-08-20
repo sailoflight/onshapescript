@@ -843,6 +843,24 @@ def _browser_get_partstudio_features(arguments: dict[str, Any]) -> dict[str, Any
     }
 
 
+def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Create a new Onshape document through the browser UI (0 API quota)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    _confirm(arguments)
+    name = arguments.get("name", "")
+    if not isinstance(name, str):
+        name = ""
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    get_guard().pace()
+    return actions.create_document(page, name)
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1828,6 +1846,36 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
     {
+        "name": "browser_create_document",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 20,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Create a new Onshape document through the browser UI (documents page → 创建 → 文档… → name → 创建). "
+            "Zero Onshape API quota. This mutates the account by creating a document, so it requires "
+            "confirm_mutation=true. Returns the new document URL plus parsed documentId/workspaceId. "
+            "The new document opens with a default Part Studio and Assembly tab."
+        ),
+        "inputSchema": object_schema({
+            "name": {
+                "type": "string",
+                "default": "",
+                "description": "Document name; empty keeps Onshape's default '无标题文档'.",
+            },
+            "confirm_mutation": mutating_confirmation(),
+        }),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "browser_reconnect",
         "cost": {
             "backend": "browser",
@@ -1864,6 +1912,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_open_document": _browser_open_document,
     "browser_read_featurescript": _browser_read_featurescript,
     "browser_get_partstudio_features": _browser_get_partstudio_features,
+    "browser_create_document": _browser_create_document,
     "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},

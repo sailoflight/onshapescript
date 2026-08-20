@@ -64,6 +64,10 @@ class FakeLocator:
         self.scroll_calls = 0
         self.evaluate_calls: list[object] = []
         self.nth_calls: list[int] = []
+        self.fill_calls: list[str] = []
+
+    def fill(self, value: str) -> None:
+        self.fill_calls.append(value)
 
     def count(self) -> int:
         return self._count
@@ -380,6 +384,38 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertEqual(guard.pace_calls, 2)
 
 
+class BrowserCreateDocumentTest(unittest.TestCase):
+    def test_create_requires_confirmation(self) -> None:
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session) as get_session, \
+             mock.patch("onshape_browser_mode.actions.create_document",
+                        side_effect=AssertionError("must not create before confirmation")):
+            with self.assertRaises(ValueError) as ctx:
+                server._browser_create_document({"name": "test-doc"})
+        self.assertIn("confirm_mutation", str(ctx.exception))
+        get_session.assert_not_called()
+        self.assertEqual(session.start_calls, 0)
+
+    def test_confirmed_create_calls_action_and_paces(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.create_document",
+                        return_value={"created": True, "pageUrl": "https://cad.onshape.com/documents/d1/w/w1",
+                                      "documentId": "d1", "workspaceId": "w1", "elementId": None}) as create:
+            result = server._browser_create_document(
+                {"name": "test-doc", "confirm_mutation": True})
+        self.assertTrue(result["created"])
+        self.assertEqual(result["documentId"], "d1")
+        self.assertEqual(result["workspaceId"], "w1")
+        create.assert_called_once()
+        self.assertEqual(session.start_calls, 1)
+        self.assertEqual(guard.pace_calls, 1)
+
+
 # ---------------------------------------------------------------------------
 # Cost metadata <-> mutation behavior consistency
 # ---------------------------------------------------------------------------
@@ -415,7 +451,7 @@ class BrowserMetadataTest(unittest.TestCase):
             self.assertEqual(tool["cost"]["estimated_requests"], 0, name)
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 43)
+        self.assertEqual(len(server.TOOLS), 44)
 
 
 if __name__ == "__main__":
