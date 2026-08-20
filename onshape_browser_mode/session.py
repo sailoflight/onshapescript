@@ -7,6 +7,7 @@ server and every offline tool must run without it installed.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,26 @@ ROOT = Path(__file__).resolve().parents[1]
 _STEALTH_JS = "Object.defineProperty(navigator, 'webdriver', {get: () => false});"
 
 _SIGNIN_URL = "https://cad.onshape.com/signin"
+
+
+def _is_onshape_app_url(url: str | None) -> bool:
+    """True when ``url`` is an authenticated Onshape application page.
+
+    ``launch_persistent_context`` restores the previous session's tabs. A
+    restored tab such as ``https://cad.onshape.com/documents?...nodeId=...``
+    already carries the login session, so it must be treated as logged in
+    instead of being thrown away and replaced with the /signin page.
+    """
+    if not url:
+        return False
+    lowered = url.lower()
+    if "about:blank" in lowered:
+        return False
+    if "cad.onshape.com" not in lowered:
+        return False
+    if "/signin" in lowered or "login.onshape.com" in lowered:
+        return False
+    return True
 
 
 class BrowserSession:
@@ -65,12 +86,40 @@ class BrowserSession:
         return (ROOT / raw).resolve()
 
     def start(self):
-        """Launch (or reuse) the persistent browser context and return its page."""
-        if self._page is not None and not self._page.is_closed():
+        """Launch (or reuse) the persistent browser context and return its page.
+
+        Never treats a transient ``evaluate`` failure as "browser dead": a page
+        that is mid-navigation throws "Execution context was destroyed" for a
+        moment, and reacting with a full relaunch would kill a human's
+        logged-in browser session. A fresh launch only happens when the context
+        is truly gone or unreachable.
+        """
+        # 1. Reuse an existing responsive page from the live context.
+        if self._context is not None:
+            candidates: list[Any] = []
+            if self._page is not None:
+                candidates.append(self._page)
+            for page in list(self._context.pages or []):
+                if page is not self._page:
+                    candidates.append(page)
+            for page in candidates:
+                try:
+                    if not page.is_closed():
+                        page.evaluate("1 + 1")
+                        self._page = page
+                        page.bring_to_front()
+                        return page
+                except Exception:
+                    continue
+
+            # Context exists but no page is responsive: open a fresh page on it.
             try:
-                self._page.evaluate("1 + 1")
+                self._page = self._context.new_page()
+                self._page.bring_to_front()
+                self._status = "started"
                 return self._page
             except Exception:
+                # The context itself is dead; fall through to a full relaunch.
                 self.close()
 
         if not self.playwright_available():
@@ -87,7 +136,6 @@ class BrowserSession:
         profile = self.profile_dir()
         profile.mkdir(parents=True, exist_ok=True)
 
-        self._playwright = sync_playwright().start()
         launch_kwargs: dict[str, Any] = {
             "user_data_dir": str(profile),
             "headless": browser_cfg.headless,
@@ -103,16 +151,26 @@ class BrowserSession:
         if browser_cfg.proxy_server:
             launch_kwargs["proxy"] = {"server": browser_cfg.proxy_server}
 
-        try:
-            self._context = self._playwright.chromium.launch_persistent_context(**launch_kwargs)
-        except Exception as exc:
-            self._stop_playwright()
+        # A previous Edge may still be releasing the profile lock; retry briefly
+        # instead of failing on the first "browser has been closed" race.
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            self._playwright = sync_playwright().start()
+            try:
+                self._context = self._playwright.chromium.launch_persistent_context(**launch_kwargs)
+                break
+            except Exception as exc:
+                last_exc = exc
+                self._stop_playwright()
+                if attempt < 2:
+                    time.sleep(2.0)
+        else:
             raise BrowserLaunchError(
-                f"Could not launch browser (channel={browser_cfg.channel!r}): {exc}. "
+                f"Could not launch browser (channel={browser_cfg.channel!r}): {last_exc}. "
                 "Use the Windows host's existing Chrome/Edge (no browser download); "
                 "set channel/executable_path in config/browser.local.toml. See "
                 "tools/windows/README.md."
-            ) from exc
+            ) from last_exc
 
         self._context.add_init_script(_STEALTH_JS)
 
@@ -120,17 +178,42 @@ class BrowserSession:
         # launch_persistent_context restores every tab left over from the last
         # session. Those stale pages make the active page drift during popup /
         # navigation flows and can trigger risk checks, so on every fresh
-        # launch keep exactly ONE clean working page, close the rest, and bring
-        # it to the front.
+        # launch keep exactly ONE working page and close the rest.
+        #
+        # IMPORTANT Onshape nuance: prefer a restored tab that is already an
+        # authenticated app page (e.g. /documents?...nodeId=...) — it carries
+        # the login session. Only fall back to a blank/signin page when no
+        # logged-in tab was restored.
+        restored = list(self._context.pages or [])
         self._page = None
-        for page in list(self._context.pages or []):
-            if self._page is None:
-                self._page = page
-            else:
+
+        # 1. Prefer a restored, already-logged-in app page.
+        for page in restored:
+            try:
+                if _is_onshape_app_url(page.url):
+                    self._page = page
+                    break
+            except Exception:
+                continue
+
+        # 2. Otherwise keep the first live page.
+        if self._page is None:
+            for page in restored:
+                try:
+                    if not page.is_closed():
+                        self._page = page
+                        break
+                except Exception:
+                    continue
+
+        # 3. Close every other restored tab.
+        for page in restored:
+            if page is not self._page:
                 try:
                     page.close()
                 except Exception:
                     pass
+
         if self._page is None or self._page.is_closed():
             try:
                 self._page = self._context.new_page()
@@ -141,15 +224,27 @@ class BrowserSession:
                 self._page.bring_to_front()
             except Exception:
                 pass
+
+        if _is_onshape_app_url(self._page.url if self._page is not None else None):
+            self.login_confirmed = True
+            self.human_action_required = False
         self._status = "started"
         return self._page
 
     def close(self) -> None:
-        try:
-            if self._context is not None:
-                self._context.close()
-        except Exception:
-            pass
+        context = self._context
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                # context.close() can fail mid-navigation; fall back to the
+                # browser handle so the profile lock is actually released.
+                try:
+                    browser = getattr(context, "browser", None)
+                    if browser is not None:
+                        browser.close()
+                except Exception:
+                    pass
         self._stop_playwright()
         self._context = None
         self._page = None
@@ -170,6 +265,9 @@ class BrowserSession:
                 page_url = self._page.url
             except Exception:
                 page_url = None
+        login_confirmed = bool(self.login_confirmed or _is_onshape_app_url(page_url))
+        if login_confirmed:
+            self.login_confirmed = True
         return {
             "playwrightInstalled": self.playwright_available(),
             "configured": True,
@@ -178,16 +276,35 @@ class BrowserSession:
             "pageUrl": page_url,
             "headless": self.config.browser.headless,
             "humanActionRequired": self.human_action_required,
-            "loginConfirmed": self.login_confirmed,
+            "loginConfirmed": login_confirmed,
         }
 
     def open_login_page(self) -> dict[str, Any]:
         """Open Onshape sign-in in the persistent, headed browser.
 
         Login itself is always a human action: SSO, 2FA, and risk checks are
-        deliberately never automated.
+        deliberately never automated. If the persistent profile restored an
+        already-logged-in Onshape page, do NOT navigate to /signin — that
+        would discard the working session.
         """
         page = self.start()
+        try:
+            current_url = page.url
+        except Exception:
+            current_url = None
+
+        if _is_onshape_app_url(current_url):
+            self._status = "started"
+            self.human_action_required = False
+            self.login_confirmed = True
+            return {
+                "sessionStatus": self._status,
+                "message": (
+                    "Browser session is already logged in (restored Onshape "
+                    "page was kept). No sign-in navigation was needed."
+                ),
+            }
+
         page.goto(_SIGNIN_URL, wait_until="domcontentloaded", timeout=60_000)
         self._status = "awaiting_login"
         self.human_action_required = True
