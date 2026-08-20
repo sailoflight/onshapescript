@@ -358,41 +358,111 @@ def insert_custom_feature(
             "dialog": info,
         }
 
-    selected = page.evaluate(
-        """
-        (name) => {
-          const dlg = document.querySelector('.feature-studio-insert-dialog');
-          if (!dlg) return {selected: false, reason: 'no dialog'};
-          const candidates = Array.from(dlg.querySelectorAll('*')).filter(
-            el => (el.innerText || '').trim() === name && el.children.length <= 2
-          );
-          if (!candidates.length) return {selected: false, reason: 'feature not found', text: (dlg.innerText||'').slice(0,300)};
-          candidates[0].click();
-          return {selected: true};
-        }
-        """,
-        feature_name,
-    )
-    if not selected.get("selected"):
-        return {**selected, "inserted": False, "dialog": info}
+    # Onshape's picker inserts on DOUBLE-click of the feature row
+    # (os-single-double-click directive: single click selects, double click
+    # selects-and-closes = insert). The footer "插入" button is zero-sized in
+    # this dialog, so double-click is the reliable path.
+    try:
+        row = page.locator(".select-item-dialog-item-row.child-item-container").filter(
+            has_text=feature_name
+        ).first
+        count = row.count()
+    except Exception:
+        count = 0
+    if count == 0:
+        return {"inserted": False, "reason": f"feature {feature_name!r} not found in insert dialog", "dialog": info}
 
-    page.wait_for_timeout(1000)
-    insert_clicked = page.evaluate(
+    try:
+        row.dblclick()
+        page.wait_for_timeout(8000)
+    except Exception as exc:  # noqa: BLE001 - surface as structured result
+        return {"inserted": False, "reason": f"double-click failed: {exc}", "dialog": info}
+
+    features = read_partstudio_features(page)
+    return {"inserted": True, "features": features, "pageUrl": page.url}
+
+
+def create_document_version(page: Any, name: str = "") -> dict[str, Any]:
+    """Create a document version so custom features become insertable.
+
+    The Feature Studio must be committed and the insert dialog shows a
+    "创建一个版本" prompt until a version exists. This clicks that prompt,
+    unchecks the publish-custom-features checkbox (publishing has extra
+    requirements we do not need for in-document insertion), optionally fills
+    the version name, and clicks 创建. Returns the new version label.
+    """
+    info = read_insert_dialog(page)
+    if info.get("present") and not info.get("promptSaveVersion"):
+        return {"created": False, "reason": "no version prompt; a version may already exist", "dialog": info}
+
+    # Click the version-create prompt (opens .version-or-workspace-dialog).
+    clicked = page.evaluate(
         """
         () => {
-          const dlg = document.querySelector('.feature-studio-insert-dialog');
-          if (!dlg) return {clicked: false, reason: 'no dialog'};
-          const btns = Array.from(dlg.querySelectorAll('button'));
-          const btn = btns.find(el => (el.innerText || '').trim() === '插入');
-          if (!btn) return {clicked: false, reason: 'no insert button', buttons: btns.map(b=>(b.innerText||'').trim()).slice(0,10)};
+          const prompt = document.querySelector('.select-item-prompt-save-version');
+          if (!prompt) return {clicked: false, reason: 'no version prompt'};
+          (prompt.querySelector('a') || prompt).click();
+          return {clicked: true};
+        }
+        """
+    )
+    if not clicked.get("clicked"):
+        return {**clicked, "created": False}
+
+    page.wait_for_timeout(4000)
+
+    # Uncheck publish (extra requirements) and fill the optional name.
+    page.evaluate(
+        """
+        (name) => {
+          const modal = document.querySelector('.version-or-workspace-dialog');
+          if (!modal) return {ok: false};
+          const cb = modal.querySelector('.publish-custom-features-checkbox');
+          if (cb && cb.checked) cb.click();
+          if (name) {
+            const input = modal.querySelector('input.form-control');
+            if (input) {
+              const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+              setter.call(input, name);
+              input.dispatchEvent(new Event('input', {bubbles: true}));
+            }
+          }
+          return {ok: true};
+        }
+        """,
+        name,
+    )
+    page.wait_for_timeout(1000)
+
+    # Click the plain 创建 button (its label is 创建 and发布 when publish is checked).
+    clicked_create = page.evaluate(
+        """
+        () => {
+          const modal = document.querySelector('.version-or-workspace-dialog');
+          if (!modal) return {clicked: false, reason: 'no version modal'};
+          const btns = Array.from(modal.querySelectorAll('button'));
+          const btn = btns.find(b => (b.textContent || '').trim() === '创建');
+          if (!btn) return {clicked: false, reason: 'no 创建 button', buttons: btns.map(b => (b.textContent || '').trim())};
           btn.click();
           return {clicked: true};
         }
         """
     )
-    page.wait_for_timeout(6000)
-    features = read_partstudio_features(page)
-    return {"inserted": True, "insertClick": insert_clicked, "features": features, "pageUrl": page.url}
+    if not clicked_create.get("clicked"):
+        return {**clicked_create, "created": False}
+
+    page.wait_for_timeout(15000)
+
+    version_label = page.evaluate(
+        """
+        () => {
+          const el = document.querySelector('.select-item-dialog-document-version-name');
+          const modal = document.querySelector('.version-or-workspace-dialog');
+          return { version: el ? (el.innerText || el.textContent || '').trim() : '', modalOpen: !!modal };
+        }
+        """
+    )
+    return {"created": not version_label.get("modalOpen"), **version_label}
 
 
 def timeout_dialog_state(page: Any) -> dict[str, Any]:

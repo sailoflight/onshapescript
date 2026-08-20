@@ -899,6 +899,25 @@ def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
     return actions.create_document(page, name)
 
 
+def _browser_create_document_version(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Create a document version so custom features become insertable."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    _confirm(arguments)
+    name = arguments.get("name", "")
+    if not isinstance(name, str):
+        name = ""
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    return actions.create_document_version(page, name)
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1977,6 +1996,37 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
+        "name": "browser_create_document_version",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 30,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Create a version of the current document through the browser UI so custom features become "
+            "insertable (the add-custom-feature dialog shows '没有可用的特征' until a version exists). "
+            "Clicks the dialog's 创建一个版本 prompt, unchecks the publish-custom-features checkbox (publishing "
+            "has extra requirements not needed for in-document insertion), optionally sets the version name, "
+            "and clicks 创建. Zero Onshape API quota; requires confirm_mutation=true."
+        ),
+        "inputSchema": object_schema({
+            "name": {
+                "type": "string",
+                "default": "",
+                "description": "Version name; empty keeps Onshape's default (V1, V2, ...).",
+            },
+            "confirm_mutation": mutating_confirmation(),
+        }),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "browser_reconnect",
         "cost": {
             "backend": "browser",
@@ -2016,6 +2066,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_get_page_tabs": _browser_get_page_tabs,
     "browser_create_document": _browser_create_document,
     "browser_insert_custom_feature": _browser_insert_custom_feature,
+    "browser_create_document_version": _browser_create_document_version,
     "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
