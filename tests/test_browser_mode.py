@@ -384,6 +384,36 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertEqual(guard.pace_calls, 2)
 
 
+class BrowserInsertCustomFeatureTest(unittest.TestCase):
+    def test_insert_requires_confirmation(self) -> None:
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session) as get_session, \
+             mock.patch("onshape_browser_mode.actions.insert_custom_feature",
+                        side_effect=AssertionError("must not insert before confirmation")):
+            with self.assertRaises(ValueError) as ctx:
+                server._browser_insert_custom_feature({"feature_name": "Bc"})
+        self.assertIn("confirm_mutation", str(ctx.exception))
+        get_session.assert_not_called()
+        self.assertEqual(session.start_calls, 0)
+
+    def test_confirmed_insert_delegates_and_paces(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.insert_custom_feature",
+                        return_value={"inserted": True}) as insert:
+            result = server._browser_insert_custom_feature(
+                {"feature_name": "Bc", "part_studio_tab": "Part Studio 1",
+                 "confirm_mutation": True})
+        self.assertTrue(result["inserted"])
+        insert.assert_called_once()
+        self.assertEqual(session.start_calls, 1)
+        self.assertEqual(guard.pace_calls, 1)
+
+
 class BrowserCreateDocumentTest(unittest.TestCase):
     def test_create_requires_confirmation(self) -> None:
         session = FakeSession(FakePage())
@@ -451,7 +481,7 @@ class BrowserMetadataTest(unittest.TestCase):
             self.assertEqual(tool["cost"]["estimated_requests"], 0, name)
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 45)
+        self.assertEqual(len(server.TOOLS), 46)
 
 
 if __name__ == "__main__":

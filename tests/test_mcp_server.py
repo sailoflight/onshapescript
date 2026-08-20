@@ -74,7 +74,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
         tools = responses[1]["result"]["tools"]
-        self.assertEqual(len(tools), 45)
+        self.assertEqual(len(tools), 46)
         self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
         self.assertIn("browser_session", {t["name"] for t in tools})
         self.assertIn("browser_watch", {t["name"] for t in tools})
@@ -86,6 +86,7 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("browser_open_document", {t["name"] for t in tools})
         self.assertIn("browser_read_featurescript", {t["name"] for t in tools})
         self.assertIn("browser_get_partstudio_features", {t["name"] for t in tools})
+        self.assertIn("browser_insert_custom_feature", {t["name"] for t in tools})
         self.assertIn("browser_get_page_tabs", {t["name"] for t in tools})
         self.assertIn("browser_create_document", {t["name"] for t in tools})
         self.assertIn("browser_reconnect", {t["name"] for t in tools})

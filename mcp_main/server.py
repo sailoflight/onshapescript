@@ -859,6 +859,24 @@ def _browser_get_page_tabs(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_insert_custom_feature(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Insert a custom FeatureScript feature into a Part Studio (0 API quota)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    _confirm(arguments)
+    feature_name = arguments.get("feature_name", "Branch cable trophy display")
+    part_studio_tab = arguments.get("part_studio_tab", "")
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    return actions.insert_custom_feature(page, feature_name, part_studio_tab or None)
+
+
 def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a new Onshape document through the browser UI (0 API quota)."""
     from onshape_browser_mode import actions
@@ -1914,6 +1932,42 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
+        "name": "browser_insert_custom_feature",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 30,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO "
+            "Onshape API quota. Optionally switches to the given Part Studio tab first, opens the "
+            "添加自定义特征 dialog, picks 当前文档, selects the feature by name, and clicks 插入. This mutates "
+            "the document (adds a feature instance), so it requires confirm_mutation=true. Returns the resulting "
+            "feature-tree/part-list state, or a clear reason when the Feature Studio needs a version created first."
+        ),
+        "inputSchema": object_schema({
+            "feature_name": {
+                "type": "string",
+                "default": "Branch cable trophy display",
+                "description": "Feature name shown in the insert dialog.",
+            },
+            "part_studio_tab": {
+                "type": "string",
+                "default": "",
+                "description": "Part Studio tab name to switch to first; empty means use the current tab.",
+            },
+            "confirm_mutation": mutating_confirmation(),
+        }),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "browser_reconnect",
         "cost": {
             "backend": "browser",
@@ -1952,6 +2006,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_get_partstudio_features": _browser_get_partstudio_features,
     "browser_get_page_tabs": _browser_get_page_tabs,
     "browser_create_document": _browser_create_document,
+    "browser_insert_custom_feature": _browser_insert_custom_feature,
     "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},

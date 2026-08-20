@@ -254,6 +254,147 @@ def list_document_tabs(page: Any) -> dict[str, Any]:
     )
 
 
+def open_insert_custom_feature_dialog(page: Any) -> dict[str, Any]:
+    """Click the Part Studio toolbar's "添加自定义特征" button to open the dialog.
+
+    The toolbar label span is hidden (``.tool-label.hide-in-toolbar``), so the
+    click targets the visible ``.tool.is-button`` inside the toolbar item whose
+    textContent contains 添加自定义特征.
+    """
+    clicked = page.evaluate(
+        """
+        () => {
+          const items = Array.from(document.querySelectorAll('.toolbar-item'));
+          const item = items.find(el => (el.textContent || '').includes('添加自定义特征'));
+          if (!item) return {clicked: false, reason: 'toolbar item not found'};
+          const btn = item.querySelector('.tool.is-button');
+          if (!btn) return {clicked: false, reason: 'toolbar button not found'};
+          btn.click();
+          return {clicked: true};
+        }
+        """
+    )
+    page.wait_for_timeout(2500)
+    dialog = page.evaluate(
+        """
+        () => {
+          const dlg = document.querySelector('.feature-studio-insert-dialog');
+          return { present: !!dlg, text: dlg ? (dlg.innerText || '').trim().replace(/\\s+/g, ' ').slice(0, 200) : '' };
+        }
+        """
+    )
+    return {**clicked, "dialog": dialog}
+
+
+def read_insert_dialog(page: Any) -> dict[str, Any]:
+    """Read the insert-custom-feature dialog state (read-only)."""
+    return page.evaluate(
+        """
+        () => {
+          const dlg = document.querySelector('.feature-studio-insert-dialog');
+          if (!dlg) return { present: false };
+          const tabs = Array.from(dlg.querySelectorAll('.os-dialog-tab')).map(
+            el => ({ text: (el.innerText || el.textContent || '').trim(), active: (el.className || '').includes('active') })
+          );
+          const docNameEl = dlg.querySelector('.select-item-dialog-document-name');
+          const warning = dlg.querySelector('.select-item-warning');
+          const prompt = dlg.querySelector('.select-item-prompt-save-version');
+          return {
+            present: true,
+            tabs,
+            docName: docNameEl ? (docNameEl.innerText || docNameEl.textContent || '').trim() : '',
+            warning: warning ? (warning.innerText || warning.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 200) : '',
+            promptSaveVersion: !!prompt,
+          };
+        }
+        """
+    )
+
+
+def insert_custom_feature(
+    page: Any,
+    feature_name: str,
+    part_studio_tab: str | None = None,
+) -> dict[str, Any]:
+    """Insert a custom FeatureScript feature into a Part Studio (0 API quota).
+
+    Opens the add-custom-feature dialog, switches to the 当前文档 tab, selects
+    the feature by name, and clicks 插入. Returns the resulting feature-tree
+    state when successful, or a clear blocker (e.g. the Feature Studio needs a
+    version created first) when insertion is not possible.
+    """
+    from onshape_browser_mode.selectors import INSERT_FEATURE_DIALOG, INSERT_FEATURE_TAB
+
+    if part_studio_tab:
+        page.locator(f".os-tab-bar-tab:has-text('{part_studio_tab}')").first.click()
+        page.wait_for_timeout(4000)
+
+    opened = open_insert_custom_feature_dialog(page)
+    if not opened.get("clicked"):
+        return {**opened, "inserted": False}
+
+    info = read_insert_dialog(page)
+    if not info.get("present"):
+        return {**opened, "inserted": False, "reason": "insert dialog did not appear"}
+
+    # Switch to the 当前文档 tab if it is not already active.
+    page.evaluate(
+        """
+        () => {
+          const tabs = Array.from(document.querySelectorAll('.os-dialog-tab'));
+          const tab = tabs.find(el => (el.textContent || '').trim() === '当前文档');
+          if (tab) tab.click();
+          return !!tab;
+        }
+        """
+    )
+    page.wait_for_timeout(2500)
+
+    info = read_insert_dialog(page)
+    if info.get("promptSaveVersion") or "没有可用的特征" in (info.get("warning") or ""):
+        return {
+            "inserted": False,
+            "reason": "Feature Studio needs a version before the feature is insertable",
+            "dialog": info,
+        }
+
+    selected = page.evaluate(
+        """
+        (name) => {
+          const dlg = document.querySelector('.feature-studio-insert-dialog');
+          if (!dlg) return {selected: false, reason: 'no dialog'};
+          const candidates = Array.from(dlg.querySelectorAll('*')).filter(
+            el => (el.innerText || '').trim() === name && el.children.length <= 2
+          );
+          if (!candidates.length) return {selected: false, reason: 'feature not found', text: (dlg.innerText||'').slice(0,300)};
+          candidates[0].click();
+          return {selected: true};
+        }
+        """,
+        feature_name,
+    )
+    if not selected.get("selected"):
+        return {**selected, "inserted": False, "dialog": info}
+
+    page.wait_for_timeout(1000)
+    insert_clicked = page.evaluate(
+        """
+        () => {
+          const dlg = document.querySelector('.feature-studio-insert-dialog');
+          if (!dlg) return {clicked: false, reason: 'no dialog'};
+          const btns = Array.from(dlg.querySelectorAll('button'));
+          const btn = btns.find(el => (el.innerText || '').trim() === '插入');
+          if (!btn) return {clicked: false, reason: 'no insert button', buttons: btns.map(b=>(b.innerText||'').trim()).slice(0,10)};
+          btn.click();
+          return {clicked: true};
+        }
+        """
+    )
+    page.wait_for_timeout(6000)
+    features = read_partstudio_features(page)
+    return {"inserted": True, "insertClick": insert_clicked, "features": features, "pageUrl": page.url}
+
+
 def timeout_dialog_state(page: Any) -> dict[str, Any]:
     """Report whether the Onshape session-timeout dialog is present."""
     return page.evaluate(
