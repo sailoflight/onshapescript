@@ -560,7 +560,12 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     page = session.start()
     session._enforce_single_working_page(page)
 
-    if text:
+    if selector and text:
+        # Scope the text match to the given selector, e.g. click the tab
+        # `tab-list-item.os-tab-bar-tab` whose `.os-tab-name` says "Cable trophy
+        # model v1" instead of the first "监控 Cable trophy model v1" menu item.
+        locator = page.locator(selector).filter(has_text=text)
+    elif text:
         locator = page.get_by_text(text, exact=False)
     else:
         locator = page.locator(selector)
@@ -1606,8 +1611,10 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Click a visible element in the Onshape browser by CSS selector or by visible text (optionally "
-            "`index` to pick among matches). Scrolls the target into view first. A click may navigate or "
+            "Click a visible element in the Onshape browser by CSS selector and/or visible text (optionally "
+            "`index` to pick among matches). When both selector and text are given, the text match is scoped "
+            "to that selector — use this to disambiguate, e.g. selector='tab-list-item.os-tab-bar-tab' with "
+            "text='Cable trophy model v1'. Scrolls the target into view first. A click may navigate or "
             "trigger a remote mutation in the Onshape document, so an actual click requires "
             "confirm_mutation=true. With `dry_run=true` (no confirmation needed) it only inspects and "
             "reports what WOULD be clicked without any click/scroll side effect. Drives the browser UI "
@@ -1618,7 +1625,7 @@ TOOLS: list[dict[str, Any]] = [
             "selector": {
                 "type": "string",
                 "default": "",
-                "description": "CSS selector to click; used when `text` is empty.",
+                "description": "CSS selector to click; when both selector and text are given, the text is scoped to this selector.",
             },
             "text": {
                 "type": "string",
