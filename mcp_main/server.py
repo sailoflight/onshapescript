@@ -745,6 +745,12 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
 
     guard.pace()  # the Commit click finalizes the remote mutation
     commit = actions.click_commit(page)
+
+    # Read back the editor after commit and verify it now contains exactly the
+    # submitted source — this is the "deploy → verify" leg, still 0 quota.
+    verified_source = actions.read_featurescript_editor(page)
+    verified = bool(verified_source is not None and verified_source == script)
+
     return {
         "deployed": bool(commit.get("clicked")),
         "dryRun": False,
@@ -752,6 +758,8 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         "beforeLength": len(before),
         "afterLength": written.get("length"),
         "commit": commit,
+        "verified": verified,
+        "verifiedLength": len(verified_source) if verified_source is not None else None,
     }
 
 
@@ -1688,8 +1696,9 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. "
             "An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document "
-            "if needed, writes the Ace editor content, and clicks the FeatureScript Commit button, pacing "
-            "each real navigation/write/commit through the browser action guard. "
+            "if needed, writes the Ace editor content, clicks the FeatureScript Commit button, then reads "
+            "the editor back and reports `verified=true` only if the on-screen source now matches exactly. "
+            "Every real navigation/write/commit is paced through the browser action guard. "
             "With `dry_run=true` (no confirmation needed) it is a pure local preview: it starts no browser "
             "session and performs no navigation, editor read/write, or click — it only reports the "
             "submitted source length/line count. "
