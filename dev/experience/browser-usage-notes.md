@@ -33,7 +33,9 @@
 | `browser_scroll` | 滚动窗口或指定容器 | `direction`, `amount`, `selector` |
 | `browser_click` | 点击元素（实际点击需 `confirm_mutation=true`；`dry_run` 只检查目标不点击） | `selector`/`text`, `index`, `dry_run`, `confirm_mutation` |
 | `browser_eval` | 页面内 JS 求值（执行需 `confirm_mutation=true`；`dry_run` 只返回表达式元数据不执行） | `expression`, `arg`, `dry_run`, `confirm_mutation` |
-| `browser_deploy_featurescript` | **0 配额部署 FS**（写 Ace + 点提交） | `script`, `document_name`, `dry_run` |
+| `browser_open_document` | 只读打开文档并解析 did/wid/eid | `document_name` |
+| `browser_read_featurescript` | 只读读回 Ace 全文 + 页面 id 三元组 | — |
+| `browser_deploy_featurescript` | **0 配额部署 FS**（写 Ace + 点提交，需确认） | `script`, `document_name`, `dry_run`, `confirm_mutation` |
 
 所有工具 `network: "browser"`、`estimated_api_requests: 0`——不花 Onshape API 额度。
 `browser_click` / `browser_eval` 现在标注为 `mutating`（可能触发云端 UI 变更）：真正执行

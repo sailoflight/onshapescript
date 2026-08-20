@@ -43,8 +43,8 @@
   （写 Ace → 提交 → 按钮 disabled 确认 → 读回校验 → 恢复原内容）。
 - [ ] **page objects**：在 `onshape_browser_mode/` 下建 `pages/`，封装
   `DocumentsPage`、`FeatureStudioPage`（基于已扫描出的选择器）。
-- [ ] **只读操作工具**：封装 `browser_open_document`、`browser_read_featurescript`
-  等 0 配额只读工具（deploy 之前的原子步骤）。
+- [x] **只读操作工具**：`browser_open_document`、`browser_read_featurescript`
+  已实现并实测（打开文档解析 did/wid/eid；读回 Ace 全文 + 页面 id）。
 - [ ] **与 REST 模式打通**：浏览器拿到的 documentId/workspaceId/elementId 缓存进
   `config/onshape-state.json`，供 `onshape_rest_api_mode` 复用（仍是显式缓存，不隐式查询）。
 - [ ] **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FeatureScript 标签→
