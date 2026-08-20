@@ -6,7 +6,7 @@
 # tools report a clear setup error instead.
 
 [browser]
-channel = "chrome"      # use the machine's existing Chrome/Edge; no browser download
+channel = "msedge"    # use the machine's existing Edge; no browser download
 executable_path = ""                  # optional exact binary path; overrides `channel`
 user_data_dir = "./user_data/onshape_profile"  # persistent login profile, checkout-local
 locale = "zh-CN"
