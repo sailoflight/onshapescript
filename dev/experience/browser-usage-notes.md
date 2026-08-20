@@ -65,11 +65,17 @@
 - FeatureScript 编辑器是 **Ace editor**：
   - 输入区 `textarea.ace_text-input`（aria「Cursor at row …」）
   - 折叠控件 `.ace_fold-widget`
-- FeatureScript 工具栏（`.tool.is-activatable.is-button`）：
+  - **读全文方法**（0 配额、只读）：`browser_eval` 跑
+    `const el=document.querySelector('.ace_editor'); const ed=(el.env&&el.env.editor)||window.ace.edit(el); ed.getValue()`
+    实测读到「Branch cable trophy display」全文 571 行 / 23875 字符，已存
+    `dev/fixtures-capture/branch-cable-trophy-display.fs`。注意 DOM 渲染只含可见行，
+    必须走 Ace API 才能拿全文。
+- FeatureScript 工具栏（容器 `.os-feature-studio-main-menu-bar`，按钮 `.tool.is-activatable.is-button`）：
   - 撤消（disabled）、新特征、`Length parameter`、导入、**提交**（`.os-primary`，无改动时 disabled）、
-    `Module outline`（`.top-level-symbols-button`）、ref 前进/后退（disabled）
+    `Module outline`（`.top-level-symbols-button`，标签在 `.top-level-symbols-label`）、ref 前进/后退（disabled）
 - FeatureScript 悬浮文档：`.os-feature-script-doc-popup-layer`（当前显示
   `LengthBoundSpec type A spec to be used with the isLength pre...`）。
+- 每个标签都有「监控 / 配置文件」菜单：`.os-menu-tool`（文本形如 `监控 Cable trophy model v1`）。
 
 ## 5. 选择器优先级（写自动化时）
 
