@@ -1,6 +1,6 @@
 # Windows 侧浏览器桥接部署
 
-浏览器自动化在 Windows 上运行：真实 Chrome/Edge 窗口 + 持久化登录 profile。
+浏览器自动化在 Windows 上运行：真实 Edge 窗口 + 持久化登录 profile。
 Linux/WSL 侧只运行 `tools/mcp_tcp_bridge.py` 做 stdio↔TCP 中继，不安装任何
 浏览器内核依赖。
 
@@ -13,14 +13,17 @@ Linux MCP 客户端 (stdio)
 tools/mcp_tcp_bridge.py (Linux)   stdio ↔ TCP
         │ 127.0.0.1:8766 (WSL2 镜像网络)
         ▼
-tools/bridge_server.py (Windows)  常驻监听；每个连接拉起一个 MCP 子进程
+tools/bridge_server.py (Windows)  常驻进程内 MCP dispatch（不拉起子进程）
         │
         ▼
-mcp_server.py (Windows .venv) → onshape_browser_mode → Chrome/Edge
+mcp_main.server → onshape_browser_mode → Edge（浏览器随常驻进程存活）
 ```
 
 - 默认端口：`8766`
-- 单副本铁律：一个持久化浏览器 profile 只能被一个 MCP 进程持有；bridge 同一时刻只允许一个客户端。
+- **浏览器必须由常驻进程持有**：Onshape WEB 端没有“保持登录”，浏览器一关立即登出。
+  因此 bridge 在**自己的进程内**直接 dispatch JSON-RPC，客户端断开只关 socket、
+  不关浏览器；客户端重连后登录态仍在。只有桥接进程退出（重启/关机）才会关浏览器。
+- 单副本铁律：一个持久化浏览器 profile 只能被一个进程持有；bridge 同一时刻只允许一个客户端。
 - 仅回环 TCP，不暴露公网；Linux 侧零第三方依赖。
 
 ## Windows 一次性安装
@@ -31,18 +34,17 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r tools\windows\requirements-browser.txt
 ```
 
-**不下载浏览器**：直接复用 taobao-mcp 的浏览器配置思路，使用 Windows 本机已有 Chrome/Edge。
-默认 `channel = "chrome"`；若本机只有 Edge，复制 `config\browser.local.toml.example` 为
-`config\browser.local.toml` 即可（内容与 taobao Windows 配置一致）：
+**不下载浏览器**：直接复用 taobao-mcp 的浏览器配置思路，使用 Windows 本机已有 Edge。
+默认 `channel = "msedge"`。如需本机 HTTP 代理访问 Onshape，复制
+`config\browser.local.toml.example` 为 `config\browser.local.toml` 并设置：
 
 ```toml
 [browser]
-executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 proxy_server = "http://127.0.0.1:10808"   # 本机 HTTP 代理，用于访问 Onshape
 ```
 
-如果本机需要走代理才能访问 Onshape，把 `proxy_server` 设为本机 HTTP 代理地址
-（v2rayN/clash 常见为 `http://127.0.0.1:10808`）；不需要则留空。
+（v2rayN/clash 常见为 `http://127.0.0.1:10808`；不需要代理则留空。）
+也可以改用精确浏览器路径：`executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'`。
 
 浏览器用户文件独立存放在 `user_data\onshape_profile`，不会混用系统默认浏览器 profile，
 也不会与 taobao-mcp 的 `user_data\chrome_profile` 冲突。
@@ -92,9 +94,13 @@ MCP 客户端不直接启动 `mcp_server.py`，而是启动中继：
 }
 ```
 
-首次使用 `browser_session(action='login')` 时，Windows 桌面会弹出浏览器窗口，
-人工完成 Onshape 登录（含 SSO/2FA）；登录态保存在 Windows 侧
-`user_data\onshape_profile`，后续复用。
+首次使用 `browser_session(action='login')` 时，Windows 桌面会弹出 Edge 窗口，
+人工完成 Onshape 登录（含 SSO/2FA）。登录态保存在 Windows 侧
+`user_data\onshape_profile`，并且只要桥接进程还活着就一直有效：
+
+- MCP 客户端断开/重连、DSH/Codex 重启：**不影响登录态**（浏览器没关）。
+- Windows 重启或桥接进程被杀：浏览器关闭 → Onshape 登出，需重新
+  `browser_session(action='login')` 登录一次。这是 Onshape 的限制，无法绕开。
 
 ## 验证
 
