@@ -61,6 +61,7 @@ class FakeLocator:
                               "aria": "", "id": "create", "cls": "tool"}
         self._evaluate_error = evaluate_error
         self.click_calls = 0
+        self.dblclick_calls = 0
         self.scroll_calls = 0
         self.evaluate_calls: list[object] = []
         self.nth_calls: list[int] = []
@@ -68,6 +69,9 @@ class FakeLocator:
 
     def fill(self, value: str) -> None:
         self.fill_calls.append(value)
+
+    def dblclick(self) -> None:
+        self.dblclick_calls += 1
 
     def count(self) -> int:
         return self._count

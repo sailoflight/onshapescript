@@ -545,6 +545,7 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     text = arguments.get("text", "")
     index = arguments.get("index", 0)
     dry_run = bool(arguments.get("dry_run", False))
+    double = bool(arguments.get("double", False))
     if not isinstance(index, int) or index < 0:
         index = 0
 
@@ -629,7 +630,10 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     try:
         target.scroll_into_view_if_needed()
         page.wait_for_timeout(300)
-        target.click()
+        if double:
+            target.dblclick()
+        else:
+            target.click()
         page.wait_for_timeout(2500)
     except Exception as exc:
         return {
@@ -1705,6 +1709,11 @@ TOOLS: list[dict[str, Any]] = [
                 "type": "integer",
                 "default": 0,
                 "description": "Which matching element to click (0-based).",
+            },
+            "double": {
+                "type": "boolean",
+                "default": False,
+                "description": "Double-click instead of single-click (e.g. insert an item from a picker dialog).",
             },
             "confirm_mutation": mutating_confirmation(),
             "dry_run": {
