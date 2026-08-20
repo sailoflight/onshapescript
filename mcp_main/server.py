@@ -339,6 +339,77 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
     raise ValueError("action must be 'status' or 'login'")
 
 
+def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Read-only DOM inventory of the current Onshape page.
+
+    Zero Onshape API quota: this only reads the live page's DOM through the
+    persistent browser session. It lists visible interactive elements so a
+    caller (or the dev/button-map workflow) can choose stable selectors without
+    guessing, before any click/navigation is attempted.
+    """
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+
+    max_elements = arguments.get("max_elements", 100)
+    if not isinstance(max_elements, int) or max_elements < 1:
+        max_elements = 100
+    max_elements = min(max_elements, 300)
+
+    inventory = page.evaluate(
+        """
+        (maxElements) => {
+          const selector = [
+            'a', 'button', 'input', 'select', 'textarea', 'summary',
+            '[role="button"]', '[role="link"]', '[role="menuitem"]',
+            '[role="tab"]', '[role="treeitem"]', '[contenteditable="true"]',
+            '[data-testid]', '[data-test]', '[aria-label]'
+          ].join(',');
+          const nodes = Array.from(document.querySelectorAll(selector));
+          const out = [];
+          const seen = new Set();
+          for (const el of nodes) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
+            const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+            const item = {
+              tag: el.tagName.toLowerCase(),
+              text,
+              type: el.getAttribute('type') || '',
+              href: el.getAttribute('href') || '',
+              aria: el.getAttribute('aria-label') || '',
+              title: el.getAttribute('title') || '',
+              role: el.getAttribute('role') || '',
+              id: el.id || '',
+              cls: (typeof el.className === 'string' ? el.className : '').slice(0, 120),
+              dataTest: el.getAttribute('data-testid') || el.getAttribute('data-test') || ''
+            };
+            const key = JSON.stringify(item);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(item);
+            if (out.length >= maxElements) break;
+          }
+          return {url: location.href, title: document.title, elements: out};
+        }
+        """,
+        max_elements,
+    )
+
+    return {
+        "pageUrl": inventory.get("url"),
+        "title": inventory.get("title"),
+        "elementCount": len(inventory.get("elements", [])),
+        "elements": inventory.get("elements", []),
+        "note": (
+            "Read-only DOM inventory of the visible interactive elements. "
+            "Prefer stable id/data-test/aria attributes over text or class "
+            "when building selectors."
+        ),
+    }
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1038,12 +1109,43 @@ TOOLS: list[dict[str, Any]] = [
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
+    {
+        "name": "browser_inspect",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Read-only inventory of the visible interactive elements on the current Onshape browser page: "
+            "links, buttons, inputs, menus, tabs, and anything with an aria-label / data-testid. Returns the "
+            "page URL/title and up to `max_elements` elements with their tag, text, href, aria, title, role, "
+            "id, class, and data-test attributes. Zero Onshape API quota — this only reads the live DOM. "
+            "Use it to discover what is clickable before adding selectors to dev/button-map."
+        ),
+        "inputSchema": object_schema({
+            "max_elements": {
+                "type": "integer",
+                "default": 100,
+                "description": "Maximum number of unique visible interactive elements to return (1-300).",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
 
 ]
 
 HANDLERS: dict[str, ToolHandler] = {
     "browser_session": _browser_session,
     "browser_watch": _browser_watch,
+    "browser_inspect": _browser_inspect,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
