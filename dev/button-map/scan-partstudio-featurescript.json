@@ -1,0 +1,33 @@
+{
+  "pageUrl": "https://cad.onshape.com/documents/a09ae9eb0a7c54b9ff8ab71d/w/a67fce65f9bd4d2c3a2b37ee/e/605f388f02854906acbfd97d",
+  "title": "Branch Cable Trophy Display - FeatureScript | Branch cable trophy display",
+  "discoveredAt": "2026-08-20",
+  "tabs": [
+    "Branch cable trophy display",
+    "Cable trophy model v1",
+    "Cable trophy model validation",
+    "Cable trophy model validation",
+    "FS live verification",
+    "instance 01-three-layer.fs",
+    "instance 02-definition-must-be-map.fs",
+    "instance 05-units-mismatch.fs",
+    "instance 08-unknown-function.fs",
+    "instance 15-unknown-type.fs"
+  ],
+  "toolbar": [
+    {"text": "", "cls": "tool is-activatable is-button disabled", "meaning": "Undo (disabled)"},
+    {"text": "", "cls": "tool is-activatable is-button", "meaning": "New feature (icon)"},
+    {"text": "Length parameter", "cls": "tool is-activatable is-button", "meaning": "Length parameter"},
+    {"text": "", "cls": "tool is-activatable is-button", "meaning": "Import (icon)"},
+    {"text": "提交", "cls": "tool is-activatable os-primary is-button disabled", "meaning": "Commit (disabled)"},
+    {"text": "Module outline", "cls": "tool is-activatable is-button top-level-symbols-button", "meaning": "Module outline / top-level symbols"},
+    {"text": "", "cls": "tool is-activatable is-button ref-nav-button disabled", "meaning": "Reference nav back (disabled)"},
+    {"text": "", "cls": "tool is-activatable is-button ref-nav-button disabled", "meaning": "Reference nav forward (disabled)"}
+  ],
+  "editor": {
+    "kind": "Ace editor",
+    "textareaSelector": "textarea.ace_text-input",
+    "ariaLabel": "Cursor at row 1"
+  },
+  "docPopupSelector": ".os-feature-script-doc-popup-layer"
+}

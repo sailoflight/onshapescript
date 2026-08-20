@@ -1,0 +1,90 @@
+# 浏览器自动化使用经验（Onshape Windows 宿主）
+
+本文档是 2026-08-20 起对 Onshape 浏览器自动化探索的**使用经验**沉淀，供后续
+开发 page objects / selector 映射 / 自动化脚本时直接复用。所有结论都来自
+真实 Edge（channel=msedge）+ 持久化 profile 的实测，0 次 Onshape API 调用。
+
+## 1. 运行模型
+
+- 浏览器只在 **Windows** 上跑，Linux 只跑 `tools/mcp_tcp_bridge.py` 做 stdio↔TCP 中继。
+- Windows 常驻 `tools/bridge_server.py`，**进程内直接 dispatch MCP**，不在每个连接拉起子进程。
+- 单客户端铁律 + **单工作页铁律**：`session.start()` 每次只保留一个工作页，其余标签全关
+  （`_enforce_single_working_page`）。
+- 关闭方式决定登录态：**强杀进程保留登录，优雅关闭会登出**。Onshape 无“保持登录”。
+
+## 2. 登录态恢复经验
+
+- Onshape WEB 端：浏览器一关立即登出，没有“保持登录”选项。
+- 恢复登录的两个条件：profile 里的 **cookie** + **上次的入口 URL**。
+  - 入口 URL 例如 `https://cad.onshape.com/documents?resourceType=resourceuserowner&nodeId=<id>`
+  - 由 `config/browser-state.json` 的 `lastAppUrl` 持久化，`status()` 每次见到已登录页自动落盘。
+- 判定“已登录”要等 **SPA 路由稳定**：`domcontentloaded` 后 URL 可能是短暂的 documents，
+  4 秒后前端路由会把未登录会话重定向到 `/signin`。`open_login_page()` 已按最终 URL 判定。
+- 强杀 vs 优雅关闭的差异是真实存在的：强杀不给页面执行登出逻辑的机会，会话文件保留
+  documents URL；优雅关闭会把页面写回 signin。
+
+## 3. 只读探索工具（browser_*）
+
+| 工具 | 用途 | 关键参数 |
+|---|---|---|
+| `browser_session` | 登录态/页面状态 | `action=status|login` |
+| `browser_watch` | 录制人工操作（URL/网络/对话框） | `action=start|stop|report` |
+| `browser_inspect` | 可见可交互元素清单 | `max_elements` |
+| `browser_scroll` | 滚动窗口或指定容器 | `direction`, `amount`, `selector` |
+| `browser_click` | 点击元素（可 dry_run） | `selector`/`text`, `index`, `dry_run` |
+| `browser_eval` | 只读 JS 求值，探查 DOM | `expression`, `arg` |
+
+所有工具 `network: "browser"`、`estimated_api_requests: 0`——不花 Onshape API 额度。
+
+## 4. Onshape 页面结构实测
+
+### 4.1 「我所有的文档」页（Documents）
+
+- URL：`/documents?resourceType=resourceuserowner&nodeId=<id>`
+- 文档列表是 **AG Grid**，滚动容器是 `.ag-body-viewport`（或
+  `.ag-body-vertical-scroll-viewport`）；整个窗口 `scrollY` 恒为 0，别用 window 滚动。
+- 左侧还有 `.os-document-list-grid-container`（可滚 200px 左右）。
+- 稳定选择器：
+  - 搜索：`#search-box`
+  - 通知：`#user-notification-status`
+  - 新建：`#create-new-type`（文本「创建」）
+  - 文档行链接：`.document-list-item-name`、`.document-display-link`、`.os-document-display-name`
+- 当前账号下文档（实测）：`初稿`、`Branch Cable Trophy Display - FeatureScript`、
+  `无标题文档`×N、`IMG_20250409_084546.jpg`、`k37` 等。目标文档是
+  **Branch Cable Trophy Display - FeatureScript**。
+
+### 4.2 Part Studio / FeatureScript 页
+
+- 点击文档名后进入：`/documents/<did>/w/<wid>/e/<eid>`。
+- 顶部导航新增：`共享` 按钮（`.nav-share`）、`搜索工具… alt/⌥c`（`.command-search-trigger`）。
+- 文档标签：`tab-list-item.os-tab-bar-tab`，标签名在 `.os-tab-name`。当前文档的标签：
+  - `Branch cable trophy display`（FeatureScript，默认激活）
+  - `Cable trophy model v1`（Part Studio）
+  - `Cable trophy model validation`（Part Studio）
+  - `FS live verification`、`instance 0*-*.fs` 等 FeatureScript 实例页
+- FeatureScript 编辑器是 **Ace editor**：
+  - 输入区 `textarea.ace_text-input`（aria「Cursor at row …」）
+  - 折叠控件 `.ace_fold-widget`
+- FeatureScript 工具栏（`.tool.is-activatable.is-button`）：
+  - 撤消（disabled）、新特征、`Length parameter`、导入、**提交**（`.os-primary`，无改动时 disabled）、
+    `Module outline`（`.top-level-symbols-button`）、ref 前进/后退（disabled）
+- FeatureScript 悬浮文档：`.os-feature-script-doc-popup-layer`（当前显示
+  `LengthBoundSpec type A spec to be used with the isLength pre...`）。
+
+## 5. 选择器优先级（写自动化时）
+
+1. 唯一 `id`：`#search-box`、`#user-notification-status`、`#create-new-type`。
+2. 语义 class + 文本：`tab-list-item.os-tab-bar-tab`（按 `.os-tab-name` 文本定位）、
+   `.tool.is-activatable.is-button`（按 innerText 定位「提交」「Module outline」等）。
+3. `aria-label`：导航按钮都有明确 aria（「在新窗口中将您导航到…」）。
+4. 避免：脆弱的 `ng-star-inserted` 等框架类；AG Grid 行号/列号。
+
+## 6. 已知坑
+
+- 多标签漂移：人工登录可能在新标签打开 documents，旧 signin 标签仍残留。`status()`/`start()`
+  会遍历 `context.pages` 优先选已登录应用页，并关闭其余标签。
+- Playwright sync API 绑定创建线程；桥接必须**主线程串行**处理客户端，否则报
+  `Target page, context or browser has been closed`。
+- `launch_persistent_context` 命令行末尾固定带 `about:blank`，这是正常启动页；
+  是否恢复上次标签取决于上次是否强杀（崩溃恢复）。
+- 中文 Windows 下 Python stdout 默认 GBK；MCP 协议读写必须走 UTF-8 字节流。

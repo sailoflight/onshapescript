@@ -8,9 +8,11 @@ scripts are run manually.
 |---|---|
 | `watch-sessions/` | Listener recordings of human-operated Onshape sessions (gitignored). |
 | `button-map/` | Human-reviewed button/action semantics derived from watch sessions. Committed once verified. |
+| `experience/` | 使用经验：页面结构、选择器、滚动容器、登录态恢复等实测结论。 |
 | `probes/` | Zero-API-quota probes: login state, selector discovery, editor type, page structure. |
 | `fixtures-capture/` | Scripts that record redacted DOM/HAR fixtures for offline tests. |
 | `spike/` | Throwaway experiments (e.g. Monaco editor strategy). Gitignored. |
+| `DEVELOPMENT.md` | 开发经验与下一步计划。 |
 
 ## Browser setup
 
