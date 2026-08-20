@@ -49,8 +49,9 @@
   `config/onshape-state.json`，供 `onshape_rest_api_mode` 复用（仍是显式缓存，不隐式查询）。
 - [ ] **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FeatureScript 标签→
   改代码→提交”流程，核对 `browser_click` 的选择器与真实操作一致。
-- [ ] **自愈脚本**：把“强杀 bridge + 强杀 Edge + 重启 + 恢复登录”固化成
-  `tools/windows/restart-bridge.bat`，避免手工 PowerShell。
+- [x] **自愈脚本**：`tools/windows/restart-bridge.bat` / `.ps1` 已落地——
+  强杀自动化 Edge + 旧 bridge 后重启，强杀保留登录态。注：从 WSL interop
+  调 Start-Process 不可靠（子进程随 interop 结束退出），请在 Windows 侧双击运行。
 
 ## 5. 安全/配额红线（沿用 CLAUDE.md）
 

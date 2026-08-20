@@ -76,6 +76,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\register-bri
 
 - 注册的计划任务名：`OnshapeMCPBridge`（登录时启动，失败后每 1 分钟重启，最多 999 次）。
 - `setup-autostart.bat` 会同时**立即启动**桥接服务，因此也是“重启后/服务掉了”的一键恢复入口。
+- **桥接卡死时的一键自愈**：双击 `tools\windows\restart-bridge.bat`（或
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\restart-bridge.ps1`）。
+  它会**强杀**自动化 Edge（`onshape_profile`）+ 旧 bridge，再启动新 bridge。
+  强杀（而非优雅关闭）是刻意的：Onshape 关浏览器即登出，强杀保留会话文件，
+  重启后靠 `config/browser-state.json` 恢复已登录的 documents 页。
 - 移除自动启动：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\register-bridge-task.ps1 -Uninstall`
 
 ## Linux/WSL 侧配置
