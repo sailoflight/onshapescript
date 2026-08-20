@@ -107,8 +107,9 @@
 2. `actions.write_featurescript_editor()` 用 Ace API `ed.setValue()` 写入全文；
 3. 写入后「提交」按钮从 disabled → enabled（`actions.commit_button_state()` 可读状态）；
 4. `actions.click_commit()` 点击提交，3 秒后按钮回到 disabled = 提交成功；
-5. 实测：部署了带日期注释的修改（23924 字符）→ 提交成功 → 读回确认注释存在 →
-   再部署原始内容（23875 字符）恢复原状。
+5. 提交后读回编辑器并比对，返回 `verified: true` 仅当页面源码与提交内容完全一致；
+6. 实测：dry_run 纯本地预览（不启动浏览器）→ 部署修改（23907 字符，`verified:true`）→
+   恢复原内容（23875 字符，`verified:true`）。
 
 关键 JS（`actions.py`）：
 - 读全文：`ed.getValue()`
