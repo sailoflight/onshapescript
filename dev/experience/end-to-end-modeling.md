@@ -26,13 +26,20 @@
   `.toolbar-item` 的 textContent 找到后点内部 `.tool.is-button`。
 - 代理网络慢：文档/标签/对话框加载都慢，每个导航后要轮询等待目标元素出现，不要固定短等待。
 
-## 3. 当前卡点：特征「not-computed」
+## 3. 关键修正：Part Studio 需要「应用」特征
 
-特征已插入（特征树出现 `os-list-item ns-user-feature not-computed ns-rollbackbar-holder`，
-`feature-id=MbTmQksal8qW7YTFT`），但几何未计算：`特征 (4)`、`零件数 (0)`，且单击/双击特征
-树项都不弹参数对话框。FS 编辑器本身 `annotationCount: 0`（无编译错误），网络警示
-`Poor connection…` 持续存在。判断为代理网络下大模型（132 零件）计算/状态回传被卡住，
-待网络恢复后继续轮询验证。
+之前走「添加自定义特征」对话框双击只会产生 `not-computed` 行（`零件数 (0)`）。
+正确流程是**手动应用**：
+
+1. 点工具栏按钮 **`此工作区中的自定义特征`**（`.tool[title="此工作区中的自定义特征"]`）；
+2. 下拉里点特征名（`.os-tool-dropdown-content`）；
+3. 弹出参数对话框（`.feature-dialog`，含 Base radius/Base height/… 全部默认值）；
+4. 点勾选 `.ns-dialog-button-ok.button-ok` 接受 → 特征计算。
+
+实测最终结果：
+- 特征树 `特征 (5)`，含 `Bc Branch cable trophy display 1`（isUserFeature）
+- 零件列表 `零件数 (132) base plaqueInsert_blank rootCollars_0 …`
+- 即「上传+编译+版本+应用+建模」全链路 0 配额闭环成功。
 
 ## 4. 已落地工具（0 配额）
 
