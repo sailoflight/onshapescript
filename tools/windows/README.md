@@ -38,7 +38,11 @@ py -m venv .venv
 ```toml
 [browser]
 executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+proxy_server = "http://127.0.0.1:10808"   # 本机 HTTP 代理，用于访问 Onshape
 ```
+
+如果本机需要走代理才能访问 Onshape，把 `proxy_server` 设为本机 HTTP 代理地址
+（v2rayN/clash 常见为 `http://127.0.0.1:10808`）；不需要则留空。
 
 浏览器用户文件独立存放在 `user_data\onshape_profile`，不会混用系统默认浏览器 profile，
 也不会与 taobao-mcp 的 `user_data\chrome_profile` 冲突。
