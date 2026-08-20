@@ -1,44 +1,46 @@
-"""Windows-side localhost bridge: one TCP connection = one stdio MCP server child.
+"""Windows-side localhost bridge: persistent in-process MCP server over TCP.
 
 Run this on the Windows host (once, keeps running):
-    C:\\path\\to\\onshapescript\\.venv\\Scripts\\python.exe C:\\path\\to\\onshapescript\\tools\\bridge_server.py [port]
+    C:\\MCP\\onshapescript\\.venv\\Scripts\\python.exe C:\\MCP\\onshapescript\\tools\\bridge_server.py [port]
 
-Linux (WSL mirrored networking) connects to 127.0.0.1:<port>. Each accepted
-connection spawns `mcp_server.py`, and the bridge relays the child's
-stdin/stdout over the socket. Child stderr goes to
-`outputs/bridge-server.log` so stdout stays protocol-pure (MCP stdio requires
-stdout to carry only JSON-RPC lines).
+WSL (mirrored networking) connects to 127.0.0.1:<port>. The bridge serves the
+JSON-RPC protocol directly from THIS process (no per-connection child) because
+Onshape's web client logs out the moment the browser closes and has no
+"keep me signed in" option. The Playwright browser therefore must live in a
+process that survives MCP client disconnects/reconnects:
+
+    Linux MCP client -> tools/mcp_tcp_bridge.py -> this process
+        -> mcp_main.server.dispatch() -> BrowserSession (persistent Edge)
 
 Single-copy rule
 ----------------
-The persistent Chrome/Edge profile can only be held by ONE MCP server process.
-The listener accepts ONE client at a time and rejects extra connections instead
-of spawning a second browser-holding server. Do not run two MCP clients against
-the same Windows bridge simultaneously.
-
-Child stdout is drained with raw ``os.read()`` on the pipe fd, NOT
-``proc.stdout.read(N)``, which can wait for a full buffer/EOF before forwarding
-a partial JSON-RPC response.
+A persistent browser profile can only be held by ONE process. The listener
+accepts ONE client at a time and rejects extra connections instead of running
+two browser-holding servers. Sequential reconnects share the same browser and
+the same login session.
 """
 from __future__ import annotations
 
+import json
 import os
 import socket
-import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PYTHON = str(ROOT / ".venv" / "Scripts" / "python.exe")
-LAUNCHER = str(ROOT / "mcp_server.py")
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from mcp_main.server import dispatch, response  # noqa: E402  (needs ROOT on sys.path)
+
 LOG_PATH = ROOT / "outputs" / "bridge-server.log"
 HOST = "127.0.0.1"
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8766
 BUFFER_SIZE = 65536
 
-# Only one live client/child pair at a time (see module docstring).
+# Only one live client at a time (see module docstring).
 _ACTIVE_LOCK = threading.Lock()
 
 
@@ -51,61 +53,47 @@ def _log(msg: str) -> None:
         pass
 
 
-def _pump_tcp_to_stdin(conn: socket.socket, proc: subprocess.Popen) -> None:
-    """Relay client bytes to the MCP child; EOF on the socket closes child stdin."""
+def _parse_error() -> dict:
+    return response(None, error={"code": -32700, "message": "Parse error"})
+
+
+def _dispatch_line(line: bytes) -> dict | None:
+    """Mirror mcp_main.server.serve()'s per-line protocol handling."""
+    try:
+        message = json.loads(line.decode("utf-8"))
+        if not isinstance(message, dict):
+            raise ValueError("Message must be a JSON object")
+        return dispatch(message)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return _parse_error()
+
+
+def _serve_client(conn: socket.socket, addr: tuple) -> None:
+    """Serve newline-delimited JSON-RPC on one client connection.
+
+    The browser session intentionally survives this function: returning here
+    (client disconnect) must NOT close the browser, or Onshape logs out.
+    """
+    buffer = b""
     try:
         while True:
             data = conn.recv(BUFFER_SIZE)
             if not data:
                 break
-            proc.stdin.write(data)
-            proc.stdin.flush()
+            buffer += data
+            while b"\n" in buffer:
+                line, buffer = buffer.split(b"\n", 1)
+                line = line.strip()
+                if not line:
+                    continue
+                outgoing = _dispatch_line(line)
+                if outgoing is not None:
+                    payload = json.dumps(
+                        outgoing, separators=(",", ":"), ensure_ascii=False
+                    ).encode("utf-8") + b"\n"
+                    conn.sendall(payload)
     except OSError:
         pass
-    finally:
-        try:
-            proc.stdin.close()
-        except OSError:
-            pass
-
-
-def _relay_stdout_to_tcp(conn: socket.socket, proc: subprocess.Popen) -> None:
-    """Raw-fd relay of child stdout so partial JSON-RPC lines arrive promptly."""
-    try:
-        fd = proc.stdout.fileno()
-        while True:
-            data = os.read(fd, BUFFER_SIZE)
-            if not data:
-                break
-            conn.sendall(data)
-    except OSError:
-        pass
-
-
-def handle(conn: socket.socket, addr: tuple) -> None:
-    log_fh = None
-    proc: subprocess.Popen | None = None
-    try:
-        log_fh = LOG_PATH.open("ab")
-        proc = subprocess.Popen(
-            [PYTHON, LAUNCHER],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=log_fh,
-            cwd=str(ROOT),
-        )
-        _log(f"client {addr} -> spawned server pid={proc.pid}")
-
-        threading.Thread(
-            target=_pump_tcp_to_stdin,
-            args=(conn, proc),
-            daemon=True,
-            name=f"stdin-pump-{proc.pid}",
-        ).start()
-
-        _relay_stdout_to_tcp(conn, proc)
-    except OSError as exc:
-        _log(f"client {addr} -> relay error: {exc}")
     finally:
         try:
             conn.shutdown(socket.SHUT_RDWR)
@@ -115,27 +103,19 @@ def handle(conn: socket.socket, addr: tuple) -> None:
             conn.close()
         except OSError:
             pass
-
-        if proc is not None:
-            try:
-                proc.stdin.close()
-            except OSError:
-                pass
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    _log(f"server pid={proc.pid} did not die after kill")
-            _log(f"server pid={proc.pid} exited rc={proc.returncode}")
-        if log_fh is not None:
-            try:
-                log_fh.close()
-            except OSError:
-                pass
         _ACTIVE_LOCK.release()
+
+
+def _close_browser_if_started() -> None:
+    """Close the persistent browser only when the bridge itself is stopping."""
+    try:
+        import onshape_browser_mode.session as browser_session
+
+        session = getattr(browser_session, "_session", None)
+        if session is not None and session._status not in ("closed", "uninitialized"):
+            session.close()
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -150,21 +130,21 @@ def main() -> None:
         conn, addr = srv.accept()
         if not _ACTIVE_LOCK.acquire(blocking=False):
             _log(f"rejected client {addr}: another MCP session is active "
-                 "(Chrome profile is single-tenant; close the other session first)")
+                 "(browser profile is single-tenant; close the other session first)")
             try:
                 conn.close()
             except OSError:
                 pass
             continue
+        _log(f"client {addr} -> connected (browser session persists across reconnects)")
         try:
             threading.Thread(
-                target=handle,
+                target=_serve_client,
                 args=(conn, addr),
                 daemon=True,
                 name=f"client-{addr[0]}-{addr[1]}",
             ).start()
         except Exception:
-            # If the thread could not start, do not leave the socket/child behind.
             _ACTIVE_LOCK.release()
             try:
                 conn.close()
@@ -177,5 +157,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        _close_browser_if_started()
         _log("bridge server stopped by user")
         raise SystemExit(0)
