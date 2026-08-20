@@ -428,6 +428,29 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_eval(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Run a READ-ONLY JavaScript expression in the current page.
+
+    Exploration aid: returns the JSON-serializable result. Callers must only
+    read the DOM / page state; it is not a general mutation channel.
+    """
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+
+    expression = arguments.get("expression", "")
+    if not expression:
+        raise ValueError("Provide a JavaScript `expression`")
+    arg = arguments.get("arg")
+    try:
+        result = page.evaluate(expression, arg) if arg is not None else page.evaluate(expression)
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {"ok": True, "result": result}
+
+
 def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
     """Scroll the current page (read-only; no Onshape API quota)."""
     from onshape_browser_mode.session import get_session
@@ -1400,6 +1423,37 @@ TOOLS: list[dict[str, Any]] = [
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
+    {
+        "name": "browser_eval",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 5,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Run a READ-ONLY JavaScript expression in the current Onshape page and return its "
+            "JSON-serializable result. Exploration-only: use it to inspect the DOM structure, find "
+            "scrollable containers, list rows, or read page state. Do not use it to mutate the page. "
+            "Zero Onshape API quota."
+        ),
+        "inputSchema": object_schema({
+            "expression": {
+                "type": "string",
+                "description": "JavaScript expression to evaluate in the page (e.g. a function that returns data).",
+            },
+            "arg": {
+                "description": "Optional JSON value passed to the expression as its argument.",
+            },
+        }, ["expression"]),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
 
 ]
 
@@ -1409,6 +1463,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_inspect": _browser_inspect,
     "browser_scroll": _browser_scroll,
     "browser_click": _browser_click,
+    "browser_eval": _browser_eval,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
