@@ -609,6 +609,88 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Deploy a FeatureScript script through the browser UI (0 Onshape API quota).
+
+    This is the first substantive browser tool: it writes the Ace editor content
+    and clicks the FeatureScript Commit button in the visible browser, so no
+    REST API call is spent. `dry_run=true` writes the editor but does NOT click
+    Commit (and asks the caller to review).
+    """
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.session import get_session
+
+    script = arguments.get("script", "")
+    if not isinstance(script, str) or not script.strip():
+        raise ValueError("Provide a non-empty `script` string")
+    document_name = arguments.get(
+        "document_name", "Branch Cable Trophy Display - FeatureScript"
+    )
+    dry_run = bool(arguments.get("dry_run", False))
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+
+    # If the FeatureScript editor is not on screen, open the target document.
+    if actions.read_featurescript_editor(page) is None:
+        try:
+            page.goto(
+                session._load_saved_app_url() or "https://cad.onshape.com/documents",
+                wait_until="domcontentloaded",
+                timeout=60_000,
+            )
+            page.wait_for_timeout(4000)
+        except Exception:
+            pass
+        if actions.read_featurescript_editor(page) is None and document_name:
+            try:
+                page.get_by_text(document_name, exact=False).first.click()
+                page.wait_for_timeout(5000)
+            except Exception:
+                pass
+
+    before = actions.read_featurescript_editor(page)
+    if before is None:
+        return {
+            "deployed": False,
+            "dryRun": dry_run,
+            "reason": "FeatureScript editor not found on the current page",
+            "pageUrl": page.url,
+        }
+
+    written = actions.write_featurescript_editor(page, script)
+    if not written.get("ok"):
+        return {
+            "deployed": False,
+            "dryRun": dry_run,
+            "reason": written.get("error", "could not write editor"),
+            "pageUrl": page.url,
+        }
+
+    if dry_run:
+        return {
+            "deployed": False,
+            "dryRun": True,
+            "message": "Editor written; Commit NOT clicked (dry_run).",
+            "pageUrl": page.url,
+            "beforeLength": len(before),
+            "afterLength": written.get("length"),
+            "lineCount": written.get("lineCount"),
+            "commitButton": actions.commit_button_state(page),
+        }
+
+    commit = actions.click_commit(page)
+    return {
+        "deployed": bool(commit.get("clicked")),
+        "dryRun": False,
+        "pageUrl": page.url,
+        "beforeLength": len(before),
+        "afterLength": written.get("length"),
+        "commit": commit,
+    }
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1454,6 +1536,45 @@ TOOLS: list[dict[str, Any]] = [
         }, ["expression"]),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
+    {
+        "name": "browser_deploy_featurescript",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 30,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. "
+            "It opens the target document if needed, writes the Ace editor content, and clicks the "
+            "FeatureScript Commit button in the visible browser. This mutates the cloud document, so "
+            "use `dry_run=true` first: dry_run writes the editor but does NOT click Commit. "
+            "The FeatureScript source is the browser-visible code; no credentials or API calls are involved."
+        ),
+        "inputSchema": object_schema({
+            "script": {
+                "type": "string",
+                "description": "Full FeatureScript source to deploy.",
+            },
+            "document_name": {
+                "type": "string",
+                "default": "Branch Cable Trophy Display - FeatureScript",
+                "description": "Documents-list name of the document to open when the editor is not already on screen.",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": True,
+                "description": "Write the editor but do not click Commit.",
+            },
+        }, ["script"]),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
 
 ]
 
@@ -1464,6 +1585,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_scroll": _browser_scroll,
     "browser_click": _browser_click,
     "browser_eval": _browser_eval,
+    "browser_deploy_featurescript": _browser_deploy_featurescript,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
