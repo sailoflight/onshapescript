@@ -826,6 +826,23 @@ def _browser_read_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_get_partstudio_features(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Read the current Part Studio feature tree and part list (read-only)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    features = actions.read_partstudio_features(page)
+    return {
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+        **features,
+    }
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1787,6 +1804,30 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
     {
+        "name": "browser_get_partstudio_features",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Read the Part Studio feature tree and part list currently on screen. Returns the feature-list "
+            "header, each feature item (with isUserFeature/isDefault classification), and the part-list text "
+            "(e.g. '零件数 (132) base ...'). A custom feature present in the list is the browser-visible proof "
+            "that its FeatureScript compiled and was instantiated — this is the 0-quota compile+modeling "
+            "verification. Read-only; never calls the Onshape REST API."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
         "name": "browser_reconnect",
         "cost": {
             "backend": "browser",
@@ -1822,6 +1863,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_deploy_featurescript": _browser_deploy_featurescript,
     "browser_open_document": _browser_open_document,
     "browser_read_featurescript": _browser_read_featurescript,
+    "browser_get_partstudio_features": _browser_get_partstudio_features,
     "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},

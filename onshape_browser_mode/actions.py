@@ -168,6 +168,39 @@ def open_document_by_name(
     }
 
 
+def read_partstudio_features(page: Any) -> dict[str, Any]:
+    """Read the Part Studio feature tree and part list (read-only, 0 quota).
+
+    Returns the feature-list header, each feature item with its user/default
+    classification, and the part-list text (e.g. "零件数 (132) base ...").
+    A custom feature present in the list means its FeatureScript compiled and
+    was instantiated successfully.
+    """
+    return page.evaluate(
+        """
+        () => {
+          const features = Array.from(document.querySelectorAll('.os-list-item')).map(el => {
+            const icon = el.querySelector('.os-list-item-icon');
+            const cls = el.className || '';
+            return {
+              name: (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100),
+              isUserFeature: cls.includes('ns-user-feature'),
+              isDefault: cls.includes('ns-default-feature'),
+              iconCls: icon ? (typeof icon.className === 'string' ? icon.className : '').slice(0, 90) : '',
+            };
+          }).filter(f => f.name);
+          const header = document.querySelector('.features-title');
+          const partsEl = document.querySelector('.part-list-container');
+          return {
+            headerText: header ? (header.innerText || header.textContent || '').trim() : '',
+            features,
+            partsText: partsEl ? (partsEl.innerText || partsEl.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 400) : '',
+          };
+        }
+        """
+    )
+
+
 def timeout_dialog_state(page: Any) -> dict[str, Any]:
     """Report whether the Onshape session-timeout dialog is present."""
     return page.evaluate(
