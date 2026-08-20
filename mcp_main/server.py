@@ -698,6 +698,10 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     session._enforce_single_working_page(page)
     guard = get_guard()
 
+    # A timed-out Onshape session shows a reconnect dialog over the editor;
+    # recover first so the read/write below targets the live document.
+    actions.reconnect_if_needed(page)
+
     before = actions.read_featurescript_editor(page)
 
     # If the FeatureScript editor is not on screen, open the target document.
@@ -751,6 +755,19 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_reconnect(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Click the Onshape '重新连接' link if the session-timeout dialog is up."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    get_guard().pace()
+    return actions.reconnect_if_needed(page)
+
+
 def _browser_open_document(arguments: dict[str, Any]) -> dict[str, Any]:
     """Open a document from the documents list by name (read-only navigation)."""
     from onshape_browser_mode import actions
@@ -764,6 +781,7 @@ def _browser_open_document(arguments: dict[str, Any]) -> dict[str, Any]:
     page = session.start()
     session._enforce_single_working_page(page)
     get_guard().pace()
+    actions.reconnect_if_needed(page)
     return actions.open_document_by_name(
         page, document_name, session._load_saved_app_url()
     )
@@ -777,6 +795,7 @@ def _browser_read_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     session = get_session()
     page = session.start()
     session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
     source = actions.read_featurescript_editor(page)
     if source is None:
         return {
@@ -1751,6 +1770,29 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
+    {
+        "name": "browser_reconnect",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Detect the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') and click "
+            "the reconnect link to restore the live session. Read-only session recovery — it does not create or "
+            "modify cloud data. Also runs automatically inside browser_open_document, browser_read_featurescript, "
+            "and browser_deploy_featurescript so a timed-out session recovers before the requested action."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
 
 ]
 
@@ -1764,6 +1806,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_deploy_featurescript": _browser_deploy_featurescript,
     "browser_open_document": _browser_open_document,
     "browser_read_featurescript": _browser_read_featurescript,
+    "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,

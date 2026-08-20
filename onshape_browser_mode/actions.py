@@ -14,7 +14,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from onshape_browser_mode.selectors import ACE_EDITOR, FS_COMMIT_BUTTON
+from onshape_browser_mode.selectors import (
+    ACE_EDITOR,
+    FS_COMMIT_BUTTON,
+    TIMEOUT_RECONNECT_LINK,
+)
 
 _ACE_GET_EDITOR_JS = """
 () => {
@@ -161,4 +165,49 @@ def open_document_by_name(
         "opened": True,
         "pageUrl": url,
         **parse_document_url(url),
+    }
+
+
+def timeout_dialog_state(page: Any) -> dict[str, Any]:
+    """Report whether the Onshape session-timeout dialog is present."""
+    return page.evaluate(
+        """
+        () => {
+          const link = document.querySelector('.alert-link.osx-message-bubble-link');
+          const dialog = document.querySelector('.osx-message');
+          return {
+            present: !!link,
+            linkText: link ? (link.innerText || link.textContent || '').trim() : '',
+            message: dialog ? (dialog.innerText || dialog.textContent || '').trim().slice(0, 200) : '',
+          };
+        }
+        """
+    )
+
+
+def reconnect_if_needed(page: Any) -> dict[str, Any]:
+    """Click the '重新连接' link if the Onshape timeout dialog is showing.
+
+    Reconnecting is a session-level navigation (no cloud data is created or
+    changed). Returns before/after dialog state plus the resulting URL.
+    """
+    before = timeout_dialog_state(page)
+    if not before.get("present"):
+        return {"reconnected": False, "reason": "no timeout dialog", "state": before, "pageUrl": page.url}
+    try:
+        page.locator(TIMEOUT_RECONNECT_LINK).first.click()
+        page.wait_for_timeout(5000)
+    except Exception as exc:  # noqa: BLE001 - surface as structured result
+        return {
+            "reconnected": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "state": before,
+            "pageUrl": page.url,
+        }
+    after = timeout_dialog_state(page)
+    return {
+        "reconnected": not after.get("present"),
+        "state": before,
+        "after": after,
+        "pageUrl": page.url,
     }

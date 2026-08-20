@@ -34,3 +34,8 @@ ACE_TEXT_INPUT = "textarea.ace_text-input"
 
 # FeatureScript doc popup (hover)
 FS_DOC_POPUP = ".os-feature-script-doc-popup-layer"
+
+# Session-timeout dialog
+TIMEOUT_DIALOG = ".osx-message"  # "您的 Onshape 会话已超时。您的文档已保存。"
+TIMEOUT_RECONNECT_LINK = ".alert-link.osx-message-bubble-link"  # "单击此处重新连接。"
+TIMEOUT_CLOSE_BUTTON = ".osx-close"  # "× Close"
