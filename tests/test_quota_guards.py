@@ -9,11 +9,14 @@ cost-metadata <-> gate consistency. No real Onshape API call is ever made.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -79,6 +82,50 @@ def pipeline_client() -> client_module.OnshapeClient:
         "partStudioId": "psid",
         "featureScriptFile": "examples/branch-cable-trophy/branchCableTrophyDisplay.fs",
     })
+
+
+def recording_client(consumed: int = 0) -> client_module.OnshapeClient:
+    """A fake client that counts attempts like a real one and bookkeeps the
+    ledger IN MEMORY (never touches config/api-usage.json). Its real request()
+    is exercised against a mocked urlopen, so no network is ever reached."""
+    cl = object.__new__(client_module.OnshapeClient)
+    cl.base_url = "https://cad.onshape.com"
+    cl.authorization = "Bearer a-secret-access-token"
+    cl.state = {"apiQuota": {"accountType": "professional"}}
+    cl.attempted = 0
+    cl.before_request = None
+    cl._usage = {
+        "consumed": consumed,
+        "calls": [],
+        "lastRateLimitRemaining": None,
+        "lastRetryAfter": None,
+        "last402At": None,
+    }
+
+    def record(method: str, path: str, status: int | None, headers: object) -> None:
+        if status is not None and status < 400:
+            cl._usage["consumed"] = int(cl._usage.get("consumed", 0)) + 1
+
+    cl._record_usage = record
+    return cl
+
+
+def http_error(code: int, payload: str = "{}") -> urllib.error.HTTPError:
+    """An HTTPError with no real network behind it (BytesIO body)."""
+    return urllib.error.HTTPError(
+        "https://cad.onshape.com", code, "err", {}, io.BytesIO(payload.encode("utf-8")),
+    )
+
+
+def json_response(status: int = 200) -> mock.Mock:
+    """A context-manager mock standing in for urlopen's 2xx response."""
+    resp = mock.Mock()
+    resp.status = status
+    resp.headers = {"content-type": "application/json"}
+    resp.read.return_value = json.dumps({"ok": True}).encode("utf-8")
+    resp.__enter__ = mock.Mock(return_value=resp)
+    resp.__exit__ = mock.Mock(return_value=False)
+    return resp
 
 
 class RateLimitReasonTest(unittest.TestCase):
@@ -376,6 +423,217 @@ class McpLiveGateTest(unittest.TestCase):
         self.assertTrue(content["dryRun"])
         self.assertEqual(content["estimatedRequests"], 3)
         self.assertIn("<REDACTED>", result["content"][0]["text"])
+
+
+class MissingCredentialsOfflineTest(unittest.TestCase):
+    """require_credentials=False clients support local state/ledger + dry runs;
+    request() fails clearly and nothing reaches the network."""
+
+    def test_api_usage_works_without_credentials(self) -> None:
+        with mock.patch.object(client_module, "CREDENTIALS_PATH", Path("/nonexistent-creds.json")), \
+             mock.patch.object(client_module, "STATE_PATH", Path("/nonexistent-state.json")), \
+             mock.patch.object(client_module, "USAGE_PATH", Path("/nonexistent-usage.json")):
+            usage = operations.api_usage()
+        self.assertEqual(usage["configured"], False)
+        self.assertEqual(usage["consumed"], 0)
+        self.assertIn("No annual quota configured", usage["note"])
+
+    def test_dry_run_builds_unauthenticated_client(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "state.json"
+            state_path.write_text(json.dumps({
+                "documentId": "did",
+                "workspaceId": "wid",
+                "featureStudioId": "fsid",
+                "partStudioId": "psid",
+                "featureScriptFile": "examples/branch-cable-trophy/branchCableTrophyDisplay.fs",
+            }), encoding="utf-8")
+            with mock.patch.object(client_module, "CREDENTIALS_PATH", Path(tmp) / "no-creds.json"), \
+                 mock.patch.object(client_module, "STATE_PATH", state_path), \
+                 mock.patch.object(client_module, "USAGE_PATH", Path(tmp) / "usage.json"):
+                result = operations.upload_feature_studio(dry_run=True)
+        self.assertTrue(result["dryRun"])
+        self.assertEqual(result["estimatedRequests"], 3)
+        self.assertIn("localCheck", result)
+        self.assertIn("<REDACTED>", result["requests"][0]["headers"]["Authorization"])
+
+    def test_request_fails_clearly_without_credentials(self) -> None:
+        with mock.patch.object(client_module, "STATE_PATH", Path("/nonexistent-state.json")), \
+             mock.patch.object(client_module, "USAGE_PATH", Path("/nonexistent-usage.json")):
+            cl = client_module.OnshapeClient(require_credentials=False)
+        self.assertIsNone(cl.authorization)
+        with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+            with self.assertRaises(client_module.MissingCredentials) as ctx:
+                cl.request("GET", "/api/foo")
+        self.assertIn("no credentials", str(ctx.exception))
+
+
+class RetryClassificationTest(unittest.TestCase):
+    """Only an explicit GET retries; every non-GET (incl. PUT) is one attempt."""
+
+    def test_only_get_retries_on_5xx(self) -> None:
+        for method, expected in (("GET", 4), ("PUT", 1), ("POST", 1),
+                                 ("PATCH", 1), ("DELETE", 1)):
+            cl = recording_client()
+            with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+                with mock.patch.object(
+                    client_module.urllib.request, "urlopen", side_effect=http_error(500),
+                ) as urlopen, mock.patch.object(client_module.time, "sleep"):
+                    with self.assertRaises(RuntimeError):
+                        cl.request(method, "/api/thing")
+            self.assertEqual(urlopen.call_count, expected, method)
+            self.assertEqual(cl.attempted, expected, method)
+
+    def test_get_retries_network_error_non_get_does_not(self) -> None:
+        for method, expected in (("GET", 4), ("PUT", 1), ("POST", 1)):
+            cl = recording_client()
+            with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+                with mock.patch.object(
+                    client_module.urllib.request, "urlopen",
+                    side_effect=urllib.error.URLError("network down"),
+                ) as urlopen, mock.patch.object(client_module.time, "sleep"):
+                    with self.assertRaises(RuntimeError):
+                        cl.request(method, "/api/thing")
+            self.assertEqual(urlopen.call_count, expected, method)
+
+    def test_four_xx_and_429_never_retry(self) -> None:
+        for code in (404, 429):
+            cl = recording_client()
+            with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+                with mock.patch.object(
+                    client_module.urllib.request, "urlopen",
+                    side_effect=http_error(code, '{"message": "nope"}'),
+                ) as urlopen, mock.patch.object(client_module.time, "sleep"):
+                    if code == 429:
+                        with self.assertRaises(client_module.RateLimited):
+                            cl.request("GET", "/api/thing")
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            cl.request("GET", "/api/thing")
+            self.assertEqual(urlopen.call_count, 1, code)
+
+
+class BudgetGuardAttemptCapTest(unittest.TestCase):
+    """The per-run attempt cap is hard: the client hook blocks before an attempt
+    and exceeded() reflects actual attempts, while ledger spend stays intact."""
+
+    def test_hard_cap_stops_before_attempt(self) -> None:
+        with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+            cl = recording_client()
+            guard = budget_module.BudgetGuard(2, "probe", client=cl, max_attempts=2)
+            self.assertEqual(cl.before_request.__self__, guard)
+            self.assertEqual(
+                cl.before_request.__func__, budget_module.BudgetGuard._pre_attempt,
+            )
+            with mock.patch.object(
+                client_module.urllib.request, "urlopen", return_value=json_response(),
+            ) as urlopen:
+                cl.request("POST", "/api/a")
+                cl.request("POST", "/api/b")
+                self.assertTrue(guard.exceeded())
+                with self.assertRaises(budget_module.BudgetExceeded):
+                    cl.request("POST", "/api/c")  # blocked BEFORE the attempt
+            self.assertEqual(urlopen.call_count, 2)
+            self.assertEqual(cl.attempted, 2)
+            summary = guard.summary()
+            self.assertEqual(summary["attemptedRequests"], 2)
+            self.assertEqual(summary["attemptsRemaining"], 0)
+            self.assertEqual(summary["maxAttempts"], 2)
+            # Ledgered successful-spend reporting is preserved.
+            self.assertEqual(summary["spent"], 2)
+            self.assertEqual(summary["remaining"], 0)
+
+    def test_exceeded_reflects_attempts_not_spend(self) -> None:
+        # Failed attempts (4xx) count toward the cap but not the ledger; the
+        # guard must trip on attempts, not successful spend.
+        with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+            cl = recording_client()
+            guard = budget_module.BudgetGuard(10, "probe", client=cl, max_attempts=2)
+            with mock.patch.object(
+                client_module.urllib.request, "urlopen", side_effect=http_error(404),
+            ) as urlopen, mock.patch.object(client_module.time, "sleep"):
+                for _ in range(2):
+                    with self.assertRaises(RuntimeError):
+                        cl.request("GET", "/api/x")
+                self.assertEqual(cl.attempted, 2)
+                self.assertEqual(guard.spent, 0)       # ledgered spend untouched
+                self.assertTrue(guard.exceeded())       # attempts hit the cap
+                self.assertEqual(guard.attempts_remaining, 0)
+                with self.assertRaises(budget_module.BudgetExceeded):
+                    cl.request("GET", "/api/y")
+            self.assertEqual(urlopen.call_count, 2)
+
+    def test_legacy_fake_client_falls_back_to_spend(self) -> None:
+        # A fake client with no `attempted` attribute keeps the old ledger-based
+        # exceeded() semantics (compatibility).
+        with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+            cl = fake_client(state={"apiQuota": {"accountType": "professional"}})
+            guard = budget_module.BudgetGuard(5, "probe", client=cl)
+            self.assertFalse(guard.exceeded())
+            cl._usage["consumed"] += 5
+            self.assertTrue(guard.exceeded())
+
+
+class LocalCheckRefusalTest(unittest.TestCase):
+    """fs_local_check is mandatory before a real upload; dry runs surface its
+    errors/warnings with zero network."""
+
+    def setUp(self) -> None:
+        self.cl = pipeline_client()
+        self.cl.request = mock.Mock(side_effect=AssertionError("must not request"))
+
+    def test_dry_run_surfaces_local_check_without_network(self) -> None:
+        dry = operations.upload_feature_studio(client=self.cl, dry_run=True)
+        self.assertIn("localCheck", dry)
+        self.assertTrue(dry["localCheck"]["ok"])
+        self.assertEqual(dry["localCheck"]["errors"], [])
+        self.cl.request.assert_not_called()
+
+    def test_live_upload_refuses_on_structural_errors(self) -> None:
+        bad = mock.Mock()
+        bad.errors = ["defineFeature closed early", "unbalanced '{'"]
+        bad.warnings = ["unreplaced {{PLACEHOLDER}}"]
+        with mock.patch.object(operations.fs_local_check, "check_file", return_value=bad):
+            with self.assertRaises(RuntimeError) as ctx:
+                operations.upload_feature_studio(client=self.cl, dry_run=False)
+            self.assertIn("structural errors", str(ctx.exception))
+            # The dry run still surfaces the same errors, zero network.
+            dry = operations.upload_feature_studio(client=self.cl, dry_run=True)
+            self.assertFalse(dry["localCheck"]["ok"])
+            self.assertEqual(dry["localCheck"]["errors"], bad.errors)
+            self.assertEqual(dry["localCheck"]["warnings"], bad.warnings)
+        self.cl.request.assert_not_called()
+
+
+class CanAffordTest(unittest.TestCase):
+    """Multi-request units must start only when BOTH the ledgered spend budget
+    and the actual attempt budget fit; legacy guards without attempt tracking
+    fall back to the ledger alone."""
+
+    @staticmethod
+    def _guard(remaining: int, attempts_remaining: int | None = None) -> mock.Mock:
+        guard = mock.Mock()
+        guard.remaining = remaining
+        if attempts_remaining is not None:
+            guard.attempts_remaining = attempts_remaining
+        return guard
+
+    def test_both_budgets_must_fit(self) -> None:
+        self.assertTrue(budget_module.can_afford(self._guard(5, 5), 3))
+        self.assertTrue(budget_module.can_afford(self._guard(3, 3), 3))  # exactly fits
+        self.assertFalse(budget_module.can_afford(self._guard(2, 5), 3))  # ledger short
+        self.assertFalse(budget_module.can_afford(self._guard(5, 2), 3))  # attempts short
+
+    def test_legacy_guard_without_attempts_falls_back_to_ledger(self) -> None:
+        self.assertTrue(budget_module.can_afford(self._guard(5), 3))
+        self.assertFalse(budget_module.can_afford(self._guard(2), 3))
+
+    def test_non_int_attempts_treated_as_unconstrained(self) -> None:
+        # A mock guard that never set attempts_remaining returns a Mock from
+        # getattr, which is not an int -> the attempt dimension is ignored.
+        guard = mock.Mock()
+        guard.remaining = 4
+        self.assertTrue(budget_module.can_afford(guard, 3))
 
 
 if __name__ == "__main__":

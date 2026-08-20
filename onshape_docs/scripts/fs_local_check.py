@@ -86,6 +86,40 @@ def strip_strings_and_comments(text: str) -> str:
     return "".join(masked)
 
 
+def strip_comments_only(text: str) -> str:
+    """Mask comments but keep string literals, for annotation scanning.
+
+    `strip_strings_and_comments` blanks string literals too, which hides the
+    `"Feature Type Name"` marker that `check_dangling_annotations` must see.
+    This variant blanks only comments (still skipping string literals so a `//`
+    inside a string is not mistaken for a comment) and preserves positions, so
+    indices line up with the fully-masked text used for bracket matching.
+    """
+    masked = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            i = j + 1
+        elif text[i : i + 2] == "//":
+            j = text.find("\n", i)
+            j = n if j == -1 else j
+            for k in range(i, j):
+                masked[k] = " "
+            i = j
+        elif text[i : i + 2] == "/*":
+            j = text.find("*/", i)
+            j = n if j == -1 else j + 2
+            for k in range(i, j):
+                masked[k] = " "
+            i = j
+        else:
+            i += 1
+    return "".join(masked)
+
+
 def check_brackets(fs: FsFile, masked: str) -> None:
     stack: list[tuple[str, int]] = []
     pairs = {")": "(", "]": "[", "}": "{"}
@@ -111,7 +145,7 @@ def check_header(fs: FsFile) -> None:
     if not re.search(r'import\(path\s*:\s*"[^"]+",\s*version\s*:\s*"[^"]+"\)\s*;', head):
         fs.error("missing or malformed 'import(path : ..., version : ...);'")
     if re.search(r"\{\{\w+\}\}", fs.text):
-        fs.warn("unreplaced {{PLACEHOLDER}} in source (runner substitutes at upload)")
+        fs.error("unreplaced {{PLACEHOLDER}} in source (runner substitutes at upload)")
 
 
 def find_matching(text: str, open_at: int) -> int | None:
@@ -150,11 +184,22 @@ def check_define_feature(fs: FsFile, masked: str) -> None:
             fs.warn("defineFeature has no precondition block (valid but unusual)")
 
 
-def check_dangling_annotations(fs: FsFile, masked: str) -> None:
-    """A 'Feature Type Name' annotation must be followed by its defineFeature."""
-    for match in re.finditer(r'annotation\s*\{\s*"Feature Type Name"\s*:', masked):
-        rest = masked[match.end() :]
-        if not re.match(r"\s*export\s+const\b", rest):
+def check_dangling_annotations(fs: FsFile, text: str, masked: str) -> None:
+    """A 'Feature Type Name' annotation must be followed by its defineFeature.
+
+    `text` is the comments-masked source (string literals preserved, so the
+    `"Feature Type Name"` marker is visible); `masked` is the fully-masked
+    source used for bracket matching, so braces inside string literals cannot
+    confuse the scan.
+    """
+    for match in re.finditer(r'annotation\s*\{\s*"Feature Type Name"\s*:', text):
+        brace = text.find("{", match.start())
+        close = find_matching(masked, brace) if brace != -1 else None
+        if close is None:
+            continue  # unbalanced braces are reported separately by check_brackets
+        # After the annotation's closing brace must come `export const ...`
+        # (the value string and any whitespace sit between the colon and here).
+        if not re.match(r"\s*export\s+const\b", masked[close + 1 :]):
             line = fs.text.count("\n", 0, match.start()) + 1
             fs.error(
                 f"dangling 'Feature Type Name' annotation at line {line}: must be "
@@ -221,9 +266,10 @@ def check_symbols(fs: FsFile, index: dict[str, set[str]] | None) -> None:
 def check_file(path: Path) -> FsFile:
     fs = FsFile(path)
     masked = strip_strings_and_comments(fs.text)
+    comments_only = strip_comments_only(fs.text)
     check_header(fs)
     check_brackets(fs, masked)
-    check_dangling_annotations(fs, masked)
+    check_dangling_annotations(fs, comments_only, masked)
     check_define_feature(fs, masked)
     check_symbols(fs, _load_index(fs))
     return fs

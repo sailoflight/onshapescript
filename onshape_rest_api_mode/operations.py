@@ -20,6 +20,10 @@ from onshape_rest_api_mode.client import (
     parameter_payload,
     save_state,
 )
+# Zero-cost static checker: a syntactically bad upload still costs quota with
+# no diagnostics, so every real upload runs this first and refuses on
+# structural errors. Dry runs surface the same errors/warnings with no network.
+from onshape_docs.scripts import fs_local_check
 
 FEATURE_TYPE = "branchCableTrophyDisplay"
 FEATURE_NAME = "Branch cable trophy display"
@@ -370,11 +374,28 @@ def _dry_run(requests: list[dict[str, Any]], note: str | None = None) -> dict[st
     }
 
 
+def _local_check_result(source: Any) -> dict[str, Any]:
+    """Run the zero-cost FeatureScript static checker on `source` and shape the
+    result for both live refusal and dry-run reporting. Never touches the
+    network; reads the local file and the vendored std index only."""
+    checked = fs_local_check.check_file(source)
+    return {
+        "path": str(source),
+        "ok": not checked.errors,
+        "errors": list(checked.errors),
+        "warnings": list(checked.warnings),
+    }
+
+
 def upload_feature_studio(
     client: OnshapeClient | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    client = client or OnshapeClient()
+    if client is None:
+        # Dry runs must work with no credentials: they build an unauthenticated
+        # local client (state/ledger + describe only). Live runs still require
+        # a credentialed client.
+        client = OnshapeClient(require_credentials=not dry_run)
     state = client.state
     source = (ROOT / state.get("featureScriptFile", "branchCableTrophyDisplay.fs")).resolve()
     if ROOT not in source.parents or source.suffix != ".fs":
@@ -383,11 +404,15 @@ def upload_feature_studio(
         f"/api/featurestudios/d/{state['documentId']}"
         f"/w/{state['workspaceId']}/e/{state['featureStudioId']}"
     )
+    # A syntactically bad upload still costs quota with no diagnostics, so run
+    # the zero-cost local checker before anything else. Structural errors are a
+    # hard stop for a real upload; dry runs surface them without network.
+    local_check = _local_check_result(source)
     # The POST body needs the current element's serialization/source microversion
     # and libraryVersion to reject microversion skew, so a live upload is
     # GET (read those) + POST + GET featurespecs (confirm compilation) = 3 calls.
     if dry_run:
-        return _dry_run(
+        result = _dry_run(
             [
                 {
                     **client.describe("GET", path),
@@ -410,9 +435,22 @@ def upload_feature_studio(
                 },
             ],
             note=(
-                "3 API calls (GET + POST + GET featurespecs). Run onshape_docs/scripts/fs_local_check.py "
-                "on the source first — a syntactically bad upload still costs quota."
+                "3 API calls (GET + POST + GET featurespecs). The zero-cost "
+                "fs_local_check runs first; a live upload refuses on its "
+                "structural errors (a syntactically bad upload still costs quota)."
             ),
+        )
+        result["localCheck"] = local_check
+        if not local_check["ok"]:
+            result["note"] += (
+                " LOCAL CHECK FAILED: the live upload would refuse to send until "
+                "these structural errors are fixed."
+            )
+        return result
+    if local_check["errors"]:
+        raise RuntimeError(
+            "refusing upload: fs_local_check found structural errors:\n  "
+            + "\n  ".join(local_check["errors"])
         )
     current = client.request("GET", path)
     updated = client.request(
@@ -455,7 +493,8 @@ def create_validation_part_studio(
     client: OnshapeClient | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    client = client or OnshapeClient()
+    if client is None:
+        client = OnshapeClient(require_credentials=not dry_run)
     state = client.state
     path = f"/api/partstudios/d/{state['documentId']}/w/{state['workspaceId']}"
     body = {"name": name}
@@ -510,7 +549,8 @@ def instantiate_feature(
     client: OnshapeClient | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    client = client or OnshapeClient()
+    if client is None:
+        client = OnshapeClient(require_credentials=not dry_run)
     state = client.state
     did, wid, eid = resolve_part_studio_id(client, part_studio_id)
     elements_path = f"/api/documents/d/{did}/w/{wid}/elements"
@@ -771,7 +811,7 @@ def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
     toward the annual limit, and each response's X-Rate-Limit-Remaining header
     is captured. Onshape has no public quota-query endpoint.
     """
-    client = client or OnshapeClient()
+    client = client or OnshapeClient(require_credentials=False)
     usage = client._usage or {}
     quota = client.state.get("apiQuota", {}) or {}
     account_type = quota.get("accountType")
@@ -874,7 +914,8 @@ def run_validation_pipeline(
     """Run the mutating upload/create/instantiate/check/render pipeline."""
     if parameter_set not in PARAMETER_PATHS:
         raise ValueError(f"Unknown parameter set: {parameter_set}")
-    client = client or OnshapeClient()
+    if client is None:
+        client = OnshapeClient(require_credentials=not dry_run)
     if dry_run:
         # Describe the full sequence without any network request. The
         # instantiate + check + render steps target the Part Studio the create

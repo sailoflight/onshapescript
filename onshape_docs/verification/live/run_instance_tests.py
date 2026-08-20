@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from onshape_rest_api_mode.client import OnshapeClient, RateLimited, RateLimitedHold, compact_feature_response  # noqa: E402
-from onshape_rest_api_mode.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, LiveApiDisabled, can_afford  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"
@@ -133,9 +133,14 @@ def main(budget: int) -> int:
     start = guard.start
     major, version = resolve_version()
 
+    # Each feature costs up to 5 ledgered calls: upload (GET+POST+featurespecs)
+    # + create Part Studio + instantiate. Never start one unless all 5 fit in
+    # BOTH the remaining ledger budget and the remaining attempt budget, so a
+    # step can't overshoot the run ceiling mid-way.
+    CALLS_PER_EXPERIMENT = 5
     results = []
     for spec in INSTANCE_TESTS:
-        if guard.exceeded():
+        if not can_afford(guard, CALLS_PER_EXPERIMENT):
             results.append({"file": spec["file"], "skipped": "budget"})
             continue
         src = (EXPERIMENTS_DIR / spec["file"]).read_text(encoding="utf-8")
@@ -145,6 +150,15 @@ def main(budget: int) -> int:
         microversion = None
         if sig.get("specs"):
             microversion = sig["specs"].get("sourceMicroversion")
+
+        # A failed signature upload means there is nothing to instantiate, so
+        # skip creating a Part Studio entirely — that POST would be a wasted
+        # mutation with no experiment to run in it.
+        if not sig["ok"] or microversion is None:
+            results.append({"file": spec["file"], "signature": sig,
+                            "note": "signature layer failed; skipped instantiation"})
+            continue
+
         # Fresh Part Studio for isolation.
         try:
             ps = client.request(
@@ -156,11 +170,6 @@ def main(budget: int) -> int:
         except RuntimeError as error:
             results.append({"file": spec["file"], "signature": sig,
                             "error": f"create PS failed: {str(error)[:200]}"})
-            continue
-
-        if not sig["ok"] or microversion is None:
-            results.append({"file": spec["file"], "signature": sig,
-                            "note": "signature layer failed; skipped instantiation"})
             continue
 
         inst = instantiate(client, did, wid, eid, microversion, ps_id,

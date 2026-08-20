@@ -42,7 +42,7 @@ from pathlib import Path
 DOCS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = DOCS_ROOT.parent
 sys.path.insert(0, str(REPO_ROOT))
-from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, can_afford, live_api_enabled  # noqa: E402
 from onshape_rest_api_mode.client import RateLimited, rate_limit_reason  # noqa: E402
 from onshape_rest_api_mode.operations import eval_featurescript  # noqa: E402
 
@@ -284,9 +284,10 @@ def import_boundary(guard: BudgetGuard, did: str, wid: str) -> dict:
         }
 
     # Hard budget: each version probe costs 3 ledgered calls (GET+POST+
-    # featurespecs); never start one unless all 3 fit in the remaining budget.
+    # featurespecs); never start one unless all 3 fit in BOTH the remaining
+    # ledger budget and the remaining attempt budget.
     def afford() -> bool:
-        return guard.remaining >= 3
+        return can_afford(guard, 3)
 
     results = {}
     if afford():
@@ -357,16 +358,13 @@ def main() -> int:
         print(f"[{ts()}] auto budget: {auto} est -> {args.budget} "
               f"(unverified {unv})", flush=True)
 
-    guard = BudgetGuard(args.budget, "symbol existence sweep")
-    did, wid = guard.client.state["documentId"], guard.client.state["workspaceId"]
-    print(f"[{ts()}] preflight OK, annual remaining "
-          f"{guard.summary()['annualRemaining']}; import boundary first",
-          flush=True)
-
     results = {"budget": {}, "importBoundary": prev.get("importBoundary", {}),
                "symbols": symbols}
     sweep = None
     try:
+        # Construct BudgetGuard exactly once: it runs the preflight gate, so a
+        # duplicate construction re-runs preflight and re-reads the ledger for
+        # no benefit (and a RateLimitedHold here must surface as a clean exit).
         guard = BudgetGuard(args.budget, "symbol existence sweep")
         did, wid = guard.client.state["documentId"], guard.client.state["workspaceId"]
         print(f"[{ts()}] preflight OK, annual remaining "

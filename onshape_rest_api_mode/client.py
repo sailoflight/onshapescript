@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 CREDENTIALS_PATH = Path(os.environ.get(
@@ -97,6 +97,17 @@ class LiveApiDisabled(RuntimeError):
     """
 
 
+class MissingCredentials(RuntimeError):
+    """Raised when request() is asked to send a live call but the client has no
+    authorization (constructed with require_credentials=False)."""
+
+
+# Signature of the optional pre-request hook installed on a client. It is
+# called BEFORE each HTTP attempt; raising inside it hard-stops the attempt
+# (nothing is sent). BudgetGuard installs one to enforce a hard attempt cap.
+PreRequestHook = Callable[["OnshapeClient", str, str], None]
+
+
 def live_api_enabled() -> bool:
     """Whether live Onshape API calls are explicitly allowed.
 
@@ -119,13 +130,42 @@ def _live_disabled_reason(label: str) -> str:
 
 
 class OnshapeClient:
-    def __init__(self) -> None:
-        credentials = load_json(CREDENTIALS_PATH)
-        self.state = load_json(STATE_PATH)
-        self.base_url = credentials.get("baseUrl", self.state.get("baseUrl", "https://cad.onshape.com")).rstrip("/")
+    def __init__(self, require_credentials: bool = True) -> None:
+        """Build a client.
+
+        With require_credentials=True (the default, and the only safe choice
+        for live use) a missing credentials file raises, exactly as before.
+        With require_credentials=False the client is constructed WITHOUT
+        credentials — authorization stays None — so it can serve local
+        state/ledger reads (api_usage) and describe()/dry-run output. Any
+        request() on such a client raises MissingCredentials instead of sending.
+        """
+        self.require_credentials = require_credentials
+        # Actual HTTP-attempt counter (urllib urlopen calls actually made) and
+        # an optional pre-request hook. Fake clients built via object.__new__
+        # may lack these; request() tolerates their absence via getattr.
+        self.attempted = 0
+        self.before_request: PreRequestHook | None = None
+        try:
+            self.state = load_json(STATE_PATH)
+        except Exception:
+            self.state = {}
+        # require_credentials=False builds an UNAUTHENTICATED local client:
+        # credentials are never read, so state/ledger reads and describe()
+        # work offline and request() fails with MissingCredentials. Only the
+        # default (require_credentials=True) loads the credentials file.
+        credentials: dict[str, Any] = {}
+        if require_credentials:
+            credentials = load_json(CREDENTIALS_PATH)
+        self.base_url = (
+            credentials.get("baseUrl")
+            or self.state.get("baseUrl")
+            or "https://cad.onshape.com"
+        ).rstrip("/")
+        self.authorization: str | None = None
         if credentials.get("accessToken"):
             self.authorization = "Bearer " + credentials["accessToken"]
-        else:
+        elif credentials.get("accessKey") and credentials.get("secretKey"):
             raw = f"{credentials['accessKey']}:{credentials['secretKey']}".encode()
             self.authorization = "Basic " + base64.b64encode(raw).decode()
         self.usage_path = USAGE_PATH
@@ -200,6 +240,15 @@ class OnshapeClient:
         # at its own entrypoint. Dry runs and offline tools never reach here.
         if not live_api_enabled():
             raise LiveApiDisabled(_live_disabled_reason(f"{method} {path}"))
+        # A client built with require_credentials=False is for local
+        # state/ledger + describe-only use. Sending anything would leak a
+        # half-built request, so fail clearly before touching the network.
+        if not self.authorization:
+            raise MissingCredentials(
+                f"OnshapeClient has no credentials to send {method} {path}; "
+                "require_credentials=False builds a local/describe-only client. "
+                "Construct with credentials (or default) to make live requests."
+            )
         url = self.base_url + path
         if query:
             url += "?" + urllib.parse.urlencode(query, doseq=True)
@@ -211,13 +260,19 @@ class OnshapeClient:
         if body is not None:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json;charset=UTF-8; qs=0.09"
-        mutating = method in ("POST", "PATCH", "DELETE")
-        # Mutations never auto-retry (a timeout != "not executed"; re-sending
-        # risks double-execution). Only idempotent GET retries on transient
-        # 5xx/network errors.
-        attempts = 1 if mutating else 4
+        # ONLY an explicit GET retries (idempotent). Every non-GET — POST,
+        # PATCH, DELETE and PUT alike — is sent exactly once: a timeout !=
+        # "not executed", so re-sending a mutation risks double-execution.
+        retryable = method == "GET"
+        attempts = 4 if retryable else 1
         last_error: Exception | None = None
         for attempt in range(attempts):
+            # Pre-request hook (BudgetGuard): called BEFORE the attempt, and a
+            # raise inside it hard-stops the run before anything is sent.
+            before_request = getattr(self, "before_request", None)
+            if before_request is not None:
+                before_request(self, method, path)
+            self.attempted = int(getattr(self, "attempted", 0)) + 1
             request = urllib.request.Request(url, data=data, method=method, headers=headers)
             try:
                 with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -247,8 +302,9 @@ class OnshapeClient:
                         f"HTTP 429 rate-limited, wait ~{retry_after}s: "
                         f"{json.dumps(details, ensure_ascii=False)}"
                     ) from error
-                if error.code < 500 or mutating:
-                    # Non-retryable (4xx), or a mutation we must never re-send.
+                if error.code < 500 or not retryable:
+                    # 4xx is never retried, and neither is any 5xx on a
+                    # non-GET (a mutation we must never re-send).
                     raise RuntimeError(
                         f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
                     ) from error
@@ -257,11 +313,11 @@ class OnshapeClient:
                     f"HTTP {error.code}: {json.dumps(details, ensure_ascii=False)}"
                 )
             except urllib.error.URLError as error:
-                if mutating:
-                    # Timeout/network error on a mutation is ambiguous (it may
+                if not retryable:
+                    # Timeout/network error on a non-GET is ambiguous (it may
                     # have executed server-side) — never re-send.
                     raise RuntimeError(
-                        f"{error} on {method} {path} (not retried: timeout != not executed)"
+                        f"{error} on {method} {path} (not retried: only idempotent GET retries)"
                     ) from error
                 last_error = error
             if attempt < attempts - 1:

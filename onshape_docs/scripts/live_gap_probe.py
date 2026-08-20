@@ -30,7 +30,7 @@ from pathlib import Path
 DOCS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = DOCS_ROOT.parent
 sys.path.insert(0, str(REPO_ROOT))
-from onshape_rest_api_mode.budget import BudgetGuard, live_api_enabled  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, can_afford, live_api_enabled  # noqa: E402
 from onshape_rest_api_mode.client import RateLimited, rate_limit_reason  # noqa: E402
 from onshape_rest_api_mode.operations import (  # noqa: E402
     eval_featurescript,
@@ -112,6 +112,8 @@ def main() -> int:
                                part_studio_id=PART_STUDIO_ID, client=client)
             log("render", {k: r[k] for k in ("view", "width", "height", "mediaType",
                                              "byteCount", "sha256")})
+        except RateLimited:
+            raise  # never swallow a rate limit; the run must exit with the wait time
         except RuntimeError as exc:
             log("render", {"error": str(exc)[:150]})
 
@@ -130,6 +132,8 @@ def main() -> int:
             count = len(body) if isinstance(body, list) else None
             keys = sorted(body.keys())[:8] if isinstance(body, dict) else None
             log(label, {"status": "ok", "topKeys": keys, "listCount": count})
+        except RateLimited:
+            raise  # never swallow a rate limit; the run must exit with the wait time
         except RuntimeError as exc:
             log(label, {"status": "error", "error": str(exc)[:120]})
 
@@ -192,11 +196,14 @@ def main() -> int:
             "microversionSkew": updated.get("microversionSkew"),
         }
 
-    if not guard.exceeded():
+    # Each import probe costs 3 ledgered calls (GET current + POST + GET
+    # featurespecs); never start one unless all 3 fit in BOTH the remaining
+    # ledger budget and the remaining attempt budget.
+    if can_afford(guard, 3):
         log("import:3029", import_probe("3029"))
-    if not guard.exceeded():
+    if can_afford(guard, 3):
         log("import:3044", import_probe("3044"))
-    if not guard.exceeded():
+    if can_afford(guard, 3):
         c3044 = results.get("import:3044", {})
         if c3044.get("compile") == "ok":
             log("import:3050", import_probe("3050"))     # expect rejection -> upper bound

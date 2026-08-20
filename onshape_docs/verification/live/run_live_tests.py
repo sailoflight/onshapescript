@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[3]  # repo root: .../docs/verification/l
 sys.path.insert(0, str(ROOT))
 
 from onshape_rest_api_mode.client import OnshapeClient, RateLimited, RateLimitedHold, load_json  # noqa: E402
-from onshape_rest_api_mode.budget import BudgetGuard, LiveApiDisabled  # noqa: E402
+from onshape_rest_api_mode.budget import BudgetGuard, LiveApiDisabled, can_afford  # noqa: E402
 
 LIVE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_DIR = LIVE_DIR / "experiments"
@@ -138,19 +138,24 @@ def main(budget: int) -> int:
     major, version = resolve_version_from_trophy()
     print(f"compiling experiments with FeatureScript {major} (import '{version}')")
 
+    # upload_and_compile makes up to 3 ledgered calls (GET current + POST +
+    # GET featurespecs). Never start an experiment unless all 3 fit in BOTH the
+    # remaining ledger budget and the remaining attempt budget, so a step can't
+    # overshoot the run ceiling mid-way.
+    CALLS_PER_EXPERIMENT = 3
     results: list[dict] = []
     skipped_budget = 0
     for spec in manifest:
         name = spec["file"]
-        if guard.exceeded():
+        if not can_afford(guard, CALLS_PER_EXPERIMENT):
             skipped_budget += 1
             results.append({"file": name, "skipped": "budget"})
             continue
         path = EXPERIMENTS_DIR / name
         source = path.read_text(encoding="utf-8")
         source = source.replace("{{MAJOR}}", major).replace("{{VERSION}}", version)
-        verdict = upload_and_compile(client, did, wid, eid, source, 0)
         before = int(client._usage.get("consumed", 0))
+        verdict = upload_and_compile(client, did, wid, eid, source, 0)
         entry = {
             "file": name,
             "claim": spec.get("claim"),

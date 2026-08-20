@@ -13,8 +13,8 @@ from onshape_rest_api_mode.operations import upload_feature_studio
 # A syntactically bad upload still costs quota with no diagnostics (featurespecs
 # comes back empty), so run the zero-cost local checker first — it intercepts
 # the exact failure classes that burned quota during live verification.
-sys.path.insert(0, str(ROOT / "scripts"))
-import fs_local_check  # noqa: E402  (scripts/ is not a package)
+sys.path.insert(0, str(ROOT / "onshape_docs" / "scripts"))
+import fs_local_check  # noqa: E402  (onshape_docs/scripts/ is not a package)
 
 source = ROOT / load_json(STATE_PATH).get("featureScriptFile", "branchCableTrophyDisplay.fs")
 result = fs_local_check.check_file(source)

@@ -130,6 +130,17 @@ class Probe:
         err = errors[0]
         victim = attribute(err, bundle)
         if victim is None or victim not in {n for n, _ in bundle}:
+            if len(bundle) == 1:
+                # A single call whose error names no symbol is still that call's
+                # failure — there is nothing else in the bundle to blame. Record
+                # it and STOP: splitting a 1-element bundle would recurse forever.
+                name, call = bundle[0]
+                self.results.setdefault(
+                    name, {"call": call, "verdict": "FAILED", "errors": [err]})
+                self.pending = [c for c in self.pending if c[0] != name]
+                self.save()
+                print(f"[fail] {name}: {err[:80]}")
+                return
             # Unattributable error (e.g. type error that does not name the call):
             # binary-split the bundle so each half is attributed on its own.
             mid = len(bundle) // 2
