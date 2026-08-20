@@ -843,6 +843,22 @@ def _browser_get_partstudio_features(arguments: dict[str, Any]) -> dict[str, Any
     }
 
 
+def _browser_get_page_tabs(arguments: dict[str, Any]) -> dict[str, Any]:
+    """List the document tabs (Feature Studio / Part Studio) on screen."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    tabs = actions.list_document_tabs(page)
+    return {
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+        **tabs,
+    }
+
+
 def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a new Onshape document through the browser UI (0 API quota)."""
     from onshape_browser_mode import actions
@@ -1846,6 +1862,28 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
     {
+        "name": "browser_get_page_tabs",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 5,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), "
+            "marking which one is active. Read-only, zero Onshape API quota. Use it to find the tab name to switch "
+            "to before deploying a FeatureScript or inserting a custom feature."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
         "name": "browser_create_document",
         "cost": {
             "backend": "browser",
@@ -1912,6 +1950,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_open_document": _browser_open_document,
     "browser_read_featurescript": _browser_read_featurescript,
     "browser_get_partstudio_features": _browser_get_partstudio_features,
+    "browser_get_page_tabs": _browser_get_page_tabs,
     "browser_create_document": _browser_create_document,
     "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,

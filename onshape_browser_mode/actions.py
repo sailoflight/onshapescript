@@ -231,6 +231,29 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     )
 
 
+def list_document_tabs(page: Any) -> dict[str, Any]:
+    """List the document tabs (e.g. Feature Studio / Part Studio) on screen.
+
+    Read-only and 0 quota. Returns each tab's name and whether it is the active
+    tab, plus the page URL. Used to find the Part Studio tab to insert into or
+    the Feature Studio tab to deploy to.
+    """
+    return page.evaluate(
+        """
+        () => {
+          const tabs = Array.from(document.querySelectorAll('.os-tab-bar-tab')).map(el => {
+            const nameEl = el.querySelector('.os-tab-name');
+            const name = (nameEl ? (nameEl.innerText || nameEl.textContent || '') : (el.innerText || el.textContent || '')).trim().replace(/\\s+/g, ' ');
+            const cls = el.className || '';
+            return { name, active: cls.includes('active') };
+          });
+          const plusButton = document.querySelector('.document-tabs-button');
+          return { tabs, hasPlusButton: !!plusButton };
+        }
+        """
+    )
+
+
 def timeout_dialog_state(page: Any) -> dict[str, Any]:
     """Report whether the Onshape session-timeout dialog is present."""
     return page.evaluate(

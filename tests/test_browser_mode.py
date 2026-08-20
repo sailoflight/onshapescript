@@ -451,7 +451,7 @@ class BrowserMetadataTest(unittest.TestCase):
             self.assertEqual(tool["cost"]["estimated_requests"], 0, name)
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 44)
+        self.assertEqual(len(server.TOOLS), 45)
 
 
 if __name__ == "__main__":
