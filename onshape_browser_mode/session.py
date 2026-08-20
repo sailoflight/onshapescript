@@ -115,7 +115,32 @@ class BrowserSession:
             ) from exc
 
         self._context.add_init_script(_STEALTH_JS)
-        self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
+
+        # Residual-tab cleanup (same fix taobao-mcp landed 2026-08-20):
+        # launch_persistent_context restores every tab left over from the last
+        # session. Those stale pages make the active page drift during popup /
+        # navigation flows and can trigger risk checks, so on every fresh
+        # launch keep exactly ONE clean working page, close the rest, and bring
+        # it to the front.
+        self._page = None
+        for page in list(self._context.pages or []):
+            if self._page is None:
+                self._page = page
+            else:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+        if self._page is None or self._page.is_closed():
+            try:
+                self._page = self._context.new_page()
+            except Exception:
+                self._page = self._context.pages[0] if self._context.pages else None
+        if self._page is not None:
+            try:
+                self._page.bring_to_front()
+            except Exception:
+                pass
         self._status = "started"
         return self._page
 
