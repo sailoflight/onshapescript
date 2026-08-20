@@ -33,6 +33,7 @@
 | `browser_scroll` | 滚动窗口或指定容器 | `direction`, `amount`, `selector` |
 | `browser_click` | 点击元素（可 dry_run） | `selector`/`text`, `index`, `dry_run` |
 | `browser_eval` | 只读 JS 求值，探查 DOM | `expression`, `arg` |
+| `browser_deploy_featurescript` | **0 配额部署 FS**（写 Ace + 点提交） | `script`, `document_name`, `dry_run` |
 
 所有工具 `network: "browser"`、`estimated_api_requests: 0`——不花 Onshape API 额度。
 
@@ -84,6 +85,23 @@
    `.tool.is-activatable.is-button`（按 innerText 定位「提交」「Module outline」等）。
 3. `aria-label`：导航按钮都有明确 aria（「在新窗口中将您导航到…」）。
 4. 避免：脆弱的 `ng-star-inserted` 等框架类；AG Grid 行号/列号。
+
+## 5.5 部署 FeatureScript（0 配额，已验证）
+
+`browser_deploy_featurescript` 全流程已实测跑通：
+
+1. `open_login_page()` 恢复登录后进入 FS 编辑器页；
+2. `actions.write_featurescript_editor()` 用 Ace API `ed.setValue()` 写入全文；
+3. 写入后「提交」按钮从 disabled → enabled（`actions.commit_button_state()` 可读状态）；
+4. `actions.click_commit()` 点击提交，3 秒后按钮回到 disabled = 提交成功；
+5. 实测：部署了带日期注释的修改（23924 字符）→ 提交成功 → 读回确认注释存在 →
+   再部署原始内容（23875 字符）恢复原状。
+
+关键 JS（`actions.py`）：
+- 读全文：`ed.getValue()`
+- 写全文：`ed.setValue(text); ed.clearSelection(); ed.moveCursorTo(0,0)`
+- 提交按钮：`.tool.is-activatable.os-primary.is-button`，文案「提交」，
+  `className.includes('disabled')` 表示无未提交改动。
 
 ## 6. 已知坑
 

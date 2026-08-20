@@ -38,18 +38,19 @@
 
 ## 4. 下一步计划
 
-1. **page objects**：在 `onshape_browser_mode/` 下建 `pages/`，封装
-   `DocumentsPage`、`FeatureStudioPage`（基于已扫描出的选择器）。
-2. **按钮语义映射**：把 `dev/button-map/scan-*.json` 转成
-   `onshape_browser_mode/selectors.py` 的稳定 selector 常量。
-3. **只读操作工具**：基于 page objects 增加 `browser_open_document`、
-   `browser_get_featurestudio`、`browser_read_featurescript` 等 0 配额的只读工具。
-4. **与 REST 模式打通**：浏览器拿到的 documentId/workspaceId/elementId 缓存进
-   `config/onshape-state.json`，供 `onshape_rest_api_mode` 复用（仍是显式缓存，不隐式查询）。
-5. **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FeatureScript 标签→
-   改代码→提交”流程，核对 `browser_click` 的选择器与真实操作一致。
-6. **自愈脚本**：把“强杀 bridge + 强杀 Edge + 重启 + 恢复登录”固化成
-   `tools/windows/restart-bridge.bat`，避免手工 PowerShell。
+- [x] **selectors.py / actions.py**：稳定选择器与 Ace 读/写/提交动作已落地。
+- [x] **第一个实质工具**：`browser_deploy_featurescript` 已实现并端到端验证
+  （写 Ace → 提交 → 按钮 disabled 确认 → 读回校验 → 恢复原内容）。
+- [ ] **page objects**：在 `onshape_browser_mode/` 下建 `pages/`，封装
+  `DocumentsPage`、`FeatureStudioPage`（基于已扫描出的选择器）。
+- [ ] **只读操作工具**：封装 `browser_open_document`、`browser_read_featurescript`
+  等 0 配额只读工具（deploy 之前的原子步骤）。
+- [ ] **与 REST 模式打通**：浏览器拿到的 documentId/workspaceId/elementId 缓存进
+  `config/onshape-state.json`，供 `onshape_rest_api_mode` 复用（仍是显式缓存，不隐式查询）。
+- [ ] **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FeatureScript 标签→
+  改代码→提交”流程，核对 `browser_click` 的选择器与真实操作一致。
+- [ ] **自愈脚本**：把“强杀 bridge + 强杀 Edge + 重启 + 恢复登录”固化成
+  `tools/windows/restart-bridge.bat`，避免手工 PowerShell。
 
 ## 5. 安全/配额红线（沿用 CLAUDE.md）
 
