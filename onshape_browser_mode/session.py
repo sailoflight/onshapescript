@@ -400,6 +400,14 @@ class BrowserSession:
         if saved_url:
             try:
                 page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)
+                # Onshape is a SPA: the requested documents URL can flash before
+                # the client router redirects an unauthenticated session to
+                # /signin. Wait for the router to settle, then judge by the
+                # FINAL url — never by the URL right after domcontentloaded.
+                try:
+                    page.wait_for_timeout(4000)
+                except Exception:
+                    pass
                 if _is_onshape_app_url(page.url):
                     self._status = "started"
                     self.human_action_required = False
