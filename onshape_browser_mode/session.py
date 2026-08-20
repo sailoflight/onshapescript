@@ -7,6 +7,7 @@ server and every offline tool must run without it installed.
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,28 @@ class BrowserSession:
         if raw.is_absolute():
             return raw.resolve()
         return (ROOT / raw).resolve()
+
+    @staticmethod
+    def _state_path() -> Path:
+        return ROOT / "config" / "browser-state.json"
+
+    def _load_saved_app_url(self) -> str | None:
+        try:
+            data = json.loads(self._state_path().read_text(encoding="utf-8"))
+            url = data.get("lastAppUrl")
+            return url if isinstance(url, str) and url else None
+        except Exception:
+            return None
+
+    def _save_app_url(self, url: str) -> None:
+        try:
+            path = self._state_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"lastAppUrl": url}, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
 
     def start(self):
         """Launch (or reuse) the persistent browser context and return its page.
@@ -309,6 +332,8 @@ class BrowserSession:
         if login_confirmed:
             self.login_confirmed = True
             self.human_action_required = False
+            if page_url:
+                self._save_app_url(page_url)
         return {
             "playwrightInstalled": self.playwright_available(),
             "configured": True,
@@ -338,6 +363,7 @@ class BrowserSession:
             self._status = "started"
             self.human_action_required = False
             self.login_confirmed = True
+            self._save_app_url(current_url)
             return {
                 "sessionStatus": self._status,
                 "message": (
@@ -345,6 +371,29 @@ class BrowserSession:
                     "page was kept). No sign-in navigation was needed."
                 ),
             }
+
+        # The profile may hold valid cookies but launch_persistent_context does
+        # not reliably auto-restore the previous tabs. Try the last known
+        # logged-in Onshape URL first: cookies + entry URL restore the session
+        # without a human re-login.
+        saved_url = self._load_saved_app_url()
+        if saved_url:
+            try:
+                page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)
+                if _is_onshape_app_url(page.url):
+                    self._status = "started"
+                    self.human_action_required = False
+                    self.login_confirmed = True
+                    self._save_app_url(page.url)
+                    return {
+                        "sessionStatus": self._status,
+                        "message": (
+                            "Logged in via saved Onshape entry URL "
+                            f"({page.url})."
+                        ),
+                    }
+            except Exception:
+                pass
 
         page.goto(_SIGNIN_URL, wait_until="domcontentloaded", timeout=60_000)
         self._status = "awaiting_login"

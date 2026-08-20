@@ -2,6 +2,7 @@
 onshape-credentials.json
 config/api-usage.json
 config/browser.local.toml
+config/browser-state.json
 user_data/
 __pycache__/
 *.pyc
