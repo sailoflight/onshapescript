@@ -52,6 +52,11 @@
 - [x] **自愈脚本**：`tools/windows/restart-bridge.bat` / `.ps1` 已落地——
   强杀自动化 Edge + 旧 bridge 后重启，强杀保留登录态。注：从 WSL interop
   调 Start-Process 不可靠（子进程随 interop 结束退出），请在 Windows 侧双击运行。
+- [x] **上传+编译+建模闭环（0 配额）**：
+  - 上传+编译：`browser_deploy_featurescript`（写 Ace → 提交 = 编译保存，读回 `verified`）。
+  - 编译+建模验证：`browser_get_partstudio_features`（特征树出现 `Bc Branch cable trophy display`
+    且零件数 132 → FS 编译成功且已实例化建模）。
+  - 实测两个 Part Studio（`Cable trophy model v1` / `Cable trophy model validation`）均已实例化。
 
 ## 5. 安全/配额红线（沿用 CLAUDE.md）
 
