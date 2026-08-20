@@ -108,6 +108,26 @@ class BrowserSession:
         except Exception:
             pass
 
+    def _enforce_single_working_page(self, keep_page: Any) -> None:
+        """Close every page in the context except ``keep_page``.
+
+        Deterministic tab management (the "single working page" rule, same as
+        taobao-mcp): the automation never relies on Chromium's session-restore
+        or the human's tab layout. Popups, restored tabs, and tabs the human
+        opened while logging in are all closed so the active page cannot drift
+        into a stale tab.
+        """
+        if self._context is None:
+            return
+        for page in list(self._context.pages or []):
+            if page is keep_page:
+                continue
+            try:
+                if not page.is_closed():
+                    page.close()
+            except Exception:
+                pass
+
     def start(self):
         """Launch (or reuse) the persistent browser context and return its page.
 
@@ -131,6 +151,7 @@ class BrowserSession:
                         self.login_confirmed = True
                         self.human_action_required = False
                         page.bring_to_front()
+                        self._enforce_single_working_page(page)
                         return page
                 except Exception:
                     continue
@@ -147,6 +168,7 @@ class BrowserSession:
                         page.evaluate("1 + 1")
                         self._page = page
                         page.bring_to_front()
+                        self._enforce_single_working_page(page)
                         return page
                 except Exception:
                     continue
@@ -155,6 +177,7 @@ class BrowserSession:
             try:
                 self._page = self._context.new_page()
                 self._page.bring_to_front()
+                self._enforce_single_working_page(self._page)
                 self._status = "started"
                 return self._page
             except Exception:
@@ -245,19 +268,15 @@ class BrowserSession:
                 except Exception:
                     continue
 
-        # 3. Close every other restored tab.
-        for page in restored:
-            if page is not self._page:
-                try:
-                    page.close()
-                except Exception:
-                    pass
-
         if self._page is None or self._page.is_closed():
             try:
                 self._page = self._context.new_page()
             except Exception:
                 self._page = self._context.pages[0] if self._context.pages else None
+
+        # 3. Deterministic single-page rule: close every other tab.
+        if self._page is not None:
+            self._enforce_single_working_page(self._page)
         if self._page is not None:
             try:
                 self._page.bring_to_front()
@@ -354,6 +373,7 @@ class BrowserSession:
         would discard the working session.
         """
         page = self.start()
+        self._enforce_single_working_page(page)
         try:
             current_url = page.url
         except Exception:
