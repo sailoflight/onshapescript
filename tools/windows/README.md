@@ -52,7 +52,25 @@ cd C:\MCP\onshapescript
 
 或直接双击 `tools\windows\start-bridge.bat`。
 
-建议用任务计划程序在登录时启动，保持常驻。
+## 重启后如何自动恢复（与 taobao-mcp 同款方案）
+
+taobao-mcp 并没有自定义的“一键恢复脚本”，它靠两层机制在重启后自愈：
+
+1. **Windows 任务计划程序（登录时启动 + 失败自动重启）**：桥接服务常驻，
+   开机登录后自动拉起，进程崩溃后每分钟重启一次。
+2. **Linux 侧 MCP 客户端自动重连**：客户端插件自带指数退避重连，桥接服务
+   恢复后自动重新发现工具，无需手工干预。
+
+本仓库提供等价的一键配置脚本 `tools\windows\setup-autostart.bat`（双击即可）：
+
+```powershell
+# 或手动执行等价命令
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\register-bridge-task.ps1
+```
+
+- 注册的计划任务名：`OnshapeMCPBridge`（登录时启动，失败后每 1 分钟重启，最多 999 次）。
+- `setup-autostart.bat` 会同时**立即启动**桥接服务，因此也是“重启后/服务掉了”的一键恢复入口。
+- 移除自动启动：`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\register-bridge-task.ps1 -Uninstall`
 
 ## Linux/WSL 侧配置
 
