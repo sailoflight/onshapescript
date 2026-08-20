@@ -39,3 +39,17 @@ FS_DOC_POPUP = ".os-feature-script-doc-popup-layer"
 TIMEOUT_DIALOG = ".osx-message"  # "您的 Onshape 会话已超时。您的文档已保存。"
 TIMEOUT_RECONNECT_LINK = ".alert-link.osx-message-bubble-link"  # "单击此处重新连接。"
 TIMEOUT_CLOSE_BUTTON = ".osx-close"  # "× Close"
+
+# Part Studio (feature tree / toolbar)
+PS_FEATURE_LIST_ITEM = ".os-list-item"
+PS_USER_FEATURE = ".os-list-item.ns-user-feature"  # custom FeatureScript feature
+PS_DEFAULT_FEATURE = ".os-list-item.ns-default-feature"  # Origin/Top/Front/Right
+PS_FEATURES_HEADER = ".features-title"  # "特征 (5)"
+PS_PART_LIST = ".part-list-container"  # "零件数 (132) base ..."
+PS_TOOLBAR_ITEM = ".toolbar-item"
+PS_TOOL_BUTTON = ".tool.is-activatable.is-button"
+
+# Add-custom-feature dialog
+INSERT_FEATURE_DIALOG = ".feature-studio-insert-dialog"
+INSERT_FEATURE_TAB = ".os-dialog-tab"  # 当前文档 / 其他文档
+INSERT_FEATURE_DOC_NAME = ".select-item-dialog-document-name"

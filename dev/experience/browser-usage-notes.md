@@ -91,6 +91,23 @@
   `browser_read_featurescript` / `browser_deploy_featurescript` 在执行前自动重连。
 - 实测：点击后弹窗消失，页面回到原文档 URL。
 
+### 4.4 Part Studio 页与「添加自定义特征」对话框
+
+- Part Studio 标签 URL 的 elementId 与 FS 标签不同（`0c7862642d02c53c3dd7cd79`）。
+- 特征树：`.features-title`（「特征 (5)」）、`.os-list-item`；
+  自定义特征 `.os-list-item.ns-user-feature`（如 `Bc Branch cable trophy display`），
+  默认几何图元 `.os-list-item.ns-default-feature`。
+- 零件列表：`.part-list-container`（`零件数 (132) base ...`）——自定义特征出现且
+  零件数>0 即 0 配额的「编译+建模」验证。
+- 工具栏：`.toolbar-item`，按钮 `.tool.is-activatable.is-button`；文字标签
+  `.tool-label.hide-in-toolbar` 是**隐藏的**，`browser_click(text=...)` 点不到，
+  要按 `.toolbar-item` 的 textContent 找到后点内部按钮。
+- 「添加自定义特征」对话框 `.feature-studio-insert-dialog`：
+  - 标签 `.os-dialog-tab`：`当前文档` / `其他文档`；
+  - 文档名 `.select-item-dialog-document-name`；
+  - 若提示「没有可用的特征。… 创建一个版本」，说明 Feature Studio 未发布版本，
+    需先在文档里创建版本后自定义特征才可插入。
+
 ## 5. 选择器优先级（写自动化时）
 
 1. 唯一 `id`：`#search-box`、`#user-notification-status`、`#create-new-type`。
