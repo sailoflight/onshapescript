@@ -429,20 +429,41 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_eval(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Run a READ-ONLY JavaScript expression in the current page.
+    """Run an arbitrary JavaScript expression in the current page.
 
-    Exploration aid: returns the JSON-serializable result. Callers must only
-    read the DOM / page state; it is not a general mutation channel.
+    ``page.evaluate`` cannot be guaranteed read-only, so execution requires
+    ``confirm_mutation=true``. ``dry_run=true`` (no confirmation needed) returns
+    expression metadata without evaluating anything in the page.
     """
+    expression = arguments.get("expression", "")
+    if not expression:
+        raise ValueError("Provide a JavaScript `expression`")
+
+    if bool(arguments.get("dry_run", False)):
+        return {
+            "dryRun": True,
+            "evaluated": False,
+            "expressionLength": len(expression),
+            "expressionHead": expression.strip()[:120],
+            "argProvided": arguments.get("arg") is not None,
+            "note": (
+                "dry_run: the expression was NOT evaluated in the page. "
+                "Set confirm_mutation=true (and omit dry_run) to actually run it."
+            ),
+        }
+
+    # Execution is a possible remote UI mutation: require explicit confirmation.
+    _confirm(arguments)
+
+    from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
 
     session = get_session()
     page = session.start()
     session._enforce_single_working_page(page)
 
-    expression = arguments.get("expression", "")
-    if not expression:
-        raise ValueError("Provide a JavaScript `expression`")
+    get_guard().pace()
+
     arg = arguments.get("arg")
     try:
         result = page.evaluate(expression, arg) if arg is not None else page.evaluate(expression)
@@ -453,6 +474,7 @@ def _browser_eval(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
     """Scroll the current page (read-only; no Onshape API quota)."""
+    from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
 
     session = get_session()
@@ -465,6 +487,10 @@ def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(amount, (int, float)) or amount <= 0:
         amount = 800
     signed = -abs(amount) if direction == "up" else abs(amount)
+
+    # A scroll is a real browser action: shape it through the same pacing gate
+    # as clicks and eval (per-minute cap + randomized delay).
+    get_guard().pace()
 
     result = page.evaluate(
         """
@@ -506,15 +532,14 @@ def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
 def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     """Click a visible element by stable selector or text.
 
-    Read-only with respect to the Onshape cloud: it only drives the browser UI.
-    ``dry_run=True`` reports what would be clicked without clicking. Always
-    scrolls the target into view first.
+    A click may navigate or trigger a remote mutation in the Onshape document,
+    so an actual click requires ``confirm_mutation=true``. ``dry_run=true`` may
+    inspect the target without confirmation and reports what would be clicked
+    without any click/scroll side effect. Always scrolls the target into view
+    first on a real click.
     """
+    from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
-
-    session = get_session()
-    page = session.start()
-    session._enforce_single_working_page(page)
 
     selector = arguments.get("selector", "")
     text = arguments.get("text", "")
@@ -525,6 +550,15 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
 
     if not selector and not text:
         raise ValueError("Provide 'selector' or 'text' to click")
+
+    # Dry-run inspection is allowed without confirmation; an actual click is a
+    # possible remote UI mutation and must be explicitly acknowledged first.
+    if not dry_run:
+        _confirm(arguments)
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
 
     if text:
         locator = page.get_by_text(text, exact=False)
@@ -583,6 +617,10 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
             "pageUrl": page.url,
         }
 
+    # Pacing gate: enforce the per-minute cap and sleep a randomized delay
+    # before the real click (no side effect on the dry-run path above).
+    get_guard().pace()
+
     try:
         target.scroll_into_view_if_needed()
         page.wait_for_timeout(300)
@@ -612,28 +650,59 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
 def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     """Deploy a FeatureScript script through the browser UI (0 Onshape API quota).
 
-    This is the first substantive browser tool: it writes the Ace editor content
-    and clicks the FeatureScript Commit button in the visible browser, so no
-    REST API call is spent. `dry_run=true` writes the editor but does NOT click
-    Commit (and asks the caller to review).
+    ``dry_run=true`` is a pure local preview: it measures ONLY the submitted
+    ``script`` argument and performs no browser-module import, session start,
+    navigation, editor read/write, pacing, or click — so a dry run can never
+    launch a browser or touch the page. ``dry_run=false`` (requires
+    ``confirm_mutation=true``) opens the target document if needed, writes the
+    Ace editor content, and clicks the FeatureScript Commit button — no REST API
+    call is spent, and every real navigation/write/commit is shaped through the
+    browser action guard's pacing gate.
     """
-    from onshape_browser_mode import actions
-    from onshape_browser_mode.session import get_session
-
     script = arguments.get("script", "")
     if not isinstance(script, str) or not script.strip():
         raise ValueError("Provide a non-empty `script` string")
     document_name = arguments.get(
         "document_name", "Branch Cable Trophy Display - FeatureScript"
     )
+    source_length = len(script)
+    line_count = script.count("\n") + 1
     dry_run = bool(arguments.get("dry_run", False))
+
+    # Pure local preview, returned before any browser import/session/action.
+    if dry_run:
+        return {
+            "dryRun": True,
+            "deployed": False,
+            "documentName": document_name,
+            "sourceLength": source_length,
+            "lineCount": line_count,
+            "note": (
+                "dry_run: pure local preview — no browser session, navigation, "
+                "editor read/write, pacing, or Commit click was performed. Set "
+                "confirm_mutation=true with dry_run=false to deploy."
+            ),
+        }
+
+    # Committing through the UI mutates the cloud document; require explicit
+    # confirmation before any browser side effect — including the lazy browser
+    # imports below, which a refused call must not even load.
+    _confirm(arguments)
+
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
 
     session = get_session()
     page = session.start()
     session._enforce_single_working_page(page)
+    guard = get_guard()
+
+    before = actions.read_featurescript_editor(page)
 
     # If the FeatureScript editor is not on screen, open the target document.
-    if actions.read_featurescript_editor(page) is None:
+    if before is None:
+        guard.pace()  # navigation is a real browser action
         try:
             page.goto(
                 session._load_saved_app_url() or "https://cad.onshape.com/documents",
@@ -644,42 +713,33 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         except Exception:
             pass
         if actions.read_featurescript_editor(page) is None and document_name:
+            guard.pace()  # documents-list click is a real navigation action
             try:
                 page.get_by_text(document_name, exact=False).first.click()
                 page.wait_for_timeout(5000)
             except Exception:
                 pass
+        before = actions.read_featurescript_editor(page)
 
-    before = actions.read_featurescript_editor(page)
     if before is None:
         return {
             "deployed": False,
-            "dryRun": dry_run,
+            "dryRun": False,
             "reason": "FeatureScript editor not found on the current page",
             "pageUrl": page.url,
         }
 
+    guard.pace()  # the editor write is the actual remote mutation
     written = actions.write_featurescript_editor(page, script)
     if not written.get("ok"):
         return {
             "deployed": False,
-            "dryRun": dry_run,
+            "dryRun": False,
             "reason": written.get("error", "could not write editor"),
             "pageUrl": page.url,
         }
 
-    if dry_run:
-        return {
-            "deployed": False,
-            "dryRun": True,
-            "message": "Editor written; Commit NOT clicked (dry_run).",
-            "pageUrl": page.url,
-            "beforeLength": len(before),
-            "afterLength": written.get("length"),
-            "lineCount": written.get("lineCount"),
-            "commitButton": actions.commit_button_state(page),
-        }
-
+    guard.pace()  # the Commit click finalizes the remote mutation
     commit = actions.click_commit(page)
     return {
         "deployed": bool(commit.get("clicked")),
@@ -1471,15 +1531,18 @@ TOOLS: list[dict[str, Any]] = [
             "max_api_requests": 0,
             "estimated_seconds": 10,
             "requires_browser_session": True,
-            "mutating": False,
+            "mutating": True,
+            "remote_ui_mutation": "possible",
             "cacheable": False,
         },
         "description": (
             "Click a visible element in the Onshape browser by CSS selector or by visible text (optionally "
-            "`index` to pick among matches). Scrolls the target into view first. With `dry_run=true` it only "
-            "reports what WOULD be clicked. This drives the browser UI only — it does not call the Onshape "
-            "API and does not spend quota — but be careful to only click navigation links during read-only "
-            "exploration, not Create/Delete/mutation controls."
+            "`index` to pick among matches). Scrolls the target into view first. A click may navigate or "
+            "trigger a remote mutation in the Onshape document, so an actual click requires "
+            "confirm_mutation=true. With `dry_run=true` (no confirmation needed) it only inspects and "
+            "reports what WOULD be clicked without any click/scroll side effect. Drives the browser UI "
+            "only — it never calls the Onshape REST API (0 developer API requests) — but the clicked "
+            "control may itself change the cloud document."
         ),
         "inputSchema": object_schema({
             "selector": {
@@ -1497,13 +1560,14 @@ TOOLS: list[dict[str, Any]] = [
                 "default": 0,
                 "description": "Which matching element to click (0-based).",
             },
+            "confirm_mutation": mutating_confirmation(),
             "dry_run": {
                 "type": "boolean",
                 "default": False,
-                "description": "Report the target without actually clicking.",
+                "description": "Report the target without actually clicking; needs no confirm_mutation.",
             },
         }),
-        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "browser_eval",
@@ -1516,14 +1580,17 @@ TOOLS: list[dict[str, Any]] = [
             "max_api_requests": 0,
             "estimated_seconds": 5,
             "requires_browser_session": True,
-            "mutating": False,
+            "mutating": True,
+            "remote_ui_mutation": "possible",
             "cacheable": False,
         },
         "description": (
-            "Run a READ-ONLY JavaScript expression in the current Onshape page and return its "
-            "JSON-serializable result. Exploration-only: use it to inspect the DOM structure, find "
-            "scrollable containers, list rows, or read page state. Do not use it to mutate the page. "
-            "Zero Onshape API quota."
+            "Evaluate an arbitrary JavaScript expression in the current Onshape page and return its "
+            "JSON-serializable result. page.evaluate cannot be guaranteed read-only, so actual execution "
+            "requires confirm_mutation=true; with `dry_run=true` (no confirmation needed) it only returns "
+            "expression metadata (length / preview / argument presence) WITHOUT evaluating anything in the "
+            "page. Zero Onshape REST API requests — the expression runs in the page context and may mutate "
+            "the document the same way any UI action could."
         ),
         "inputSchema": object_schema({
             "expression": {
@@ -1533,8 +1600,14 @@ TOOLS: list[dict[str, Any]] = [
             "arg": {
                 "description": "Optional JSON value passed to the expression as its argument.",
             },
+            "confirm_mutation": mutating_confirmation(),
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Return expression metadata without evaluating anything in the page.",
+            },
         }, ["expression"]),
-        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
     {
         "name": "browser_deploy_featurescript",
@@ -1552,9 +1625,12 @@ TOOLS: list[dict[str, Any]] = [
         },
         "description": (
             "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. "
-            "It opens the target document if needed, writes the Ace editor content, and clicks the "
-            "FeatureScript Commit button in the visible browser. This mutates the cloud document, so "
-            "use `dry_run=true` first: dry_run writes the editor but does NOT click Commit. "
+            "An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document "
+            "if needed, writes the Ace editor content, and clicks the FeatureScript Commit button, pacing "
+            "each real navigation/write/commit through the browser action guard. "
+            "With `dry_run=true` (no confirmation needed) it is a pure local preview: it starts no browser "
+            "session and performs no navigation, editor read/write, or click — it only reports the "
+            "submitted source length/line count. "
             "The FeatureScript source is the browser-visible code; no credentials or API calls are involved."
         ),
         "inputSchema": object_schema({
@@ -1567,10 +1643,15 @@ TOOLS: list[dict[str, Any]] = [
                 "default": "Branch Cable Trophy Display - FeatureScript",
                 "description": "Documents-list name of the document to open when the editor is not already on screen.",
             },
+            "confirm_mutation": mutating_confirmation(),
             "dry_run": {
                 "type": "boolean",
                 "default": True,
-                "description": "Write the editor but do not click Commit.",
+                "description": (
+                    "Pure local preview: report the submitted source length/line count without starting a "
+                    "browser session, navigating, reading/writing the editor, or clicking. Needs no "
+                    "confirm_mutation."
+                ),
             },
         }, ["script"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},

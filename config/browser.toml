@@ -15,23 +15,9 @@ headless = false              # ALWAYS false; human watches and completes login/
 proxy_server = ""                     # optional HTTP proxy, e.g. "http://127.0.0.1:10808"; empty = none
 
 [pacing]
-min_delay_s = 0.8                     # human-like delay range before/after navigation and clicks
+min_delay_s = 0.8                     # randomized delay slept before each real action (click/scroll/eval)
 max_delay_s = 2.0
-scroll_steps = 3                      # scroll increments for lazy-loaded UI
-max_actions_per_minute = 8            # hard cap on browser actions per minute
-
-[click]
-enabled = true                        # human-like mouse path + micro-jitter; false = plain locator.click()
-path_steps_min = 2
-path_steps_max = 5
-move_pause_min = 0.01
-move_pause_max = 0.04
-hover_pause_min = 0.03
-hover_pause_max = 0.08
-hold_min = 0.03
-hold_max = 0.08
-jitter_px = 2.0
-off_center = 0.12
+max_actions_per_minute = 8            # hard per-process cap on real browser actions per minute
 
 [listener]
 enabled = true                        # browser_watch / dev probes may record sessions

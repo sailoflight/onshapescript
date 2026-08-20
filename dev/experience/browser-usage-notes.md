@@ -23,7 +23,7 @@
 - 强杀 vs 优雅关闭的差异是真实存在的：强杀不给页面执行登出逻辑的机会，会话文件保留
   documents URL；优雅关闭会把页面写回 signin。
 
-## 3. 只读探索工具（browser_*）
+## 3. 浏览器工具（browser_*）
 
 | 工具 | 用途 | 关键参数 |
 |---|---|---|
@@ -31,11 +31,13 @@
 | `browser_watch` | 录制人工操作（URL/网络/对话框） | `action=start|stop|report` |
 | `browser_inspect` | 可见可交互元素清单 | `max_elements` |
 | `browser_scroll` | 滚动窗口或指定容器 | `direction`, `amount`, `selector` |
-| `browser_click` | 点击元素（可 dry_run） | `selector`/`text`, `index`, `dry_run` |
-| `browser_eval` | 只读 JS 求值，探查 DOM | `expression`, `arg` |
+| `browser_click` | 点击元素（实际点击需 `confirm_mutation=true`；`dry_run` 只检查目标不点击） | `selector`/`text`, `index`, `dry_run`, `confirm_mutation` |
+| `browser_eval` | 页面内 JS 求值（执行需 `confirm_mutation=true`；`dry_run` 只返回表达式元数据不执行） | `expression`, `arg`, `dry_run`, `confirm_mutation` |
 | `browser_deploy_featurescript` | **0 配额部署 FS**（写 Ace + 点提交） | `script`, `document_name`, `dry_run` |
 
 所有工具 `network: "browser"`、`estimated_api_requests: 0`——不花 Onshape API 额度。
+`browser_click` / `browser_eval` 现在标注为 `mutating`（可能触发云端 UI 变更）：真正执行
+必须 `confirm_mutation=true`；`dry_run=true` 不产生点击/求值副作用，无需确认。
 
 ## 4. Onshape 页面结构实测
 
@@ -66,7 +68,7 @@
 - FeatureScript 编辑器是 **Ace editor**：
   - 输入区 `textarea.ace_text-input`（aria「Cursor at row …」）
   - 折叠控件 `.ace_fold-widget`
-  - **读全文方法**（0 配额、只读）：`browser_eval` 跑
+  - **读全文方法**（0 配额；执行需 `confirm_mutation=true`）：`browser_eval` 跑
     `const el=document.querySelector('.ace_editor'); const ed=(el.env&&el.env.editor)||window.ace.edit(el); ed.getValue()`
     实测读到「Branch cable trophy display」全文 571 行 / 23875 字符，已存
     `dev/fixtures-capture/branch-cable-trophy-display.fs`。注意 DOM 渲染只含可见行，

@@ -17,11 +17,6 @@ from onshape_browser_mode.errors import BrowserLaunchError, PlaywrightNotInstall
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Keep the automation-controlled flag deterministic across pages. Onshape does
-# not appear to hard-block automation, but this removes one fingerprint that is
-# under our control. No credential or captcha logic lives here.
-_STEALTH_JS = "Object.defineProperty(navigator, 'webdriver', {get: () => false});"
-
 _SIGNIN_URL = "https://cad.onshape.com/signin"
 
 
@@ -204,7 +199,6 @@ class BrowserSession:
             "locale": browser_cfg.locale,
             "timezone_id": browser_cfg.timezone,
             "viewport": {"width": 1280, "height": 800},
-            "args": ["--disable-blink-features=AutomationControlled"],
         }
         if browser_cfg.executable_path:
             launch_kwargs["executable_path"] = browser_cfg.executable_path
@@ -233,8 +227,6 @@ class BrowserSession:
                 "set channel/executable_path in config/browser.local.toml. See "
                 "tools/windows/README.md."
             ) from last_exc
-
-        self._context.add_init_script(_STEALTH_JS)
 
         # Residual-tab cleanup (same fix taobao-mcp landed 2026-08-20):
         # launch_persistent_context restores every tab left over from the last

@@ -31,23 +31,7 @@ class BrowserCfg:
 class PacingCfg:
     min_delay_s: float = 0.8
     max_delay_s: float = 2.0
-    scroll_steps: int = 3
     max_actions_per_minute: int = 8
-
-
-@dataclass(frozen=True)
-class ClickCfg:
-    enabled: bool = True
-    path_steps_min: int = 2
-    path_steps_max: int = 5
-    move_pause_min: float = 0.01
-    move_pause_max: float = 0.04
-    hover_pause_min: float = 0.03
-    hover_pause_max: float = 0.08
-    hold_min: float = 0.03
-    hold_max: float = 0.08
-    jitter_px: float = 2.0
-    off_center: float = 0.12
 
 
 @dataclass(frozen=True)
@@ -64,7 +48,6 @@ class ListenerCfg:
 class BrowserConfig:
     browser: BrowserCfg
     pacing: PacingCfg
-    click: ClickCfg
     listener: ListenerCfg
 
 
@@ -101,6 +84,5 @@ def load_browser_config(path: str | Path | None = None) -> BrowserConfig:
     return BrowserConfig(
         browser=BrowserCfg(**_filter(BrowserCfg, _section_data(data, "browser"))),
         pacing=PacingCfg(**_filter(PacingCfg, _section_data(data, "pacing"))),
-        click=ClickCfg(**_filter(ClickCfg, _section_data(data, "click"))),
         listener=ListenerCfg(**_filter(ListenerCfg, _section_data(data, "listener"))),
     )
