@@ -53,3 +53,9 @@ PS_TOOL_BUTTON = ".tool.is-activatable.is-button"
 INSERT_FEATURE_DIALOG = ".feature-studio-insert-dialog"
 INSERT_FEATURE_TAB = ".os-dialog-tab"  # 当前文档 / 其他文档
 INSERT_FEATURE_DOC_NAME = ".select-item-dialog-document-name"
+
+# Apply custom feature in this workspace (the REAL apply path)
+PS_WORKSPACE_CUSTOM_FEATURE_BTN = '.tool[title="此工作区中的自定义特征"]'
+PS_WORKSPACE_CUSTOM_FEATURE_ITEM = ".os-tool-dropdown-content"
+PS_FEATURE_DIALOG = ".feature-dialog"
+PS_FEATURE_DIALOG_ACCEPT = ".ns-dialog-button-ok.button-ok"  # checkmark

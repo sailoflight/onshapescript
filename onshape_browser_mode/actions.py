@@ -316,70 +316,57 @@ def insert_custom_feature(
     feature_name: str,
     part_studio_tab: str | None = None,
 ) -> dict[str, Any]:
-    """Insert a custom FeatureScript feature into a Part Studio (0 API quota).
+    """Apply a custom FeatureScript feature into a Part Studio (0 API quota).
 
-    Opens the add-custom-feature dialog, switches to the 当前文档 tab, selects
-    the feature by name, and clicks 插入. Returns the resulting feature-tree
-    state when successful, or a clear blocker (e.g. the Feature Studio needs a
-    version created first) when insertion is not possible.
+    The Part Studio must MANUALLY apply the feature: clicking the toolbar button
+    whose tooltip is 此工作区中的自定义特征 opens a dropdown of the workspace's
+    custom features; clicking the feature applies it and opens its parameter
+    dialog; clicking the checkmark (button-ok) accepts and computes the model.
+    The 添加自定义特征 picker alone only inserts a not-computed row.
     """
-    from onshape_browser_mode.selectors import INSERT_FEATURE_DIALOG, INSERT_FEATURE_TAB
-
     if part_studio_tab:
         page.locator(f".os-tab-bar-tab:has-text('{part_studio_tab}')").first.click()
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(6000)
 
-    opened = open_insert_custom_feature_dialog(page)
-    if not opened.get("clicked"):
-        return {**opened, "inserted": False}
-
-    info = read_insert_dialog(page)
-    if not info.get("present"):
-        return {**opened, "inserted": False, "reason": "insert dialog did not appear"}
-
-    # Switch to the 当前文档 tab if it is not already active.
-    page.evaluate(
+    # 1. Click the toolbar button titled 此工作区中的自定义特征.
+    clicked = page.evaluate(
         """
         () => {
-          const tabs = Array.from(document.querySelectorAll('.os-dialog-tab'));
-          const tab = tabs.find(el => (el.textContent || '').trim() === '当前文档');
-          if (tab) tab.click();
-          return !!tab;
+          const btn = Array.from(document.querySelectorAll('.tool')).find(
+            el => (el.getAttribute('title') || el.getAttribute('data-bs-original-title') || '') === '此工作区中的自定义特征'
+          );
+          if (!btn) return {clicked: false, reason: 'workspace-custom-features button not found'};
+          btn.click();
+          return {clicked: true};
         }
         """
     )
-    page.wait_for_timeout(2500)
+    if not clicked.get("clicked"):
+        return {**clicked, "inserted": False}
+    page.wait_for_timeout(3000)
 
-    info = read_insert_dialog(page)
-    if info.get("promptSaveVersion") or "没有可用的特征" in (info.get("warning") or ""):
-        return {
-            "inserted": False,
-            "reason": "Feature Studio needs a version before the feature is insertable",
-            "dialog": info,
-        }
-
-    # Onshape's picker inserts on DOUBLE-click of the feature row
-    # (os-single-double-click directive: single click selects, double click
-    # selects-and-closes = insert). The footer "插入" button is zero-sized in
-    # this dialog, so double-click is the reliable path.
+    # 2. Click the feature entry in the dropdown.
     try:
-        row = page.locator(".select-item-dialog-item-row.child-item-container").filter(
-            has_text=feature_name
-        ).first
-        count = row.count()
-    except Exception:
-        count = 0
-    if count == 0:
-        return {"inserted": False, "reason": f"feature {feature_name!r} not found in insert dialog", "dialog": info}
-
-    try:
-        row.dblclick()
-        page.wait_for_timeout(8000)
+        page.locator(".os-tool-dropdown-content").filter(has_text=feature_name).first.click()
+        page.wait_for_timeout(10000)
     except Exception as exc:  # noqa: BLE001 - surface as structured result
-        return {"inserted": False, "reason": f"double-click failed: {exc}", "dialog": info}
+        return {"inserted": False, "reason": f"feature dropdown click failed: {exc}"}
+
+    # 3. Accept the parameter dialog (checkmark) to finalize and compute.
+    accepted = page.evaluate(
+        """
+        () => {
+          const ok = document.querySelector('.ns-dialog-button-ok.button-ok');
+          if (!ok) return {clicked: false, reason: 'accept button not found'};
+          ok.click();
+          return {clicked: true};
+        }
+        """
+    )
+    page.wait_for_timeout(15000)
 
     features = read_partstudio_features(page)
-    return {"inserted": True, "features": features, "pageUrl": page.url}
+    return {"inserted": True, "accepted": accepted, "features": features, "pageUrl": page.url}
 
 
 def create_document_version(page: Any, name: str = "") -> dict[str, Any]:
