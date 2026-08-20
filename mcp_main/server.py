@@ -428,6 +428,164 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Scroll the current page (read-only; no Onshape API quota)."""
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+
+    direction = arguments.get("direction", "down")
+    amount = arguments.get("amount", 800)
+    selector = arguments.get("selector", "")
+    if not isinstance(amount, (int, float)) or amount <= 0:
+        amount = 800
+    signed = -abs(amount) if direction == "up" else abs(amount)
+
+    result = page.evaluate(
+        """
+        ({selector, amount}) => {
+          const el = selector ? document.querySelector(selector) : null;
+          if (el) {
+            const before = el.scrollTop;
+            el.scrollTop += amount;
+            return {
+              target: 'element',
+              scrolledBy: el.scrollTop - before,
+              scrollTop: el.scrollTop,
+              scrollHeight: el.scrollHeight,
+              clientHeight: el.clientHeight,
+            };
+          }
+          const before = window.scrollY;
+          window.scrollBy(0, amount);
+          return {
+            target: 'window',
+            scrolledBy: window.scrollY - before,
+            scrollY: window.scrollY,
+            scrollHeight: document.documentElement.scrollHeight,
+            clientHeight: window.innerHeight,
+          };
+        }
+        """,
+        {"selector": selector, "amount": signed},
+    )
+    try:
+        page.wait_for_timeout(400)
+    except Exception:
+        pass
+    result["direction"] = direction
+    result["pageUrl"] = page.url
+    return result
+
+
+def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Click a visible element by stable selector or text.
+
+    Read-only with respect to the Onshape cloud: it only drives the browser UI.
+    ``dry_run=True`` reports what would be clicked without clicking. Always
+    scrolls the target into view first.
+    """
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+
+    selector = arguments.get("selector", "")
+    text = arguments.get("text", "")
+    index = arguments.get("index", 0)
+    dry_run = bool(arguments.get("dry_run", False))
+    if not isinstance(index, int) or index < 0:
+        index = 0
+
+    if not selector and not text:
+        raise ValueError("Provide 'selector' or 'text' to click")
+
+    if text:
+        locator = page.get_by_text(text, exact=False)
+    else:
+        locator = page.locator(selector)
+
+    try:
+        count = locator.count()
+    except Exception:
+        count = 0
+    if count == 0:
+        return {
+            "clicked": False,
+            "reason": "no matching element",
+            "selector": selector,
+            "text": text,
+            "matchCount": 0,
+            "pageUrl": page.url,
+        }
+
+    if index >= count:
+        return {
+            "clicked": False,
+            "reason": f"index {index} >= matchCount {count}",
+            "selector": selector,
+            "text": text,
+            "matchCount": count,
+            "pageUrl": page.url,
+        }
+
+    target = locator.nth(index)
+    try:
+        info = target.evaluate(
+            """el => ({
+              tag: el.tagName.toLowerCase(),
+              text: (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80),
+              href: el.getAttribute('href') || '',
+              aria: el.getAttribute('aria-label') || '',
+              id: el.id || '',
+              cls: (typeof el.className === 'string' ? el.className : '').slice(0, 100),
+            })"""
+        )
+    except Exception as exc:
+        return {
+            "clicked": False,
+            "reason": f"could not read target: {exc}",
+            "matchCount": count,
+            "pageUrl": page.url,
+        }
+
+    if dry_run:
+        return {
+            "dryRun": True,
+            "wouldClick": info,
+            "matchCount": count,
+            "pageUrl": page.url,
+        }
+
+    try:
+        target.scroll_into_view_if_needed()
+        page.wait_for_timeout(300)
+        target.click()
+        page.wait_for_timeout(2500)
+    except Exception as exc:
+        return {
+            "clicked": False,
+            "reason": f"click failed: {exc}",
+            "element": info,
+            "matchCount": count,
+            "pageUrl": page.url,
+        }
+
+    try:
+        current_url = page.url
+    except Exception:
+        current_url = None
+    return {
+        "clicked": True,
+        "element": info,
+        "matchCount": count,
+        "pageUrl": current_url,
+    }
+
+
 def _shutdown_browser_session() -> None:
     """Close the browser session, if one was started, when stdio disconnects.
 
@@ -1157,6 +1315,91 @@ TOOLS: list[dict[str, Any]] = [
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
+    {
+        "name": "browser_scroll",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 5,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Scroll the current Onshape browser page up/down, either the whole window or a specific element "
+            "matched by a CSS selector. Returns how far it actually scrolled plus the container's scroll "
+            "geometry. Zero Onshape API quota — this only drives the visible browser viewport, which is "
+            "needed to discover documents/rows below the fold (Onshape lazy-renders long lists)."
+        ),
+        "inputSchema": object_schema({
+            "direction": {
+                "type": "string",
+                "enum": ["down", "up"],
+                "default": "down",
+                "description": "Scroll direction.",
+            },
+            "amount": {
+                "type": "integer",
+                "default": 800,
+                "description": "Pixels to scroll (positive; direction chooses the sign).",
+            },
+            "selector": {
+                "type": "string",
+                "default": "",
+                "description": "Optional CSS selector of the scrollable container; empty scrolls the window.",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "browser_click",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Click a visible element in the Onshape browser by CSS selector or by visible text (optionally "
+            "`index` to pick among matches). Scrolls the target into view first. With `dry_run=true` it only "
+            "reports what WOULD be clicked. This drives the browser UI only — it does not call the Onshape "
+            "API and does not spend quota — but be careful to only click navigation links during read-only "
+            "exploration, not Create/Delete/mutation controls."
+        ),
+        "inputSchema": object_schema({
+            "selector": {
+                "type": "string",
+                "default": "",
+                "description": "CSS selector to click; used when `text` is empty.",
+            },
+            "text": {
+                "type": "string",
+                "default": "",
+                "description": "Visible text of the element to click; used when `selector` is empty.",
+            },
+            "index": {
+                "type": "integer",
+                "default": 0,
+                "description": "Which matching element to click (0-based).",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Report the target without actually clicking.",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
 
 ]
 
@@ -1164,6 +1407,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_session": _browser_session,
     "browser_watch": _browser_watch,
     "browser_inspect": _browser_inspect,
+    "browser_scroll": _browser_scroll,
+    "browser_click": _browser_click,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
