@@ -50,6 +50,8 @@ cd C:\MCP\onshapescript
 .\.venv\Scripts\python.exe .\tools\bridge_server.py 8766
 ```
 
+或直接双击 `tools\windows\start-bridge.bat`。
+
 建议用任务计划程序在登录时启动，保持常驻。
 
 ## Linux/WSL 侧配置
