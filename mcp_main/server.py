@@ -1212,20 +1212,31 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def serve() -> None:
-    """Serve newline-delimited JSON-RPC over stdin/stdout."""
-    for line in sys.stdin:
-        if not line.strip():
+    """Serve newline-delimited JSON-RPC over stdin/stdout.
+
+    Reads/writes raw UTF-8 bytes on ``sys.stdin.buffer``/``sys.stdout.buffer``
+    instead of the locale-dependent text streams. On a Chinese-locale Windows
+    host the text streams default to GBK, so any response containing a
+    non-GBK character (e.g. ``⚠`` in a tool description) would raise
+    ``UnicodeEncodeError`` and kill the bridge child. Byte-level UTF-8 keeps
+    the protocol bytes identical on every platform.
+    """
+    stdin_buffer = sys.stdin.buffer
+    stdout_buffer = sys.stdout.buffer
+    for raw in stdin_buffer:
+        if not raw.strip():
             continue
         try:
-            message = json.loads(line)
+            message = json.loads(raw.decode("utf-8"))
             if not isinstance(message, dict):
                 raise ValueError("Message must be a JSON object")
             outgoing = dispatch(message)
-        except (json.JSONDecodeError, ValueError) as error:
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
             outgoing = response(None, error={"code": -32700, "message": f"Parse error: {error}"})
         if outgoing is not None:
-            sys.stdout.write(json.dumps(outgoing, separators=(",", ":"), ensure_ascii=False) + "\n")
-            sys.stdout.flush()
+            payload = json.dumps(outgoing, separators=(",", ":"), ensure_ascii=False)
+            stdout_buffer.write(payload.encode("utf-8") + b"\n")
+            stdout_buffer.flush()
 
 
 if __name__ == "__main__":
