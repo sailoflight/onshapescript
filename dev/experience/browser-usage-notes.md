@@ -82,6 +82,15 @@
   `LengthBoundSpec type A spec to be used with the isLength pre...`）。
 - 每个标签都有「监控 / 配置文件」菜单：`.os-menu-tool`（文本形如 `监控 Cable trophy model v1`）。
 
+### 4.3 会话超时弹窗（重要）
+
+- 长时间不操作后出现，文本：「您的 Onshape 会话已超时。 您的文档已保存。 单击此处重新连接。」
+- 重连链接：`a.alert-link.osx-message-bubble-link`（文本「单击此处重新连接。」）
+- 容器：`.osx-message`；关闭按钮：`.osx-close`
+- `browser_reconnect` 会检测并点击该链接恢复会话；`browser_open_document` /
+  `browser_read_featurescript` / `browser_deploy_featurescript` 在执行前自动重连。
+- 实测：点击后弹窗消失，页面回到原文档 URL。
+
 ## 5. 选择器优先级（写自动化时）
 
 1. 唯一 `id`：`#search-box`、`#user-notification-status`、`#create-new-type`。
