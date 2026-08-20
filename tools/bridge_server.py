@@ -137,20 +137,13 @@ def main() -> None:
                 pass
             continue
         _log(f"client {addr} -> connected (browser session persists across reconnects)")
-        try:
-            threading.Thread(
-                target=_serve_client,
-                args=(conn, addr),
-                daemon=True,
-                name=f"client-{addr[0]}-{addr[1]}",
-            ).start()
-        except Exception:
-            _ACTIVE_LOCK.release()
-            try:
-                conn.close()
-            except OSError:
-                pass
-            raise
+        # Serve this client synchronously on the main thread. We already only
+        # allow one client at a time, and Playwright's SYNC API is thread-bound:
+        # if the browser was started on one thread and a later client's request
+        # runs on another thread, page.evaluate() fails with "Target page,
+        # context or browser has been closed". Keeping every client on the main
+        # thread keeps all browser operations on the thread that owns Playwright.
+        _serve_client(conn, addr)
 
 
 if __name__ == "__main__":
