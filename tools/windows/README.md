@@ -29,16 +29,18 @@ mcp_server.py (Windows .venv) → onshape_browser_mode → Chrome/Edge
 cd C:\MCP\onshapescript
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r tools\windows\requirements-browser.txt
-.\.venv\Scripts\playwright.exe install chrome
 ```
 
-如使用 Edge，可在 `config\browser.local.toml` 中配置：
+**不下载浏览器**：使用 Windows 本机已有 Chrome/Edge（与 taobao-mcp 同配置思路）。
+默认 `channel = "chrome"`；若本机只有 Edge，在 `config\browser.local.toml` 中配置：
 
 ```toml
 [browser]
 channel = "msedge"
-# 或直接指定 executable_path
+# 或直接指定 executable_path = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
 ```
+
+浏览器用户文件独立存放在 `user_data\onshape_profile`，不会混用系统默认浏览器 profile。
 
 ## Windows 启动桥接服务
 

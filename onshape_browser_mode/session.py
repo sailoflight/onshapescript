@@ -107,8 +107,8 @@ class BrowserSession:
             self._stop_playwright()
             raise BrowserLaunchError(
                 f"Could not launch browser (channel={browser_cfg.channel!r}): {exc}. "
-                "Install Chrome/Edge on the Windows host, or run "
-                "`.venv\\Scripts\\playwright.exe install chrome` there; see "
+                "Use the Windows host's existing Chrome/Edge (no browser download); "
+                "set channel/executable_path in config/browser.local.toml. See "
                 "tools/windows/README.md."
             ) from exc
 
