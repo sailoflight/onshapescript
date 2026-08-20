@@ -16,7 +16,7 @@ config/                 non-secret target state + parameter sets for the current
 tests/                  offline protocol tests (no Onshape contact)
 ```
 
-## MCP tools (32)
+## MCP tools (39)
 
 **FeatureScript reference — local, offline** (the core value):
 
@@ -71,6 +71,19 @@ mutating tool preflights against the API-quota budget first (upload ~3 calls,
 create 1, instantiate 1 when the Feature Studio microversion is cached / 2
 otherwise, pipeline ~13 with render / ~8 without) and blocks with
 the shortfall if the annual limit would be exceeded.
+
+**Onshape browser — zero-quota UI driving** (runs on the Windows host via the
+loopback bridge, so it never touches the Onshape API or the quota ledger):
+
+| Tool | Purpose |
+|---|---|
+| `browser_session` | Inspect or establish the persistent Onshape browser session (`status`/`login`) |
+| `browser_watch` | Record a human-driven browser session to learn what UI actions do (`start`/`status`/`stop`/`report`) |
+| `browser_inspect` | Read-only inventory of the visible interactive elements on the current page |
+| `browser_scroll` | Scroll the page/viewport to discover lazy-rendered rows below the fold |
+| `browser_click` | Click an element by CSS selector or visible text — an actual click requires `confirm_mutation=true`; `dry_run` only inspects the target |
+| `browser_eval` | Evaluate JavaScript in the page — execution requires `confirm_mutation=true`; `dry_run` returns expression metadata without evaluating |
+| `browser_deploy_featurescript` | Deploy FeatureScript through the browser UI — 0 API quota (`dry_run` default) |
 
 See `onshape_docs/guide/mcp-server.md` for the complete catalog, security boundary, and tests.
 See `onshape_docs/guide/onshape-api.md` for the REST reference data, coverage, and gaps.
@@ -188,8 +201,9 @@ python3 -m py_compile mcp_server.py mcp_main/*.py onshape_docs/query/*.py onshap
 only on the server, and a syntactically bad upload still costs API quota while
 returning no diagnostics (`featurespecs` comes back empty). Run
 `onshape_docs/scripts/fs_local_check.py` first — it validates Feature Studio structure
-(header, `defineFeature` form, bracket balance, dangling annotations) as hard
-errors and flags symbols absent from the vendored std index as warnings:
+(header, `defineFeature` form, bracket balance, dangling annotations, unreplaced
+`{{PLACEHOLDER}}`s) as hard errors and flags symbols absent from the vendored
+std index as warnings:
 
 ```bash
 python3 onshape_docs/scripts/fs_local_check.py path/to/file.fs        # single file
