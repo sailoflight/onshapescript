@@ -377,31 +377,44 @@
    "page": "mcp-server",
    "category": "guide",
    "path": "onshape_docs/guide/mcp-server.md",
-   "sha256": "6d1b6e38efb8ef64c506b1de42caf2c3ae9c7c556a143423161d63f0431b6993",
-   "title": "Local MCP server",
+   "sha256": "dac58be4c04163239e7766662882e9fde0884d21b8a02e0a8b47049afc9f45c2",
+   "title": "MCP server（WIN-WSL 桥接部署）",
    "sections": [
     {
      "level": 1,
-     "title": "Local MCP server",
+     "title": "MCP server（WIN-WSL 桥接部署）",
      "blocks": [
       {
        "type": "para",
-       "text": "python3 -m mcp_main exposes the validated Onshape workflow as a local Model Context Protocol server. It uses newline-delimited JSON-RPC over standard input/output, so local MCP clients can launch it as a subprocess. The server and Onshape client use only Python's standard library; there is no package-install step."
+       "text": "本 MCP 采用 WIN-WSL 桥接：MCP 主体（工具注册与分发、REST 客户端、浏览器自动化） 运行在 Windows 的常驻桥接进程里；WSL 只运行一层纯标准库的中继脚本。架构定义见 mcp_main/bridge/ARCHITECTURE.md。"
       }
      ]
     },
     {
      "level": 2,
-     "title": "Configure a client",
+     "title": "Configure a client（WSL DSH 接入中继）",
      "blocks": [
       {
        "type": "para",
-       "text": "Launch the package module from the repository working directory:"
+       "text": "WSL 的 MCP 客户端不直接启动 MCP 包，而是启动中继脚本："
       },
       {
        "type": "code",
        "language": "json",
-       "text": "{\n  \"mcpServers\": {\n    \"onshape-branch-cable-trophy\": {\n      \"command\": \"python3\",\n      \"args\": [\"-m\", \"mcp_main\"],\n      \"cwd\": \"/home/lijq/code/onshapescript\"\n    }\n  }\n}"
+       "text": "{\n  \"mcpServers\": {\n    \"onshape-branch-cable-trophy\": {\n      \"command\": \"python3\",\n      \"args\": [\"/home/<user>/code/onshapescript/mcp_main/bridge/mcp_tcp_bridge.py\", \"8766\"],\n      \"cwd\": \"/home/<user>/code/onshapescript\"\n    }\n  }\n}"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "python3 -m mcp_main 是完整 stdio MCP 主体，属于 Windows 侧（其浏览器工具依赖 Windows 上的 Playwright/Edge 会话），不是 WSL 入口。",
+         "depth": 0
+        },
+        {
+         "text": "中继只做 stdin/stdout ↔ 127.0.0.1:8766 字节转发，纯标准库，无第三方依赖。",
+         "depth": 0
+        }
+       ]
       },
       {
        "type": "para",

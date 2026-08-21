@@ -1,25 +1,28 @@
-# Local MCP server
+# MCP server（WIN-WSL 桥接部署）
 
-`python3 -m mcp_main` exposes the validated Onshape workflow as a local Model Context
-Protocol server. It uses newline-delimited JSON-RPC over standard input/output,
-so local MCP clients can launch it as a subprocess. The server and Onshape client
-use only Python's standard library; there is no package-install step.
+本 MCP 采用 **WIN-WSL 桥接**：MCP 主体（工具注册与分发、REST 客户端、浏览器自动化）
+运行在 Windows 的常驻桥接进程里；WSL 只运行一层纯标准库的中继脚本。架构定义见
+`mcp_main/bridge/ARCHITECTURE.md`。
 
-## Configure a client
+## Configure a client（WSL DSH 接入中继）
 
-Launch the package module from the repository working directory:
+WSL 的 MCP 客户端不直接启动 MCP 包，而是启动中继脚本：
 
 ```json
 {
   "mcpServers": {
     "onshape-branch-cable-trophy": {
       "command": "python3",
-      "args": ["-m", "mcp_main"],
-      "cwd": "/home/lijq/code/onshapescript"
+      "args": ["/home/<user>/code/onshapescript/mcp_main/bridge/mcp_tcp_bridge.py", "8766"],
+      "cwd": "/home/<user>/code/onshapescript"
     }
   }
 }
 ```
+
+- `python3 -m mcp_main` 是**完整 stdio MCP 主体**，属于 Windows 侧（其浏览器工具依赖
+  Windows 上的 Playwright/Edge 会话），不是 WSL 入口。
+- 中继只做 stdin/stdout ↔ `127.0.0.1:8766` 字节转发，纯标准库，无第三方依赖。
 
 The default configuration files are:
 
