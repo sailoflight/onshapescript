@@ -4,8 +4,8 @@ Kept separate from page logic so dev/button-map findings and the MCP tools
 share one source of truth. Prefer these over ad-hoc strings; when a selector
 changes, update it here and re-run the zero-quota probes.
 
-Source of truth: dev/button-map/scan-*.json and
-dev/experience/browser-usage-notes.md.
+Selector evidence: dev/button-map/scan-*.json. Reusable browser behavior and
+maintenance guidance: onshape_docs/experience/browser-automation.md.
 """
 
 # Documents list page
@@ -40,9 +40,15 @@ TIMEOUT_DIALOG = ".osx-message"  # "您的 Onshape 会话已超时。您的文�
 TIMEOUT_RECONNECT_LINK = ".alert-link.osx-message-bubble-link"  # "单击此处重新连接。"
 TIMEOUT_CLOSE_BUTTON = ".osx-close"  # "× Close"
 
-# Document tabs (create Feature Studio / Part Studio tabs)
+# Document tabs (create / rename / delete Feature Studio & Part Studio tabs)
 DOCUMENT_TABS_BUTTON = ".document-tabs-button"  # the trailing "+" tab button
 DOCUMENT_TABS_CREATE_ITEM = "a.dropdown-item"   # e.g. 创建 Feature Studio / 创建 Part Studio
+TAB_BAR_TAB = ".os-tab-bar-tab"
+TAB_NAME = ".os-tab-name"
+TAB_RENAME_INPUT = "element-name input, input.tab-rename, .os-tab-name-input"
+TAB_CONTEXT_MENU = "ul.context-menu-list.context-menu-root"
+TAB_CONTEXT_MENU_ITEM = "li.context-menu-item"
+TAB_CONTEXT_MENU_TEXT = {"delete": "删除", "rename": "重命名", "properties": "属性…"}
 
 # Part Studio (feature tree / toolbar)
 PS_FEATURE_LIST_ITEM = ".os-list-item"

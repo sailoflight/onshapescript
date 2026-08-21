@@ -3,7 +3,7 @@
 A parametric Onshape FeatureScript model of a trophy-style branching cable
 display, built from a single reference image. It is the worked example that the
 MCP server's REST tools validate: this Feature Studio is the configured target
-in `config/onshape-state.json`.
+in `onshape_rest_api_mode/config/onshape-state.json`.
 
 The model is a stylistic approximation, not a dimensionally accurate reverse
 engineering.
@@ -16,9 +16,9 @@ engineering.
 - `docs/` — feature parameters, validation contract, visual-review and setup notes.
 - `outputs/` — rendered previews and the latest model-check report.
 
-The parameter sets and target document state are shared with the MCP server and
-live in the project root `config/` (`model.default.json`, `model.preview.json`,
-`onshape-state.json`).
+This example owns its parameter sets under `config/` (`model.default.json` and
+`model.preview.json`). The shared REST target is stored separately under
+`onshape_rest_api_mode/config/onshape-state.json`.
 
 ## Verified model
 
@@ -30,7 +30,7 @@ live in the project root `config/` (`model.default.json`, `model.preview.json`,
 
 ## Quick validation
 
-With `onshape-credentials.json` present at the project root:
+With `onshape_rest_api_mode/config/onshape-credentials.json` present :
 
 ```bash
 cd scripts

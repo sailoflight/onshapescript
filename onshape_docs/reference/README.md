@@ -2,13 +2,12 @@
 
 Fetched by `onshape_docs/scripts/fetch_reference.py` (FsDoc + std library) and the
 `onshape_docs/scripts/fetch_onshape_api*.py` fetchers. Onshape/third-party material, vendored
-so the local MCP tools answer without a network round trip. Three tiers, in
-reading order:
+so the local MCP tools answer without a network round trip. Three storage tiers. Caller reading order is tier 1 -> tier 2; tier 0 is never a normal read:
 
 | Tier | Directory | Contents | Who reads it |
 |---|---|---|---|
 | 0 | `raw/` | build inputs: FsDoc HTML, std-library `.fs`, OpenAPI spec, dev-doc HTML | fetch/build scripts only; `verify_docs.py` sha256-pins them; tools never read |
-| 1 | `quick/` | compact distilled indexes (`quick.json`, `api_quick.json`) | `fs_search`, `onshape_api_find` — the cheap first look for candidates |
+| 1 | `quick/` | compact distilled indexes (`quick.json`, `api_quick.json`) | `fs_search`, `onshape_api_search` — the cheap first look for candidates |
 | 2 | `index/` | full-detail indexes (`index.json`, `guide.json`, `api_index.json`, `api_docs.json`) | `fs_get_function`, `fs_guide_section`, `onshape_api_*` — on-demand deep read |
 
 ## raw/fsdoc/
@@ -39,18 +38,17 @@ reading order:
 ## Project docs
 
 The project's own LLM-facing documentation (`onshape_docs/guide/*.md`,
-`onshape_docs/reference/quick-reference.md`, example docs; README.md is the human landing
-page and intentionally not indexed) is indexed by
+`onshape_docs/experience/*.md`, selected verification/reference pages, and example
+docs; the repository-root README.md is the human landing page and is not indexed) is indexed by
 `onshape_docs/scripts/build_docs_index.py` into `onshape_docs/index.json` (same typed-block
 schema as `guide.json`) and served by the `docs_*` tools. The markdown
 files stay the authored originals.
 
 ## Reading order for callers
 
-Never read `raw/` — it exists only as build input and is sha256-pinned by
-`onshape_docs/verification/verify_docs.py`. For a question: start with a `quick/`
-index (cheap candidate lists), then pull the one entry you need from `index/`
-at full detail. That ordering is exactly what the MCP tools already do
+Never read `raw/` as a first step — it exists only as build input and is sha256-pinned by
+`onshape_docs/verification/verify_docs.py`. For a question, use the MCP search/list tool over `quick/`, then retrieve one
+structured detail from `index/`. Do not open generated JSON indexes directly. That ordering is exactly what the MCP tools already do
 (`fs_search` → `fs_get_function`); `onshape_docs/index.json` mirrors the project's own
 markdown the same way (see `onshape_docs/guide/mcp-server.md`).
 
@@ -65,7 +63,7 @@ all record source sha256 for staleness checks):
 ```bash
 python3 onshape_docs/scripts/fetch_reference.py
 python3 onshape_docs/scripts/build_fsdoc_index.py
-python3 onshape_docs/scripts/fetch_onshape_api.py   # needs onshape-credentials.json
+python3 onshape_docs/scripts/fetch_onshape_api.py   # needs onshape_rest_api_mode/config/onshape-credentials.json
 python3 onshape_docs/scripts/build_onshape_api_index.py
 ```
 

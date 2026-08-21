@@ -3,7 +3,7 @@
 
 The MCP server serves two kinds of corpora: the vendored Onshape material
 (onshape_docs/reference/) and the project's own LLM-facing docs
-(onshape_docs/guide/, onshape_docs/verification/, README.md, examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
+(onshape_docs/guide/, onshape_docs/experience/, onshape_docs/verification/, onshape_docs/reference/, examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
 indexes the project's own markdown into onshape_docs/index.json with the SAME
 schema as onshape_docs/reference/index/fsdoc/guide.json — pages -> heading sections -> typed blocks (para,
 code, list, table) — so the project docs are searchable and readable on demand
@@ -31,30 +31,40 @@ DOCS_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = DOCS_ROOT.parent
 INDEX_PATH = DOCS_ROOT / "index.json"
 
-# Ordered slug -> project-relative markdown path. Page order is the docs_list
-# outline order. Add new LLM-facing docs here and re-run the script.
-#
-# README.md is deliberately NOT indexed: it is the human/GitHub landing page
-# and its tool catalog / reference-data / running sections are summaries of
-# docs/mcp-server.md, docs/fs-assistant.md, and docs/onshape-api.md. Indexing
-# it would make every docs_search return duplicated hits. The LLM-facing
-# corpus is the docs/ tree + the quick-reference + the example docs.
-DOC_PAGES: dict[str, str] = {
-    "fs-assistant": "onshape_docs/guide/fs-assistant.md",
-    "mcp-server": "onshape_docs/guide/mcp-server.md",
-    "onshape-api": "onshape_docs/guide/onshape-api.md",
-    "verification": "onshape_docs/verification/README.md",
-    "llm-experience-fs": "onshape_docs/verification/llm-experience-fs.md",
-    "llm-experience-api": "onshape_docs/verification/llm-experience-api.md",
-    "live-verification": "onshape_docs/verification/live/README.md",
-    "quick-reference": "onshape_docs/reference/quick-reference.md",
-    "reference": "onshape_docs/reference/README.md",
-    "example": "examples/branch-cable-trophy/README.md",
-    "example-setup": "examples/branch-cable-trophy/docs/setup.md",
-    "example-feature-parameters": "examples/branch-cable-trophy/docs/feature-parameters.md",
-    "example-api-workflow": "examples/branch-cable-trophy/docs/onshape-api-workflow.md",
-    "example-validation-contract": "examples/branch-cable-trophy/docs/validation-contract.md",
-    "example-visual-review": "examples/branch-cable-trophy/docs/visual-review.md",
+# Ordered category -> (stable page id -> project-relative authored markdown).
+# Categories communicate semantic ownership while stable page ids preserve the
+# public docs_section API. Add new LLM-facing docs here and re-run the script.
+# Root README.md is the human/GitHub landing page and stays unindexed to avoid
+# duplicate hits; the docs-root map is indexed because it defines lookup order.
+DOC_GROUPS: dict[str, dict[str, str]] = {
+    "guide": {
+        "documentation-map": "onshape_docs/README.md",
+        "fs-assistant": "onshape_docs/guide/feature-script.md",
+        "mcp-server": "onshape_docs/guide/mcp-server.md",
+        "onshape-api": "onshape_docs/guide/rest-api.md",
+    },
+    "experience": {
+        "llm-experience-fs": "onshape_docs/experience/featurescript.md",
+        "llm-experience-api": "onshape_docs/experience/rest-api.md",
+        "browser-automation": "onshape_docs/experience/browser-automation.md",
+        "browser-modeling": "onshape_docs/experience/browser-modeling.md",
+    },
+    "verification": {
+        "verification": "onshape_docs/verification/README.md",
+        "live-verification": "onshape_docs/verification/live/README.md",
+    },
+    "reference": {
+        "quick-reference": "onshape_docs/reference/quick-reference.md",
+        "reference": "onshape_docs/reference/README.md",
+    },
+    "example": {
+        "example": "examples/branch-cable-trophy/README.md",
+        "example-setup": "examples/branch-cable-trophy/docs/setup.md",
+        "example-feature-parameters": "examples/branch-cable-trophy/docs/feature-parameters.md",
+        "example-api-workflow": "examples/branch-cable-trophy/docs/onshape-api-workflow.md",
+        "example-validation-contract": "examples/branch-cable-trophy/docs/validation-contract.md",
+        "example-visual-review": "examples/branch-cable-trophy/docs/visual-review.md",
+    },
 }
 
 _BACKTICK = re.compile(r"`([^`]*)`")
@@ -258,19 +268,20 @@ def parse_markdown(text: str, page: str) -> dict[str, Any]:
 
 def build() -> list[dict[str, Any]]:
     pages: list[dict[str, Any]] = []
-    for page, relpath in DOC_PAGES.items():
-        path = REPO_ROOT / relpath
-        if not path.is_file():
-            print(f"  skipped (missing): {relpath}", file=sys.stderr)
-            continue
-        text = path.read_text(encoding="utf-8")
-        parsed = parse_markdown(text, page)
-        pages.append({
-            "page": page,
-            "path": relpath,
-            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-            **parsed,
-        })
+    for category, entries in DOC_GROUPS.items():
+        for page, relpath in entries.items():
+            path = REPO_ROOT / relpath
+            if not path.is_file():
+                raise FileNotFoundError(f"Indexed documentation is missing: {relpath}")
+            text = path.read_text(encoding="utf-8")
+            parsed = parse_markdown(text, page)
+            pages.append({
+                "page": page,
+                "category": category,
+                "path": relpath,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                **parsed,
+            })
     return pages
 
 

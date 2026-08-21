@@ -1,21 +1,20 @@
 # Local MCP server
 
-`mcp_server.py` exposes the validated Onshape workflow as a local Model Context
+`python3 -m mcp_main` exposes the validated Onshape workflow as a local Model Context
 Protocol server. It uses newline-delimited JSON-RPC over standard input/output,
 so local MCP clients can launch it as a subprocess. The server and Onshape client
 use only Python's standard library; there is no package-install step.
 
 ## Configure a client
 
-Use an absolute script path so launch does not depend on the client's working
-directory:
+Launch the package module from the repository working directory:
 
 ```json
 {
   "mcpServers": {
     "onshape-branch-cable-trophy": {
       "command": "python3",
-      "args": ["/home/lijq/code/onshapescript/mcp_server.py"],
+      "args": ["-m", "mcp_main"],
       "cwd": "/home/lijq/code/onshapescript"
     }
   }
@@ -24,10 +23,10 @@ directory:
 
 The default configuration files are:
 
-- Non-secret state: `config/onshape-state.json`
-- Credentials: `onshape-credentials.json`
-- Detailed parameters: `config/model.default.json`
-- Simplified parameters: `config/model.preview.json`
+- Non-secret state: `onshape_rest_api_mode/config/onshape-state.json`
+- Credentials: `onshape_rest_api_mode/config/onshape-credentials.json`
+- Detailed parameters: `examples/branch-cable-trophy/config/model.default.json`
+- Simplified parameters: `examples/branch-cable-trophy/config/model.preview.json`
 
 Override the first two paths for another deployment with `ONSHAPE_STATE` and
 `ONSHAPE_CREDENTIALS`. Do not place credentials in MCP arguments, environment
@@ -39,7 +38,7 @@ configuration committed to source control, prompts, or tool input.
 
 These read the vendored reference under `onshape_docs/reference/` and never contact Onshape
 or the network. They are the primary FeatureScript lookup tools. See
-`onshape_docs/guide/fs-assistant.md` for the recommended workflow.
+`onshape_docs/guide/feature-script.md` for the recommended workflow.
 
 | Tool | Behavior |
 |---|---|
@@ -56,9 +55,9 @@ or the network. They are the primary FeatureScript lookup tools. See
 
 ### Project docs tools — local and offline
 
-The project's own documentation (`onshape_docs/guide/*.md`, `onshape_docs/reference/quick-reference.md`,
-example docs; README.md is the human landing page and intentionally not
-indexed) is parsed into `onshape_docs/index.json` by `onshape_docs/scripts/build_docs_index.py`
+The project's categorized guide, experience, verification, reference, and
+example documentation (the repository-root README.md remains the unindexed
+human landing page, while `onshape_docs/README.md` is the indexed lookup map) is parsed into `onshape_docs/index.json` by `onshape_docs/scripts/build_docs_index.py`
 with the same typed-block schema as the FsDoc guide, so it is searchable and
 readable on demand — the authored `.md` files remain the originals. These tools
 cover the project's own knowledge (tool catalog, workflows, verified lessons),
@@ -66,9 +65,9 @@ distinct from the vendored Onshape reference above.
 
 | Tool | Behavior |
 |---|---|
-| `docs_list` | Every indexed page with its title, source path, and heading-section outline. |
-| `docs_section` | A page as plain text, or one heading section (page + optional section; matching is case-insensitive substring). |
-| `docs_search` | Ranked keyword search across every section of the project docs; pass `page` to restrict. |
+| `docs_list` | Index-first outline grouped by category, with each page title, source path, and section headings. |
+| `docs_section` | One exact indexed page or heading section; use after list/search instead of opening a complete authored file. |
+| `docs_search` | Ranked candidate sections with category and snippet; pass `page` to restrict, then call `docs_section`. |
 
 ### Onshape REST API reference tools — local and offline
 
@@ -77,7 +76,7 @@ definition vendored under `onshape_docs/reference/` (raw spec in `onshape_docs/r
 indexes read from `onshape_docs/reference/index/onshape-api/` and
 `onshape_docs/reference/quick/onshape-api/`). Like the FeatureScript
 tools they are offline; only `fs_check_version`/`fs_update_reference` (above)
-and the Onshape REST tools touch the network. See `onshape_docs/guide/onshape-api.md` for the
+and the Onshape REST tools touch the network. See `onshape_docs/guide/rest-api.md` for the
 data, coverage, and the remaining documentation gaps for real operations.
 
 | Tool | Behavior |
@@ -93,7 +92,24 @@ data, coverage, and the remaining documentation gaps for real operations.
 spec version + index health), and `fs_update_reference` accepts
 `include_onshape_api: true` to refresh the REST spec and the auth/error docs
 alongside the FeatureScript reference — the spec re-fetch needs
-onshape-credentials.json and is skipped with a note when it is absent.
+onshape_rest_api_mode/config/onshape-credentials.json and is skipped with a note when it is absent.
+
+### Browser automation tools — zero REST API quota
+
+These 19 tools drive the persistent Windows-hosted browser. They never call the
+Onshape REST API, but a real UI action can still modify cloud data. Mutation
+confirmation and pacing therefore apply independently of REST quota. Use
+`tools/list` as the authoritative catalog when current registration matters.
+
+| Group | Tools | Boundary |
+|---|---|---|
+| Session and discovery | `browser_session`, `browser_watch`, `browser_inspect`, `browser_scroll`, `browser_click`, `browser_eval`, `browser_reconnect` | Inspecting is read-only; actual click/eval requires `confirm_mutation=true`; reconnect only restores the session. |
+| Read-only navigation and state | `browser_open_document`, `browser_read_featurescript`, `browser_get_partstudio_features`, `browser_get_page_tabs`, `browser_open_insert_feature_dialog` | Navigation/dialog opening does not create cloud data; state is read from the visible page. |
+| Confirmed document changes | `browser_deploy_featurescript`, `browser_create_document`, `browser_create_tab`, `browser_rename_tab`, `browser_delete_tab`, `browser_insert_custom_feature`, `browser_create_document_version` | All real writes require `confirm_mutation=true`; deploy also supports a pure local `dry_run=true`. |
+
+For selector/session behavior, search the indexed `browser-automation` experience
+page. For the create → deploy → version → apply → verify workflow and its success
+signals, read one matched section from `browser-modeling`.
 
 ### Local and read-only
 
@@ -111,7 +127,7 @@ onshape-credentials.json and is skipped with a note when it is absent.
 | `onshape_list_document_elements` | Lists elements and current microversions in the configured workspace — cached (zero API cost) by default; `refresh=true` re-fetches live. |
 | `onshape_get_feature_studio_status` | Reads Feature Studio metadata and compiled feature specifications. |
 | `onshape_check_model` | Checks feature state, 132/65 part count, required names, and bounds without writing the report file. |
-| `onshape_render_preview` | Returns one shaded PNG as MCP image content; `save=true` additionally writes `outputs/previews/<view>.png`. |
+| `onshape_render_preview` | Returns one shaded PNG as MCP image content; `save=true` additionally writes `onshape_rest_api_mode/outputs/previews/<view>.png`. |
 | `onshape_eval_featurescript` | Evaluates a FeatureScript snippet on the live server (1 quota call; script must evaluate to a two-argument anonymous function `function(context is Context, id is Id) {...}`). Document-first guarded: a 10-call/session budget plus `confirm_mutation=true` to exceed it, preflighted against the quota budget, and every response reports the session/eval/quota counters. Use it to confirm version-specific semantics the vendored 2960 docs lack, and to get the deployed `libraryVersion` (3044) cached for `fs_check_version`. |
 
 Note: every tool in this table is read-only with respect to the model, but
@@ -137,11 +153,11 @@ cached) / 2 (cold), pipeline ~13 with render / ~8 without. When the configured
 budget would be exceeded the tool blocks with the shortfall instead of spending
 API calls.
 
-The quota ledger (`config/api-usage.json`, gitignored) is passive: every 2xx/3xx
+The quota ledger (`onshape_rest_api_mode/config/api-usage.json`, gitignored) is passive: every 2xx/3xx
 response counts toward the annual limit and each response's
 `X-Rate-Limit-Remaining` header is captured — **zero extra API calls**, because
 Onshape has no public quota-query endpoint. Configure the annual budget in
-`config/onshape-state.json` under `apiQuota` (`{"accountType": "professional"}`
+`onshape_rest_api_mode/config/onshape-state.json` under `apiQuota` (`{"accountType": "professional"}`
 maps to the official 5000/year, or set `{"annualLimit": N}` directly). Seed it
 with your real year-to-date usage — `{"accountType": "standard",
 "alreadyConsumed": 119}` — read from the Onshape UI (My Account → Developer);
@@ -174,7 +190,7 @@ mutating tools whenever it supports per-tool permissions.
 
 ## Credential and error boundary
 
-- `onshape-credentials.json` remains ignored by `.gitignore`.
+- `onshape_rest_api_mode/config/onshape-credentials.json` remains ignored by `.gitignore`.
 - Tool responses never include the Basic/Bearer authorization header, access key,
   secret key, access token, or credential-file contents.
 - Network errors return endpoint status/details from Onshape but not request
@@ -189,8 +205,8 @@ mutating tools whenever it supports per-tool permissions.
 Local protocol and mutation-guard tests do not contact Onshape:
 
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m py_compile mcp_server.py mcp_main/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
+python3 -m unittest discover -s dev/tests -v
+python3 -m py_compile mcp_main/*.py mcp_main/bridge/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
 ```
 
 A credentialed read-only integration smoke test was run against the configured

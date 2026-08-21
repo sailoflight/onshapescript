@@ -12,8 +12,8 @@ Import first in every example script, before any onshape_rest_api_mode import:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import _paths  # noqa: E402  (sets ROOT on sys.path and example outputs dir)
 
-The parameter sets and target document state are shared with the MCP server and
-live in the project root `config/`; see examples/branch-cable-trophy/README.md.
+The parameter sets are owned by this example under `config/`; REST target
+state remains owned by `onshape_rest_api_mode`.
 """
 
 import os
@@ -24,6 +24,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 EXAMPLE_DIR = SCRIPTS_DIR.parent
 ROOT = EXAMPLE_DIR.parent.parent
 
+os.environ.setdefault("ONSHAPE_PARAMETERS_DIR", str(EXAMPLE_DIR / "config"))
 os.environ.setdefault("ONSHAPE_OUTPUTS_DIR", str(EXAMPLE_DIR / "outputs"))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))

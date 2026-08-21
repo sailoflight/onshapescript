@@ -1,0 +1,14 @@
+# Machine-local overrides (gitignored). Merge priority: browser.local.toml > browser.toml
+# The committed default already uses Edge (channel = "msedge"). This example
+# shows the local HTTP proxy override used on the Windows host.
+
+[browser]
+# Local HTTP proxy for reaching Onshape (this machine runs v2rayN/clash on
+# 127.0.0.1:10808). Empty = no explicit proxy.
+proxy_server = "http://127.0.0.1:10808"
+
+# If you prefer an exact browser binary instead of the `channel` name:
+# executable_path = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+
+# user_data_dir stays "user_data/onshape_profile" so the Onshape login profile
+# is independent of taobao-mcp.

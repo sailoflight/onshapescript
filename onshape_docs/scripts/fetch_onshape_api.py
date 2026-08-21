@@ -3,7 +3,7 @@
 
 Pulls the spec Onshape serves at /api/openapi (the same URL their official
 `onshape-public/openapi` CI workflow downloads from), authenticated with the
-local onshape-credentials.json. This is the *live* definition for the running
+local onshape_rest_api_mode/config/onshape-credentials.json. This is the *live* definition for the running
 deployment, so it is always current — no stale third-party snapshot.
 
 Afterwards run scripts/build_onshape_api_index.py to rebuild the JSON indexes.

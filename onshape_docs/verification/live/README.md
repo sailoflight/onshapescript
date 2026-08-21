@@ -1,6 +1,6 @@
 # Live FeatureScript verification — 实测记录
 
-目标：用真实 Onshape 服务器验证 `onshape_docs/verification/llm-experience-fs.md` 的
+目标：用真实 Onshape 服务器验证 `onshape_docs/experience/featurescript.md` 的
 语言论断。**总预算 200 次**（100 + 追加 50 + 追加 50）已全部用尽。
 
 > **2026-08-14 更新 — 15/15 已定案，勿重跑**：下面表格里的 ⚠/❌ 是相对当时
@@ -125,7 +125,7 @@ python3 onshape_docs/verification/live/run_live_tests.py --budget 50           #
 **代价教训**：探测循环没传 `part_studio_id` 时，`resolve_part_studio_id` 每次
 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用），
 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号
-共 12 次）。教训已写入 `llm-experience-fs.md` 的 eval 小节。
+共 12 次）。教训已写入 `onshape_docs/experience/featurescript.md` 的 eval 小节。
 
 ---
 

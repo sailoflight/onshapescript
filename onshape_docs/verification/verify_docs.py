@@ -247,9 +247,38 @@ def verify_project_docs() -> None:
                 bad.append((p["page"], f"section {s.get('title')!r} empty"))
     check("Project docs sections well-formed (title + blocks)", not bad,
           f"{len(bad)} issues (first 5): {bad[:5]}" if bad else "ok")
+
+    allowed_roots = {
+        "experience": ("onshape_docs/experience/",),
+        "verification": ("onshape_docs/verification/",),
+        "reference": ("onshape_docs/reference/",),
+        "example": ("examples/",),
+    }
+    ownership_issues = []
+    categories = {p.get("category") for p in idx["pages"]}
+    expected_categories = {"guide", *allowed_roots}
+    if categories != expected_categories:
+        ownership_issues.append(("categories", sorted(str(c) for c in categories)))
+    for p in idx["pages"]:
+        category = p.get("category")
+        path = p["path"]
+        if category == "guide":
+            owned = path == "onshape_docs/README.md" or path.startswith("onshape_docs/guide/")
+        else:
+            owned = category in allowed_roots and path.startswith(allowed_roots[category])
+        if not owned:
+            ownership_issues.append((p["page"], category, path))
+    check("Project docs categories match semantic directory ownership", not ownership_issues,
+          f"issues: {ownership_issues[:5]}" if ownership_issues else "ok")
+
+    category_counts = {
+        category: sum(1 for p in idx["pages"] if p.get("category") == category)
+        for category in sorted(expected_categories)
+    }
     stats["docs"] = {
         "pages": len(idx["pages"]),
         "sections": sum(len(p["sections"]) for p in idx["pages"]),
+        "categories": category_counts,
         "pageNames": [p["page"] for p in idx["pages"]],
     }
 

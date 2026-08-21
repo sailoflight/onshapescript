@@ -112,7 +112,7 @@ def resolve_part_studio_id(
 ) -> tuple[str, str, str]:
     """Resolve a usable Part Studio id WITHOUT any implicit network walk.
 
-    Onshape IDs are cached in config/onshape-state.json (constraint: cache
+    Onshape IDs are cached in onshape_rest_api_mode/config/onshape-state.json (constraint: cache
     stable metadata; refresh is an explicit action). Walking the document
     (GET elements -> GET parts per studio) is the exact ~10-call trap the quota
     policy forbids, so this only ever returns the explicit id or the cached
@@ -125,7 +125,7 @@ def resolve_part_studio_id(
     if not eid:
         raise RuntimeError(
             "No Part Studio id available: pass part_studio_id explicitly, or set "
-            "partStudioId in config/onshape-state.json. Implicit document walking "
+            "partStudioId in onshape_rest_api_mode/config/onshape-state.json. Implicit document walking "
             "is disabled to protect API quota."
         )
     return did, wid, eid
@@ -159,7 +159,7 @@ def _merge_state_to_disk(updates: dict[str, Any]) -> None:
 
 
 def _elements_cache(client: OnshapeClient) -> dict[str, dict[str, Any]]:
-    """Return the cached element table (config/onshape-state.json "elements"),
+    """Return the cached element table (onshape_rest_api_mode/config/onshape-state.json "elements"),
     keyed by element id. The table is the local mirror of the workspace's
     elements: id/name/type are stable (refresh is an explicit action), while
     microversionId is the one mutable field, rolled forward from mutation and
@@ -501,7 +501,7 @@ def create_validation_part_studio(
     if dry_run:
         return _dry_run(
             [client.describe("POST", path, body)],
-            note="save_to_project_state also rewrites config/onshape-state.json (local, zero quota)",
+            note="save_to_project_state also rewrites onshape_rest_api_mode/config/onshape-state.json (local, zero quota)",
         )
     created = client.request("POST", path, body)
     if save_to_project_state:
@@ -842,7 +842,7 @@ def api_usage(client: OnshapeClient | None = None) -> dict[str, Any]:
         result["note"] = (
             'No annual quota configured. Add "apiQuota": {"accountType": '
             '"professional"} (enterprise/professional/standard) or '
-            '{"annualLimit": N} to config/onshape-state.json to enable the '
+            '{"annualLimit": N} to onshape_rest_api_mode/config/onshape-state.json to enable the '
             "annual budget. Rate-limit headers are still captured."
         )
     else:

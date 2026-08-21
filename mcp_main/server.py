@@ -546,6 +546,9 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     index = arguments.get("index", 0)
     dry_run = bool(arguments.get("dry_run", False))
     double = bool(arguments.get("double", False))
+    button = arguments.get("button", "left")
+    if button not in ("left", "right", "middle"):
+        raise ValueError("button must be 'left', 'right' or 'middle'")
     if not isinstance(index, int) or index < 0:
         index = 0
 
@@ -632,6 +635,10 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
         page.wait_for_timeout(300)
         if double:
             target.dblclick()
+        elif button == "right":
+            target.click(button="right")
+        elif button == "middle":
+            target.click(button="middle")
         else:
             target.click()
         page.wait_for_timeout(2500)
@@ -933,6 +940,47 @@ def _browser_open_insert_feature_dialog(arguments: dict[str, Any]) -> dict[str, 
     return {"pageUrl": page.url, **result}
 
 
+def _browser_rename_tab(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Rename a Feature Studio / Part Studio tab through the browser UI (0 quota)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    _confirm(arguments)
+    name = arguments.get("name", "")
+    new_name = arguments.get("new_name", "")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("Provide a non-empty tab `name`")
+    if not isinstance(new_name, str) or not new_name.strip():
+        raise ValueError("Provide a non-empty `new_name`")
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    return actions.rename_tab(page, name.strip(), new_name.strip())
+
+
+def _browser_delete_tab(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Delete a Feature Studio / Part Studio tab through the browser UI (0 quota)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    _confirm(arguments)
+    name = arguments.get("name", "")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("Provide a non-empty tab `name`")
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    return actions.delete_tab(page, name.strip())
+
+
 def _browser_create_document_version(arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a document version so custom features become insertable."""
     from onshape_browser_mode import actions
@@ -1198,10 +1246,10 @@ TOOLS: list[dict[str, Any]] = [
         "name": "docs_list",
         "description": (
             "List every page in the project's own structured documentation index (onshape_docs/index.json, built "
-            "from onshape_docs/guide/*.md, onshape_docs/reference/quick-reference.md, and the example docs; the root README is the "
-            "human landing page and is intentionally not indexed): each page's "
-            "title, source path, and heading-section outline. Use it to see what project docs exist and "
-            "their section titles, then read one with docs_section. This is separate from the vendored "
+            "from categorized guide, experience, verification, reference, and example pages; the repository-root "
+            "README is the unindexed human landing page, while onshape_docs/README.md is the indexed lookup map): "
+            "each page's category, title, source path, and heading-section outline. Use this cheap index first, "
+            "then read one exact section with docs_section. This is separate from the vendored "
             "Onshape reference (fs_* / onshape_api_* tools). Local and offline."
         ),
         "inputSchema": object_schema(),
@@ -1210,14 +1258,14 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_section",
         "description": (
-            "Read the project's own documentation (onshape_docs/guide/mcp-server.md, onshape_docs/guide/fs-assistant.md, the "
-            "verified LLM-experience docs, the example docs) as plain text. Pass page=<page> and optionally "
-            "section=<heading> to narrow to one section; without section you get the whole page plus its "
-            "heading outline. This is how the project's own knowledge (tool catalog, workflows, live "
-            "verification lessons) is read on demand from onshape_docs/index.json. Local and offline."
+            "Read one exact section from the project's categorized guide, experience, verification, reference, "
+            "or example documentation. Pass page=<page> and optionally section=<heading>. Call docs_list or "
+            "docs_search first to choose the smallest relevant entry; without section this returns the complete "
+            "indexed page and heading outline. Open an authored Markdown file only when this structured detail "
+            "is insufficient. Local and offline."
         ),
         "inputSchema": object_schema({
-            "page": {"type": "string", "description": "A project doc page, e.g. 'llm-experience-fs', 'mcp-server', 'quick-reference'. See docs_list for the full list."},
+            "page": {"type": "string", "description": "An indexed page, e.g. 'browser-automation', 'mcp-server', 'llm-experience-fs'. See docs_list for the categorized list."},
             "section": {"type": "string", "description": "Optional heading to narrow to (case-insensitive substring)."},
         }, ["page"]),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
@@ -1225,11 +1273,10 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "docs_search",
         "description": (
-            "Keyword search across every section of the project's own documentation (onshape_docs/guide/*, "
-            "onshape_docs/reference/quick-reference.md, example docs). Results are ranked by how well the query tokens "
-            "match the page/section titles and body text. Use this to find which project doc answers a "
-            "question (e.g. 'quota', 'eval budget', 'defineFeature'), then read the full section with "
-            "docs_section. Local and offline."
+            "Keyword search across categorized guide, experience, verification, reference, and example sections. "
+            "Results include category, page, section, score, and a bounded snippet. Use this cheap candidate index "
+            "to find which project doc answers a question (e.g. 'quota', 'browser login', 'defineFeature'), then "
+            "read one exact match with docs_section. Do not open generated JSON indexes directly. Local and offline."
         ),
         "inputSchema": object_schema({
             "query": {"type": "string"},
@@ -1370,7 +1417,7 @@ TOOLS: list[dict[str, Any]] = [
         "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": True},
         "description": (
             "Report the local API-quota budget: the annual call limit (from apiQuota in "
-            "config/onshape-state.json), calls consumed so far (local ledger of 2xx/3xx responses), the "
+            "onshape_rest_api_mode/config/onshape-state.json), calls consumed so far (local ledger of 2xx/3xx responses), the "
             "remaining budget, and how many full validation-pipeline runs that fits (with and without "
             "rendering). Also surfaces the latest X-Rate-Limit-Remaining header and any 402 "
             "(annual-limit-exhausted) signal. Zero network cost: Onshape has no public quota endpoint, so "
@@ -1460,7 +1507,7 @@ TOOLS: list[dict[str, Any]] = [
             "mode": {**MODE_SCHEMA, "default": "detailed"},
             "part_studio_id": {
                 "type": "string",
-                "description": "Optional target override; defaults to config/onshape-state.json.",
+                "description": "Optional target override; defaults to onshape_rest_api_mode/config/onshape-state.json.",
             },
         }),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
@@ -1471,7 +1518,7 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Request one shaded PNG rendering of the existing configured Part Studio from Onshape. The remote "
             "operation is read-only but may consume rendering resources. By default it returns the image as MCP "
-            "image content without writing a file; set save=true to also write outputs/previews/<view>.png."
+            "image content without writing a file; set save=true to also write onshape_rest_api_mode/outputs/previews/<view>.png."
         ),
         "inputSchema": object_schema({
             "view": VIEW_SCHEMA,
@@ -1485,7 +1532,7 @@ TOOLS: list[dict[str, Any]] = [
             "save": {
                 "type": "boolean",
                 "default": False,
-                "description": "Also save the PNG under outputs/previews; this is a local file write.",
+                "description": "Also save the PNG under onshape_rest_api_mode/outputs/previews; this is a local file write.",
             },
             "part_studio_id": {"type": "string"},
         }, ["view"]),
@@ -1516,7 +1563,7 @@ TOOLS: list[dict[str, Any]] = [
         "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": True, "cacheable": False},
         "description": (
             "Create a new Part Studio in the configured Onshape document. Each call creates another cloud "
-            "element; by default it also changes config/onshape-state.json to target the new element. This is "
+            "element; by default it also changes onshape_rest_api_mode/config/onshape-state.json to target the new element. This is "
             "not a read-only inspection tool and requires explicit mutation confirmation."
         ),
         "inputSchema": object_schema({
@@ -1603,7 +1650,7 @@ TOOLS: list[dict[str, Any]] = [
             "the browser session state, and the current page URL — zero Onshape API quota. "
             "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
             "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
-            "browser_* calls. The browser runs on the Windows host (see tools/windows/README.md); the "
+            "browser_* calls. The browser runs on the Windows host (see mcp_main/bridge/windows/README.md); the "
             "Linux side only relays MCP stdio over the loopback bridge. If Playwright is not installed "
             "on the Windows host, this tool returns a clear setup error instead of failing the MCP server."
         ),
@@ -1767,6 +1814,12 @@ TOOLS: list[dict[str, Any]] = [
                 "type": "boolean",
                 "default": False,
                 "description": "Double-click instead of single-click (e.g. insert an item from a picker dialog).",
+            },
+            "button": {
+                "type": "string",
+                "enum": ["left", "right", "middle"],
+                "default": "left",
+                "description": "Mouse button to click; 'right' opens context menus (e.g. tab delete menu).",
             },
             "confirm_mutation": mutating_confirmation(),
             "dry_run": {
@@ -2025,6 +2078,68 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
+        "name": "browser_rename_tab",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 15,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Rename a Feature Studio or Part Studio tab in the current Onshape document by its visible "
+            "name. Double-clicks the tab name to enter rename mode, fills the new name, and commits with "
+            "Enter. Zero Onshape API quota; mutates the document, so it requires confirm_mutation=true. "
+            "Returns the updated tab list."
+        ),
+        "inputSchema": object_schema({
+            "name": {
+                "type": "string",
+                "description": "Current visible tab name to rename.",
+            },
+            "new_name": {
+                "type": "string",
+                "description": "New tab name.",
+            },
+            "confirm_mutation": mutating_confirmation(),
+        }),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
+        "name": "browser_delete_tab",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 20,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Delete a Feature Studio or Part Studio tab (and its element) from the current Onshape "
+            "document by its visible name. Right-clicks the tab to open its context menu, clicks 删除, "
+            "and confirms any dialog. Zero Onshape API quota; destructive, so it requires "
+            "confirm_mutation=true. Returns the updated tab list."
+        ),
+        "inputSchema": object_schema({
+            "name": {
+                "type": "string",
+                "description": "Visible tab name to delete.",
+            },
+            "confirm_mutation": mutating_confirmation(),
+        }),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "browser_insert_custom_feature",
         "cost": {
             "backend": "browser",
@@ -2154,6 +2269,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_get_page_tabs": _browser_get_page_tabs,
     "browser_create_document": _browser_create_document,
     "browser_create_tab": _browser_create_tab,
+    "browser_rename_tab": _browser_rename_tab,
+    "browser_delete_tab": _browser_delete_tab,
     "browser_insert_custom_feature": _browser_insert_custom_feature,
     "browser_open_insert_feature_dialog": _browser_open_insert_feature_dialog,
     "browser_create_document_version": _browser_create_document_version,
@@ -2321,8 +2438,10 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
                 "writing code. Read order: start with a search/find tool (cheap candidate list), then "
                 "fs_get_function or fs_guide_section for the one entry you need (full detail) — the "
                 "vendored corpus is tiered (onshape_docs/reference/quick/ then onshape_docs/reference/index/; onshape_docs/reference/raw/ is "
-                "build input and never read). The project's own documentation (tool catalog, verified "
-                "experience/lessons, example docs) is served by docs_list / docs_section / docs_search. "
+                "build input and never read). Categorized project documentation is served by docs_list, "
+                "docs_search, and docs_section. Search/list first, then read one exact section; open a complete "
+                "authored Markdown file only when that indexed detail is insufficient. Never read generated "
+                "JSON indexes directly. "
                 "Use read-only inspection tools unless the user explicitly requests a cloud "
                 "mutation; mutating tools require confirm_mutation=true and never return credentials."
             ),

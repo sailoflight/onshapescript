@@ -1,9 +1,165 @@
 {
  "pages": [
   {
+   "page": "documentation-map",
+   "category": "guide",
+   "path": "onshape_docs/README.md",
+   "sha256": "0d020bef463e594935c200a93353937cea7d35f386ee47c0a44beab939c80325",
+   "title": "Documentation map",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Documentation map",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This directory separates instructions, reusable experience, verification evidence, and upstream reference material. Use indexes before full originals."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Lookup order",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Classify the question with the table below.",
+         "depth": 0
+        },
+        {
+         "text": "Search or list the relevant index.",
+         "depth": 0
+        },
+        {
+         "text": "Read one exact section, symbol, endpoint, or schema.",
+         "depth": 0
+        },
+        {
+         "text": "Open a complete authored/raw source only if indexed detail is insufficient.",
+         "depth": 0
+        },
+        {
+         "text": "Start reasoning or editing after collecting that evidence.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Generated JSON indexes are tool inputs, not reading material; use the matching docs_, fs_, or onshape_api_* query tool instead of opening them directly."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Need",
+         "Start here",
+         "Then read"
+        ],
+        [
+         "Project workflow or known lesson",
+         "docs_search / docs_list",
+         "One docs_section"
+        ],
+        [
+         "FeatureScript language or symbol",
+         "fs_quick_reference / fs_search",
+         "Function, type, guide section, then source if needed"
+        ],
+        [
+         "REST operation, schema, auth, or error",
+         "onshape_api_list_tags / onshape_api_search",
+         "Endpoint, schema, auth, or error detail"
+        ],
+        [
+         "Browser automation behavior",
+         "docs_search over browser-automation / browser-modeling",
+         "One experience section, then source or fixture"
+        ],
+        [
+         "Evidence behind a conclusion",
+         "Find the experience conclusion first",
+         "Its linked verification record"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Directory ownership",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Directory",
+         "Owns",
+         "Does not own"
+        ],
+        [
+         "guide/",
+         "Task instructions and supported workflows",
+         "Historical observations or raw evidence"
+        ],
+        [
+         "experience/",
+         "Reusable verified FeatureScript, REST, and browser lessons",
+         "Experiment logs and generated reports"
+        ],
+        [
+         "verification/",
+         "Integrity reports, live manifests, and evidence",
+         "Canonical usage guidance"
+        ],
+        [
+         "reference/quick/",
+         "Cheap candidate indexes",
+         "Full descriptions"
+        ],
+        [
+         "reference/index/",
+         "Structured exact details used by tools",
+         "Upstream raw pages"
+        ],
+        [
+         "reference/raw/",
+         "Vendored provenance and index build input",
+         "Normal first reads"
+        ],
+        [
+         "query/ and scripts/",
+         "Offline readers plus fetch/build/check entry points",
+         "Authored guidance"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Authored and generated files",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Markdown files are authored originals. onshape_docs/index.json is the generated project-doc index; rebuild and verify it after authored changes:"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "python3 onshape_docs/scripts/build_docs_index.py\npython3 onshape_docs/verification/verify_docs.py"
+      }
+     ]
+    }
+   ]
+  },
+  {
    "page": "fs-assistant",
-   "path": "onshape_docs/guide/fs-assistant.md",
-   "sha256": "4dbd0d1569a80914d5307cde4cb86735f5d77ad4c8198a79ce616b399fa000eb",
+   "category": "guide",
+   "path": "onshape_docs/guide/feature-script.md",
+   "sha256": "d5c1b43bc3f414c59cf6619fc4c74dfc1b51747c939d612622f3db565235a290",
    "title": "FeatureScript assistance guide",
    "sections": [
     {
@@ -30,6 +186,10 @@
      "level": 2,
      "title": "Suggested workflow",
      "blocks": [
+      {
+       "type": "para",
+       "text": "This order is mandatory: candidate index first, one structured detail second, complete standard-library or raw source only when that detail is insufficient. Do not open generated JSON index files directly; use the fs_* readers."
+      },
       {
        "type": "list",
        "items": [
@@ -62,7 +222,7 @@
          "depth": 0
         },
         {
-         "text": "Project docs — docs_list / docs_section / docs_search read the project's own documentation (README, onshape_docs/guide/mcp-server.md, the verified llm-experience-* lessons, example docs) on demand from onshape_docs/index.json. Use these for tool-catalog, workflow, and verification-lesson questions that are not in the vendored reference.",
+         "text": "Project docs — use docs_search or docs_list for candidates, then docs_section for one exact guide, experience, verification, reference, or example section served from onshape_docs/index.json. Use these for tool-catalog, workflow, and verification-lesson questions that are not in the vendored reference.",
          "depth": 0
         }
        ]
@@ -128,7 +288,7 @@
          "depth": 0
         },
         {
-         "text": "onshape_docs/index.json — the project's own documentation (onshape_docs/guide/*.md, the quick-reference, example docs; README.md is the human landing page and is intentionally not indexed) parsed into the same typed-block schema as guide.json; served by docs_list / docs_section / docs_search. Built by onshape_docs/scripts/build_docs_index.py; the .md files remain the originals.",
+         "text": "onshape_docs/index.json — categorized guide, experience, verification, reference, and example documentation; the repository-root README.md stays a human landing page while onshape_docs/README.md is the indexed lookup map. It uses the same typed-block schema as guide.json and is served by docs_*. Built by onshape_docs/scripts/build_docs_index.py; the .md files remain the originals.",
          "depth": 0
         }
        ]
@@ -205,8 +365,9 @@
   },
   {
    "page": "mcp-server",
+   "category": "guide",
    "path": "onshape_docs/guide/mcp-server.md",
-   "sha256": "d8d1895bd8a18e8fb4a2e4f3f74a73ab643b689164b7b2edd55e617942eb72a7",
+   "sha256": "22ac87df6df747d55445337e160da9b8d9098741b983daa12ae3e164cf0c10b1",
    "title": "Local MCP server",
    "sections": [
     {
@@ -215,7 +376,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "mcp_server.py exposes the validated Onshape workflow as a local Model Context Protocol server. It uses newline-delimited JSON-RPC over standard input/output, so local MCP clients can launch it as a subprocess. The server and Onshape client use only Python's standard library; there is no package-install step."
+       "text": "python3 -m mcp_main exposes the validated Onshape workflow as a local Model Context Protocol server. It uses newline-delimited JSON-RPC over standard input/output, so local MCP clients can launch it as a subprocess. The server and Onshape client use only Python's standard library; there is no package-install step."
       }
      ]
     },
@@ -225,12 +386,12 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Use an absolute script path so launch does not depend on the client's working directory:"
+       "text": "Launch the package module from the repository working directory:"
       },
       {
        "type": "code",
        "language": "json",
-       "text": "{\n  \"mcpServers\": {\n    \"onshape-branch-cable-trophy\": {\n      \"command\": \"python3\",\n      \"args\": [\"/home/lijq/code/onshapescript/mcp_server.py\"],\n      \"cwd\": \"/home/lijq/code/onshapescript\"\n    }\n  }\n}"
+       "text": "{\n  \"mcpServers\": {\n    \"onshape-branch-cable-trophy\": {\n      \"command\": \"python3\",\n      \"args\": [\"-m\", \"mcp_main\"],\n      \"cwd\": \"/home/lijq/code/onshapescript\"\n    }\n  }\n}"
       },
       {
        "type": "para",
@@ -240,19 +401,19 @@
        "type": "list",
        "items": [
         {
-         "text": "Non-secret state: config/onshape-state.json",
+         "text": "Non-secret state: onshape_rest_api_mode/config/onshape-state.json",
          "depth": 0
         },
         {
-         "text": "Credentials: onshape-credentials.json",
+         "text": "Credentials: onshape_rest_api_mode/config/onshape-credentials.json",
          "depth": 0
         },
         {
-         "text": "Detailed parameters: config/model.default.json",
+         "text": "Detailed parameters: examples/branch-cable-trophy/config/model.default.json",
          "depth": 0
         },
         {
-         "text": "Simplified parameters: config/model.preview.json",
+         "text": "Simplified parameters: examples/branch-cable-trophy/config/model.preview.json",
          "depth": 0
         }
        ]
@@ -269,7 +430,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These read the vendored reference under onshape_docs/reference/ and never contact Onshape or the network. They are the primary FeatureScript lookup tools. See onshape_docs/guide/fs-assistant.md for the recommended workflow."
+       "text": "These read the vendored reference under onshape_docs/reference/ and never contact Onshape or the network. They are the primary FeatureScript lookup tools. See onshape_docs/guide/feature-script.md for the recommended workflow."
       },
       {
        "type": "table",
@@ -328,7 +489,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The project's own documentation (onshape_docs/guide/*.md, onshape_docs/reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is parsed into onshape_docs/index.json by onshape_docs/scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
+       "text": "The project's categorized guide, experience, verification, reference, and example documentation (the repository-root README.md remains the unindexed human landing page, while onshape_docs/README.md is the indexed lookup map) is parsed into onshape_docs/index.json by onshape_docs/scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
       },
       {
        "type": "table",
@@ -339,15 +500,15 @@
         ],
         [
          "docs_list",
-         "Every indexed page with its title, source path, and heading-section outline."
+         "Index-first outline grouped by category, with each page title, source path, and section headings."
         ],
         [
          "docs_section",
-         "A page as plain text, or one heading section (page + optional section; matching is case-insensitive substring)."
+         "One exact indexed page or heading section; use after list/search instead of opening a complete authored file."
         ],
         [
          "docs_search",
-         "Ranked keyword search across every section of the project docs; pass page to restrict."
+         "Ranked candidate sections with category and snippet; pass page to restrict, then call docs_section."
         ]
        ]
       }
@@ -359,7 +520,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under onshape_docs/reference/ (raw spec in onshape_docs/reference/raw/onshape-api/, indexes read from onshape_docs/reference/index/onshape-api/ and onshape_docs/reference/quick/onshape-api/). Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See onshape_docs/guide/onshape-api.md for the data, coverage, and the remaining documentation gaps for real operations."
+       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under onshape_docs/reference/ (raw spec in onshape_docs/reference/raw/onshape-api/, indexes read from onshape_docs/reference/index/onshape-api/ and onshape_docs/reference/quick/onshape-api/). Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See onshape_docs/guide/rest-api.md for the data, coverage, and the remaining documentation gaps for real operations."
       },
       {
        "type": "table",
@@ -396,7 +557,46 @@
       },
       {
        "type": "para",
-       "text": "fs_check_version also reports onshapeApiSpecVersion (the vendored REST API spec version + index health), and fs_update_reference accepts include_onshape_api: true to refresh the REST spec and the auth/error docs alongside the FeatureScript reference — the spec re-fetch needs onshape-credentials.json and is skipped with a note when it is absent."
+       "text": "fs_check_version also reports onshapeApiSpecVersion (the vendored REST API spec version + index health), and fs_update_reference accepts include_onshape_api: true to refresh the REST spec and the auth/error docs alongside the FeatureScript reference — the spec re-fetch needs onshape_rest_api_mode/config/onshape-credentials.json and is skipped with a note when it is absent."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Browser automation tools — zero REST API quota",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "These 19 tools drive the persistent Windows-hosted browser. They never call the Onshape REST API, but a real UI action can still modify cloud data. Mutation confirmation and pacing therefore apply independently of REST quota. Use tools/list as the authoritative catalog when current registration matters."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Group",
+         "Tools",
+         "Boundary"
+        ],
+        [
+         "Session and discovery",
+         "browser_session, browser_watch, browser_inspect, browser_scroll, browser_click, browser_eval, browser_reconnect",
+         "Inspecting is read-only; actual click/eval requires confirm_mutation=true; reconnect only restores the session."
+        ],
+        [
+         "Read-only navigation and state",
+         "browser_open_document, browser_read_featurescript, browser_get_partstudio_features, browser_get_page_tabs, browser_open_insert_feature_dialog",
+         "Navigation/dialog opening does not create cloud data; state is read from the visible page."
+        ],
+        [
+         "Confirmed document changes",
+         "browser_deploy_featurescript, browser_create_document, browser_create_tab, browser_rename_tab, browser_delete_tab, browser_insert_custom_feature, browser_create_document_version",
+         "All real writes require confirm_mutation=true; deploy also supports a pure local dry_run=true."
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "For selector/session behavior, search the indexed browser-automation experience page. For the create → deploy → version → apply → verify workflow and its success signals, read one matched section from browser-modeling."
       }
      ]
     },
@@ -456,7 +656,7 @@
         ],
         [
          "onshape_render_preview",
-         "Returns one shaded PNG as MCP image content; save=true additionally writes outputs/previews/<view>.png."
+         "Returns one shaded PNG as MCP image content; save=true additionally writes onshape_rest_api_mode/outputs/previews/<view>.png."
         ],
         [
          "onshape_eval_featurescript",
@@ -509,7 +709,7 @@
       },
       {
        "type": "para",
-       "text": "The quota ledger (config/api-usage.json, gitignored) is passive: every 2xx/3xx response counts toward the annual limit and each response's X-Rate-Limit-Remaining header is captured — zero extra API calls, because Onshape has no public quota-query endpoint. Configure the annual budget in config/onshape-state.json under apiQuota ({\"accountType\": \"professional\"} maps to the official 5000/year, or set {\"annualLimit\": N} directly). Seed it with your real year-to-date usage — {\"accountType\": \"standard\", \"alreadyConsumed\": 119} — read from the Onshape UI (My Account → Developer); the local ledger is added on top (consumed = alreadyConsumed + ledgerConsumed). After any other client spends quota, re-read the UI total and set alreadyConsumed = UI_total - ledgerConsumed to recalibrate. A 402 response is the server's real \"annual limit exhausted\" signal. Without an apiQuota config the tools degrade to rate-limit-only reporting."
+       "text": "The quota ledger (onshape_rest_api_mode/config/api-usage.json, gitignored) is passive: every 2xx/3xx response counts toward the annual limit and each response's X-Rate-Limit-Remaining header is captured — zero extra API calls, because Onshape has no public quota-query endpoint. Configure the annual budget in onshape_rest_api_mode/config/onshape-state.json under apiQuota ({\"accountType\": \"professional\"} maps to the official 5000/year, or set {\"annualLimit\": N} directly). Seed it with your real year-to-date usage — {\"accountType\": \"standard\", \"alreadyConsumed\": 119} — read from the Onshape UI (My Account → Developer); the local ledger is added on top (consumed = alreadyConsumed + ledgerConsumed). After any other client spends quota, re-read the UI total and set alreadyConsumed = UI_total - ledgerConsumed to recalibrate. A 402 response is the server's real \"annual limit exhausted\" signal. Without an apiQuota config the tools degrade to rate-limit-only reporting."
       },
       {
        "type": "para",
@@ -529,7 +729,7 @@
        "type": "list",
        "items": [
         {
-         "text": "onshape-credentials.json remains ignored by .gitignore.",
+         "text": "onshape_rest_api_mode/config/onshape-credentials.json remains ignored by .gitignore.",
          "depth": 0
         },
         {
@@ -563,7 +763,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 -m unittest discover -s tests -v\npython3 -m py_compile mcp_server.py mcp_main/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py"
+       "text": "python3 -m unittest discover -s dev/tests -v\npython3 -m py_compile mcp_main/*.py mcp_main/bridge/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py"
       },
       {
        "type": "para",
@@ -608,8 +808,9 @@
   },
   {
    "page": "onshape-api",
-   "path": "onshape_docs/guide/onshape-api.md",
-   "sha256": "81dc590276af7c2f9f1e4cb0c171c6c04376f160999dad696975c7a663c60cba",
+   "category": "guide",
+   "path": "onshape_docs/guide/rest-api.md",
+   "sha256": "4975258445039a348f78bb3730b6f818686ff5b74a754397e9dcb9e61d4eb515",
    "title": "Onshape REST API reference",
    "sections": [
     {
@@ -619,6 +820,16 @@
       {
        "type": "para",
        "text": "The MCP server answers Onshape REST questions offline from two vendored sources: the live OpenAPI definition served at https://cad.onshape.com/api/openapi (raw tier 0: onshape_docs/reference/raw/onshape-api/) and the official developer docs for authentication and error handling (onshape_docs/reference/raw/onshape-api-docs/). The tiered indexes the tools actually read are under onshape_docs/reference/index/onshape-api/ and onshape_docs/reference/index/onshape-api-docs/ (see onshape_docs/guide/mcp-server.md for the tool behavior table; this page covers the data, its coverage, and the gaps that remain for doing real API operations)."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Lookup order",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Do not begin with the OpenAPI or HTML under reference/raw/. Start with onshape_api_list_tags or onshape_api_search, open one exact endpoint/schema/ auth/error entry, and inspect raw provenance only if structured detail is insufficient. Generated JSON indexes are served by the tools and should not be read directly."
       }
      ]
     },
@@ -748,11 +959,11 @@
        "type": "list",
        "items": [
         {
-         "text": "Every response is ledgered in config/api-usage.json (gitignored): 2xx/3xx count toward the annual limit, 4xx/5xx do not, and the X-Rate-Limit-Remaining header is captured each time. A 402 response is the server's real \"annual limit exhausted\" signal.",
+         "text": "Every response is ledgered in onshape_rest_api_mode/config/api-usage.json (gitignored): 2xx/3xx count toward the annual limit, 4xx/5xx do not, and the X-Rate-Limit-Remaining header is captured each time. A 402 response is the server's real \"annual limit exhausted\" signal.",
          "depth": 0
         },
         {
-         "text": "Configure the budget in config/onshape-state.json: \"apiQuota\": {\"accountType\": \"professional\"} maps to the official annual limit (enterprise 10000 / professional 5000 / standard 2500), or {\"annualLimit\": N} directly.",
+         "text": "Configure the budget in onshape_rest_api_mode/config/onshape-state.json: \"apiQuota\": {\"accountType\": \"professional\"} maps to the official annual limit (enterprise 10000 / professional 5000 / standard 2500), or {\"annualLimit\": N} directly.",
          "depth": 0
         },
         {
@@ -778,7 +989,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 onshape_docs/scripts/fetch_onshape_api.py          # needs onshape-credentials.json\npython3 onshape_docs/scripts/build_onshape_api_index.py\npython3 onshape_docs/scripts/fetch_onshape_api_docs.py     # public pages, no credentials\npython3 onshape_docs/scripts/build_onshape_api_docs_index.py"
+       "text": "python3 onshape_docs/scripts/fetch_onshape_api.py          # needs onshape_rest_api_mode/config/onshape-credentials.json\npython3 onshape_docs/scripts/build_onshape_api_index.py\npython3 onshape_docs/scripts/fetch_onshape_api_docs.py     # public pages, no credentials\npython3 onshape_docs/scripts/build_onshape_api_docs_index.py"
       },
       {
        "type": "para",
@@ -789,148 +1000,19 @@
    ]
   },
   {
-   "page": "verification",
-   "path": "onshape_docs/verification/README.md",
-   "sha256": "88492b028bf6628667668d28dc65544dc90061ff09d3a4776fc81bb015367945",
-   "title": "Documentation verification",
-   "sections": [
-    {
-     "level": 1,
-     "title": "Documentation verification",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "Zero-cost, local validation of every vendored document corpus. Nothing here calls the network or consumes Onshape API quota — its purpose is to distill verified experience for LLM agents."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Contents",
-     "blocks": [
-      {
-       "type": "table",
-       "rows": [
-        [
-         "File",
-         "What it is"
-        ],
-        [
-         "verify_docs.py",
-         "Runs all checks and statistics, writes report.json."
-        ],
-        [
-         "report.json",
-         "Latest run: every check's pass/fail + corpus statistics + known official gaps."
-        ],
-        [
-         "llm-experience-api.md",
-         "Onshape REST API experience for LLM agents, backed by the verified corpus."
-        ],
-        [
-         "llm-experience-fs.md",
-         "FeatureScript language experience for LLM agents, backed by the verified corpus."
-        ],
-        [
-         "live/",
-         "The raw live-verification record: experiment .fs files, results.json, instance-results.json, and README.md with the budget ledger."
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "The four corpora verified here are: the vendored FS reference, the vendored REST API spec, the vendored auth/error docs, and the project's own documentation index (onshape_docs/index.json, built by onshape_docs/scripts/build_docs_index.py from the authored markdown; README.md is the human landing page and intentionally not indexed). The markdown files are the originals and are kept; onshape_docs/index.json is a derived, structured copy served on demand by the docs_* tools (see onshape_docs/guide/mcp-server.md)."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Run",
-     "blocks": [
-      {
-       "type": "code",
-       "language": "bash",
-       "text": "python3 onshape_docs/verification/verify_docs.py"
-      },
-      {
-       "type": "para",
-       "text": "The 16 checks verify consistency and integrity of all four corpora:"
-      },
-      {
-       "type": "list",
-       "items": [
-        {
-         "text": "FS reference — index.json ↔ library.html sha256, guide page sha256, structural completeness (functions/types/constants/predicates), operator-name non-emptiness, and parameter-type cross-references.",
-         "depth": 0
-        },
-        {
-         "text": "REST API — api_index.json ↔ openapi.json sha256, endpoint well-formedness, security / request-body / response schema references resolve, api_quick.json surface equals api_index.json.",
-         "depth": 0
-        },
-        {
-         "text": "Auth / errors — page sha256, errorCodes well-formedness.",
-         "depth": 0
-        },
-        {
-         "text": "Project docs — onshape_docs/index.json page sha256 matches the authored markdown, sections well-formed (title + blocks).",
-         "depth": 0
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Known official gaps (recorded, not failures)",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "Verification found defects in the official upstream sources themselves, recorded in report.json under knownOfficialGaps and explained in the experience docs:"
-      },
-      {
-       "type": "list",
-       "items": [
-        {
-         "text": "FS: GBTErrorStringEnum is referenced 19× (by the ev* query error parameters) but never defined in FsDoc.",
-         "depth": 0
-        },
-        {
-         "text": "REST: three POST endpoints ship without summary/description (revertunchangedtorevisions, syncAppElements, /partnumber/nextnumbers).",
-         "depth": 0
-        }
-       ]
-      },
-      {
-       "type": "para",
-       "text": "New gaps that appear after a re-fetch will fail the run."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Purpose",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "Green checks are not the goal. The goal is turning verification findings into experience an LLM agent can act on — so the reference corpus becomes self-correcting guidance. The two llm-experience-.md documents are that output, and (like every project doc) they are indexed into onshape_docs/index.json and read on demand through docs_section / docs_search alongside the fs_ / onshape_api_* reference tools."
-      }
-     ]
-    }
-   ]
-  },
-  {
    "page": "llm-experience-fs",
-   "path": "onshape_docs/verification/llm-experience-fs.md",
-   "sha256": "e64865ac45b91381557250c60e6d0cead4471fdb8021969eb4aefee3b35c3bc9",
-   "title": "LLM experience: FeatureScript language",
+   "category": "experience",
+   "path": "onshape_docs/experience/featurescript.md",
+   "sha256": "e01000038cf994978f7fde98059414f7470da74444bae0d9173a53a01dd3c376",
+   "title": "Verified experience: FeatureScript",
    "sections": [
     {
      "level": 1,
-     "title": "LLM experience: FeatureScript language",
+     "title": "Verified experience: FeatureScript",
      "blocks": [
       {
        "type": "para",
-       "text": "What a model actually needs to write correct FeatureScript. Backed by the verified corpus (onshape_docs/verification/report.json, collected by verify_docs.py against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates, 210 modules, 18 guide pages)."
+       "text": "What an agent needs to write and diagnose FeatureScript correctly. Scope: vendored reference 2960, authored Feature Studio 3029, observed runtime 3044, with live evidence through 2026-08-14. Backed by the verified corpus (onshape_docs/verification/report.json, collected by verify_docs.py against FsDoc: 929 functions, 270 types, 129 constants, 133 predicates, 210 modules, 18 guide pages)."
       }
      ]
     },
@@ -1067,7 +1149,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Verifying the corpus against a real Feature Studio exposed mechanisms the reference does not document. Full run log: live/README.md (15 experiments; the 7 rows that surprised the original expectations are now absorbed into the corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see live/reconfirm-2026-08-14.json)."
+       "text": "Verifying the corpus against a real Feature Studio exposed mechanisms the reference does not document. Full run log: onshape_docs/verification/live/README.md (15 experiments; the 7 rows that surprised the original expectations are now absorbed into the corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see onshape_docs/verification/live/reconfirm-2026-08-14.json)."
       },
       {
        "type": "list",
@@ -1155,7 +1237,7 @@
          "depth": 0
         },
         {
-         "text": "Pass part_studio_id explicitly in probe loops. The resolver no longer walks the document: it returns the explicit id or the cached config/onshape-state.json partStudioId, and raises if neither is present (the old ~10-call implicit walk is disabled). With it, one eval is exactly 1 call.",
+         "text": "Pass part_studio_id explicitly in probe loops. The resolver no longer walks the document: it returns the explicit id or the cached onshape_rest_api_mode/config/onshape-state.json partStudioId, and raises if neither is present (the old ~10-call implicit walk is disabled). With it, one eval is exactly 1 call.",
          "depth": 0
         },
         {
@@ -1232,7 +1314,7 @@
          "depth": 0
         },
         {
-         "text": "429 is never retried (user policy 2026-08-14). Onshape's Retry-After hit 73094s (~20h) with Rate-Limit-Remaining 0. client.request raises RateLimited immediately (wait time persisted to config/api-usage.json); every quota script re-raises it, writes the error to its results file, and exits — no retry, no skipping to the next task. Hard budgets everywhere: a --budget total cap preflighted against the annual quota, plus per-operation checks (e.g. an import version probe costs 3 calls and is only started if all 3 fit the remaining budget).",
+         "text": "429 is never retried (user policy 2026-08-14). Onshape's Retry-After hit 73094s (~20h) with Rate-Limit-Remaining 0. client.request raises RateLimited immediately (wait time persisted to onshape_rest_api_mode/config/api-usage.json); every quota script re-raises it, writes the error to its results file, and exits — no retry, no skipping to the next task. Hard budgets everywhere: a --budget total cap preflighted against the annual quota, plus per-operation checks (e.g. an import version probe costs 3 calls and is only started if all 3 fit the remaining budget).",
          "depth": 0
         },
         {
@@ -1247,17 +1329,18 @@
   },
   {
    "page": "llm-experience-api",
-   "path": "onshape_docs/verification/llm-experience-api.md",
-   "sha256": "6d0a6a9d9a326d541030e9715ed09d979c24e703a3ada9729e6a4684e7073a6d",
-   "title": "LLM experience: Onshape REST API",
+   "category": "experience",
+   "path": "onshape_docs/experience/rest-api.md",
+   "sha256": "48c3114cb388e28543248f6c573ad3ce46edd79f22d4252860bcdca49d8819f4",
+   "title": "Verified experience: Onshape REST API",
    "sections": [
     {
      "level": 1,
-     "title": "LLM experience: Onshape REST API",
+     "title": "Verified experience: Onshape REST API",
      "blocks": [
       {
        "type": "para",
-       "text": "What a model actually needs to know to call the Onshape REST API correctly. Every claim below is backed by the verified corpus (onshape_docs/verification/report.json, collected by verify_docs.py against REST API 1.219.86205, 302 operations)."
+       "text": "What an agent needs to call the Onshape REST API correctly. Scope: vendored REST API 1.219.86205 and controlled live observations through 2026-08-14. Every claim below is backed by the verified corpus (onshape_docs/verification/report.json, collected by verify_docs.py against REST API 1.219.86205, 302 operations)."
       }
      ]
     },
@@ -1393,24 +1476,12 @@
      "title": "Lessons from live verification (real server, ~310 calls)",
      "blocks": [
       {
+       "type": "para",
+       "text": "FeatureScript save/spec/eval/instantiate behavior is canonical in onshape_docs/experience/featurescript.md; read its matched section instead of duplicating those conclusions here. This page retains REST transport, caching, and cost behavior."
+      },
+      {
        "type": "list",
        "items": [
-        {
-         "text": "featurespecs empty is ambiguous. A file of plain functions (compiles fine) and a file with a broken signature both return zero specs. There is no error field on featurespecs, the Feature Studio GET, or the document elements list — a compile failure is only visible as \"no specs\", with no message to read.",
-         "depth": 0
-        },
-        {
-         "text": "POST 200 + microversionSkew:false ≠ compile success. The upload saved; the compile may still have failed. The only compile signal is the subsequent featurespecs count, not the save response.",
-         "depth": 0
-        },
-        {
-         "text": "POST .../features (instantiate) reports ERROR with no detail. The featureState carries only featureStatus — no message, no line, no symbol. The failed feature is still saved and appears in GET .../features. So ERROR means \"the body did not complete\"; distinguish a compile error from a runtime/empty-query condition by reasoning, because the API will not tell you.",
-         "depth": 0
-        },
-        {
-         "text": "libraryVersion is always 0 on the Feature Studio GET. The two real version fields live elsewhere and are captured for free by fs_check_version: languageVersion on each feature spec (the content's declared version, e.g. 3029) and libraryVersion on an eval response (the deployed runtime, e.g. 3044). The create-Part-Studio response (BTDocumentElementInfo) carries no FeatureScript version field — never spend a call expecting it there.",
-         "depth": 0
-        },
         {
          "text": "Per-step real cost (counted from the actual operations): upload ~3, create Part Studio 1, instantiate 1 (when the Feature Studio microversion is cached from the upload) / 2 (cold), evalfeaturescript 1, validation pipeline 13 with render / 8 without. check_latest on fs_check_version costs 1 (the /api/build REST-spec probe); the plain version check and fs_update_reference (without include_onshape_api) cost 0.",
          "depth": 0
@@ -1434,9 +1505,960 @@
    ]
   },
   {
+   "page": "browser-automation",
+   "category": "experience",
+   "path": "onshape_docs/experience/browser-automation.md",
+   "sha256": "6e6894b71235e835f7692048f9ac3b8d0e02d1305cf23fd756291d94c02d2dd8",
+   "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
+   "sections": [
+    {
+     "level": 1,
+     "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "本文档是 2026-08-20 起对 Onshape 浏览器自动化探索的使用经验沉淀，供后续 开发 page objects / selector 映射 / 自动化脚本时直接复用。所有结论都来自 真实 Edge（channel=msedge）+ 持久化 profile 的实测，0 次 Onshape API 调用。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "1. 运行模型",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "浏览器只在 Windows 上跑，Linux 只跑 mcp_main/bridge/mcp_tcp_bridge.py 做 stdio↔TCP 中继。",
+         "depth": 0
+        },
+        {
+         "text": "Windows 常驻 mcp_main/bridge/bridge_server.py，进程内直接 dispatch MCP，不在每个连接拉起子进程。",
+         "depth": 0
+        },
+        {
+         "text": "单客户端铁律 + 单工作页铁律：session.start() 每次只保留一个工作页，其余标签全关 （_enforce_single_working_page）。",
+         "depth": 0
+        },
+        {
+         "text": "关闭方式决定登录态：强杀进程保留登录，优雅关闭会登出。Onshape 无“保持登录”。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 登录态恢复经验",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Onshape WEB 端：浏览器一关立即登出，没有“保持登录”选项。",
+         "depth": 0
+        },
+        {
+         "text": "恢复登录的两个条件：profile 里的 cookie + 上次的入口 URL。",
+         "depth": 0
+        },
+        {
+         "text": "入口 URL 例如 https://cad.onshape.com/documents?resourceType=resourceuserowner&nodeId=<id>",
+         "depth": 1
+        },
+        {
+         "text": "由 onshape_browser_mode/config/browser-state.json 的 lastAppUrl 持久化，status() 每次见到已登录页自动落盘。",
+         "depth": 1
+        },
+        {
+         "text": "判定“已登录”要等 SPA 路由稳定：domcontentloaded 后 URL 可能是短暂的 documents， 4 秒后前端路由会把未登录会话重定向到 /signin。open_login_page() 已按最终 URL 判定。",
+         "depth": 0
+        },
+        {
+         "text": "强杀 vs 优雅关闭的差异是真实存在的：强杀不给页面执行登出逻辑的机会，会话文件保留 documents URL；优雅关闭会把页面写回 signin。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 浏览器工具（browser_*）",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "工具",
+         "用途",
+         "关键参数"
+        ],
+        [
+         "browser_session",
+         "登录态/页面状态",
+         "`action=status",
+         "login`"
+        ],
+        [
+         "browser_watch",
+         "录制人工操作（URL/网络/对话框）",
+         "`action=start",
+         "stop",
+         "report`"
+        ],
+        [
+         "browser_inspect",
+         "可见可交互元素清单",
+         "max_elements"
+        ],
+        [
+         "browser_scroll",
+         "滚动窗口或指定容器",
+         "direction, amount, selector"
+        ],
+        [
+         "browser_click",
+         "点击元素（实际点击需 confirm_mutation=true；dry_run 只检查目标不点击）",
+         "selector/text, index, dry_run, confirm_mutation"
+        ],
+        [
+         "browser_eval",
+         "页面内 JS 求值（执行需 confirm_mutation=true；dry_run 只返回表达式元数据不执行）",
+         "expression, arg, dry_run, confirm_mutation"
+        ],
+        [
+         "browser_open_document",
+         "只读打开文档并解析 did/wid/eid",
+         "document_name"
+        ],
+        [
+         "browser_read_featurescript",
+         "只读读回 Ace 全文 + 页面 id 三元组",
+         "—"
+        ],
+        [
+         "browser_deploy_featurescript",
+         "0 配额部署 FS（写 Ace + 点提交，需确认）",
+         "script, document_name, dry_run, confirm_mutation"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "所有工具 network: \"browser\"、estimated_api_requests: 0——不花 Onshape API 额度。 browser_click / browser_eval 现在标注为 mutating（可能触发云端 UI 变更）：真正执行 必须 confirm_mutation=true；dry_run=true 不产生点击/求值副作用，无需确认。 真实浏览器动作还受 onshape_browser_mode/config/browser.toml 的 [pacing] 约束： 默认最多 8 次/分钟，并在动作前随机等待 0.8–2 秒。新增工具或参数以 docs_section(page=\"mcp-server\") 和 tools/list 为准，本页不承担完整注册表职责。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "4.1 「我所有的文档」页（Documents）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "URL：/documents?resourceType=resourceuserowner&nodeId=<id>",
+         "depth": 0
+        },
+        {
+         "text": "文档列表是 AG Grid，滚动容器是 .ag-body-viewport（或 .ag-body-vertical-scroll-viewport）；整个窗口 scrollY 恒为 0，别用 window 滚动。",
+         "depth": 0
+        },
+        {
+         "text": "左侧还有 .os-document-list-grid-container（可滚 200px 左右）。",
+         "depth": 0
+        },
+        {
+         "text": "稳定选择器：",
+         "depth": 0
+        },
+        {
+         "text": "搜索：#search-box",
+         "depth": 1
+        },
+        {
+         "text": "通知：#user-notification-status",
+         "depth": 1
+        },
+        {
+         "text": "新建：#create-new-type（文本「创建」）",
+         "depth": 1
+        },
+        {
+         "text": "文档行链接：.document-list-item-name、.document-display-link、.os-document-display-name",
+         "depth": 1
+        },
+        {
+         "text": "当前账号下文档（实测）：初稿、Branch Cable Trophy Display - FeatureScript、 无标题文档×N、IMG_20250409_084546.jpg、k37 等。目标文档是 Branch Cable Trophy Display - FeatureScript。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "4.2 Part Studio / FeatureScript 页",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "点击文档名后进入：/documents/<did>/w/<wid>/e/<eid>。",
+         "depth": 0
+        },
+        {
+         "text": "顶部导航新增：共享 按钮（.nav-share）、搜索工具… alt/⌥c（.command-search-trigger）。",
+         "depth": 0
+        },
+        {
+         "text": "文档标签：tab-list-item.os-tab-bar-tab，标签名在 .os-tab-name。当前文档的标签：",
+         "depth": 0
+        },
+        {
+         "text": "Branch cable trophy display（FeatureScript，默认激活）",
+         "depth": 1
+        },
+        {
+         "text": "Cable trophy model v1（Part Studio）",
+         "depth": 1
+        },
+        {
+         "text": "Cable trophy model validation（Part Studio）",
+         "depth": 1
+        },
+        {
+         "text": "FS live verification、instance 0-.fs 等 FeatureScript 实例页",
+         "depth": 1
+        },
+        {
+         "text": "FeatureScript 编辑器是 Ace editor：",
+         "depth": 0
+        },
+        {
+         "text": "输入区 textarea.ace_text-input（aria「Cursor at row …」）",
+         "depth": 1
+        },
+        {
+         "text": "折叠控件 .ace_fold-widget",
+         "depth": 1
+        },
+        {
+         "text": "读全文方法（0 配额；执行需 confirm_mutation=true）：browser_eval 跑 const el=document.querySelector('.ace_editor'); const ed=(el.env&&el.env.editor)||window.ace.edit(el); ed.getValue() 实测读到「Branch cable trophy display」全文 571 行 / 23875 字符，已存 dev/fixtures-capture/branch-cable-trophy-display.fs。注意 DOM 渲染只含可见行， 必须走 Ace API 才能拿全文。",
+         "depth": 1
+        },
+        {
+         "text": "FeatureScript 工具栏（容器 .os-feature-studio-main-menu-bar，按钮 .tool.is-activatable.is-button）：",
+         "depth": 0
+        },
+        {
+         "text": "撤消（disabled）、新特征、Length parameter、导入、提交（.os-primary，无改动时 disabled）、 Module outline（.top-level-symbols-button，标签在 .top-level-symbols-label）、ref 前进/后退（disabled）",
+         "depth": 1
+        },
+        {
+         "text": "FeatureScript 悬浮文档：.os-feature-script-doc-popup-layer（当前显示 LengthBoundSpec type A spec to be used with the isLength pre...）。",
+         "depth": 0
+        },
+        {
+         "text": "每个标签都有「监控 / 配置文件」菜单：.os-menu-tool（文本形如 监控 Cable trophy model v1）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "4.3 会话超时弹窗（重要）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "长时间不操作后出现，文本：「您的 Onshape 会话已超时。 您的文档已保存。 单击此处重新连接。」",
+         "depth": 0
+        },
+        {
+         "text": "重连链接：a.alert-link.osx-message-bubble-link（文本「单击此处重新连接。」）",
+         "depth": 0
+        },
+        {
+         "text": "容器：.osx-message；关闭按钮：.osx-close",
+         "depth": 0
+        },
+        {
+         "text": "browser_reconnect 会检测并点击该链接恢复会话；browser_open_document / browser_read_featurescript / browser_deploy_featurescript 在执行前自动重连。",
+         "depth": 0
+        },
+        {
+         "text": "实测：点击后弹窗消失，页面回到原文档 URL。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "4.4 Part Studio 页与「添加自定义特征」对话框",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Part Studio 标签 URL 的 elementId 与 FS 标签不同（0c7862642d02c53c3dd7cd79）。",
+         "depth": 0
+        },
+        {
+         "text": "特征树：.features-title（「特征 (5)」）、.os-list-item； 自定义特征 .os-list-item.ns-user-feature（如 Bc Branch cable trophy display）， 默认几何图元 .os-list-item.ns-default-feature。",
+         "depth": 0
+        },
+        {
+         "text": "零件列表：.part-list-container（零件数 (132) base ...）——自定义特征出现且 零件数>0 即 0 配额的「编译+建模」验证。",
+         "depth": 0
+        },
+        {
+         "text": "工具栏：.toolbar-item，按钮 .tool.is-activatable.is-button；文字标签 .tool-label.hide-in-toolbar 是隐藏的，browser_click(text=...) 点不到， 要按 .toolbar-item 的 textContent 找到后点内部按钮。",
+         "depth": 0
+        },
+        {
+         "text": "「添加自定义特征」对话框 .feature-studio-insert-dialog：",
+         "depth": 0
+        },
+        {
+         "text": "标签 .os-dialog-tab：当前文档 / 其他文档；",
+         "depth": 1
+        },
+        {
+         "text": "文档名 .select-item-dialog-document-name；",
+         "depth": 1
+        },
+        {
+         "text": "若提示「没有可用的特征。… 创建一个版本」，说明 Feature Studio 未发布版本， 需先在文档里创建版本后自定义特征才可插入。",
+         "depth": 1
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. 选择器优先级（写自动化时）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "唯一 id：#search-box、#user-notification-status、#create-new-type。",
+         "depth": 0
+        },
+        {
+         "text": "语义 class + 文本：tab-list-item.os-tab-bar-tab（按 .os-tab-name 文本定位）、 .tool.is-activatable.is-button（按 innerText 定位「提交」「Module outline」等）。",
+         "depth": 0
+        },
+        {
+         "text": "aria-label：导航按钮都有明确 aria（「在新窗口中将您导航到…」）。",
+         "depth": 0
+        },
+        {
+         "text": "避免：脆弱的 ng-star-inserted 等框架类；AG Grid 行号/列号。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5.5 部署 FeatureScript（0 配额，已验证）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_deploy_featurescript 全流程已实测跑通："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "open_login_page() 恢复登录后进入 FS 编辑器页；",
+         "depth": 0
+        },
+        {
+         "text": "actions.write_featurescript_editor() 用 Ace API ed.setValue() 写入全文；",
+         "depth": 0
+        },
+        {
+         "text": "写入后「提交」按钮从 disabled → enabled（actions.commit_button_state() 可读状态）；",
+         "depth": 0
+        },
+        {
+         "text": "actions.click_commit() 点击提交，3 秒后按钮回到 disabled = 提交成功；",
+         "depth": 0
+        },
+        {
+         "text": "提交后读回编辑器并比对，返回 verified: true 仅当页面源码与提交内容完全一致；",
+         "depth": 0
+        },
+        {
+         "text": "实测：dry_run 纯本地预览（不启动浏览器）→ 部署修改（23907 字符，verified:true）→ 恢复原内容（23875 字符，verified:true）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "关键 JS（actions.py）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "读全文：ed.getValue()",
+         "depth": 0
+        },
+        {
+         "text": "写全文：ed.setValue(text); ed.clearSelection(); ed.moveCursorTo(0,0)",
+         "depth": 0
+        },
+        {
+         "text": "提交按钮：.tool.is-activatable.os-primary.is-button，文案「提交」， className.includes('disabled') 表示无未提交改动。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 已知坑",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "多标签漂移：人工登录可能在新标签打开 documents，旧 signin 标签仍残留。status()/start() 会遍历 context.pages 优先选已登录应用页，并关闭其余标签。",
+         "depth": 0
+        },
+        {
+         "text": "Playwright sync API 绑定创建线程；桥接必须主线程串行处理客户端，否则报 Target page, context or browser has been closed。",
+         "depth": 0
+        },
+        {
+         "text": "launch_persistent_context 命令行末尾固定带 about:blank，这是正常启动页； 是否恢复上次标签取决于上次是否强杀（崩溃恢复）。",
+         "depth": 0
+        },
+        {
+         "text": "中文 Windows 下 Python stdout 默认 GBK；MCP 协议读写必须走 UTF-8 字节流。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "7. 标签（Feature Studio / Part Studio）管理",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "标签元素：<tab-list-item class=\"os-tab-bar-tab\" data-id=\"<elementId>\">， 名称在 .os-tab-name；data-id 即 elementId。",
+         "depth": 0
+        },
+        {
+         "text": "右键上下文菜单：ul.context-menu-list.context-menu-root 下 li.context-menu-item，文本为 删除 / 重命名 / 属性… / 在新浏览器页签中打开。",
+         "depth": 0
+        },
+        {
+         "text": "必须用 Playwright 真实点击（locator.click() / click(button=\"right\") / fill / press）：el.click() 这类合成事件会被 Onshape 忽略——右键菜单项、 删除/重命名都不会生效（与特征树删除同因）。",
+         "depth": 0
+        },
+        {
+         "text": "重命名：tab.click(button=\"right\") → li.context-menu-item 含「重命名」→ input.fill(new_name) → input.press(\"Enter\")。",
+         "depth": 0
+        },
+        {
+         "text": "删除：右键 → li.context-menu-item 含「删除」→ 通常无二次确认对话框，删除后 该标签消失；被删标签会先激活再消失，其余标签顺序保持。",
+         "depth": 0
+        },
+        {
+         "text": "删除/重命名都是 0 REST 配额的 UI 写操作，仍需 confirm_mutation=true。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "browser-modeling",
+   "category": "experience",
+   "path": "onshape_docs/experience/browser-modeling.md",
+   "sha256": "b6a110afed314e87df3d43cff5fbffb39826a3a254e51a2837808dd813252e1a",
+   "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
+   "sections": [
+    {
+     "level": 1,
+     "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "这是 2026-08-20 后多轮浏览器实测合并出的当前规范流程：在新建文档 里完成「创建 Feature Studio → 部署源码 → 创建版本 → Part Studio 应用自定义 特征 → 验证零件」，不污染生产文档，全程 0 次 Onshape REST API。历史记录中 “待实现”或“仅插入即完成”的中间结论已被后续实测替代，不再作为独立指南。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "1. 已实测跑通的步骤",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "#",
+         "步骤",
+         "工具/选择器",
+         "实测结果"
+        ],
+        [
+         "1",
+         "创建新文档",
+         "browser_create_document(name)：#create-new-type → .create-new-document → #document-name-input 填名 → .new-document-dialog .btn-primary",
+         "fs-modeling-test，did 4774246bad5e29f4c98bf632，wid 721b2be4e4dceb696e8576e1"
+        ],
+        [
+         "2",
+         "新建 Feature Studio 标签",
+         ".document-tabs-button 下拉 → a.dropdown-item「创建 Feature Studio」（下拉项隐藏，用 JS click）",
+         "标签 Feature Studio 1，eid b08754f2be050e1c13a6bdf8"
+        ],
+        [
+         "3",
+         "部署 FS 源码",
+         "browser_deploy_featurescript(script)：写 Ace → 点「提交」",
+         "81→23875 字符，deployed:true, verified:true"
+        ],
+        [
+         "4",
+         "创建版本",
+         "插入对话框「当前文档」→ 提示「没有可用的特征。… 创建一个版本」→ .select-item-prompt-save-version a → .version-or-workspace-dialog → 取消勾选 .publish-custom-features-checkbox → 点「创建」",
+         "版本 V1，对话框显示特征可用"
+        ],
+        [
+         "5",
+         "插入特征",
+         "插入对话框特征行 .select-item-dialog-item-row.child-item-container 双击（os-double-click=selectChildInsertableThenClose）",
+         "特征进入特征树，feature-id 已存在"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 关键机制（易错点）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "插入 = 双击，不是「插入」按钮：对话框底部 .standard-content-insert-button 实际尺寸为 [0,0,0,0]（不可点）。特征行有 os-single-double-click 指令：",
+         "depth": 0
+        },
+        {
+         "text": "单击 os-click=selectChildInsertable → 只选中（os-selected）；",
+         "depth": 1
+        },
+        {
+         "text": "双击 os-double-click=selectChildInsertableThenClose → 选中并关闭对话框 = 插入。",
+         "depth": 1
+        },
+        {
+         "text": "版本 ≠ 发布：version-or-workspace-dialog 勾选「发布自定义特征」后按钮变为 「创建和发布」，但发布有额外硬要求（公开文档、PDF、FeatureScript 说明、已在 Part Studio 使用等）。仅插入本机文档只需不勾选发布直接「创建」。",
+         "depth": 0
+        },
+        {
+         "text": "工具栏「添加自定义特征」的文字标签 .tool-label.hide-in-toolbar 隐藏，需按 .toolbar-item 的 textContent 找到后点内部 .tool.is-button。",
+         "depth": 0
+        },
+        {
+         "text": "代理网络慢：文档/标签/对话框加载都慢，每个导航后要轮询等待目标元素出现，不要固定短等待。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 关键修正：Part Studio 需要「应用」特征",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "之前走「添加自定义特征」对话框双击只会产生 not-computed 行（零件数 (0)）。 正确流程是手动应用："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "点工具栏按钮 此工作区中的自定义特征（.tool[title=\"此工作区中的自定义特征\"]）；",
+         "depth": 0
+        },
+        {
+         "text": "下拉里点特征名（.os-tool-dropdown-content）；",
+         "depth": 0
+        },
+        {
+         "text": "弹出参数对话框（.feature-dialog，含 Base radius/Base height/… 全部默认值）；",
+         "depth": 0
+        },
+        {
+         "text": "点勾选 .ns-dialog-button-ok.button-ok 接受 → 特征计算。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "实测最终结果："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "特征树 特征 (5)，含 Bc Branch cable trophy display 1（isUserFeature）",
+         "depth": 0
+        },
+        {
+         "text": "零件列表 零件数 (132) base plaqueInsert_blank rootCollars_0 …",
+         "depth": 0
+        },
+        {
+         "text": "即「上传+编译+版本+应用+建模」全链路 0 配额闭环成功。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 实现入口",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_create_document、browser_create_document_version、browser_insert_custom_feature、 browser_get_page_tabs、browser_get_partstudio_features、browser_deploy_featurescript、 browser_read_featurescript、browser_open_document、browser_reconnect。",
+         "depth": 0
+        },
+        {
+         "text": "browser_click 支持 selector+text 精确定位与 double 双击。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "当前完整工具清单以 docs_section(page=\"mcp-server\") 和 tools/list 为准；经验 文档只记录跨版本仍有复用价值的流程和判定信号，不复制不断变化的注册表。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. 创建文档与部署细节",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "创建文档的稳定路径："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "#create-new-type 打开 .os-create-menu.create-new-type-menu；",
+         "depth": 0
+        },
+        {
+         "text": "button.create-new-document 打开 .new-document-dialog；",
+         "depth": 0
+        },
+        {
+         "text": "用 #document-name-input 填名，让 Playwright 触发 Angular 绑定；",
+         "depth": 0
+        },
+        {
+         "text": "点击 #model-name-dialog-ok 或 .new-document-dialog .btn-primary；",
+         "depth": 0
+        },
+        {
+         "text": "新文档默认包含 Part Studio 1、Assembly 1 和 .document-tabs-button。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "browser_deploy_featurescript 的有效信号不是“点过提交”，而是：Ace API setValue() 写入全文、提交按钮从 enabled 回到 disabled、随后 getValue() 读回 内容完全一致并返回 verified:true。dry_run=true 只报告源码长度与行数，不启动 浏览器，也不产生页面写入。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 建模验证信号",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "部署成功：Feature Studio 提交按钮恢复 disabled，且读回源码完全一致。",
+         "depth": 0
+        },
+        {
+         "text": "特征可用：创建文档版本后，自定义特征出现在工作区特征下拉中。",
+         "depth": 0
+        },
+        {
+         "text": "特征已应用：Part Studio 特征树出现 .os-list-item.ns-user-feature。",
+         "depth": 0
+        },
+        {
+         "text": "建模成功：.part-list-container 的 零件数 (N) 满足 N > 0。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "“添加自定义特征”选择器中的条目、Part Studio 中的 not-computed 行、或仅有 feature-id 都不足以证明建模成功。最终判定必须同时读取特征树和零件数。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "7. 已知边界",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "部署一个已实例化 Feature Studio 的新版本后，Part Studio 通常会自动重新生成， 无需重新插入；仍应重新读取特征状态和零件数。",
+         "depth": 0
+        },
+        {
+         "text": "页面和对话框受代理及 SPA 路由影响，应等待目标元素或状态变化，不能依赖固定短延迟。",
+         "depth": 0
+        },
+        {
+         "text": "所有真实 UI 写操作仍要求 confirm_mutation=true；“0 REST 配额”不等于“只读”。",
+         "depth": 0
+        },
+        {
+         "text": "选择器和工具注册以当前代码与离线测试为准；本文给出的是工作流语义与成功条件。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "8. opBoolean 与命名/倒角边选择（实测 2026-08）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "模块接口验证（Part A 固定壁+轨 / Part B 槽块）落地时验证的 FeatureScript 经验："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "UNION 只传 tools，不要传 targets：targets 仅 SUBTRACTION / SUBTRACT_COMPLEMENT / 分组模式需要。UNION 用 qUnion([qCreatedBy(wallExtrudeId, BODY), qCreatedBy(railExtrudeId, BODY)])。",
+         "depth": 0
+        },
+        {
+         "text": "UNION 之后 qCreatedBy(unionId, EntityType.BODY) 为空：UNION 保留 tools 中 最早实体的身份，结果体仍归第一个 tool 特征所有。命名/后续查询要指向那个特征， 否则 setProperty 抛 无法解析图元（CANNOT_RESOLVE_ENTITIES = 空查询）。",
+         "depth": 0
+        },
+        {
+         "text": "SUBTRACTION 之后同样查询 target 体（qCreatedBy(blockExtrudeId, BODY)）， 不要查布尔特征 id。qOwnedByBody(qCreatedBy(blockExtrudeId, BODY), EDGE) 是可靠的“结果体上的边”写法。",
+         "depth": 0
+        },
+        {
+         "text": "两体只共面不重叠时 UNION 会失败：给轨道截面加一段埋入壁内的矩形嵌入段 （Y=壁厚-0.5~壁厚），并集后嵌入段被吸收，凸出段仍保持规格截面。",
+         "depth": 0
+        },
+        {
+         "text": "skPolyline 闭多边形 + qCreatedBy(sketchId, EntityType.FACE) 拉伸可靠： 5 个互不相交的闭多边形一次拉伸得到 5 个独立 body/part。",
+         "depth": 0
+        },
+        {
+         "text": "倒角边方向判断要按真实几何：槽口入口（Z=40）处的“槽口上边”是两条 45° 斜边 （切线方向 (±0.707, ±0.707, 0)），不是沿 X 的水平边——沿 X 的边是槽底 （Y=grooveDepth）。选边前用 evEdgeTangentLine(edge, {\"parameter\":0.5}) 采样 方向与中点坐标确认，不要凭猜测写过滤器。",
+         "depth": 0
+        },
+        {
+         "text": "调试技巧：在可疑 op 前用 isQueryEmpty 抛 regenError(\"DEBUG ...\")，或把 evaluateQuery 采样到的边坐标拼进 regenError 文本，一次部署即可定位空查询来自 哪个操作（注意错误只显示第一个失败 op，前置 op 会掩盖后续 op）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/README.md",
+   "sha256": "992489f32f0defb52e1a5248b0df8dc5fca90eaa5e04c83578280df801c2b603",
+   "title": "Documentation verification",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Documentation verification",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Offline integrity checks and evidence for the vendored and project-authored document corpora. The default verification command is local, deterministic, and uses zero Onshape API quota. Reusable conclusions are published separately under onshape_docs/experience/."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Contents",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "File",
+         "What it is"
+        ],
+        [
+         "verify_docs.py",
+         "Runs all checks and statistics, writes report.json."
+        ],
+        [
+         "report.json",
+         "Latest run: every check's pass/fail + corpus statistics + known official gaps."
+        ],
+        [
+         "live/",
+         "The raw live-verification record: experiment .fs files, results.json, instance-results.json, and README.md with the budget ledger."
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The four corpora verified here are: the vendored FS reference, the vendored REST API spec, the vendored auth/error docs, and the project's own documentation index (onshape_docs/index.json, built by onshape_docs/scripts/build_docs_index.py from the authored markdown; the repository-root README.md is the human landing page and intentionally not indexed). The markdown files are the originals and are kept; onshape_docs/index.json is a derived, structured copy served on demand by the docs_* tools (see onshape_docs/guide/mcp-server.md)."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Run",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "python3 onshape_docs/verification/verify_docs.py"
+      },
+      {
+       "type": "para",
+       "text": "The 17 checks verify consistency, semantic ownership, and integrity of all four corpora:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "FS reference — index.json ↔ library.html sha256, guide page sha256, structural completeness (functions/types/constants/predicates), operator-name non-emptiness, and parameter-type cross-references.",
+         "depth": 0
+        },
+        {
+         "text": "REST API — api_index.json ↔ openapi.json sha256, endpoint well-formedness, security / request-body / response schema references resolve, api_quick.json surface equals api_index.json.",
+         "depth": 0
+        },
+        {
+         "text": "Auth / errors — page sha256, errorCodes well-formedness.",
+         "depth": 0
+        },
+        {
+         "text": "Project docs — onshape_docs/index.json page sha256 matches the authored markdown, sections well-formed (title + blocks).",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Known official gaps (recorded, not failures)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Verification found defects in the official upstream sources themselves, recorded in report.json under knownOfficialGaps and explained in the experience docs:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "FS: GBTErrorStringEnum is referenced 19× (by the ev* query error parameters) but never defined in FsDoc.",
+         "depth": 0
+        },
+        {
+         "text": "REST: three POST endpoints ship without summary/description (revertunchangedtorevisions, syncAppElements, /partnumber/nextnumbers).",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "New gaps that appear after a re-fetch will fail the run."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Relationship to experience",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "verification/ answers “what evidence supports this claim?” It is not the first read for operational questions. Start with docs_search, read the matched page under onshape_docs/experience/, and follow its verification link only when the evidence or version scope matters."
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "FeatureScript conclusions: onshape_docs/experience/featurescript.md",
+         "depth": 0
+        },
+        {
+         "text": "REST API conclusions: onshape_docs/experience/rest-api.md",
+         "depth": 0
+        },
+        {
+         "text": "Browser conclusions: onshape_docs/experience/browser-automation.md and onshape_docs/experience/browser-modeling.md",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "report.json, live manifests, and experiment files remain evidence and are not loaded as general guidance."
+      }
+     ]
+    }
+   ]
+  },
+  {
    "page": "live-verification",
+   "category": "verification",
    "path": "onshape_docs/verification/live/README.md",
-   "sha256": "2f3a4d5ef069ed3cbfd2dc499493835fcfaf574671aad4975d457d390175b856",
+   "sha256": "7008a6f237f9a1cc73254e73ecb0795d768aa7e60184a80fb4762d1c86cbc7f0",
    "title": "Live FeatureScript verification — 实测记录",
    "sections": [
     {
@@ -1445,7 +2467,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "目标：用真实 Onshape 服务器验证 onshape_docs/verification/llm-experience-fs.md 的 语言论断。总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
+       "text": "目标：用真实 Onshape 服务器验证 onshape_docs/experience/featurescript.md 的 语言论断。总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
       },
       {
        "type": "para",
@@ -1728,7 +2750,7 @@
       },
       {
        "type": "para",
-       "text": "代价教训：探测循环没传 part_studio_id 时，resolve_part_studio_id 每次 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用）， 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号 共 12 次）。教训已写入 llm-experience-fs.md 的 eval 小节。"
+       "text": "代价教训：探测循环没传 part_studio_id 时，resolve_part_studio_id 每次 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用）， 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号 共 12 次）。教训已写入 onshape_docs/experience/featurescript.md 的 eval 小节。"
       },
       {
        "type": "para",
@@ -1813,6 +2835,7 @@
   },
   {
    "page": "quick-reference",
+   "category": "reference",
    "path": "onshape_docs/reference/quick-reference.md",
    "sha256": "7d9af5690151830a3d610100503b361dc23e7ca28bd1dc7d98123b4b8696e7ec",
    "title": "FeatureScript quick reference",
@@ -2137,8 +3160,9 @@
   },
   {
    "page": "reference",
+   "category": "reference",
    "path": "onshape_docs/reference/README.md",
-   "sha256": "afc93afd6cd7a1eb74cab428b256f5a949b2bd9c1fc9a461075d20b94d7f8e4c",
+   "sha256": "19d1ee7d7e7a2507a8b3dfac290c399e90399e350c866f4685f6ed3e3e5a5dbb",
    "title": "Vendored reference corpus",
    "sections": [
     {
@@ -2147,7 +3171,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Fetched by onshape_docs/scripts/fetch_reference.py (FsDoc + std library) and the onshape_docs/scripts/fetch_onshape_api*.py fetchers. Onshape/third-party material, vendored so the local MCP tools answer without a network round trip. Three tiers, in reading order:"
+       "text": "Fetched by onshape_docs/scripts/fetch_reference.py (FsDoc + std library) and the onshape_docs/scripts/fetch_onshape_api*.py fetchers. Onshape/third-party material, vendored so the local MCP tools answer without a network round trip. Three storage tiers. Caller reading order is tier 1 -> tier 2; tier 0 is never a normal read:"
       },
       {
        "type": "table",
@@ -2168,7 +3192,7 @@
          "1",
          "quick/",
          "compact distilled indexes (quick.json, api_quick.json)",
-         "fs_search, onshape_api_find — the cheap first look for candidates"
+         "fs_search, onshape_api_search — the cheap first look for candidates"
         ],
         [
          "2",
@@ -2235,7 +3259,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "The project's own LLM-facing documentation (onshape_docs/guide/.md, onshape_docs/reference/quick-reference.md, example docs; README.md is the human landing page and intentionally not indexed) is indexed by onshape_docs/scripts/build_docs_index.py into onshape_docs/index.json (same typed-block schema as guide.json) and served by the docs_ tools. The markdown files stay the authored originals."
+       "text": "The project's own LLM-facing documentation (onshape_docs/guide/.md, onshape_docs/experience/.md, selected verification/reference pages, and example docs; the repository-root README.md is the human landing page and is not indexed) is indexed by onshape_docs/scripts/build_docs_index.py into onshape_docs/index.json (same typed-block schema as guide.json) and served by the docs_* tools. The markdown files stay the authored originals."
       }
      ]
     },
@@ -2245,7 +3269,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Never read raw/ — it exists only as build input and is sha256-pinned by onshape_docs/verification/verify_docs.py. For a question: start with a quick/ index (cheap candidate lists), then pull the one entry you need from index/ at full detail. That ordering is exactly what the MCP tools already do (fs_search → fs_get_function); onshape_docs/index.json mirrors the project's own markdown the same way (see onshape_docs/guide/mcp-server.md)."
+       "text": "Never read raw/ as a first step — it exists only as build input and is sha256-pinned by onshape_docs/verification/verify_docs.py. For a question, use the MCP search/list tool over quick/, then retrieve one structured detail from index/. Do not open generated JSON indexes directly. That ordering is exactly what the MCP tools already do (fs_search → fs_get_function); onshape_docs/index.json mirrors the project's own markdown the same way (see onshape_docs/guide/mcp-server.md)."
       }
      ]
     },
@@ -2260,7 +3284,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 onshape_docs/scripts/fetch_reference.py\npython3 onshape_docs/scripts/build_fsdoc_index.py\npython3 onshape_docs/scripts/fetch_onshape_api.py   # needs onshape-credentials.json\npython3 onshape_docs/scripts/build_onshape_api_index.py"
+       "text": "python3 onshape_docs/scripts/fetch_reference.py\npython3 onshape_docs/scripts/build_fsdoc_index.py\npython3 onshape_docs/scripts/fetch_onshape_api.py   # needs onshape_rest_api_mode/config/onshape-credentials.json\npython3 onshape_docs/scripts/build_onshape_api_index.py"
       },
       {
        "type": "para",
@@ -2272,8 +3296,9 @@
   },
   {
    "page": "example",
+   "category": "example",
    "path": "examples/branch-cable-trophy/README.md",
-   "sha256": "83de928f1dd982082f0580c53ab2ff75022930f40c9cf25d40c45e25250073bb",
+   "sha256": "6a7afa1c7f890dc38917e4f2076bf8384cf8499d02d060261f7eeb45548a65b2",
    "title": "Branch Cable Trophy — example FeatureScript model",
    "sections": [
     {
@@ -2282,7 +3307,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "A parametric Onshape FeatureScript model of a trophy-style branching cable display, built from a single reference image. It is the worked example that the MCP server's REST tools validate: this Feature Studio is the configured target in config/onshape-state.json."
+       "text": "A parametric Onshape FeatureScript model of a trophy-style branching cable display, built from a single reference image. It is the worked example that the MCP server's REST tools validate: this Feature Studio is the configured target in onshape_rest_api_mode/config/onshape-state.json."
       },
       {
        "type": "para",
@@ -2321,7 +3346,7 @@
       },
       {
        "type": "para",
-       "text": "The parameter sets and target document state are shared with the MCP server and live in the project root config/ (model.default.json, model.preview.json, onshape-state.json)."
+       "text": "This example owns its parameter sets under config/ (model.default.json and model.preview.json). The shared REST target is stored separately under onshape_rest_api_mode/config/onshape-state.json."
       }
      ]
     },
@@ -2358,7 +3383,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "With onshape-credentials.json present at the project root:"
+       "text": "With onshape_rest_api_mode/config/onshape-credentials.json present :"
       },
       {
        "type": "code",
@@ -2379,8 +3404,9 @@
   },
   {
    "page": "example-setup",
+   "category": "example",
    "path": "examples/branch-cable-trophy/docs/setup.md",
-   "sha256": "3815ada0f6265ea23c540e7f51658abea0ca9d8d1dc26669838077f648d47b2c",
+   "sha256": "7e8564b55d4109d02d93dcdf9ec4a791ef2425968ca36da5a86dd8fd18170c75",
    "title": "Setup",
    "sections": [
     {
@@ -2403,7 +3429,7 @@
          "depth": 0
         },
         {
-         "text": "The target Onshape document and workspace IDs in config/onshape-state.json.",
+         "text": "The target Onshape document and workspace IDs in onshape_rest_api_mode/config/onshape-state.json.",
          "depth": 0
         }
        ]
@@ -2420,7 +3446,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Create onshape-credentials.json at the project root:"
+       "text": "Create onshape_rest_api_mode/config/onshape-credentials.json :"
       },
       {
        "type": "code",
@@ -2443,7 +3469,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "chmod 600 onshape-credentials.json"
+       "text": "chmod 600 onshape_rest_api_mode/config/onshape-credentials.json"
       },
       {
        "type": "para",
@@ -2494,6 +3520,7 @@
   },
   {
    "page": "example-feature-parameters",
+   "category": "example",
    "path": "examples/branch-cable-trophy/docs/feature-parameters.md",
    "sha256": "e83c585a826e612a4001c304084ab688a3e6f96566349ba6a8edc8f410f68d7a",
    "title": "Feature parameters",
@@ -2573,8 +3600,9 @@
   },
   {
    "page": "example-api-workflow",
+   "category": "example",
    "path": "examples/branch-cable-trophy/docs/onshape-api-workflow.md",
-   "sha256": "5cc3d69902a80434b57ab446887b55b9995bc217bb1466ada4f1260bd206684c",
+   "sha256": "c39ff0cc8b52d1c7d2f091376a27ad51e76464eef17315670187f36351fc5e03",
    "title": "Onshape API workflow",
    "sections": [
     {
@@ -2593,7 +3621,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "config/onshape-state.json records non-secret IDs:"
+       "text": "onshape_rest_api_mode/config/onshape-state.json records non-secret IDs:"
       },
       {
        "type": "list",
@@ -2755,6 +3783,7 @@
   },
   {
    "page": "example-validation-contract",
+   "category": "example",
    "path": "examples/branch-cable-trophy/docs/validation-contract.md",
    "sha256": "0370fd5cbbca77c19fb6ec74e998d43f52a801edd3bda1638a889d8f20c9842e",
    "title": "Validation contract",
@@ -2905,6 +3934,7 @@
   },
   {
    "page": "example-visual-review",
+   "category": "example",
    "path": "examples/branch-cable-trophy/docs/visual-review.md",
    "sha256": "8f4d5a45c3c9342646c1cc8b62e044d1c2d4fed2d87da0ad68de39d3e415ee39",
    "title": "Visual review",

@@ -4,7 +4,7 @@ The automation uses only documented Onshape REST endpoints and Python's standard
 
 ## Resource state
 
-`config/onshape-state.json` records non-secret IDs:
+`onshape_rest_api_mode/config/onshape-state.json` records non-secret IDs:
 
 - `documentId`
 - `workspaceId`

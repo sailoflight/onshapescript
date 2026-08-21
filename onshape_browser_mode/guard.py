@@ -23,7 +23,7 @@ import random
 import time
 from typing import Callable
 
-from onshape_browser_mode.config import load_browser_config
+from onshape_browser_mode.settings import load_browser_config
 
 
 class ActionRateExceeded(RuntimeError):

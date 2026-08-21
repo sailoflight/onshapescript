@@ -200,6 +200,100 @@ def create_document_tab(page: Any, tab_type: str = "Feature Studio") -> dict[str
     }
 
 
+def rename_tab(page: Any, name: str, new_name: str) -> dict[str, Any]:
+    """Rename a document tab (Feature Studio / Part Studio) by its visible name.
+
+    Right-clicks the tab, picks 重命名 from the context menu, fills the rename
+    input with the new name and commits with Enter. Uses real Playwright input
+    (trusted events) so Angular processes the rename. Zero Onshape API quota.
+    """
+    from onshape_browser_mode.selectors import (
+        TAB_BAR_TAB,
+        TAB_CONTEXT_MENU_ITEM,
+        TAB_RENAME_INPUT,
+    )
+
+    new_name = (new_name or "").strip()
+    if not new_name:
+        return {"renamed": False, "reason": "new_name must be non-empty", "pageUrl": page.url}
+
+    # 1. Right-click the tab and pick 重命名.
+    try:
+        tab = page.locator(TAB_BAR_TAB).filter(has_text=name)
+        if tab.count() == 0:
+            return {"renamed": False, "reason": f"tab {name!r} not found", "pageUrl": page.url}
+        tab.first.click(button="right")
+        page.wait_for_timeout(2000)
+        item = page.locator(TAB_CONTEXT_MENU_ITEM).filter(has_text="重命名")
+        if item.count() == 0:
+            return {"renamed": False, "reason": "重命名 menu item not found", "pageUrl": page.url}
+        item.first.click()
+        page.wait_for_timeout(1500)
+    except Exception as exc:  # noqa: BLE001 - surface as structured result
+        return {"renamed": False, "reason": f"rename-menu click failed: {exc}", "pageUrl": page.url}
+
+    # 2. Fill the rename input and commit with Enter (trusted Playwright input).
+    try:
+        input_locator = page.locator(TAB_RENAME_INPUT)
+        if input_locator.count() == 0:
+            return {"renamed": False, "reason": "rename input not found", "pageUrl": page.url}
+        input_locator.first.click()
+        input_locator.first.fill(new_name)
+        input_locator.first.press("Enter")
+        page.wait_for_timeout(3000)
+    except Exception as exc:  # noqa: BLE001 - surface as structured result
+        return {"renamed": False, "reason": f"rename input failed: {exc}", "pageUrl": page.url}
+
+    tabs = list_document_tabs(page)
+    renamed = any(t.get("name") == new_name for t in tabs.get("tabs", []))
+    return {"renamed": renamed, **tabs, "pageUrl": page.url}
+
+
+def delete_tab(page: Any, name: str) -> dict[str, Any]:
+    """Delete a document tab (Feature Studio / Part Studio) by its visible name.
+
+    Right-clicks the tab, clicks 删除 from the context menu, and confirms any
+    follow-up dialog — all through real Playwright clicks (trusted events).
+    Zero Onshape REST API quota.
+    """
+    from onshape_browser_mode.selectors import TAB_BAR_TAB, TAB_CONTEXT_MENU_ITEM
+
+    # 1. Right-click the tab and click 删除.
+    try:
+        tab = page.locator(TAB_BAR_TAB).filter(has_text=name)
+        if tab.count() == 0:
+            return {"deleted": False, "reason": f"tab {name!r} not found", "pageUrl": page.url}
+        tab.first.click(button="right")
+        page.wait_for_timeout(2000)
+        item = page.locator(TAB_CONTEXT_MENU_ITEM).filter(has_text="删除")
+        if item.count() == 0:
+            return {"deleted": False, "reason": "删除 menu item not found", "pageUrl": page.url}
+        item.first.click()
+        page.wait_for_timeout(2500)
+    except Exception as exc:  # noqa: BLE001 - surface as structured result
+        return {"deleted": False, "reason": f"delete-menu click failed: {exc}", "pageUrl": page.url}
+
+    # 2. Confirm a follow-up dialog when present (also a trusted click).
+    confirmed = {"dialogPresent": False, "confirmClicked": False}
+    try:
+        ok = page.locator(".ns-dialog-button-ok, .osx-message .btn-primary, [class*=\"confirm\"] button")
+        confirm_names = ["删除", "确定", "确认", "是"]
+        for cname in confirm_names:
+            btn = page.get_by_role("button", name=cname)
+            if btn.count() > 0:
+                confirmed = {"dialogPresent": True, "confirmButton": cname}
+                btn.first.click()
+                confirmed["confirmClicked"] = True
+                page.wait_for_timeout(3000)
+                break
+    except Exception as exc:  # noqa: BLE001 - dialog optional, never fatal
+        confirmed["reason"] = str(exc)
+
+    tabs = list_document_tabs(page)
+    deleted = not any(t.get("name") == name for t in tabs.get("tabs", []))
+    return {"deleted": deleted, **confirmed, **tabs, "pageUrl": page.url}
+
+
 def open_document_by_name(
     page: Any,
     document_name: str,
@@ -396,9 +490,14 @@ def insert_custom_feature(
         return {**clicked, "inserted": False}
     page.wait_for_timeout(3000)
 
-    # 2. Click the feature entry in the dropdown.
+    # 2. Click the specific feature ITEM inside the dropdown (the dropdown may
+    #    hold several workspace features; clicking the container hits whichever
+    #    item sits at its centre, so scope the text match to the item rows).
     try:
-        page.locator(".os-tool-dropdown-content").filter(has_text=feature_name).first.click()
+        item = page.locator(".os-tool-dropdown-content .tool").filter(has_text=feature_name)
+        if item.count() == 0:
+            return {"inserted": False, "reason": f"feature {feature_name!r} not found in workspace dropdown"}
+        item.first.click()
         page.wait_for_timeout(10000)
     except Exception as exc:  # noqa: BLE001 - surface as structured result
         return {"inserted": False, "reason": f"feature dropdown click failed: {exc}"}

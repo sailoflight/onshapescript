@@ -8,8 +8,8 @@
  "featureScriptVersion": 3029,
  "importVersion": "3029.0",
  "experimentFS": "7a4dedcaeb022728fa37722f",
- "manifest": "docs/verification/live/experiments.json",
- "resultFile": "docs/verification/live/results.json",
+ "manifest": "onshape_docs/verification/live/experiments.json",
+ "resultFile": "onshape_docs/verification/live/results.json",
  "outcome": "15/15 experiments match expectation",
  "ledger": {
   "consumedBefore": 576,
@@ -297,7 +297,7 @@
  ],
  "preventsReRun": "Do NOT re-run run_live_tests.py (or fetch_onshape_api.py) to reconfirm what this run already confirmed against the live server: the 15 experiments in experiments.json all match expectation (FeatureScript 3029). The verdict facts are settled; replay results.json + this record instead. Only a genuinely new fact (a new FeatureScript version, or observed server behavior change) justifies a new live run.",
  "fixtures": {
-  "openapi-get": "tests/fixtures/onshape/openapi-get/ (response body vendored at reference/raw/onshape-api/openapi.json)",
+  "openapi-get": "dev/tests/fixtures/onshape/openapi-get/ (response body vendored at reference/raw/onshape-api/openapi.json)",
   "experiment-compile": "No per-call fixtures: run_live_tests does not persist request/response bodies, and the POST body needs the GET's serializationVersion/sourceMicroversion which were not captured. Verdict facts are recorded in this file and results.json."
  }
 }

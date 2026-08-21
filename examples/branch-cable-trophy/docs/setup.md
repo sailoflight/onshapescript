@@ -5,13 +5,13 @@
 - Python 3.10 or newer.
 - No third-party Python packages.
 - An Onshape account and a one-time API key with document read/write access.
-- The target Onshape document and workspace IDs in `config/onshape-state.json`.
+- The target Onshape document and workspace IDs in `onshape_rest_api_mode/config/onshape-state.json`.
 
 The FeatureScript itself has no dependency on Python, local files, credentials, or REST APIs. Python is used only to deploy and validate the model automatically.
 
 ## Credentials
 
-Create `onshape-credentials.json` at the project root:
+Create `onshape_rest_api_mode/config/onshape-credentials.json` :
 
 ```json
 {
@@ -33,7 +33,7 @@ Or use a short-lived OAuth access token:
 Protect the file:
 
 ```bash
-chmod 600 onshape-credentials.json
+chmod 600 onshape_rest_api_mode/config/onshape-credentials.json
 ```
 
 The client never prints credentials or copies them into generated state and reports. Destroy or revoke the one-time key after validation.

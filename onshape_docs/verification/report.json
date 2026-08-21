@@ -1,8 +1,8 @@
 {
  "checkedAt": null,
  "summary": {
-  "total": 16,
-  "passed": 16,
+  "total": 17,
+  "passed": 17,
   "failed": 0
  },
  "checks": [
@@ -79,10 +79,15 @@
   {
    "name": "Project docs index.json page sha256 all match",
    "ok": true,
-   "detail": "15 pages ok"
+   "detail": "18 pages ok"
   },
   {
    "name": "Project docs sections well-formed (title + blocks)",
+   "ok": true,
+   "detail": "ok"
+  },
+  {
+   "name": "Project docs categories match semantic directory ownership",
    "ok": true,
    "detail": "ok"
   }
@@ -279,15 +284,25 @@
    ]
   },
   "docs": {
-   "pages": 15,
-   "sections": 98,
+   "pages": 18,
+   "sections": 125,
+   "categories": {
+    "example": 6,
+    "experience": 4,
+    "guide": 4,
+    "reference": 2,
+    "verification": 2
+   },
    "pageNames": [
+    "documentation-map",
     "fs-assistant",
     "mcp-server",
     "onshape-api",
-    "verification",
     "llm-experience-fs",
     "llm-experience-api",
+    "browser-automation",
+    "browser-modeling",
+    "verification",
     "live-verification",
     "quick-reference",
     "reference",

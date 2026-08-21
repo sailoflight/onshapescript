@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Offline queries over the project's own structured documentation.
 
-The project's LLM-facing markdown (docs/, README.md, examples/) is parsed by
+The project's LLM-facing markdown (guide, experience, selected verification/reference, and examples) is parsed by
 onshape_docs/scripts/build_docs_index.py into onshape_docs/index.json with the same typed-block
 schema as the vendored FsDoc guide. This module serves that index to the docs_*
-MCP tools: list pages, read a page or section on demand, and search across all
-of them. Everything is local and deterministic — no network, no Onshape quota.
+MCP tools: list categorized pages, read one page or section on demand, and search across
+all of them. Everything is local and deterministic — no network, no Onshape quota.
 """
 
 from __future__ import annotations
@@ -60,6 +60,7 @@ def list_pages() -> dict[str, Any]:
     for entry in pages:
         out.append({
             "page": entry["page"],
+            "category": entry["category"],
             "path": entry["path"],
             "title": entry["title"],
             "sectionCount": len(entry["sections"]),
@@ -68,10 +69,15 @@ def list_pages() -> dict[str, Any]:
                 for s in entry["sections"]
             ],
         })
+    categories = {
+        category: sum(1 for page in pages if page["category"] == category)
+        for category in dict.fromkeys(page["category"] for page in pages)
+    }
     return {
         "count": len(out),
+        "categories": categories,
         "pages": out,
-        "note": "Pass page=<page> to docs_section to read one on demand.",
+        "note": "Index first: choose one page/section, then call docs_section for that exact section.",
     }
 
 
@@ -134,12 +140,14 @@ def section(page: str, section_name: str | None = None) -> dict[str, Any]:
             selected.append(later)
         return {
             "page": page,
+            "category": entry["category"],
             "title": entry["title"],
             "section": picked["title"],
             "text": _render_sections(selected),
         }
     return {
         "page": page,
+        "category": entry["category"],
         "title": entry["title"],
         "section": None,
         "headings": [s["title"] for s in sections],
@@ -181,6 +189,7 @@ def _all_sections() -> list[dict[str, Any]]:
         for section in entry["sections"]:
             out.append({
                 "page": entry["page"],
+                "category": entry["category"],
                 "pageTitle": entry["title"],
                 "sectionTitle": section["title"],
                 "text": _render_sections([section]),
@@ -217,6 +226,7 @@ def search(query: str, page: str | None = None, limit: int = 20) -> dict[str, An
     for total, entry in results[:limit]:
         ranked.append({
             "page": entry["page"],
+            "category": entry["category"],
             "sectionTitle": entry["sectionTitle"],
             "score": round(total, 1),
             "snippet": _snippet(entry["text"], tokens),
@@ -225,7 +235,7 @@ def search(query: str, page: str | None = None, limit: int = 20) -> dict[str, An
         "count": len(ranked),
         "totalMatches": len(results),
         "results": ranked,
-        "note": "Pass page=<page> to docs_section to read the full section.",
+        "note": "Read one matched section with docs_section before opening a complete authored file.",
     }
 
 

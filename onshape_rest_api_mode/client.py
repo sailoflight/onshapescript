@@ -14,25 +14,27 @@ from pathlib import Path
 from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parent.parent
+MODULE_ROOT = Path(__file__).resolve().parent
+CONFIG_DIR = MODULE_ROOT / "config"
 CREDENTIALS_PATH = Path(os.environ.get(
     "ONSHAPE_CREDENTIALS",
-    ROOT / "onshape-credentials.json",
+    CONFIG_DIR / "onshape-credentials.json",
 ))
 STATE_PATH = Path(os.environ.get(
     "ONSHAPE_STATE",
-    ROOT / "config" / "onshape-state.json",
+    CONFIG_DIR / "onshape-state.json",
 ))
-# Parameter sets live under config/ by default. Example folders override this
-# with ONSHAPE_PARAMETERS_DIR so their parameter sets stay self-contained.
+# Parameter sets are owned by the maintained example by default.
+# ONSHAPE_PARAMETERS_DIR can explicitly select another owner.
 PARAMETERS_DIR = Path(os.environ.get(
     "ONSHAPE_PARAMETERS_DIR",
-    ROOT / "config",
+    ROOT / "examples" / "branch-cable-trophy" / "config",
 ))
 DEFAULT_PARAMETERS_PATH = PARAMETERS_DIR / "model.default.json"
-# Rendered previews and reports default to outputs/ under the project root.
+# Rendered previews and reports default to the REST module's outputs/ directory.
 OUTPUTS_DIR = Path(os.environ.get(
     "ONSHAPE_OUTPUTS_DIR",
-    ROOT / "outputs",
+    MODULE_ROOT / "outputs",
 ))
 PREVIEW_DIR = OUTPUTS_DIR / "previews"
 REPORT_DIR = OUTPUTS_DIR / "reports"
@@ -43,7 +45,7 @@ REPORT_DIR = OUTPUTS_DIR / "reports"
 # annual limit is exhausted.
 USAGE_PATH = Path(os.environ.get(
     "ONSHAPE_API_USAGE",
-    ROOT / "config" / "api-usage.json",
+    CONFIG_DIR / "api-usage.json",
 ))
 
 
@@ -54,7 +56,7 @@ def load_json(path: Path) -> dict[str, Any]:
 
 class RateLimited(RuntimeError):
     """Raised immediately on HTTP 429. NEVER retried — the Retry-After wait time
-    (also captured in config/api-usage.json) is surfaced so callers can exit
+    (also captured in onshape_rest_api_mode/config/api-usage.json) is surfaced so callers can exit
     and wait instead of hammering the rate limit."""
 
 

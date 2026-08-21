@@ -150,7 +150,7 @@
     },
     "ledgeredCalls": 45,
     "outcome": "15/15 experiments match expectation",
-    "againstManifest": "docs/verification/live/experiments.json (current expectations)",
+    "againstManifest": "onshape_docs/verification/live/experiments.json (current expectations)",
     "onExperimentStudio": "7a4dedcaeb022728fa37722f",
     "featureScriptVersion": 3029,
     "note": "Accidental live run (stale rate-limit hold believed active; it had cleared). Per-experiment response bodies were not persisted; the full 46-call ledger trace lives in reconfirm-2026-08-14.json."

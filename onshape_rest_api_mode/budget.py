@@ -1,11 +1,11 @@
 """Shared quota-budget guard for live Onshape verification runs.
 
-Encodes the verification lessons recorded in docs/verification/live/README.md
-and the "verification ladder" in docs/verification/llm-experience-fs.md:
+Encodes the verification lessons recorded in onshape_docs/verification/live/README.md
+and the "verification ladder" in onshape_docs/experience/featurescript.md:
 
 - **Preflight before mutating** — a run must never start if its budget exceeds
   the remaining annual quota (`operations.preflight` is the gate).
-- **Account as you go** — the passive ledger (`config/api-usage.json`, counts
+- **Account as you go** — the passive ledger (`onshape_rest_api_mode/config/api-usage.json`, counts
   2xx/3xx only) is the source of truth for this run's spend. Never guess.
 - **Configurable, not hard-coded** — every script passes its own `budget` from
   the command line instead of baking in a constant that goes stale as the

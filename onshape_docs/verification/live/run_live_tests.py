@@ -6,14 +6,14 @@ Feature Studio and records whether the real compiler accepts or rejects each
 construct, plus what the error says. This turns the zero-cost corpus checks
 (reference vs mirror) into verified language facts.
 
-Budget guard: the annual quota ledger (config/api-usage.json) counts 2xx/3xx
+Budget guard: the annual quota ledger (onshape_rest_api_mode/config/api-usage.json) counts 2xx/3xx
 only. This run is gated by onshape_rest_api_mode.budget.BudgetGuard — `--budget N`
 sets the per-run ceiling (default 50), preflighted against the remaining annual
 quota before anything runs; the run stops once it has spent that budget beyond
 its start point. A 4xx upload (e.g. a parse error) costs zero ledger calls.
 
 Creates one dedicated "FS live verification" Feature Studio on first run and
-reuses it (id cached in docs/verification/live/.fs-id.json). The configured
+reuses it (id cached in onshape_docs/verification/live/.fs-id.json). The configured
 trophy Feature Studio is never touched.
 """
 
@@ -24,7 +24,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]  # repo root: .../docs/verification/live -> .../docs/verification -> .../docs -> root
+ROOT = Path(__file__).resolve().parents[3]  # repo root: live -> verification -> onshape_docs -> repository
 sys.path.insert(0, str(ROOT))
 
 from onshape_rest_api_mode.client import OnshapeClient, RateLimited, RateLimitedHold, load_json  # noqa: E402

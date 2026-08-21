@@ -242,7 +242,7 @@ def fetch_latest_version(timeout: int = 60) -> dict[str, Any]:
     """Probe the live server for the current REST API version (network call).
 
     Uses /api/build, which returns a tiny JSON version block, instead of
-    downloading the whole OpenAPI spec. Requires onshape-credentials.json.
+    downloading the whole OpenAPI spec. Requires onshape_rest_api_mode/config/onshape-credentials.json.
     """
     from onshape_rest_api_mode.client import OnshapeClient
     build = OnshapeClient().request("GET", "/api/build", timeout=timeout)

@@ -1,0 +1,28 @@
+# Browser automation configuration for onshape_browser_mode.
+#
+# Committed defaults only. Machine-local overrides belong in
+# `onshape_browser_mode/config/browser.local.toml` (gitignored). The browser layer is an OPTIONAL
+# dependency: the MCP server still runs without Playwright installed; browser_*
+# tools report a clear setup error instead.
+
+[browser]
+channel = "msedge"    # use the machine's existing Edge; no browser download
+executable_path = ""                  # optional exact binary path; overrides `channel`
+user_data_dir = "user_data/onshape_profile"  # persistent login profile, checkout-local
+locale = "zh-CN"
+timezone = "Asia/Shanghai"
+headless = false              # ALWAYS false; human watches and completes login/captcha
+proxy_server = ""                     # optional HTTP proxy, e.g. "http://127.0.0.1:10808"; empty = none
+
+[pacing]
+min_delay_s = 0.8                     # randomized delay slept before each real action (click/scroll/eval)
+max_delay_s = 2.0
+max_actions_per_minute = 8            # hard per-process cap on real browser actions per minute
+
+[listener]
+enabled = true                        # browser_watch / dev probes may record sessions
+record_dom_snippets = true            # keep only a short text snippet around a clicked element
+record_network = true                 # record URL pattern / method / status / top-level JSON keys
+snippet_max_chars = 240               # max characters kept per DOM snippet (redaction happens upstream)
+default_watch_seconds = 180           # default recording window for browser_watch
+output_dir = "./dev/watch-sessions"   # relative to the repository root

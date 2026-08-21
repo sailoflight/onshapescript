@@ -718,7 +718,7 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
     delta in context; afterwards the query functions serve the fresh corpus.
 
     With include_onshape_api, also re-fetches the live Onshape REST API OpenAPI
-    spec and rebuilds its indexes. That fetch needs onshape-credentials.json;
+    spec and rebuilds its indexes. That fetch needs onshape_rest_api_mode/config/onshape-credentials.json;
     without it the REST part is skipped with a note.
     """
     import subprocess
@@ -774,7 +774,7 @@ def update_reference(timeout: int = 600, include_onshape_api: bool = False) -> d
         if fetch_api.returncode != 0:
             api_notes.append(
                 "fetch_onshape_api.py exited nonzero (REST spec not refreshed, "
-                "needs onshape-credentials.json): " + fetch_api.stderr.strip()[:200]
+                "needs onshape_rest_api_mode/config/onshape-credentials.json): " + fetch_api.stderr.strip()[:200]
             )
         if build_api.returncode != 0:
             api_notes.append(

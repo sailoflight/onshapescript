@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Close the highest-value unverified doc gaps in a fixed ledger budget.
 
-Covers the audit's unverified items (docs/verification/live/README.md + the
+Covers the audit's unverified items (onshape_docs/verification/live/README.md + the
 llm-experience docs). Every section logs its real ledger cost and the run stops
 at --budget (default 22), gated by onshape_rest_api_mode.budget.BudgetGuard.
 
@@ -21,7 +21,7 @@ at --budget (default 22), gated by onshape_rest_api_mode.budget.BudgetGuard.
      an empty body yields 0 specs for any version (gap-probe 2026-08-14) and
      cannot detect the boundary.
 
-Results -> docs/verification/live/gap-probe-results.json
+Results -> onshape_docs/verification/live/gap-probe-results.json
 """
 import json
 import sys

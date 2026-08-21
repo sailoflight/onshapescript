@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from onshape_browser_mode.config import load_browser_config
+from onshape_browser_mode.settings import load_browser_config
 
 MAX_EVENTS = 2000
 

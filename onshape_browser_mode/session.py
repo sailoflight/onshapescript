@@ -12,10 +12,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from onshape_browser_mode.config import BrowserConfig, load_browser_config
+from onshape_browser_mode.settings import BrowserConfig, load_browser_config
 from onshape_browser_mode.errors import BrowserLaunchError, PlaywrightNotInstalled
 
-ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = PACKAGE_ROOT.parent
 
 _SIGNIN_URL = "https://cad.onshape.com/signin"
 
@@ -79,11 +80,11 @@ class BrowserSession:
         raw = Path(self.config.browser.user_data_dir).expanduser()
         if raw.is_absolute():
             return raw.resolve()
-        return (ROOT / raw).resolve()
+        return (PACKAGE_ROOT / raw).resolve()
 
     @staticmethod
     def _state_path() -> Path:
-        return ROOT / "config" / "browser-state.json"
+        return PACKAGE_ROOT / "config" / "browser-state.json"
 
     def _load_saved_app_url(self) -> str | None:
         try:
@@ -182,7 +183,7 @@ class BrowserSession:
         if not self.playwright_available():
             raise PlaywrightNotInstalled(
                 "Playwright is not installed on the Windows browser host. See "
-                "tools/windows/README.md for setup, or run: "
+                "mcp_main/bridge/windows/README.md for setup, or run: "
                 "C:\\path\\to\\onshapescript\\.venv\\Scripts\\python.exe -m pip install "
                 "-r tools\\windows\\requirements-browser.txt"
             )
@@ -224,8 +225,8 @@ class BrowserSession:
             raise BrowserLaunchError(
                 f"Could not launch browser (channel={browser_cfg.channel!r}): {last_exc}. "
                 "Use the Windows host's existing Chrome/Edge (no browser download); "
-                "set channel/executable_path in config/browser.local.toml. See "
-                "tools/windows/README.md."
+                "set channel/executable_path in onshape_browser_mode/config/browser.local.toml. See "
+                "mcp_main/bridge/windows/README.md."
             ) from last_exc
 
         # Residual-tab cleanup (same fix taobao-mcp landed 2026-08-20):

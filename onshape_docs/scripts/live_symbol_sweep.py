@@ -29,7 +29,7 @@ clean) plus a single 30s cooldown+retry on 429 (the client already retries
 Sections in priority order: import boundary (corrected bound-spec probe,
 control 3044 -> upper bound 3050), constants, predicates, types, functions.
 
-Results -> docs/verification/live/live-symbol-sweep.json
+Results -> onshape_docs/verification/live/live-symbol-sweep.json
 """
 import argparse
 import json
