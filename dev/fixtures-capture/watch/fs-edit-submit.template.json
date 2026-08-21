@@ -1,0 +1,35 @@
+{
+  "name": "fs-edit-submit",
+  "description": "Open a document, enter Feature Studio, edit code, and submit.",
+  "expectedSequence": [
+    {
+      "name": "open-document",
+      "kind": "url_change",
+      "tag": "documents"
+    },
+    {
+      "name": "enter-feature-studio",
+      "kind": "dom",
+      "action": "click",
+      "textContains": "Feature Studio"
+    },
+    {
+      "name": "edit-source",
+      "kind": "dom",
+      "action": "input"
+    },
+    {
+      "name": "submit",
+      "kind": "dom",
+      "action": "click",
+      "textContains": "提交"
+    },
+    {
+      "name": "successful-featurestudio-response",
+      "kind": "network",
+      "tag": "featurestudio",
+      "statusMin": 200,
+      "statusMax": 399
+    }
+  ]
+}

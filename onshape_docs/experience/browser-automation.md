@@ -183,3 +183,37 @@
   目标 frame，再在其内部 locator），或在 bridge 内以 CDP 访问。
 - 工程图加载慢：`正在加载工程图…` 长时间不消失时可 `browser_reload`（或
   `location.reload()`）刷新；若源 Part Studio 已被删除，工程图会一直卡在加载。
+
+
+## 10. Frame-aware 通用操作
+
+- `browser_inspect` / `browser_eval` / `browser_scroll` / `browser_click` 接受
+  `frame_url` 子串。每次调用都重新遍历 `page.frames`；无匹配或多匹配会返回明确错误，
+  不缓存可能 detach 的 Frame。
+- `DrawingPage` 默认匹配 `production-drawing-`，Playwright 通过 CDP 可以驱动跨域
+  frame；浏览器同源策略只限制主页面 JavaScript 直接访问 iframe DOM。
+- `browser_wait` 支持 element/text/url/network_idle/frame 条件且硬上限 60 秒。SPA 的
+  network-idle 可能超时，此时返回结构化失败，不无限等待。
+
+## 11. 可信键盘与人工录制
+
+- `browser_press_key` / `browser_type` 使用 locator 的真实 Playwright 输入事件；
+  `browser_type` 以 `target_text` 表示目标可见文本，`text` 专用于输入内容。
+- `browser_watch` 页面绑定捕获 click/input/change/keydown，并继续记录 URL、response
+  status/content-type 和 dialog。录制不包含 request/response body、header 或 cookie。
+- `save` 写到忽略的 `dev/watch-sessions/`；`verify` 对提交的顺序模板逐项匹配，避免
+  把一次偶然 URL 命中当作完整工作流证据。输入框 value、单字符 key 与 URL query/fragment
+  会在进入录制前丢弃，保存路径也限制在配置的 watch 目录。
+
+## 12. 状态缓存与结果边界
+
+- `browser_get_page_tabs` 返回每个 tab 的 `data-id`。`browser_sync_rest_state` 仅在显式
+  调用时把 did/wid/eid 和 tab 表合并进 REST 模式拥有的状态文件，保留配额与手工键。
+  `dry_run` 不启动浏览器也不写文件；真实本地写入要求 `confirm_mutation=true`。
+- 装配工具要求显式 `instance_selector`，选择和验证不得退回整页文本。2026-08-21 的
+  只读 DOM 扫描确认实例行 selector 为
+  `.ns-tree-root .ns-assembly-instance-row.is-instance`；插入 dialog 行也经只读扫描确认。`source_names` 表示 dialog 中的 Part Studio 标签，`instance_names` 表示插入后树中的预期零件实例名，两者按索引对应，证据在
+  `dev/button-map/scan-assembly-instances.json`；固定/分组在当前
+  DOM 只能确认动作已触发，返回 `verification: action-triggered`。尺寸工具支持 DOM
+  selector count 增量，或 Drawing canvas 的按键 + 相对坐标操作并比较前后 screenshot
+  SHA-256；只有对应读回条件满足时，高层工具才返回 `assembled:true` / `drawn:true`。

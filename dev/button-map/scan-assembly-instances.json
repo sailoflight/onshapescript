@@ -1,0 +1,32 @@
+{
+  "pageKind": "Assembly",
+  "title": "module-interface-verification | Assembly-module",
+  "discoveredAt": "2026-08-21",
+  "method": "read-only browser_eval DOM ancestry scan; zero Onshape REST API requests",
+  "instanceTreeSelector": ".ns-tree-root",
+  "instanceRowSelector": ".ns-tree-root .ns-assembly-instance-row.is-instance",
+  "nameSelector": ".assemblyTreeName.os-list-item-name",
+  "observedRows": [
+    {
+      "text": "Fixed wall (rail) <1>",
+      "classes": "is-instance ns-assembly-part-list-item ns-assembly-instance-row os-list-item-inner is-on-root"
+    },
+    {
+      "text": "Module block (groove) <1>",
+      "classes": "is-instance ns-assembly-part-list-item ns-assembly-instance-row os-list-item-inner is-on-root"
+    }
+  ],
+  "notes": [
+    "The document tab bar also contains both part names inside Drawing tab names.",
+    "All instance lookup and selection must remain scoped to instanceRowSelector.",
+    "Insert-dialog source tab names differ from the resulting part instance names."
+  ],
+  "insertDialogSelector": ".assembly-insert-dialog-wrapper",
+  "insertSourceRowSelector": ".select-item-dialog-item.parent-item.os-selectable-item",
+  "observedInsertSources": [
+    "PS-PartA-wall",
+    "PS-PartB-block"
+  ],
+  "insertAcceptSelector": ".ns-dialog-button-ok.button-ok",
+  "observedInsertAcceptClasses": "ns-dialog-button-ok button-ok disabled"
+}

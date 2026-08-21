@@ -377,7 +377,7 @@
    "page": "mcp-server",
    "category": "guide",
    "path": "onshape_docs/guide/mcp-server.md",
-   "sha256": "e01a285cd0bb4fdf9f706ee46b2a357b1c0bcd90cf2fd13e3ee07ac9b429bbe4",
+   "sha256": "6d1b6e38efb8ef64c506b1de42caf2c3ae9c7c556a143423161d63f0431b6993",
    "title": "Local MCP server",
    "sections": [
     {
@@ -577,7 +577,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These 20 tools drive the persistent Windows-hosted browser. They never call the Onshape REST API, but a real UI action can still modify cloud data. Mutation confirmation and pacing therefore apply independently of REST quota. Use tools/list as the authoritative catalog when current registration matters."
+       "text": "These 35 tools drive the persistent Windows-hosted browser. They never call the Onshape REST API, but a real UI action can still modify cloud data. Mutation confirmation and pacing therefore apply independently of REST quota. Use tools/list as the authoritative catalog when current registration matters."
       },
       {
        "type": "table",
@@ -590,17 +590,22 @@
         [
          "Session and discovery",
          "browser_session, browser_watch, browser_inspect, browser_scroll, browser_click, browser_eval, browser_reconnect",
-         "Inspecting is read-only; actual click/eval requires confirm_mutation=true; reconnect only restores the session."
+         "Inspecting is read-only; actual click/eval requires confirm_mutation=true. Inspect/eval/click/scroll accept frame_url; watch can save and verify bounded recordings."
         ],
         [
          "Read-only navigation and state",
-         "browser_open_document, browser_read_featurescript, browser_get_partstudio_features, browser_get_page_tabs, browser_open_insert_feature_dialog, browser_reload",
-         "Navigation/dialog opening does not create cloud data; state is read from the visible page."
+         "browser_open_document, browser_read_featurescript, browser_get_partstudio_features, browser_get_page_tabs, browser_open_insert_feature_dialog, browser_reload, browser_wait",
+         "Navigation/waiting does not create cloud data."
+        ],
+        [
+         "Confirmed local state write",
+         "browser_sync_rest_state",
+         "Explicitly merges browser ids into REST-owned local state. dry_run=true writes nothing; a real write requires confirm_mutation=true and performs no REST request."
         ],
         [
          "Confirmed document changes",
-         "browser_deploy_featurescript, browser_create_document, browser_create_tab, browser_rename_tab, browser_delete_tab, browser_insert_custom_feature, browser_create_document_version",
-         "All real writes require confirm_mutation=true; deploy also supports a pure local dry_run=true."
+         "browser_deploy_featurescript, browser_create_document, browser_create_tab, browser_rename_tab, browser_delete_tab, browser_insert_custom_feature, browser_create_document_version, browser_press_key, browser_type, browser_insert_assembly_instances, browser_fix_instances, browser_group_instances, browser_create_drawing, browser_add_drawing_dimension, browser_delete_element, browser_deploy_and_apply_featurescript, browser_build_part, browser_assemble, browser_draw_part, browser_run_project",
+         "Every real write requires confirm_mutation=true; all new writing tools expose pure-local dry_run=true. Project execution checkpoints each successful step."
         ]
        ]
       },
@@ -1518,7 +1523,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "d3cc272d479764415c34d237444e1e82dbd5f2c1d564f2ef5ff8bb98d5e27649",
+   "sha256": "666424f9db7c6a796df1267aa72db5d51daa25065fb86bc0c072e0494c04258a",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2051,6 +2056,71 @@
        ]
       }
      ]
+    },
+    {
+     "level": 2,
+     "title": "10. Frame-aware 通用操作",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_inspect / browser_eval / browser_scroll / browser_click 接受 frame_url 子串。每次调用都重新遍历 page.frames；无匹配或多匹配会返回明确错误， 不缓存可能 detach 的 Frame。",
+         "depth": 0
+        },
+        {
+         "text": "DrawingPage 默认匹配 production-drawing-，Playwright 通过 CDP 可以驱动跨域 frame；浏览器同源策略只限制主页面 JavaScript 直接访问 iframe DOM。",
+         "depth": 0
+        },
+        {
+         "text": "browser_wait 支持 element/text/url/network_idle/frame 条件且硬上限 60 秒。SPA 的 network-idle 可能超时，此时返回结构化失败，不无限等待。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "11. 可信键盘与人工录制",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_press_key / browser_type 使用 locator 的真实 Playwright 输入事件； browser_type 以 target_text 表示目标可见文本，text 专用于输入内容。",
+         "depth": 0
+        },
+        {
+         "text": "browser_watch 页面绑定捕获 click/input/change/keydown，并继续记录 URL、response status/content-type 和 dialog。录制不包含 request/response body、header 或 cookie。",
+         "depth": 0
+        },
+        {
+         "text": "save 写到忽略的 dev/watch-sessions/；verify 对提交的顺序模板逐项匹配，避免 把一次偶然 URL 命中当作完整工作流证据。输入框 value、单字符 key 与 URL query/fragment 会在进入录制前丢弃，保存路径也限制在配置的 watch 目录。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "12. 状态缓存与结果边界",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_get_page_tabs 返回每个 tab 的 data-id。browser_sync_rest_state 仅在显式 调用时把 did/wid/eid 和 tab 表合并进 REST 模式拥有的状态文件，保留配额与手工键。 dry_run 不启动浏览器也不写文件；真实本地写入要求 confirm_mutation=true。",
+         "depth": 0
+        },
+        {
+         "text": "装配工具要求显式 instance_selector，选择和验证不得退回整页文本。2026-08-21 的 只读 DOM 扫描确认实例行 selector 为 .ns-tree-root .ns-assembly-instance-row.is-instance；插入 dialog 行也经只读扫描确认。source_names 表示 dialog 中的 Part Studio 标签，instance_names 表示插入后树中的预期零件实例名，两者按索引对应，证据在 dev/button-map/scan-assembly-instances.json；固定/分组在当前 DOM 只能确认动作已触发，返回 verification: action-triggered。尺寸工具支持 DOM selector count 增量，或 Drawing canvas 的按键 + 相对坐标操作并比较前后 screenshot SHA-256；只有对应读回条件满足时，高层工具才返回 assembled:true / drawn:true。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
     }
    ]
   },
@@ -2058,7 +2128,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "4c865a3c2090ff3336f86a481308037fb667c6bf612ab80602ffd99cbc04b06d",
+   "sha256": "99950bd0aa6d3527d5540364440f7c52b6ecd94254432549dba85ebf4e6efe06",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -2419,7 +2489,30 @@
          "depth": 0
         },
         {
-         "text": "工程图标签或跨域 iframe 出现只证明容器已创建，主页面 svg 数量不能证明 工程视图或尺寸已生成。内容验收必须等待 frame-aware 工具进入 production-drawing-* iframe 后读取实际视图/尺寸；当前工具不得宣称完整工程图成功。",
+         "text": "工程图标签或跨域 iframe 出现只证明容器已创建，主页面 svg 数量不能证明 工程视图或尺寸已生成。DrawingPage 与 frame-aware 通用工具现在可进入 production-drawing-* iframe；browser_draw_part 只有在 frame 可读且全部配置尺寸操作 成功且 verification_selector 节点数增加，或 canvas 坐标模式的前后截图 SHA-256 发生变化时才返回 drawn:true。canvas 模式通过 tool_key、canvas_index、 geometry_points 与 placement_point 配置，不依赖 Drawing 内部动态 id。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "11. Fixture 驱动项目与验收",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_deploy_and_apply_featurescript 把“确保 FS/PS → 提交 → 可选建版本 → 应用 → 读取零件”固化为一个高级事务，输出标准化 {parts, partNames}。",
+         "depth": 0
+        },
+        {
+         "text": "browser_run_project 从 dev/fixtures-capture/<project>.json 串行执行，不接受任意文件 路径；每步写本地 checkpoint。失败后 resume=true 只继续 pending 步骤，避免再次建文档。",
+         "depth": 0
+        },
+        {
+         "text": "module-interface-verification 固定执行 6 步：建文档、建 rail/groove 两零件、装配、 两张工程图；最终断言两侧零件数、装配状态和两个 drawing frame 状态。",
          "depth": 0
         }
        ]

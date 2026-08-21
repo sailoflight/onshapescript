@@ -96,16 +96,17 @@ onshape_rest_api_mode/config/onshape-credentials.json and is skipped with a note
 
 ### Browser automation tools — zero REST API quota
 
-These 20 tools drive the persistent Windows-hosted browser. They never call the
+These 35 tools drive the persistent Windows-hosted browser. They never call the
 Onshape REST API, but a real UI action can still modify cloud data. Mutation
 confirmation and pacing therefore apply independently of REST quota. Use
 `tools/list` as the authoritative catalog when current registration matters.
 
 | Group | Tools | Boundary |
 |---|---|---|
-| Session and discovery | `browser_session`, `browser_watch`, `browser_inspect`, `browser_scroll`, `browser_click`, `browser_eval`, `browser_reconnect` | Inspecting is read-only; actual click/eval requires `confirm_mutation=true`; reconnect only restores the session. |
-| Read-only navigation and state | `browser_open_document`, `browser_read_featurescript`, `browser_get_partstudio_features`, `browser_get_page_tabs`, `browser_open_insert_feature_dialog`, `browser_reload` | Navigation/dialog opening does not create cloud data; state is read from the visible page. |
-| Confirmed document changes | `browser_deploy_featurescript`, `browser_create_document`, `browser_create_tab`, `browser_rename_tab`, `browser_delete_tab`, `browser_insert_custom_feature`, `browser_create_document_version` | All real writes require `confirm_mutation=true`; deploy also supports a pure local `dry_run=true`. |
+| Session and discovery | `browser_session`, `browser_watch`, `browser_inspect`, `browser_scroll`, `browser_click`, `browser_eval`, `browser_reconnect` | Inspecting is read-only; actual click/eval requires `confirm_mutation=true`. Inspect/eval/click/scroll accept `frame_url`; watch can save and verify bounded recordings. |
+| Read-only navigation and state | `browser_open_document`, `browser_read_featurescript`, `browser_get_partstudio_features`, `browser_get_page_tabs`, `browser_open_insert_feature_dialog`, `browser_reload`, `browser_wait` | Navigation/waiting does not create cloud data. |
+| Confirmed local state write | `browser_sync_rest_state` | Explicitly merges browser ids into REST-owned local state. `dry_run=true` writes nothing; a real write requires `confirm_mutation=true` and performs no REST request. |
+| Confirmed document changes | `browser_deploy_featurescript`, `browser_create_document`, `browser_create_tab`, `browser_rename_tab`, `browser_delete_tab`, `browser_insert_custom_feature`, `browser_create_document_version`, `browser_press_key`, `browser_type`, `browser_insert_assembly_instances`, `browser_fix_instances`, `browser_group_instances`, `browser_create_drawing`, `browser_add_drawing_dimension`, `browser_delete_element`, `browser_deploy_and_apply_featurescript`, `browser_build_part`, `browser_assemble`, `browser_draw_part`, `browser_run_project` | Every real write requires `confirm_mutation=true`; all new writing tools expose pure-local `dry_run=true`. Project execution checkpoints each successful step. |
 
 For selector/session behavior, search the indexed `browser-automation` experience
 page. For the create → deploy → version → apply → verify workflow and its success

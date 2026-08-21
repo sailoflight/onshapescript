@@ -65,7 +65,20 @@ INSERT_FEATURE_TAB = ".os-dialog-tab"  # 当前文档 / 其他文档
 INSERT_FEATURE_DOC_NAME = ".select-item-dialog-document-name"
 
 # Apply custom feature in this workspace (the REAL apply path)
-PS_WORKSPACE_CUSTOM_FEATURE_BTN = '.tool[title="此工作区中的自定义特征"]'
+PS_WORKSPACE_CUSTOM_FEATURE_BTN = '.tool[title="此工作区中的自定义特征"], .tool[data-bs-original-title="此工作区中的自定义特征"]'
 PS_WORKSPACE_CUSTOM_FEATURE_ITEM = ".os-tool-dropdown-content"
 PS_FEATURE_DIALOG = ".feature-dialog"
 PS_FEATURE_DIALOG_ACCEPT = ".ns-dialog-button-ok.button-ok"  # checkmark
+
+# Assembly insert workflow
+ASM_INSERT_BUTTON = '.tool[title^="插入零件和装配体"], .tool[data-bs-original-title^="插入零件和装配体"]'
+ASM_INSTANCE_ROW = ".ns-tree-root .ns-assembly-instance-row.is-instance"
+ASM_INSERT_DIALOG = ".assembly-insert-dialog-wrapper"
+ASM_INSERT_ROW = ".select-item-dialog-item.parent-item.os-selectable-item"
+DIALOG_ACCEPT = ".ns-dialog-button-ok.button-ok"
+ASM_INSERT_ACCEPT = DIALOG_ACCEPT
+
+# Cross-origin Drawing editor
+DRAWING_FRAME_URL_PREFIX = "production-drawing-"
+DRAWING_IFRAME = 'iframe[src*="production-drawing-"]'
+DRAWING_CREATE_DIALOG = ".drawing-create-dialog, .new-drawing-dialog, [class*=\"drawing\"][class*=\"dialog\"]"

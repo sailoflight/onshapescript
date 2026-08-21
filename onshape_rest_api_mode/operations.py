@@ -155,7 +155,7 @@ def _merge_state_to_disk(updates: dict[str, Any]) -> None:
     snapshot."""
     disk = _read_state_file()
     disk.update(updates)
-    save_state(disk)
+    save_state(disk, STATE_PATH)
 
 
 def _elements_cache(client: OnshapeClient) -> dict[str, dict[str, Any]]:
@@ -954,3 +954,65 @@ def run_validation_pipeline(
     if render:
         result["previews"] = render_all_previews(part_studio_id=new_id, client=client)
     return result
+
+
+def sync_browser_state(
+    *,
+    document_id: str,
+    workspace_id: str,
+    element_id: str | None = None,
+    element_name: str = "",
+    element_type: str = "",
+    tabs: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Merge browser-observed ids into REST-owned local state without network I/O."""
+    if not document_id or not workspace_id:
+        raise ValueError("document_id and workspace_id are required")
+    disk = _read_state_file()
+    existing = _elements_from_state(disk)
+    for tab in tabs or []:
+        tab_id = str(tab.get("id") or "").strip()
+        if not tab_id:
+            continue
+        previous = existing.get(tab_id, {})
+        existing[tab_id] = {
+            **previous,
+            "id": tab_id,
+            "name": str(tab.get("name") or previous.get("name") or ""),
+            "elementType": str(
+                tab.get("elementType") or previous.get("elementType") or ""
+            ),
+            "source": "browser",
+        }
+    if element_id:
+        previous = existing.get(element_id, {})
+        existing[element_id] = {
+            **previous,
+            "id": element_id,
+            "name": element_name or previous.get("name", ""),
+            "elementType": element_type or previous.get("elementType", ""),
+            "source": "browser",
+        }
+
+    updates: dict[str, Any] = {
+        "documentId": document_id,
+        "workspaceId": workspace_id,
+        "elements": list(existing.values()),
+        "elementsUpdatedAt": datetime.now(timezone.utc).isoformat(),
+        "browserStateUpdatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    normalized_type = element_type.replace(" ", "_").replace("-", "_").upper()
+    if element_id and normalized_type in {"PART_STUDIO", "PARTSTUDIO"}:
+        updates["partStudioId"] = element_id
+    elif element_id and normalized_type in {"FEATURE_STUDIO", "FEATURESTUDIO"}:
+        updates["featureStudioId"] = element_id
+    _merge_state_to_disk(updates)
+    return {
+        "synced": True,
+        "documentId": document_id,
+        "workspaceId": workspace_id,
+        "elementId": element_id,
+        "elementCount": len(existing),
+        "elementType": element_type,
+        "source": "browser",
+    }

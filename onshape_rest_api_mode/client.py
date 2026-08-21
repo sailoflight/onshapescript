@@ -350,9 +350,12 @@ class OnshapeClient:
         return {"method": method, "url": url, "headers": headers, "body": body}
 
 
-def save_state(state: dict[str, Any]) -> None:
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+def save_state(state: dict[str, Any], path: Path | None = None) -> None:
+    target = path or STATE_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(target)
 
 
 def parameter_payload(parameters: dict[str, Any]) -> list[dict[str, Any]]:

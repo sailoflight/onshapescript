@@ -311,14 +311,25 @@ def _browser_watch(arguments: dict[str, Any]) -> dict[str, Any]:
     if action == "status":
         return recorder.status()
     if action == "start":
+        from onshape_browser_mode.listener import validate_workflow_name
+        workflow = validate_workflow_name(arguments.get("workflow", "browser-session"))
         session = get_session()
         page = session.start()
-        return recorder.start(page, session.context)
+        return recorder.start(page, session.context, workflow)
     if action == "stop":
         return recorder.stop()
     if action == "report":
         return recorder.report()
-    raise ValueError("action must be 'start', 'status', 'stop', or 'report'")
+    if action == "save":
+        return recorder.save(arguments.get("filename"))
+    if action == "verify":
+        workflow = arguments.get("workflow", "")
+        if not workflow:
+            raise ValueError("workflow is required for browser_watch action='verify'")
+        return recorder.verify(workflow)
+    if action == "workflows":
+        return recorder.workflows()
+    raise ValueError("action must be start, status, stop, report, save, verify, or workflows")
 
 
 def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -374,7 +385,10 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
         max_elements = 100
     max_elements = min(max_elements, 300)
 
-    inventory = page.evaluate(
+    from onshape_browser_mode.pages import resolve_scope, scope_url
+    frame_url = arguments.get("frame_url", "")
+    scope = resolve_scope(page, frame_url)
+    inventory = scope.evaluate(
         """
         (maxElements) => {
           const selector = [
@@ -415,8 +429,9 @@ def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
     return {
-        "pageUrl": inventory.get("url"),
+        "pageUrl": page.url,
         "title": inventory.get("title"),
+        "frameUrl": scope_url(scope) if frame_url else None,
         "elementCount": len(inventory.get("elements", [])),
         "elements": inventory.get("elements", []),
         "sessionPages": session.status().get("pages", []),
@@ -446,6 +461,8 @@ def _browser_eval(arguments: dict[str, Any]) -> dict[str, Any]:
             "expressionLength": len(expression),
             "expressionHead": expression.strip()[:120],
             "argProvided": arguments.get("arg") is not None,
+            "frameUrl": None,
+            "requestedFrameUrl": arguments.get("frame_url", ""),
             "note": (
                 "dry_run: the expression was NOT evaluated in the page. "
                 "Set confirm_mutation=true (and omit dry_run) to actually run it."
@@ -464,12 +481,15 @@ def _browser_eval(arguments: dict[str, Any]) -> dict[str, Any]:
 
     get_guard().pace()
 
+    from onshape_browser_mode.pages import resolve_scope, scope_url
+    frame_url = arguments.get("frame_url", "")
+    scope = resolve_scope(page, frame_url)
     arg = arguments.get("arg")
     try:
-        result = page.evaluate(expression, arg) if arg is not None else page.evaluate(expression)
+        result = scope.evaluate(expression, arg) if arg is not None else scope.evaluate(expression)
     except Exception as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-    return {"ok": True, "result": result}
+    return {"ok": True, "result": result, "frameUrl": scope_url(scope) if frame_url else None}
 
 
 def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -492,7 +512,10 @@ def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
     # as clicks and eval (per-minute cap + randomized delay).
     get_guard().pace()
 
-    result = page.evaluate(
+    from onshape_browser_mode.pages import resolve_scope, scope_url
+    frame_url = arguments.get("frame_url", "")
+    scope = resolve_scope(page, frame_url)
+    result = scope.evaluate(
         """
         ({selector, amount}) => {
           const el = selector ? document.querySelector(selector) : null;
@@ -526,6 +549,7 @@ def _browser_scroll(arguments: dict[str, Any]) -> dict[str, Any]:
         pass
     result["direction"] = direction
     result["pageUrl"] = page.url
+    result["frameUrl"] = scope_url(scope) if frame_url else None
     return result
 
 
@@ -567,15 +591,18 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     page = session.start()
     session._enforce_single_working_page(page)
 
+    from onshape_browser_mode.pages import resolve_scope, scope_url
+    frame_url = arguments.get("frame_url", "")
+    scope = resolve_scope(page, frame_url)
     if selector and text:
         # Scope the text match to the given selector, e.g. click the tab
         # `tab-list-item.os-tab-bar-tab` whose `.os-tab-name` says "Cable trophy
         # model v1" instead of the first "监控 Cable trophy model v1" menu item.
-        locator = page.locator(selector).filter(has_text=text)
+        locator = scope.locator(selector).filter(has_text=text)
     elif text:
-        locator = page.get_by_text(text, exact=False)
+        locator = scope.get_by_text(text, exact=False)
     else:
-        locator = page.locator(selector)
+        locator = scope.locator(selector)
 
     try:
         count = locator.count()
@@ -630,6 +657,7 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
             "modifiers": modifiers,
             "matchCount": count,
             "pageUrl": page.url,
+            "frameUrl": scope_url(scope) if frame_url else None,
         }
 
     # Pacing gate: enforce the per-minute cap and sleep a randomized delay
@@ -672,6 +700,7 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
         "modifiers": modifiers,
         "matchCount": count,
         "pageUrl": current_url,
+        "frameUrl": scope_url(scope) if frame_url else None,
     }
 
 
@@ -2429,6 +2458,11 @@ HANDLERS: dict[str, ToolHandler] = {
         status=arguments.get("status"),
     ),
 }
+
+
+from mcp_main.browser_tools import install as _install_browser_tools
+
+_install_browser_tools(TOOLS, HANDLERS)
 
 
 def _json_text(value: Any) -> str:

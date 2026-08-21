@@ -30,7 +30,7 @@ Configuration and runtime data live with the code that owns them:
 - Each example owns its parameter sets, such as `examples/branch-cable-trophy/config/`.
 - `mcp_main` and `onshape_docs` have no synthetic configuration files because they currently expose no configurable state.
 
-## MCP tools (52)
+## MCP tools (67)
 
 **FeatureScript reference — local, offline** (the core value):
 
@@ -86,7 +86,7 @@ create 1, instantiate 1 when the Feature Studio microversion is cached / 2
 otherwise, pipeline ~13 with render / ~8 without) and blocks with
 the shortfall if the annual limit would be exceeded.
 
-**Onshape browser — zero-quota UI driving** (20 registered tools run on the
+**Onshape browser — zero-quota UI driving** (35 registered tools run on the
 Windows host through the loopback bridge; the table shows representative entry
 points). They never touch the REST API or quota ledger, but confirmed UI actions
 can still modify cloud data:
@@ -94,12 +94,18 @@ can still modify cloud data:
 | Tool | Purpose |
 |---|---|
 | `browser_session` | Inspect or establish the persistent Onshape browser session (`status`/`login`) |
-| `browser_watch` | Record a human-driven browser session to learn what UI actions do (`start`/`status`/`stop`/`report`) |
+| `browser_watch` | Record a human-driven browser session to learn what UI actions do (`start`/`status`/`stop`/`report`/`save`/`verify`/`workflows`) |
 | `browser_inspect` | Read-only inventory of the visible interactive elements on the current page |
 | `browser_scroll` | Scroll the page/viewport to discover lazy-rendered rows below the fold |
 | `browser_click` | Click an element by CSS selector or visible text — an actual click requires `confirm_mutation=true`; `dry_run` only inspects the target |
 | `browser_eval` | Evaluate JavaScript in the page — execution requires `confirm_mutation=true`; `dry_run` returns expression metadata without evaluating |
 | `browser_reload` | Reload the current page and wait for it to settle; read-only with respect to document data |
+| `browser_wait` | Bounded element/text/URL/network/frame waits; optional cross-origin frame targeting |
+| `browser_press_key` / `browser_type` | Trusted keyboard input with frame support, dry-run, pacing, and confirmation |
+| `browser_sync_rest_state` | Explicitly cache browser-observed ids in REST-owned local state; supports dry-run and requires confirmation for the local write, with no REST request |
+| `browser_deploy_and_apply_featurescript` / `browser_build_part` | Deploy, optionally version, apply, and return normalized part acceptance data |
+| `browser_assemble` / `browser_draw_part` | Compose assembly and drawing transactions with structured verification results |
+| `browser_run_project` | Run a validated fixture project with step checkpoints and resume |
 | `browser_deploy_featurescript` | Deploy FeatureScript through the browser UI — 0 API quota (`dry_run` default) |
 
 See `onshape_docs/guide/mcp-server.md` for the complete catalog, security boundary, and tests.

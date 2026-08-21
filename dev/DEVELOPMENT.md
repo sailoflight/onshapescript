@@ -47,97 +47,72 @@ GBK 编码、Playwright 线程绑定、SPA 登录判定、强杀恢复和多标�
 - 模块接口验证文档实战：12+ 个 Part Studio 收敛为 2 FS + 2 PS + 1 Assembly + 2 Drawing；
   Part A/B 均 `零件数 (1)`。
 
-## 4. 下一步计划（非分层项）
+## 4. 开发计划完成状态
 
-- [ ] **page objects**：在 `onshape_browser_mode/` 下建 `pages/`，封装
+- [x] **page objects**：`onshape_browser_mode/pages/` 已提供
   `DocumentsPage`、`FeatureStudioPage`、`PartStudioPage`、`AssemblyPage`、
-  `DrawingPage`（基于已扫描出的选择器与 iframe 结论）。
-- [ ] **与 REST 模式打通**：浏览器拿到的 documentId/workspaceId/elementId 缓存进
-  `onshape_rest_api_mode/config/onshape-state.json`，供 REST 模式显式复用（不隐式查询）。
-- [ ] **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FS 标签→改代码→
-  提交”流程，核对 `browser_click` 选择器与真实操作一致。
+  `DrawingPage`；frame 与 locator 解析统一在 `BasePage`。
+- [x] **与 REST 模式打通**：`browser_sync_rest_state` 显式把浏览器观察到的
+  document/workspace/element id 合并到 REST 模式拥有的 `onshape-state.json`；`dry_run`
+  不写文件，真实同步要求确认。它不隐式查询、不覆盖配额和手工维护字段。
+- [x] **人工录制验证管线**：`browser_watch` 已捕获 click/input/change/keydown、URL、
+  network 与 dialog，可 `save` 到忽略目录，并用提交的
+  `dev/fixtures-capture/watch/fs-edit-submit.template.json` 做顺序验证。实际录制由登录态
+  操作者执行，录制器不保存 header/body/cookie。
 
-## 4.1 四大语义分层：现存工具归档 + 待开发计划
+## 4.1 四大语义分层（已落地）
 
-新增工具时先归类、逐层复用；禁止在高层工具里内联低层按钮语义（选择器只允许出现在
-通用操作层与 `selectors.py`）。标记：✅ 已落地并实测、🔜 本次任务证明应开发。
+选择器只存在于通用操作/page object/`selectors.py`；高层工具只组合低层语义。
 
 ### 1) 通用操作（原子，零按钮语义）
 
-纯点击/右键/中键、双击、滚动、填值、按键、读取元素信息、等待、刷新、跨框架访问。
+- ✅ `browser_click`（left/right/middle、double、modifiers）/ `browser_scroll` /
+  `browser_inspect` / `browser_eval` 均支持可选 `frame_url`。Playwright 通过
+  `page.frames` 驱动跨域 `production-drawing-*` frame。
+- ✅ `browser_wait`：有界等待 visible/hidden/attached/detached/text/url/network_idle/frame，
+  上限 60 秒，替代流程中的盲目固定等待。
+- ✅ `browser_press_key` / `browser_type`：使用可信 Playwright `press` /
+  `press_sequentially`，支持 frame、dry-run 和确认门。
+- ✅ `browser_reload` / `browser_session` / `browser_watch`。
 
-现存归档：
+### 2) 低级语义（事务原子）
 
-- ✅ `browser_click`（`button` / `double` / `modifiers`）：右键开上下文菜单、Ctrl 多选。
-- ✅ `browser_scroll`、`browser_inspect`、`browser_eval`（主框架 JS）。
-- ✅ `browser_reload`（等待过久刷新；工程图加载卡死场景催生）。
-- ✅ `browser_session`（会话/登录态读）、`browser_watch`（人工录制观察，读性质）。
+- ✅ 文档/标签：`browser_create_document`、`browser_open_document`、
+  `browser_create_tab`、`browser_rename_tab`、`browser_delete_tab`、
+  `browser_delete_element`、`browser_get_page_tabs`。标签读回包含 `data-id`。
+- ✅ 装配：`browser_insert_assembly_instances`、`browser_fix_instances`、
+  `browser_group_instances`。四个装配工具都要求调用方提供 `instance_selector`，所有选择和
+  验证只在该实例行作用域内进行，禁止命中同名文档标签。真实只读 DOM 证据已固化到
+  `dev/button-map/scan-assembly-instances.json`，默认 selector 为
+  `.ns-tree-root .ns-assembly-instance-row.is-instance`；插入 dialog 行也经只读扫描确认。`source_names` 表示 dialog 中的 Part Studio 标签，`instance_names` 表示插入后树中的预期零件实例名，两者按索引对应；固定/分组明确返回
+  `verification: action-triggered`，不伪造未观察到的结构状态。
+- ✅ 工程图：`browser_create_drawing` 从指定 Part Studio/Assembly 选择来源与模板；
+  `browser_add_drawing_dimension` 在指定 drawing frame 中支持两类动作：DOM selector 模式
+  要求 `verification_selector` 数量增加；实际 Drawing canvas 模式用 `tool_key`、相对
+  `geometry_points` / `placement_point` 驱动，并要求操作前后 canvas screenshot SHA-256
+  变化。无法进入 frame 或没有观察到对应变化都返回失败。
+- ✅ 状态：`browser_sync_rest_state` 显式同步浏览器 id 到 REST 本地缓存。
 
-待开发：
+### 3) 高级语义（多个事务原子）
 
-- 🔜 `browser_wait`（条件等待）：等元素出现/消失/文本变化或网络静默，替代硬编码
-  `wait_for_timeout`；慢代理与“正在加载工程图…”轮询证明固定延时不可靠。
-- 🔜 `browser_press_key` / `browser_type`：真实键盘输入（Playwright `press`/`type`）；
-  重命名标签、工程图标注输入等场景合成 `dispatchEvent` 无效。
-- 🔜 frame-aware 操作（`frame_url` 参数作用于 eval/click/scroll）：工程图编辑器在
-  跨域 `production-drawing-*.onshape.com` iframe 内，须用 `page.frames` 按 URL
-  匹配目标 frame 再定位（本次尺寸标注被同源策略卡住的根因）。
+- ✅ `browser_deploy_and_apply_featurescript`：确保 FS/PS 标签，写入并提交源码，可选
+  创建版本，应用特征，返回 `{parts, partNames}`。
+- ✅ `browser_build_part`：新建/复用 Part Studio、应用特征并解析 `零件数 (N)`。
+- ✅ `browser_assemble`：新建/复用 Assembly、插入实例、可选固定/分组。
+- ✅ `browser_draw_part`：创建工程图、添加尺寸并返回 frame/view 状态；只在 frame
+  可读且所有配置尺寸成功时返回 `drawn:true`。
 
-### 2) 低级语义（事务原子，数个通用操作之和）
+### 4) 顶级语义（fixture 驱动项目）
 
-绑定到具体 Onshape 事务，“按一个按钮 + 填弹出数值”。
-
-现存归档：
-
-- ✅ `browser_create_document` / `browser_open_document` / `browser_reconnect`。
-- ✅ `browser_create_tab`（Feature Studio / Part Studio / Assembly / Drawing；
-  创建项是常驻隐藏 `a.dropdown-item`，JS 点击即可）。
-- ✅ `browser_rename_tab` / `browser_delete_tab`（右键菜单，须真实 Playwright 点击）。
-- ✅ `browser_get_page_tabs`（列标签）/ `browser_get_partstudio_features`（读特征树与零件数）
-  / `browser_read_featurescript`（读 FS 全文）——事务级读取。
-- ✅ `browser_open_insert_feature_dialog`（只读开对话框）。
-
-待开发：
-
-- 🔜 `browser_insert_assembly_instances`：装配体“插入零件和装配体”对话框多选
-  Part Studio 并确认（本次用 `browser_eval` 临时拼装，应固化）。
-- 🔜 `browser_fix_instances` / `browser_group_instances`：固定/分组选中装配实例
-  （本次用右键菜单“固定”完成刚性连接；工具栏另有“分组”需真实多选）。
-- 🔜 `browser_create_drawing`：从指定 Part Studio/Assembly 创建工程图标签并选模板。
-- 🔜 `browser_add_drawing_dimension`：工程图内点标注工具→点几何→放置尺寸；
-  依赖 frame-aware 通用操作。
-- 🔜 `browser_delete_element`（按元素 id 删除）：当前只能按标签名删除；重建 Part
-  Studio 后旧工程图源引用悬空，需按元素 id 清理悬空引用。
-
-### 3) 高级语义（中型操作，多个低级语义之和）
-
-现存归档：
-
-- ✅ `browser_deploy_featurescript`（打开/建 FS 标签 + 写 Ace 全文 + 提交编译 + 读回校验）。
-- ✅ `browser_insert_custom_feature`（工作区下拉按条目点击，非容器）。
-- ✅ `browser_create_document_version`（当前文档页签上建版本）。
-
-待开发：
-
-- 🔜 `browser_deploy_and_apply_featurescript`：deploy + 可选 apply 一体化
-  （参数 `feature_name`、`part_studio_name`、`confirm`）。本次反复
-  “部署→切 PS→点下拉→点条目→点 OK→读零件数”证明需要固化。
-- 🔜 `browser_build_part`：新建/复用 Part Studio + 应用特征 + 读回 `零件数 (N)`
-  与零件名，输出 `{parts, partNames}` 作为建模成功判定（本次验收标准）。
-- 🔜 `browser_assemble`：建装配体标签 + 插入指定实例 + 固定/分组，返回实例树。
-- 🔜 `browser_draw_part`：建工程图 + 选源 + 加基础尺寸标注，返回图框/视图状态。
-
-### 4) 顶级语义（脚本化建模项目，一个项目对应一个脚本）
-
-预编排脚本，由高层语义串成连续事务链；LLM 只传项目参数，不再逐步点击。
-
-- 🔜 `browser_run_project(project="module-interface-verification")`：
-  内部读取 `dev/fixtures-capture/<project>.json` 的步骤清单与断言，串行执行：
-  1. `create_document` → 2. `deploy_featurescript(PartA)` + `deploy_featurescript(PartB)`
-  → 3. `build_part(A)` + `build_part(B)` → 4. `assemble([A,B])` → 5. `draw_part(A/B)`
-  → 6. 断言 `零件数 (1)`、实例树、图框存在。
-- 失败在某步时返回已完成的步骤序号与状态，支持断点续跑。
-- 顶级语义不暴露 UI 选择器；选择器只存在于通用操作层与 `selectors.py`。
+- ✅ `browser_run_project(project="module-interface-verification")` 读取
+  `dev/fixtures-capture/module-interface-verification.json`，串行执行建文档、部署/建模 A/B、
+  装配和工程图。
+- ✅ 每步成功后原子写入
+  `onshape_browser_mode/user_data/project-runs/<project>.checkpoint.json`；checkpoint 绑定
+  fixture 与引用源码 SHA-256，计划变化后拒绝 resume。失败返回步骤索引、已完成步骤和 resume 提示，
+  `resume=true` 只重跑未完成步骤。
+- ✅ fixture 脚本路径限制在 `dev/fixtures-capture/`，fixture/checkpoint 递归拒绝
+  authorization/cookie/token/secret/password/api-key 形状的键。
 
 ### 分层依赖总则
 
@@ -146,10 +121,18 @@ GBK 编码、Playwright 线程绑定、SPA 登录判定、强杀恢复和多标�
    (脚本)      (中型流程)     (事务原子)     (原子动作)
 ```
 
-- 每层**禁止调用上层**；但可以调用**任意下层**（跨多层调用允许）。例如高级语义可直接复用
-  低级语义与通用操作，顶级语义可直接编排高级/低级/通用操作。反向（下层依赖上层）才是设计错误。
-- 新发现的选择器/iframe/等待结论统一沉淀进 `selectors.py` 与
-  `onshape_docs/experience/browser-automation.md`，工具只引用常量。
+- 每层禁止调用上层，可以调用任意下层。
+- 新选择器/frame/等待结论同步沉淀进 `selectors.py` 与经验文档。
+- 所有新写操作先走 pure-local `dry_run`，真实执行要求 `confirm_mutation=true`。
+
+
+### 验证边界
+
+- 当前完成证据是离线协议、Mock/fixture、状态持久化与失败路径测试；未对用户云端文档执行
+  自动变更。实际 UI selector 首次运行前仍应先用 `browser_inspect` / `browser_watch` 录制确认。
+- 工具不会把“点击成功”等同于模型成功：Commit 必须读回 disabled 状态，build 必须读到
+  目标 user feature 与正零件数，装配实例必须在指定作用域可见，尺寸必须观察到 DOM
+  节点增量或 canvas 图像变化。
 
 ## 5. 安全/配额红线（沿用 CLAUDE.md）
 

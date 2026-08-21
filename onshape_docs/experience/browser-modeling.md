@@ -137,5 +137,17 @@
   点 `.ns-dialog-button-ok.button-ok`。实例树出现
   `Fixed wall (rail) <1>` / `Module block (groove) <1>`。
 - 工程图标签或跨域 iframe 出现只证明容器已创建，主页面 `svg` 数量不能证明
-  工程视图或尺寸已生成。内容验收必须等待 frame-aware 工具进入
-  `production-drawing-*` iframe 后读取实际视图/尺寸；当前工具不得宣称完整工程图成功。
+  工程视图或尺寸已生成。`DrawingPage` 与 frame-aware 通用工具现在可进入
+  `production-drawing-*` iframe；`browser_draw_part` 只有在 frame 可读且全部配置尺寸操作
+  成功且 `verification_selector` 节点数增加，或 canvas 坐标模式的前后截图 SHA-256
+  发生变化时才返回 `drawn:true`。canvas 模式通过 `tool_key`、`canvas_index`、
+  `geometry_points` 与 `placement_point` 配置，不依赖 Drawing 内部动态 id。
+
+## 11. Fixture 驱动项目与验收
+
+- `browser_deploy_and_apply_featurescript` 把“确保 FS/PS → 提交 → 可选建版本 → 应用 →
+  读取零件”固化为一个高级事务，输出标准化 `{parts, partNames}`。
+- `browser_run_project` 从 `dev/fixtures-capture/<project>.json` 串行执行，不接受任意文件
+  路径；每步写本地 checkpoint。失败后 `resume=true` 只继续 pending 步骤，避免再次建文档。
+- `module-interface-verification` 固定执行 6 步：建文档、建 rail/groove 两零件、装配、
+  两张工程图；最终断言两侧零件数、装配状态和两个 drawing frame 状态。

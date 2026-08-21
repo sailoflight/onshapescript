@@ -419,7 +419,13 @@ def list_document_tabs(page: Any) -> dict[str, Any]:
             const nameEl = el.querySelector('.os-tab-name');
             const name = (nameEl ? (nameEl.innerText || nameEl.textContent || '') : (el.innerText || el.textContent || '')).trim().replace(/\\s+/g, ' ');
             const cls = el.className || '';
-            return { name, active: cls.includes('active') };
+            const elementType = el.getAttribute('data-element-type') || el.getAttribute('data-type') || '';
+            return {
+              id: el.getAttribute('data-id') || '',
+              name,
+              elementType,
+              active: cls.includes('active'),
+            };
           });
           const documentTabsToolButton = document.querySelector('.document-tabs-button');
           return { tabs, hasDocumentTabsToolButton: !!documentTabsToolButton };
@@ -535,8 +541,20 @@ def insert_custom_feature(
     The 添加自定义特征 picker alone only inserts a not-computed row.
     """
     if part_studio_tab:
-        page.locator(f".os-tab-bar-tab:has-text('{part_studio_tab}')").first.click()
-        page.wait_for_timeout(6000)
+        tabs = list_document_tabs(page).get("tabs", [])
+        matched = next((tab for tab in tabs if tab.get("name") == part_studio_tab), None)
+        if not matched:
+            return {"inserted": False, "reason": f"part studio tab {part_studio_tab!r} not found"}
+        tab_id = matched.get("id", "")
+        selector = f'.os-tab-bar-tab[data-id="{tab_id}"]' if tab_id else ".os-tab-bar-tab"
+        tab = page.locator(selector)
+        if not tab_id:
+            tab = tab.filter(has_text=part_studio_tab)
+        try:
+            tab.first.click()
+            page.locator(".features-title").first.wait_for(state="visible", timeout=30_000)
+        except Exception as exc:  # noqa: BLE001 - structured missing/unready tab
+            return {"inserted": False, "reason": f"part studio tab did not become ready: {exc}"}
 
     # 1. Click the toolbar button titled 此工作区中的自定义特征.
     clicked = page.evaluate(
@@ -581,7 +599,12 @@ def insert_custom_feature(
     page.wait_for_timeout(15000)
 
     features = read_partstudio_features(page)
-    return {"inserted": True, "accepted": accepted, "features": features, "pageUrl": page.url}
+    return {
+        "inserted": bool(accepted.get("clicked")),
+        "accepted": accepted,
+        "features": features,
+        "pageUrl": page.url,
+    }
 
 
 def create_document_version(page: Any, name: str = "") -> dict[str, Any]:

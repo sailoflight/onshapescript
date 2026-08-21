@@ -1,0 +1,99 @@
+{
+  "name": "module-interface-verification",
+  "description": "Build two verified parts, assemble them, and create two drawings through the browser UI.",
+  "steps": [
+    {
+      "id": "create-document",
+      "tool": "browser_create_document",
+      "args": {
+        "name": "Module interface verification"
+      }
+    },
+    {
+      "id": "build-rail",
+      "tool": "browser_deploy_and_apply_featurescript",
+      "args": {
+        "script_file": "dev/fixtures-capture/module-rail-fixed-wall.fs",
+        "feature_name": "Module rail fixed wall",
+        "feature_studio_tab": "Feature Studio - Rail",
+        "part_studio_tab": "Fixed wall (rail)"
+      }
+    },
+    {
+      "id": "build-groove",
+      "tool": "browser_deploy_and_apply_featurescript",
+      "args": {
+        "script_file": "dev/fixtures-capture/module-groove-block.fs",
+        "feature_name": "Module groove block",
+        "feature_studio_tab": "Feature Studio - Groove",
+        "part_studio_tab": "Module block (groove)"
+      }
+    },
+    {
+      "id": "assemble",
+      "tool": "browser_assemble",
+      "args": {
+        "instance_names": [
+          "Fixed wall (rail)",
+          "Module block (groove)"
+        ],
+        "assembly_tab": "Module interface assembly",
+        "fix": true,
+        "group": false,
+        "instance_selector": ".ns-tree-root .ns-assembly-instance-row.is-instance",
+        "source_names": [
+          "PS-PartA-wall",
+          "PS-PartB-block"
+        ]
+      }
+    },
+    {
+      "id": "draw-rail",
+      "tool": "browser_draw_part",
+      "args": {
+        "source_tab": "Fixed wall (rail)",
+        "template": ""
+      }
+    },
+    {
+      "id": "draw-groove",
+      "tool": "browser_draw_part",
+      "args": {
+        "source_tab": "Module block (groove)",
+        "template": ""
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "step": "build-rail",
+      "key": "parts",
+      "minimum": 1
+    },
+    {
+      "step": "build-groove",
+      "key": "parts",
+      "minimum": 1
+    },
+    {
+      "step": "assemble",
+      "key": "assembled",
+      "equals": true
+    },
+    {
+      "step": "assemble",
+      "key": "configurationTriggered",
+      "equals": true
+    },
+    {
+      "step": "draw-rail",
+      "key": "drawn",
+      "equals": true
+    },
+    {
+      "step": "draw-groove",
+      "key": "drawn",
+      "equals": true
+    }
+  ]
+}
