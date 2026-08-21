@@ -149,6 +149,57 @@ def create_document(page: Any, name: str = "") -> dict[str, Any]:
     return {"created": True, "pageUrl": url, **parse_document_url(url)}
 
 
+def create_document_tab(page: Any, tab_type: str = "Feature Studio") -> dict[str, Any]:
+    """Create a new document tab (Feature Studio or Part Studio) via the + button.
+
+    The dropdown items are hidden until the + button opens the menu and a plain
+    Playwright click on a hidden item fails, so both clicks run in page
+    JavaScript. Adding a tab creates an Onshape document element (a cloud
+    mutation) but spends zero REST API quota.
+    """
+    opened = page.evaluate(
+        """
+        () => {
+          const plus = document.querySelector('.document-tabs-button');
+          if (!plus) return {clicked: false, reason: 'document tabs + button not found'};
+          plus.click();
+          return {clicked: true};
+        }
+        """
+    )
+    if not opened.get("clicked"):
+        return {**opened, "created": False, "pageUrl": page.url}
+    page.wait_for_timeout(2000)
+
+    clicked_item = page.evaluate(
+        """
+        (tabType) => {
+          const needle = ('创建 ' + tabType).replace(/\\s+/g, ' ');
+          const items = Array.from(document.querySelectorAll('a.dropdown-item, .dropdown-item, li.dropdown-item'));
+          const item = items.find(el => ((el.textContent || '').replace(/\\s+/g, ' ')).includes(needle));
+          if (!item) {
+            return {clicked: false, reason: 'dropdown item not found',
+                    items: items.map(el => (el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80))};
+          }
+          item.click();
+          return {clicked: true, text: (item.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80)};
+        }
+        """,
+        tab_type,
+    )
+    if not clicked_item.get("clicked"):
+        return {**clicked_item, "created": False, "pageUrl": page.url}
+    page.wait_for_timeout(8000)
+
+    return {
+        "created": True,
+        "tabType": tab_type,
+        "clickedItem": clicked_item.get("text", ""),
+        **list_document_tabs(page),
+        "pageUrl": page.url,
+    }
+
+
 def open_document_by_name(
     page: Any,
     document_name: str,

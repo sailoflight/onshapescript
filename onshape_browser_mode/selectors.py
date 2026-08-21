@@ -40,6 +40,10 @@ TIMEOUT_DIALOG = ".osx-message"  # "您的 Onshape 会话已超时。您的文�
 TIMEOUT_RECONNECT_LINK = ".alert-link.osx-message-bubble-link"  # "单击此处重新连接。"
 TIMEOUT_CLOSE_BUTTON = ".osx-close"  # "× Close"
 
+# Document tabs (create Feature Studio / Part Studio tabs)
+DOCUMENT_TABS_BUTTON = ".document-tabs-button"  # the trailing "+" tab button
+DOCUMENT_TABS_CREATE_ITEM = "a.dropdown-item"   # e.g. 创建 Feature Studio / 创建 Part Studio
+
 # Part Studio (feature tree / toolbar)
 PS_FEATURE_LIST_ITEM = ".os-list-item"
 PS_USER_FEATURE = ".os-list-item.ns-user-feature"  # custom FeatureScript feature

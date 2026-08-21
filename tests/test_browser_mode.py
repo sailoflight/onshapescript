@@ -450,6 +450,62 @@ class BrowserCreateDocumentTest(unittest.TestCase):
         self.assertEqual(guard.pace_calls, 1)
 
 
+class BrowserCreateTabTest(unittest.TestCase):
+    def test_create_tab_requires_confirmation(self) -> None:
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session) as get_session, \
+             mock.patch("onshape_browser_mode.actions.create_document_tab",
+                        side_effect=AssertionError("must not create tab before confirmation")):
+            with self.assertRaises(ValueError) as ctx:
+                server._browser_create_tab({"tab_type": "Feature Studio"})
+        self.assertIn("confirm_mutation", str(ctx.exception))
+        get_session.assert_not_called()
+        self.assertEqual(session.start_calls, 0)
+
+    def test_create_tab_rejects_unknown_type_without_session(self) -> None:
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session) as get_session:
+            with self.assertRaises(ValueError) as ctx:
+                server._browser_create_tab({"tab_type": "Assembly", "confirm_mutation": True})
+        self.assertIn("tab_type", str(ctx.exception))
+        get_session.assert_not_called()
+        self.assertEqual(session.start_calls, 0)
+
+    def test_confirmed_create_tab_delegates_and_paces(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.create_document_tab",
+                        return_value={"created": True, "tabType": "Feature Studio"}) as create_tab:
+            result = server._browser_create_tab(
+                {"tab_type": "Feature Studio", "confirm_mutation": True})
+        self.assertTrue(result["created"])
+        create_tab.assert_called_once()
+        self.assertEqual(session.start_calls, 1)
+        self.assertEqual(guard.pace_calls, 1)
+
+
+class BrowserOpenInsertFeatureDialogTest(unittest.TestCase):
+    def test_open_dialog_is_read_only_and_paces(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.open_insert_custom_feature_dialog",
+                        return_value={"clicked": True, "dialog": {"present": True}}) as open_dialog:
+            result = server._browser_open_insert_feature_dialog({})
+        self.assertTrue(result["clicked"])
+        self.assertTrue(result["dialog"]["present"])
+        open_dialog.assert_called_once()
+        self.assertEqual(session.start_calls, 1)
+        self.assertEqual(guard.pace_calls, 1)
+
+
 # ---------------------------------------------------------------------------
 # Cost metadata <-> mutation behavior consistency
 # ---------------------------------------------------------------------------
@@ -484,8 +540,21 @@ class BrowserMetadataTest(unittest.TestCase):
             self.assertTrue(tool["annotations"]["readOnlyHint"], name)
             self.assertEqual(tool["cost"]["estimated_requests"], 0, name)
 
+    def test_create_tab_mutating_and_dialog_opener_read_only(self) -> None:
+        tab_tool = self.by_name["browser_create_tab"]
+        self.assertTrue(tab_tool["cost"]["mutating"])
+        self.assertEqual(tab_tool["cost"]["estimated_requests"], 0)
+        self.assertFalse(tab_tool["annotations"]["readOnlyHint"])
+        self.assertIn("confirm_mutation", tab_tool["inputSchema"]["properties"])
+
+        dialog_tool = self.by_name["browser_open_insert_feature_dialog"]
+        self.assertFalse(dialog_tool["cost"]["mutating"])
+        self.assertTrue(dialog_tool["annotations"]["readOnlyHint"])
+        self.assertEqual(dialog_tool["cost"]["estimated_requests"], 0)
+        self.assertNotIn("confirm_mutation", dialog_tool["inputSchema"]["properties"])
+
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 47)
+        self.assertEqual(len(server.TOOLS), 49)
 
 
 if __name__ == "__main__":

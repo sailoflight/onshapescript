@@ -49,14 +49,21 @@ proxy_server = "http://127.0.0.1:10808"   # 本机 HTTP 代理，用于访问 On
 浏览器用户文件独立存放在 `user_data\onshape_profile`，不会混用系统默认浏览器 profile，
 也不会与 taobao-mcp 的 `user_data\chrome_profile` 冲突。
 
-## Windows 启动桥接服务
+## Windows 无窗口启动桥接服务
 
 ```powershell
 cd C:\MCP\onshapescript
-.\.venv\Scripts\python.exe .\tools\bridge_server.py 8766
+wscript.exe .\tools\windows\start-bridge-hidden.vbs 8766
 ```
 
-或直接双击 `tools\windows\start-bridge.bat`。
+- 推荐直接双击 `tools\windows\start-bridge-hidden.vbs`：桥接使用虚拟环境的
+  `pythonw.exe` 后台运行，不创建 CMD/PowerShell/Python 控制台窗口。
+- `start-bridge.bat` 是兼容入口，也会委托给隐藏 VBS；双击 BAT 时 CMD 可能短暂闪现，
+  但不会留下常驻黑框。
+- 隐藏的是**桥接控制台**，不是 Onshape 浏览器。首次登录、人工操作和浏览器工具仍会显示
+  正常的 Edge 窗口。
+- 运行日志继续写入 `outputs\bridge-server.log`；无窗口启动失败时先检查该文件，
+  再用 `python.exe tools\bridge_server.py 8766` 前台诊断。
 
 ## 重启后如何自动恢复（与 taobao-mcp 同款方案）
 
@@ -75,9 +82,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\register-bri
 ```
 
 - 注册的计划任务名：`OnshapeMCPBridge`（登录时启动，失败后每 1 分钟重启，最多 999 次）。
+  计划任务执行 `pythonw.exe`，登录后不会弹出桥接控制台。
 - `setup-autostart.bat` 会同时**立即启动**桥接服务，因此也是“重启后/服务掉了”的一键恢复入口。
-- **桥接卡死时的一键自愈**：双击 `tools\windows\restart-bridge.bat`（或
-  `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\restart-bridge.ps1`）。
+- **桥接卡死时的无窗口自愈**：双击 `tools\windows\restart-bridge-hidden.vbs`。
+  `restart-bridge.bat` 是兼容入口，可能短暂闪现 CMD；需要前台诊断时再运行
+  `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\windows\restart-bridge.ps1`。
   它会**强杀**自动化 Edge（`onshape_profile`）+ 旧 bridge，再启动新 bridge。
   强杀（而非优雅关闭）是刻意的：Onshape 关浏览器即登出，强杀保留会话文件，
   重启后靠 `config/browser-state.json` 恢复已登录的 documents 页。

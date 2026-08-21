@@ -37,7 +37,6 @@ from mcp_main.server import dispatch, response  # noqa: E402  (needs ROOT on sys
 
 LOG_PATH = ROOT / "outputs" / "bridge-server.log"
 HOST = "127.0.0.1"
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8766
 BUFFER_SIZE = 65536
 
 # Only one live client at a time (see module docstring).
@@ -51,6 +50,12 @@ def _log(msg: str) -> None:
             fh.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
     except OSError:
         pass
+
+
+def _console(message: str) -> None:
+    """Print only when launched by console Python, never under pythonw.exe."""
+    if sys.stdout is not None:
+        print(message, flush=True)
 
 
 def _parse_error() -> dict:
@@ -118,13 +123,14 @@ def _close_browser_if_started() -> None:
         pass
 
 
-def main() -> None:
+def main(port: int | None = None) -> None:
+    port = port if port is not None else int(sys.argv[1]) if len(sys.argv) > 1 else 8766
     srv = socket.socket()
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind((HOST, PORT))
+    srv.bind((HOST, port))
     srv.listen(4)
-    print(f"onshape mcp bridge listening on {HOST}:{PORT}", flush=True)
-    _log(f"bridge server started on {HOST}:{PORT} (pid={os.getpid()})")
+    _console(f"onshape mcp bridge listening on {HOST}:{port}")
+    _log(f"bridge server started on {HOST}:{port} (pid={os.getpid()})")
 
     while True:
         conn, addr = srv.accept()
@@ -153,3 +159,7 @@ if __name__ == "__main__":
         _close_browser_if_started()
         _log("bridge server stopped by user")
         raise SystemExit(0)
+    except Exception as error:
+        _close_browser_if_started()
+        _log(f"bridge server stopped by fatal error: {type(error).__name__}: {error}")
+        raise

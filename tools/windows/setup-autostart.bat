@@ -14,7 +14,7 @@ if errorlevel 1 (
 )
 
 echo [2/2] Starting the bridge now ...
-start "OnshapeMCPBridge" /D "%ROOT%" ".venv\Scripts\python.exe" "tools\bridge_server.py" 8766
+wscript.exe //B //Nologo "tools\windows\start-bridge-hidden.vbs" 8766
 echo Done. The bridge listens on 127.0.0.1:8766 and auto-starts at next logon.
 echo Check logs in outputs\bridge-server.log
 endlocal

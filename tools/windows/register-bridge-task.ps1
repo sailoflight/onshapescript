@@ -30,11 +30,11 @@ if ($Uninstall) {
 
 # ROOT = tools\windows\..\..  (the repository root this script lives in)
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$python = Join-Path $root '.venv\Scripts\python.exe'
+$python = Join-Path $root '.venv\Scripts\pythonw.exe'
 $bridge = Join-Path $root 'tools\bridge_server.py'
 
 if (-not (Test-Path $python)) {
-    throw "virtualenv python not found: $python — run the Windows install steps first"
+    throw "virtualenv windowless python not found: $python — run the Windows install steps first"
 }
 if (-not (Test-Path $bridge)) {
     throw "bridge server not found: $bridge"
@@ -63,7 +63,7 @@ Register-ScheduledTask `
     -Force
 
 Write-Host "registered scheduled task '$TaskName'"
-Write-Host "  python : $python"
+Write-Host "  python : $python (windowless)"
 Write-Host "  bridge : $bridge $Port"
 Write-Host "  trigger: at logon of $env:USERDOMAIN\$env:USERNAME (restart on failure every 1 min)"
-Write-Host "Start it now with:  .\tools\windows\start-bridge.bat"
+Write-Host "Start it now without a window with:  wscript.exe .\tools\windows\start-bridge-hidden.vbs"

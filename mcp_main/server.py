@@ -899,6 +899,40 @@ def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
     return actions.create_document(page, name)
 
 
+def _browser_create_tab(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Create a Feature Studio or Part Studio tab in the current document (0 quota)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    _confirm(arguments)
+    tab_type = arguments.get("tab_type", "Feature Studio")
+    if tab_type not in ("Feature Studio", "Part Studio"):
+        raise ValueError("tab_type must be 'Feature Studio' or 'Part Studio'")
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    return actions.create_document_tab(page, tab_type)
+
+
+def _browser_open_insert_feature_dialog(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Open the Part Studio '添加自定义特征' dialog (read-only UI navigation)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    result = actions.open_insert_custom_feature_dialog(page)
+    return {"pageUrl": page.url, **result}
+
+
 def _browser_create_document_version(arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a document version so custom features become insertable."""
     from onshape_browser_mode import actions
@@ -1960,6 +1994,37 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
+        "name": "browser_create_tab",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 20,
+            "requires_browser_session": True,
+            "mutating": True,
+            "cacheable": False,
+        },
+        "description": (
+            "Create a new tab in the current Onshape document through the browser UI (document-tabs "
+            "＋ button → 创建 Feature Studio / 创建 Part Studio). Zero Onshape API quota. Adding a tab "
+            "creates a document element, so it requires confirm_mutation=true. Returns the updated tab "
+            "list and page URL."
+        ),
+        "inputSchema": object_schema({
+            "tab_type": {
+                "type": "string",
+                "enum": ["Feature Studio", "Part Studio"],
+                "default": "Feature Studio",
+                "description": "Which kind of tab to create.",
+            },
+            "confirm_mutation": mutating_confirmation(),
+        }),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "browser_insert_custom_feature",
         "cost": {
             "backend": "browser",
@@ -1994,6 +2059,29 @@ TOOLS: list[dict[str, Any]] = [
             "confirm_mutation": mutating_confirmation(),
         }),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
+        "name": "browser_open_insert_feature_dialog",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 10,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Open the Part Studio '添加自定义特征' dialog through the browser UI so a follow-up "
+            "browser_create_document_version call can click its '创建一个版本' prompt, or so the caller can "
+            "inspect the available custom features. Read-only UI navigation: it only opens a dialog, never "
+            "calls the Onshape REST API, and does not create or modify cloud data by itself."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
     {
         "name": "browser_create_document_version",
@@ -2065,7 +2153,9 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_get_partstudio_features": _browser_get_partstudio_features,
     "browser_get_page_tabs": _browser_get_page_tabs,
     "browser_create_document": _browser_create_document,
+    "browser_create_tab": _browser_create_tab,
     "browser_insert_custom_feature": _browser_insert_custom_feature,
+    "browser_open_insert_feature_dialog": _browser_open_insert_feature_dialog,
     "browser_create_document_version": _browser_create_document_version,
     "browser_reconnect": _browser_reconnect,
     "onshape_get_project_state": _local_state,
