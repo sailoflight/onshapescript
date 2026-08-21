@@ -96,7 +96,7 @@ onshape_rest_api_mode/config/onshape-credentials.json and is skipped with a note
 
 ### Browser automation tools — zero REST API quota
 
-These 19 tools drive the persistent Windows-hosted browser. They never call the
+These 20 tools drive the persistent Windows-hosted browser. They never call the
 Onshape REST API, but a real UI action can still modify cloud data. Mutation
 confirmation and pacing therefore apply independently of REST quota. Use
 `tools/list` as the authoritative catalog when current registration matters.
@@ -104,7 +104,7 @@ confirmation and pacing therefore apply independently of REST quota. Use
 | Group | Tools | Boundary |
 |---|---|---|
 | Session and discovery | `browser_session`, `browser_watch`, `browser_inspect`, `browser_scroll`, `browser_click`, `browser_eval`, `browser_reconnect` | Inspecting is read-only; actual click/eval requires `confirm_mutation=true`; reconnect only restores the session. |
-| Read-only navigation and state | `browser_open_document`, `browser_read_featurescript`, `browser_get_partstudio_features`, `browser_get_page_tabs`, `browser_open_insert_feature_dialog` | Navigation/dialog opening does not create cloud data; state is read from the visible page. |
+| Read-only navigation and state | `browser_open_document`, `browser_read_featurescript`, `browser_get_partstudio_features`, `browser_get_page_tabs`, `browser_open_insert_feature_dialog`, `browser_reload` | Navigation/dialog opening does not create cloud data; state is read from the visible page. |
 | Confirmed document changes | `browser_deploy_featurescript`, `browser_create_document`, `browser_create_tab`, `browser_rename_tab`, `browser_delete_tab`, `browser_insert_custom_feature`, `browser_create_document_version` | All real writes require `confirm_mutation=true`; deploy also supports a pure local `dry_run=true`. |
 
 For selector/session behavior, search the indexed `browser-automation` experience

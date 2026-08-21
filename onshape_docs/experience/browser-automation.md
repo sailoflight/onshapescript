@@ -161,3 +161,25 @@
 - 删除：右键 → `li.context-menu-item` 含「删除」→ 通常无二次确认对话框，删除后
   该标签消失；被删标签会先激活再消失，其余标签顺序保持。
 - 删除/重命名都是 0 REST 配额的 UI 写操作，仍需 `confirm_mutation=true`。
+
+## 8. 标签页创建菜单的真实位置
+
+- `.document-tabs-button` 是**测量/分析/质量属性**按钮组，不是“+ 新建页签”按钮；
+  不要用它定位创建菜单。
+- 创建页签的下拉项常驻 DOM（`a.dropdown-item`，隐藏状态），用 JS 直接
+  `el.click()` 即可创建，不必先真实打开菜单。文本：`创建 Feature Studio`、
+  `创建 Part Studio`、`创建装配体`、`创建工程图…`、`创建 Variable Studio` 等。
+- 因此 `browser_create_tab` 采用“JS 点隐藏项”，与右键菜单必须真实点击不同。
+- 工具只有在标签列表出现新项时才返回 `created:true`。工程图可能先打开来源/模板
+  对话框，此时返回 `triggered:true, created:false`，不能把打开对话框当作创建成功。
+
+## 9. 工程图编辑器在跨域 iframe 内
+
+- 工程图标签加载后，实际编辑器位于 `iframe[src^="https://production-drawing-"]`，
+  **跨域**（与 cad.onshape.com 不同源）。`browser_eval`/`browser_click` 只作用于
+  主框架 `page.locator`，受同源策略限制无法进入该 iframe；尺寸标注工具也只在
+  iframe 内。
+- 后续要操作工程图，需要 frame-aware 工具（Playwright `page.frames` 按 URL 匹配
+  目标 frame，再在其内部 locator），或在 bridge 内以 CDP 访问。
+- 工程图加载慢：`正在加载工程图…` 长时间不消失时可 `browser_reload`（或
+  `location.reload()`）刷新；若源 Part Studio 已被删除，工程图会一直卡在加载。

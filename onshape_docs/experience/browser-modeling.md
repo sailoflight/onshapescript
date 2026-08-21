@@ -10,7 +10,7 @@
 | # | 步骤 | 工具/选择器 | 实测结果 |
 |---|---|---|---|
 | 1 | 创建新文档 | `browser_create_document(name)`：`#create-new-type` → `.create-new-document` → `#document-name-input` 填名 → `.new-document-dialog .btn-primary` | `fs-modeling-test`，did `4774246bad5e29f4c98bf632`，wid `721b2be4e4dceb696e8576e1` |
-| 2 | 新建 Feature Studio 标签 | `.document-tabs-button` 下拉 → `a.dropdown-item`「创建 Feature Studio」（下拉项隐藏，用 JS click） | 标签 `Feature Studio 1`，eid `b08754f2be050e1c13a6bdf8` |
+| 2 | 新建 Feature Studio 标签 | 隐藏的 `a.dropdown-item`「创建 Feature Studio」→ JS click | 标签 `Feature Studio 1`，eid `b08754f2be050e1c13a6bdf8` |
 | 3 | 部署 FS 源码 | `browser_deploy_featurescript(script)`：写 Ace → 点「提交」 | 81→23875 字符，`deployed:true, verified:true` |
 | 4 | 创建版本 | 插入对话框「当前文档」→ 提示「没有可用的特征。… 创建一个版本」→ `.select-item-prompt-save-version a` → `.version-or-workspace-dialog` → **取消勾选** `.publish-custom-features-checkbox` → 点「创建」 | 版本 `V1`，对话框显示特征可用 |
 | 5 | 插入特征 | 插入对话框特征行 `.select-item-dialog-item-row.child-item-container` **双击**（`os-double-click=selectChildInsertableThenClose`） | 特征进入特征树，`feature-id` 已存在 |
@@ -61,7 +61,7 @@
 2. `button.create-new-document` 打开 `.new-document-dialog`；
 3. 用 `#document-name-input` 填名，让 Playwright 触发 Angular 绑定；
 4. 点击 `#model-name-dialog-ok` 或 `.new-document-dialog .btn-primary`；
-5. 新文档默认包含 `Part Studio 1`、`Assembly 1` 和 `.document-tabs-button`。
+5. 新文档默认包含 `Part Studio 1`、`Assembly 1` 和文档标签栏。
 
 `browser_deploy_featurescript` 的有效信号不是“点过提交”，而是：Ace API
 `setValue()` 写入全文、提交按钮从 enabled 回到 disabled、随后 `getValue()` 读回
@@ -110,3 +110,32 @@
 - **调试技巧**：在可疑 op 前用 `isQueryEmpty` 抛 `regenError("DEBUG ...")`，或把
   `evaluateQuery` 采样到的边坐标拼进 regenError 文本，一次部署即可定位空查询来自
   哪个操作（注意错误只显示第一个失败 op，前置 op 会掩盖后续 op）。
+
+## 9. 纵向导入斜坡（非倒角）与并集邻接（修订 2026-08）
+
+- **UNION 只传 `tools`** 且 **邻接体（仅共面）也能合并**：壁与轨在 Y=wallThicknessY
+  只共面不重叠，`opBoolean(UNION, tools=[wallBodies, railBodies])` 直接成功，
+  不需要给轨加“嵌入段”（嵌入段属于未要求的额外结构，应删除）。之前失败的根因是
+  `qCreatedBy(unionId)` 空 + 误传 `targets`，不是“必须重叠”。
+- **1.2 mm 纵向 45° 导入斜坡**：不是端部倒角。正确构造是每条轨一个**楔形体**——
+  在 Y-Z 平面画直角三角形 `(wallThicknessY, wallHeightZ) → (tipY, wallHeightZ-leadIn) → (tipY, wallHeightZ)`，
+  沿 +X 拉伸根宽，再从并集体上 SUBTRACTION。斜边即“从完整轨高 1.2 逐渐过渡到端部”的 45° 斜坡。
+  - 楔体 X 范围取**根宽**（不是顶宽），否则端部两侧斜边残留。
+  - 楔体 Y 下界 = 壁面（wallThicknessY），不切入壁体。
+- **参数显式化**：`rail_root_width` / `rail_top_width` / `rail_height` /
+  `rail_pitch` / `rail_angle` 作为 precondition 显式参数 + 锁死 bounds；
+  轨中心用 `first_center_x + i * pitch` 显式得到 4/12/20/28/36，禁止边缘均分。
+- **验收信号**：`零件数 (1)` 且名称正确；无端部倒角特征（opChamfer 不出现于轨）。
+
+## 10. 工程图与装配体（0 配额浏览器路径）
+
+- 创建页签菜单项（隐藏的 `a.dropdown-item`，JS click 即可触发）：
+  `创建 Feature Studio` / `创建 Part Studio` / `创建装配体` / `创建工程图…`。
+- 装配体插入：装配体标签内点 `.tool.is-activatable.is-button`（title
+  `插入零件和装配体 (i)`）→ 对话框 `assembly-insert-dialog` 内点选
+  `.select-item-dialog-item.parent-item.os-selectable-item`（可多选）→
+  点 `.ns-dialog-button-ok.button-ok`。实例树出现
+  `Fixed wall (rail) <1>` / `Module block (groove) <1>`。
+- 工程图标签或跨域 iframe 出现只证明容器已创建，主页面 `svg` 数量不能证明
+  工程视图或尺寸已生成。内容验收必须等待 frame-aware 工具进入
+  `production-drawing-*` iframe 后读取实际视图/尺寸；当前工具不得宣称完整工程图成功。

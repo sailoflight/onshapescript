@@ -150,33 +150,35 @@ def create_document(page: Any, name: str = "") -> dict[str, Any]:
 
 
 def create_document_tab(page: Any, tab_type: str = "Feature Studio") -> dict[str, Any]:
-    """Create a new document tab (Feature Studio or Part Studio) via the + button.
+    """Create a new document tab (Feature Studio / Part Studio / Assembly /
+    Drawing) via the tabs menu.
 
-    The dropdown items are hidden until the + button opens the menu and a plain
-    Playwright click on a hidden item fails, so both clicks run in page
+    The dropdown items are present but hidden until the menu opens; a plain
+    Playwright click on a hidden item fails, so the item is clicked in page
     JavaScript. Adding a tab creates an Onshape document element (a cloud
     mutation) but spends zero REST API quota.
     """
-    opened = page.evaluate(
-        """
-        () => {
-          const plus = document.querySelector('.document-tabs-button');
-          if (!plus) return {clicked: false, reason: 'document tabs + button not found'};
-          plus.click();
-          return {clicked: true};
-        }
-        """
-    )
-    if not opened.get("clicked"):
-        return {**opened, "created": False, "pageUrl": page.url}
-    page.wait_for_timeout(2000)
+    try:
+        before_state = list_document_tabs(page)
+        before_names = {tab.get("name", "") for tab in before_state.get("tabs", [])}
+        before_tabs_readable = True
+    except Exception:  # noqa: BLE001 - creation can still be attempted
+        before_names = set()
+        before_tabs_readable = False
+
+    create_item_text = {
+        "Feature Studio": "创建 Feature Studio",
+        "Part Studio": "创建 Part Studio",
+        "Assembly": "创建装配体",
+        "Drawing": "创建工程图",
+    }
+    needle = create_item_text.get(tab_type, "创建 " + tab_type)
 
     clicked_item = page.evaluate(
         """
-        (tabType) => {
-          const needle = ('创建 ' + tabType).replace(/\\s+/g, ' ');
+        (needle) => {
           const items = Array.from(document.querySelectorAll('a.dropdown-item, .dropdown-item, li.dropdown-item'));
-          const item = items.find(el => ((el.textContent || '').replace(/\\s+/g, ' ')).includes(needle));
+          const item = items.find(el => ((el.textContent || '').replace(/\\s+/g, ' ')).includes(needle.replace(/\\s+/g, ' ')));
           if (!item) {
             return {clicked: false, reason: 'dropdown item not found',
                     items: items.map(el => (el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80))};
@@ -185,19 +187,46 @@ def create_document_tab(page: Any, tab_type: str = "Feature Studio") -> dict[str
           return {clicked: true, text: (item.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80)};
         }
         """,
-        tab_type,
+        needle,
     )
     if not clicked_item.get("clicked"):
-        return {**clicked_item, "created": False, "pageUrl": page.url}
+        return {
+            **clicked_item,
+            "triggered": False,
+            "created": False,
+            "tabType": tab_type,
+            "pageUrl": page.url,
+        }
     page.wait_for_timeout(8000)
 
-    return {
-        "created": True,
+    try:
+        tab_state = list_document_tabs(page)
+        after_tabs = tab_state.get("tabs", [])
+        new_tabs = [tab for tab in after_tabs if tab.get("name", "") not in before_names]
+        tab_read_error = None
+    except Exception as exc:  # noqa: BLE001 - return a structured partial result
+        tab_state = {"tabs": [], "hasDocumentTabsToolButton": None}
+        new_tabs = []
+        tab_read_error = f"{type(exc).__name__}: {exc}"
+
+    created = before_tabs_readable and bool(new_tabs)
+    result = {
+        "triggered": True,
+        "created": created,
+        "beforeTabsReadable": before_tabs_readable,
         "tabType": tab_type,
         "clickedItem": clicked_item.get("text", ""),
-        **list_document_tabs(page),
+        "newTabs": new_tabs,
+        **tab_state,
         "pageUrl": page.url,
     }
+    if tab_read_error:
+        result["tabReadError"] = tab_read_error
+    if not before_tabs_readable:
+        result["reason"] = "creation flow triggered but the previous tab state was unreadable; creation is unverified"
+    elif not created:
+        result["reason"] = "creation flow triggered but no new tab is visible; complete any open dialog"
+    return result
 
 
 def rename_tab(page: Any, name: str, new_name: str) -> dict[str, Any]:
@@ -392,11 +421,47 @@ def list_document_tabs(page: Any) -> dict[str, Any]:
             const cls = el.className || '';
             return { name, active: cls.includes('active') };
           });
-          const plusButton = document.querySelector('.document-tabs-button');
-          return { tabs, hasPlusButton: !!plusButton };
+          const documentTabsToolButton = document.querySelector('.document-tabs-button');
+          return { tabs, hasDocumentTabsToolButton: !!documentTabsToolButton };
         }
         """
     )
+
+
+def reload_page(page: Any) -> dict[str, Any]:
+    """Reload the current page with bounded waits and best-effort state."""
+    warnings = []
+    reloaded = True
+    try:
+        page.reload(wait_until="commit", timeout=15000)
+    except Exception as exc:  # noqa: BLE001 - navigation may still have started
+        reloaded = False
+        warnings.append(f"reload: {type(exc).__name__}: {exc}")
+
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=15000)
+    except Exception as exc:  # noqa: BLE001 - report partial recovery state
+        warnings.append(f"domcontentloaded: {type(exc).__name__}: {exc}")
+
+    try:
+        current_url = page.url
+    except Exception as exc:  # noqa: BLE001 - best effort after reload
+        current_url = None
+        warnings.append(f"url: {type(exc).__name__}: {exc}")
+
+    try:
+        tab_state = {"tabsReadable": True, **list_document_tabs(page)}
+    except Exception as exc:  # noqa: BLE001 - execution context may be rebuilding
+        tab_state = {"tabs": [], "hasDocumentTabsToolButton": None, "tabsReadable": False}
+        warnings.append(f"tabs: {type(exc).__name__}: {exc}")
+
+    return {
+        "reloadAttempted": True,
+        "reloaded": reloaded,
+        "warnings": warnings,
+        "pageUrl": current_url,
+        **tab_state,
+    }
 
 
 def open_insert_custom_feature_dialog(page: Any) -> dict[str, Any]:

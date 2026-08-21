@@ -29,6 +29,18 @@ looked up locally.
 The normal read order is quick index -> structured detail -> exact original.
 Do not open generated JSON indexes directly; use their query tools.
 
+## Large index protection
+
+`onshape_docs/index.json` is a generated index of roughly 159 KiB; its size varies
+after rebuild. Never load the whole file into model context to answer one
+question. Prefer `docs_search` or `docs_list`, then retrieve one exact section
+with `docs_section`.
+If those query tools are unavailable, use `grep`/`rg` only to locate candidate
+keywords, page ids, paths, or headings, then read a bounded window around the
+match from the authored Markdown. Do not print or ingest the complete JSON
+index. Apply the same candidate-first, bounded-read rule to other large indexes
+and raw sources.
+
 ## Source precedence
 
 1. Current code and offline tests define implemented behavior.

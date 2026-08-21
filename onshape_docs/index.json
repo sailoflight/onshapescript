@@ -4,7 +4,7 @@
    "page": "documentation-map",
    "category": "guide",
    "path": "onshape_docs/README.md",
-   "sha256": "0d020bef463e594935c200a93353937cea7d35f386ee47c0a44beab939c80325",
+   "sha256": "b8c4d5a22bfbcfe46741d3675f63a9e4fac24d9e6078c1693252bea618607efb",
    "title": "Documentation map",
    "sections": [
     {
@@ -49,6 +49,16 @@
       {
        "type": "para",
        "text": "Generated JSON indexes are tool inputs, not reading material; use the matching docs_, fs_, or onshape_api_* query tool instead of opening them directly."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Large index protection",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "onshape_docs/index.json is a generated index of roughly 159 KiB; its size varies after rebuild. It must not be loaded as a whole just to answer one question. Use docs_search or docs_list to find a candidate, then docs_section for one exact section. If query tools are not available, use grep/rg to locate keywords, page ids, paths, or headings and read only a bounded line window from the authored Markdown around the match. Never print or ingest the complete generated JSON index. Apply the same bounded navigation to large OpenAPI, standard-library, and reference/raw/ sources."
       },
       {
        "type": "table",
@@ -367,7 +377,7 @@
    "page": "mcp-server",
    "category": "guide",
    "path": "onshape_docs/guide/mcp-server.md",
-   "sha256": "22ac87df6df747d55445337e160da9b8d9098741b983daa12ae3e164cf0c10b1",
+   "sha256": "e01a285cd0bb4fdf9f706ee46b2a357b1c0bcd90cf2fd13e3ee07ac9b429bbe4",
    "title": "Local MCP server",
    "sections": [
     {
@@ -567,7 +577,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These 19 tools drive the persistent Windows-hosted browser. They never call the Onshape REST API, but a real UI action can still modify cloud data. Mutation confirmation and pacing therefore apply independently of REST quota. Use tools/list as the authoritative catalog when current registration matters."
+       "text": "These 20 tools drive the persistent Windows-hosted browser. They never call the Onshape REST API, but a real UI action can still modify cloud data. Mutation confirmation and pacing therefore apply independently of REST quota. Use tools/list as the authoritative catalog when current registration matters."
       },
       {
        "type": "table",
@@ -584,7 +594,7 @@
         ],
         [
          "Read-only navigation and state",
-         "browser_open_document, browser_read_featurescript, browser_get_partstudio_features, browser_get_page_tabs, browser_open_insert_feature_dialog",
+         "browser_open_document, browser_read_featurescript, browser_get_partstudio_features, browser_get_page_tabs, browser_open_insert_feature_dialog, browser_reload",
          "Navigation/dialog opening does not create cloud data; state is read from the visible page."
         ],
         [
@@ -1508,7 +1518,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "6e6894b71235e835f7692048f9ac3b8d0e02d1305cf23fd756291d94c02d2dd8",
+   "sha256": "d3cc272d479764415c34d237444e1e82dbd5f2c1d564f2ef5ff8bb98d5e27649",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -1991,6 +2001,56 @@
        ]
       }
      ]
+    },
+    {
+     "level": 2,
+     "title": "8. 标签页创建菜单的真实位置",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": ".document-tabs-button 是测量/分析/质量属性按钮组，不是“+ 新建页签”按钮； 不要用它定位创建菜单。",
+         "depth": 0
+        },
+        {
+         "text": "创建页签的下拉项常驻 DOM（a.dropdown-item，隐藏状态），用 JS 直接 el.click() 即可创建，不必先真实打开菜单。文本：创建 Feature Studio、 创建 Part Studio、创建装配体、创建工程图…、创建 Variable Studio 等。",
+         "depth": 0
+        },
+        {
+         "text": "因此 browser_create_tab 采用“JS 点隐藏项”，与右键菜单必须真实点击不同。",
+         "depth": 0
+        },
+        {
+         "text": "工具只有在标签列表出现新项时才返回 created:true。工程图可能先打开来源/模板 对话框，此时返回 triggered:true, created:false，不能把打开对话框当作创建成功。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "9. 工程图编辑器在跨域 iframe 内",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "工程图标签加载后，实际编辑器位于 iframe[src^=\"https://production-drawing-\"]， 跨域（与 cad.onshape.com 不同源）。browser_eval/browser_click 只作用于 主框架 page.locator，受同源策略限制无法进入该 iframe；尺寸标注工具也只在 iframe 内。",
+         "depth": 0
+        },
+        {
+         "text": "后续要操作工程图，需要 frame-aware 工具（Playwright page.frames 按 URL 匹配 目标 frame，再在其内部 locator），或在 bridge 内以 CDP 访问。",
+         "depth": 0
+        },
+        {
+         "text": "工程图加载慢：正在加载工程图… 长时间不消失时可 browser_reload（或 location.reload()）刷新；若源 Part Studio 已被删除，工程图会一直卡在加载。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
     }
    ]
   },
@@ -1998,7 +2058,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "b6a110afed314e87df3d43cff5fbffb39826a3a254e51a2837808dd813252e1a",
+   "sha256": "4c865a3c2090ff3336f86a481308037fb667c6bf612ab80602ffd99cbc04b06d",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -2033,7 +2093,7 @@
         [
          "2",
          "新建 Feature Studio 标签",
-         ".document-tabs-button 下拉 → a.dropdown-item「创建 Feature Studio」（下拉项隐藏，用 JS click）",
+         "隐藏的 a.dropdown-item「创建 Feature Studio」→ JS click",
          "标签 Feature Studio 1，eid b08754f2be050e1c13a6bdf8"
         ],
         [
@@ -2196,7 +2256,7 @@
          "depth": 0
         },
         {
-         "text": "新文档默认包含 Part Studio 1、Assembly 1 和 .document-tabs-button。",
+         "text": "新文档默认包含 Part Studio 1、Assembly 1 和文档标签栏。",
          "depth": 0
         }
        ]
@@ -2302,6 +2362,64 @@
         },
         {
          "text": "调试技巧：在可疑 op 前用 isQueryEmpty 抛 regenError(\"DEBUG ...\")，或把 evaluateQuery 采样到的边坐标拼进 regenError 文本，一次部署即可定位空查询来自 哪个操作（注意错误只显示第一个失败 op，前置 op 会掩盖后续 op）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "9. 纵向导入斜坡（非倒角）与并集邻接（修订 2026-08）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "UNION 只传 tools 且 邻接体（仅共面）也能合并：壁与轨在 Y=wallThicknessY 只共面不重叠，opBoolean(UNION, tools=[wallBodies, railBodies]) 直接成功， 不需要给轨加“嵌入段”（嵌入段属于未要求的额外结构，应删除）。之前失败的根因是 qCreatedBy(unionId) 空 + 误传 targets，不是“必须重叠”。",
+         "depth": 0
+        },
+        {
+         "text": "1.2 mm 纵向 45° 导入斜坡：不是端部倒角。正确构造是每条轨一个楔形体—— 在 Y-Z 平面画直角三角形 (wallThicknessY, wallHeightZ) → (tipY, wallHeightZ-leadIn) → (tipY, wallHeightZ)， 沿 +X 拉伸根宽，再从并集体上 SUBTRACTION。斜边即“从完整轨高 1.2 逐渐过渡到端部”的 45° 斜坡。",
+         "depth": 0
+        },
+        {
+         "text": "楔体 X 范围取根宽（不是顶宽），否则端部两侧斜边残留。",
+         "depth": 1
+        },
+        {
+         "text": "楔体 Y 下界 = 壁面（wallThicknessY），不切入壁体。",
+         "depth": 1
+        },
+        {
+         "text": "参数显式化：rail_root_width / rail_top_width / rail_height / rail_pitch / rail_angle 作为 precondition 显式参数 + 锁死 bounds； 轨中心用 first_center_x + i * pitch 显式得到 4/12/20/28/36，禁止边缘均分。",
+         "depth": 0
+        },
+        {
+         "text": "验收信号：零件数 (1) 且名称正确；无端部倒角特征（opChamfer 不出现于轨）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "10. 工程图与装配体（0 配额浏览器路径）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "创建页签菜单项（隐藏的 a.dropdown-item，JS click 即可触发）： 创建 Feature Studio / 创建 Part Studio / 创建装配体 / 创建工程图…。",
+         "depth": 0
+        },
+        {
+         "text": "装配体插入：装配体标签内点 .tool.is-activatable.is-button（title 插入零件和装配体 (i)）→ 对话框 assembly-insert-dialog 内点选 .select-item-dialog-item.parent-item.os-selectable-item（可多选）→ 点 .ns-dialog-button-ok.button-ok。实例树出现 Fixed wall (rail) <1> / Module block (groove) <1>。",
+         "depth": 0
+        },
+        {
+         "text": "工程图标签或跨域 iframe 出现只证明容器已创建，主页面 svg 数量不能证明 工程视图或尺寸已生成。内容验收必须等待 frame-aware 工具进入 production-drawing-* iframe 后读取实际视图/尺寸；当前工具不得宣称完整工程图成功。",
          "depth": 0
         }
        ]

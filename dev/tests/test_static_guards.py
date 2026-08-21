@@ -128,6 +128,13 @@ def _gap_env(guard, render):
         yield
 
 
+class MaintainedFixtureTest(unittest.TestCase):
+    def test_module_rail_fixture_has_no_structural_errors(self) -> None:
+        fixture = ROOT / "dev" / "fixtures-capture" / "module-rail-fixed-wall.fs"
+        checked = fs_local_check.check_file(fixture)
+        self.assertEqual(checked.errors, [], checked.errors)
+
+
 class LiveGapProbeRateLimitTest(unittest.TestCase):
     """429 must propagate out of main(), never be swallowed as a generic error."""
 

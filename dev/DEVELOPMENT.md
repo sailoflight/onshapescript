@@ -21,60 +21,135 @@ GBK 编码、Playwright 线程绑定、SPA 登录判定、强杀恢复和多标�
 
 ## 3. 已完成（git 链）
 
+基础设施：
+
 - UTF-8 协议修复；Windows 重启自愈（计划任务 `OnshapeMCPBridge`）。
 - 本地 HTTP 代理支持（`browser.proxy_server`，当前 `http://127.0.0.1:10808`）。
-- 常驻进程内 bridge + 浏览器登录态跨客户端保持。
-- 启动清理残留标签 + 优先保留已登录页 + `lastAppUrl` 入口恢复。
-- 只读探索工具：`browser_session` / `browser_watch` / `browser_inspect` /
-  `browser_scroll` / `browser_click` / `browser_eval`。
+- 常驻进程内 bridge + 浏览器登录态跨客户端保持；启动清理残留标签 +
+  优先保留已登录页 + `lastAppUrl` 入口恢复。
+- 自愈脚本：`mcp_main/bridge/windows/restart-bridge.bat` / `.ps1`——强杀自动化
+  Edge + 旧 bridge 后重启，强杀保留登录态。
 
-## 4. 下一步计划
+浏览器工具（均已实测）：
 
-- [x] **selectors.py / actions.py**：稳定选择器与 Ace 读/写/提交动作已落地。
-- [x] **第一个实质工具**：`browser_deploy_featurescript` 已实现并端到端验证
-  （写 Ace → 提交 → 按钮 disabled 确认 → 读回校验 → 恢复原内容）。
+- 只读探索：`browser_session` / `browser_watch` / `browser_inspect` /
+  `browser_scroll` / `browser_click` / `browser_eval` / `browser_reload`。
+- `browser_deploy_featurescript`：写 Ace 全文 → 提交编译 → 按钮 disabled 确认 →
+  读回校验 `verified:true`（0 REST 配额）。
+- `browser_open_document` / `browser_read_featurescript`：解析 did/wid/eid；
+  读回 Ace 全文 + 页面 id。
+- 上传+编译+建模闭环：`browser_get_partstudio_features` 读特征树与 `零件数 (N)`
+  （Branch Cable Trophy 132 零件实例化验证）。
+- 标签管理：`browser_create_tab`（Feature Studio / Part Studio / Assembly；Drawing 启动来源/模板流程）、
+  `browser_rename_tab`、`browser_delete_tab`；`browser_click` 增加
+  `button`（left/right/middle）、`double`、`modifiers`（Ctrl 多选）。
+- `browser_insert_custom_feature`（工作区下拉按条目点击）+ `browser_create_document_version`。
+- 模块接口验证文档实战：12+ 个 Part Studio 收敛为 2 FS + 2 PS + 1 Assembly + 2 Drawing；
+  Part A/B 均 `零件数 (1)`。
+
+## 4. 下一步计划（非分层项）
+
 - [ ] **page objects**：在 `onshape_browser_mode/` 下建 `pages/`，封装
-  `DocumentsPage`、`FeatureStudioPage`（基于已扫描出的选择器）。
-- [x] **只读操作工具**：`browser_open_document`、`browser_read_featurescript`
-  已实现并实测（打开文档解析 did/wid/eid；读回 Ace 全文 + 页面 id）。
+  `DocumentsPage`、`FeatureStudioPage`、`PartStudioPage`、`AssemblyPage`、
+  `DrawingPage`（基于已扫描出的选择器与 iframe 结论）。
 - [ ] **与 REST 模式打通**：浏览器拿到的 documentId/workspaceId/elementId 缓存进
-  `onshape_rest_api_mode/config/onshape-state.json`，供 `onshape_rest_api_mode` 复用（仍是显式缓存，不隐式查询）。
-- [ ] **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FeatureScript 标签→
-  改代码→提交”流程，核对 `browser_click` 的选择器与真实操作一致。
-- [x] **自愈脚本**：`mcp_main/bridge/windows/restart-bridge.bat` / `.ps1` 已落地——
-  强杀自动化 Edge + 旧 bridge 后重启，强杀保留登录态。注：从 WSL interop
-  调 Start-Process 不可靠（子进程随 interop 结束退出），请在 Windows 侧双击运行。
-- [x] **上传+编译+建模闭环（0 配额）**：
-  - 上传+编译：`browser_deploy_featurescript`（写 Ace → 提交 = 编译保存，读回 `verified`）。
-  - 编译+建模验证：`browser_get_partstudio_features`（特征树出现 `Bc Branch cable trophy display`
-    且零件数 132 → FS 编译成功且已实例化建模）。
-  - 实测两个 Part Studio（`Cable trophy model v1` / `Cable trophy model validation`）均已实例化。
-- [x] **标签管理工具（0 配额）**：
-  - `browser_click` 增加 `button`（left/right/middle），右键打开上下文菜单。
-  - `browser_rename_tab`：右键 → 重命名 → Playwright `fill` + `press("Enter")`。
-  - `browser_delete_tab`：右键 → 删除（菜单项为 `ul.context-menu-list.context-menu-root`
-    下的 `li.context-menu-item`），Playwright 真实点击（合成 `el.click()` 被 Onshape 忽略）。
-  - 实测清理模块接口验证文档：12+ 个 Part Studio 收敛为 2 FS + 2 PS。
+  `onshape_rest_api_mode/config/onshape-state.json`，供 REST 模式显式复用（不隐式查询）。
+- [ ] **人工录制验证**：用 `browser_watch` 录一次完整“打开文档→切 FS 标签→改代码→
+  提交”流程，核对 `browser_click` 选择器与真实操作一致。
 
-## 4.1 浏览器操作分层架构（未来计划）
+## 4.1 四大语义分层：现存工具归档 + 待开发计划
 
-将浏览器操作按语义自下而上分为四层；新增工具时先归类，逐层复用，禁止在高层工具里
-内联低层按钮语义（选择器只允许出现在通用操作层与 `selectors.py`）。
+新增工具时先归类、逐层复用；禁止在高层工具里内联低层按钮语义（选择器只允许出现在
+通用操作层与 `selectors.py`）。标记：✅ 已落地并实测、🔜 本次任务证明应开发。
 
-1. **通用操作（原子）**：完全不涉及按钮语义——纯点击（含右键/中键）、双击、滚动、
-   填写数值、按键、读取元素信息。现有：`browser_click`（+`button`/`double`）、
-   `browser_scroll`、`browser_eval`、`browser_inspect`。
-2. **低级语义（事务原子）**：由数个通用操作组合、绑定到具体 Onshape 事务，一般
-   “按一个按钮 + 填写弹出要求输入的数值”。例：创建文档、修改文档名、复制/替换/删除
-   FS 语段、导航到页面、重命名页面、导入自定义特征、编译 FS 脚本。
-   现有：`browser_create_document`、`browser_create_tab`、`browser_rename_tab`、
-   `browser_delete_tab`、`browser_open_document`、`browser_open_insert_feature_dialog`。
-3. **高级语义（中型操作）**：多个低级语义之和。例：`browser_deploy_featurescript`
-   = 打开/建 FS 标签 + 复制 FS 语段 + 编译 FS 脚本；再加可选参数“应用到指定
-   Part Studio”即为“部署并应用”。现有：`browser_deploy_featurescript`、
-   `browser_insert_custom_feature`、`browser_create_document_version`。
-4. **顶级语义（脚本化建模项目）**：多个高级语义串成一条连续事务链；一个建模项目
-   对应一个顶级语义，由该语义的一串事务直接完成建模。尚待实现（可作为预编排脚本）。
+### 1) 通用操作（原子，零按钮语义）
+
+纯点击/右键/中键、双击、滚动、填值、按键、读取元素信息、等待、刷新、跨框架访问。
+
+现存归档：
+
+- ✅ `browser_click`（`button` / `double` / `modifiers`）：右键开上下文菜单、Ctrl 多选。
+- ✅ `browser_scroll`、`browser_inspect`、`browser_eval`（主框架 JS）。
+- ✅ `browser_reload`（等待过久刷新；工程图加载卡死场景催生）。
+- ✅ `browser_session`（会话/登录态读）、`browser_watch`（人工录制观察，读性质）。
+
+待开发：
+
+- 🔜 `browser_wait`（条件等待）：等元素出现/消失/文本变化或网络静默，替代硬编码
+  `wait_for_timeout`；慢代理与“正在加载工程图…”轮询证明固定延时不可靠。
+- 🔜 `browser_press_key` / `browser_type`：真实键盘输入（Playwright `press`/`type`）；
+  重命名标签、工程图标注输入等场景合成 `dispatchEvent` 无效。
+- 🔜 frame-aware 操作（`frame_url` 参数作用于 eval/click/scroll）：工程图编辑器在
+  跨域 `production-drawing-*.onshape.com` iframe 内，须用 `page.frames` 按 URL
+  匹配目标 frame 再定位（本次尺寸标注被同源策略卡住的根因）。
+
+### 2) 低级语义（事务原子，数个通用操作之和）
+
+绑定到具体 Onshape 事务，“按一个按钮 + 填弹出数值”。
+
+现存归档：
+
+- ✅ `browser_create_document` / `browser_open_document` / `browser_reconnect`。
+- ✅ `browser_create_tab`（Feature Studio / Part Studio / Assembly / Drawing；
+  创建项是常驻隐藏 `a.dropdown-item`，JS 点击即可）。
+- ✅ `browser_rename_tab` / `browser_delete_tab`（右键菜单，须真实 Playwright 点击）。
+- ✅ `browser_get_page_tabs`（列标签）/ `browser_get_partstudio_features`（读特征树与零件数）
+  / `browser_read_featurescript`（读 FS 全文）——事务级读取。
+- ✅ `browser_open_insert_feature_dialog`（只读开对话框）。
+
+待开发：
+
+- 🔜 `browser_insert_assembly_instances`：装配体“插入零件和装配体”对话框多选
+  Part Studio 并确认（本次用 `browser_eval` 临时拼装，应固化）。
+- 🔜 `browser_fix_instances` / `browser_group_instances`：固定/分组选中装配实例
+  （本次用右键菜单“固定”完成刚性连接；工具栏另有“分组”需真实多选）。
+- 🔜 `browser_create_drawing`：从指定 Part Studio/Assembly 创建工程图标签并选模板。
+- 🔜 `browser_add_drawing_dimension`：工程图内点标注工具→点几何→放置尺寸；
+  依赖 frame-aware 通用操作。
+- 🔜 `browser_delete_element`（按元素 id 删除）：当前只能按标签名删除；重建 Part
+  Studio 后旧工程图源引用悬空，需按元素 id 清理悬空引用。
+
+### 3) 高级语义（中型操作，多个低级语义之和）
+
+现存归档：
+
+- ✅ `browser_deploy_featurescript`（打开/建 FS 标签 + 写 Ace 全文 + 提交编译 + 读回校验）。
+- ✅ `browser_insert_custom_feature`（工作区下拉按条目点击，非容器）。
+- ✅ `browser_create_document_version`（当前文档页签上建版本）。
+
+待开发：
+
+- 🔜 `browser_deploy_and_apply_featurescript`：deploy + 可选 apply 一体化
+  （参数 `feature_name`、`part_studio_name`、`confirm`）。本次反复
+  “部署→切 PS→点下拉→点条目→点 OK→读零件数”证明需要固化。
+- 🔜 `browser_build_part`：新建/复用 Part Studio + 应用特征 + 读回 `零件数 (N)`
+  与零件名，输出 `{parts, partNames}` 作为建模成功判定（本次验收标准）。
+- 🔜 `browser_assemble`：建装配体标签 + 插入指定实例 + 固定/分组，返回实例树。
+- 🔜 `browser_draw_part`：建工程图 + 选源 + 加基础尺寸标注，返回图框/视图状态。
+
+### 4) 顶级语义（脚本化建模项目，一个项目对应一个脚本）
+
+预编排脚本，由高层语义串成连续事务链；LLM 只传项目参数，不再逐步点击。
+
+- 🔜 `browser_run_project(project="module-interface-verification")`：
+  内部读取 `dev/fixtures-capture/<project>.json` 的步骤清单与断言，串行执行：
+  1. `create_document` → 2. `deploy_featurescript(PartA)` + `deploy_featurescript(PartB)`
+  → 3. `build_part(A)` + `build_part(B)` → 4. `assemble([A,B])` → 5. `draw_part(A/B)`
+  → 6. 断言 `零件数 (1)`、实例树、图框存在。
+- 失败在某步时返回已完成的步骤序号与状态，支持断点续跑。
+- 顶级语义不暴露 UI 选择器；选择器只存在于通用操作层与 `selectors.py`。
+
+### 分层依赖总则
+
+```
+顶级语义 ──> 高级语义 ──> 低级语义 ──> 通用操作 ──> selectors.py / page.frames
+   (脚本)      (中型流程)     (事务原子)     (原子动作)
+```
+
+- 每层**禁止调用上层**；但可以调用**任意下层**（跨多层调用允许）。例如高级语义可直接复用
+  低级语义与通用操作，顶级语义可直接编排高级/低级/通用操作。反向（下层依赖上层）才是设计错误。
+- 新发现的选择器/iframe/等待结论统一沉淀进 `selectors.py` 与
+  `onshape_docs/experience/browser-automation.md`，工具只引用常量。
 
 ## 5. 安全/配额红线（沿用 CLAUDE.md）
 

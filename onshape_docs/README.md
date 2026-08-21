@@ -14,6 +14,17 @@ evidence, and upstream reference material. Use indexes before full originals.
 Generated JSON indexes are tool inputs, not reading material; use the matching
 `docs_*`, `fs_*`, or `onshape_api_*` query tool instead of opening them directly.
 
+## Large index protection
+
+`onshape_docs/index.json` is a generated index of roughly 159 KiB; its size varies
+after rebuild. It must not be loaded as a whole just to answer one question.
+Use `docs_search` or `docs_list` to find a
+candidate, then `docs_section` for one exact section. If query tools are not
+available, use `grep`/`rg` to locate keywords, page ids, paths, or headings and
+read only a bounded line window from the authored Markdown around the match.
+Never print or ingest the complete generated JSON index. Apply the same bounded
+navigation to large OpenAPI, standard-library, and `reference/raw/` sources.
+
 | Need | Start here | Then read |
 |---|---|---|
 | Project workflow or known lesson | `docs_search` / `docs_list` | One `docs_section` |

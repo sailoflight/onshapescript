@@ -104,6 +104,17 @@ class ProjectLayoutTest(unittest.TestCase):
         self.assertLess(source_step, reason_step)
         self.assertIn("Do not open generated JSON indexes directly", instructions)
 
+    def test_large_indexes_require_search_and_bounded_reads(self) -> None:
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        docs_map = (ROOT / "onshape_docs" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("159 KiB", agents)
+        self.assertIn("`grep`/`rg`", agents)
+        self.assertIn("bounded window", agents)
+        self.assertIn("159 KiB", claude)
+        self.assertIn("有界行窗口", claude)
+        self.assertIn("Never print or ingest the complete generated JSON index", docs_map)
+
     def test_retired_documentation_paths_do_not_return(self) -> None:
         retired = (
             "onshape_docs/guide/fs-assistant.md",

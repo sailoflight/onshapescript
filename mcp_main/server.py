@@ -549,6 +549,9 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     button = arguments.get("button", "left")
     if button not in ("left", "right", "middle"):
         raise ValueError("button must be 'left', 'right' or 'middle'")
+    modifiers = arguments.get("modifiers", [])
+    if not isinstance(modifiers, list) or any(m not in ("Alt", "Control", "Meta", "Shift") for m in modifiers):
+        raise ValueError("modifiers must be a list containing only 'Alt', 'Control', 'Meta', 'Shift'")
     if not isinstance(index, int) or index < 0:
         index = 0
 
@@ -622,6 +625,9 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
         return {
             "dryRun": True,
             "wouldClick": info,
+            "button": button,
+            "double": double,
+            "modifiers": modifiers,
             "matchCount": count,
             "pageUrl": page.url,
         }
@@ -634,19 +640,22 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
         target.scroll_into_view_if_needed()
         page.wait_for_timeout(300)
         if double:
-            target.dblclick()
+            target.dblclick(modifiers=modifiers)
         elif button == "right":
-            target.click(button="right")
+            target.click(button="right", modifiers=modifiers)
         elif button == "middle":
-            target.click(button="middle")
+            target.click(button="middle", modifiers=modifiers)
         else:
-            target.click()
+            target.click(modifiers=modifiers)
         page.wait_for_timeout(2500)
     except Exception as exc:
         return {
             "clicked": False,
             "reason": f"click failed: {exc}",
             "element": info,
+            "button": button,
+            "double": double,
+            "modifiers": modifiers,
             "matchCount": count,
             "pageUrl": page.url,
         }
@@ -658,6 +667,9 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     return {
         "clicked": True,
         "element": info,
+        "button": button,
+        "double": double,
+        "modifiers": modifiers,
         "matchCount": count,
         "pageUrl": current_url,
     }
@@ -792,6 +804,20 @@ def _browser_reconnect(arguments: dict[str, Any]) -> dict[str, Any]:
     return actions.reconnect_if_needed(page)
 
 
+def _browser_reload(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Reload the current browser page (e.g. a drawing stuck loading)."""
+    from onshape_browser_mode import actions
+    from onshape_browser_mode.guard import get_guard
+    from onshape_browser_mode.session import get_session
+
+    session = get_session()
+    page = session.start()
+    session._enforce_single_working_page(page)
+    actions.reconnect_if_needed(page)
+    get_guard().pace()
+    return actions.reload_page(page)
+
+
 def _browser_open_document(arguments: dict[str, Any]) -> dict[str, Any]:
     """Open a document from the documents list by name (read-only navigation)."""
     from onshape_browser_mode import actions
@@ -907,15 +933,15 @@ def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_create_tab(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Create a Feature Studio or Part Studio tab in the current document (0 quota)."""
+    """Create a Feature Studio, Part Studio, Assembly, or Drawing tab flow in the current document (0 quota)."""
     from onshape_browser_mode import actions
     from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
 
     _confirm(arguments)
     tab_type = arguments.get("tab_type", "Feature Studio")
-    if tab_type not in ("Feature Studio", "Part Studio"):
-        raise ValueError("tab_type must be 'Feature Studio' or 'Part Studio'")
+    if tab_type not in ("Feature Studio", "Part Studio", "Assembly", "Drawing"):
+        raise ValueError("tab_type must be 'Feature Studio', 'Part Studio', 'Assembly' or 'Drawing'")
 
     session = get_session()
     page = session.start()
@@ -1821,6 +1847,12 @@ TOOLS: list[dict[str, Any]] = [
                 "default": "left",
                 "description": "Mouse button to click; 'right' opens context menus (e.g. tab delete menu).",
             },
+            "modifiers": {
+                "type": "array",
+                "items": {"type": "string", "enum": ["Alt", "Control", "Meta", "Shift"]},
+                "default": [],
+                "description": "Modifier keys held during the click, e.g. ['Control'] for multi-select.",
+            },
             "confirm_mutation": mutating_confirmation(),
             "dry_run": {
                 "type": "boolean",
@@ -2061,15 +2093,15 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Create a new tab in the current Onshape document through the browser UI (document-tabs "
-            "＋ button → 创建 Feature Studio / 创建 Part Studio). Zero Onshape API quota. Adding a tab "
-            "creates a document element, so it requires confirm_mutation=true. Returns the updated tab "
-            "list and page URL."
+            "Start a Feature Studio, Part Studio, Assembly, or Drawing tab flow by clicking the matching "
+            "hidden creation-menu item. Zero Onshape API quota. Adding a tab creates a document element, so "
+            "it requires confirm_mutation=true. created=true is returned only after a new visible tab is "
+            "observed; Drawing may require completing its source/template dialog first."
         ),
         "inputSchema": object_schema({
             "tab_type": {
                 "type": "string",
-                "enum": ["Feature Studio", "Part Studio"],
+                "enum": ["Feature Studio", "Part Studio", "Assembly", "Drawing"],
                 "default": "Feature Studio",
                 "description": "Which kind of tab to create.",
             },
@@ -2247,7 +2279,29 @@ TOOLS: list[dict[str, Any]] = [
             "Detect the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') and click "
             "the reconnect link to restore the live session. Read-only session recovery — it does not create or "
             "modify cloud data. Also runs automatically inside browser_open_document, browser_read_featurescript, "
-            "and browser_deploy_featurescript so a timed-out session recovers before the requested action."
+            "and browser navigation tools, including browser_reload, so a timed-out session recovers before the requested action."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "browser_reload",
+        "cost": {
+            "backend": "browser",
+            "network": "browser",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "estimated_api_requests": 0,
+            "max_api_requests": 0,
+            "estimated_seconds": 35,
+            "requires_browser_session": True,
+            "mutating": False,
+            "cacheable": False,
+        },
+        "description": (
+            "Attempt a bounded reload of the current browser page. Use this when an Onshape page (especially "
+            "a Drawing) has been loading for too long. Zero REST API quota and no cloud-data mutation. "
+            "Returns reload status, bounded-wait warnings, page URL, and best-effort tab state."
         ),
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
@@ -2275,6 +2329,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_open_insert_feature_dialog": _browser_open_insert_feature_dialog,
     "browser_create_document_version": _browser_create_document_version,
     "browser_reconnect": _browser_reconnect,
+    "browser_reload": _browser_reload,
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,

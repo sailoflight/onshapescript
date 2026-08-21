@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mcp_main import server  # noqa: E402
+from onshape_browser_mode import actions  # noqa: E402
 from onshape_browser_mode.guard import ActionGuard, ActionRateExceeded  # noqa: E402
 
 
@@ -62,6 +63,8 @@ class FakeLocator:
         self._evaluate_error = evaluate_error
         self.click_calls = 0
         self.dblclick_calls = 0
+        self.click_kwargs: list[dict] = []
+        self.dblclick_kwargs: list[dict] = []
         self.scroll_calls = 0
         self.evaluate_calls: list[object] = []
         self.nth_calls: list[int] = []
@@ -70,8 +73,9 @@ class FakeLocator:
     def fill(self, value: str) -> None:
         self.fill_calls.append(value)
 
-    def dblclick(self) -> None:
+    def dblclick(self, **kwargs) -> None:
         self.dblclick_calls += 1
+        self.dblclick_kwargs.append(kwargs)
 
     def count(self) -> int:
         return self._count
@@ -89,8 +93,9 @@ class FakeLocator:
     def scroll_into_view_if_needed(self) -> None:
         self.scroll_calls += 1
 
-    def click(self) -> None:
+    def click(self, **kwargs) -> None:
         self.click_calls += 1
+        self.click_kwargs.append(kwargs)
 
 
 class FakePage:
@@ -234,10 +239,15 @@ class BrowserClickTest(unittest.TestCase):
     def test_dry_run_inspects_without_confirmation_and_no_side_effect(self) -> None:
         with mock.patch("onshape_browser_mode.session.get_session", return_value=self.session), \
              mock.patch("onshape_browser_mode.guard.get_guard", return_value=self.guard):
-            result = server._browser_click({"selector": ".os-primary", "dry_run": True})
+            result = server._browser_click({
+                "selector": ".os-primary", "double": True,
+                "modifiers": ["Shift"], "dry_run": True,
+            })
         self.assertTrue(result["dryRun"])
         self.assertEqual(result["wouldClick"]["tag"], "button")
         self.assertEqual(result["matchCount"], 1)
+        self.assertTrue(result["double"])
+        self.assertEqual(result["modifiers"], ["Shift"])
         # Inspection read the element, but nothing was clicked/scrolled/paced.
         self.assertTrue(self.locator.evaluate_calls)
         self.assertEqual(self.locator.click_calls, 0)
@@ -253,6 +263,32 @@ class BrowserClickTest(unittest.TestCase):
         self.assertEqual(self.locator.click_calls, 1)
         self.assertEqual(self.locator.scroll_calls, 1)
         self.assertEqual(self.guard.pace_calls, 1)
+
+    def test_modifiers_are_forwarded_to_single_and_double_clicks(self) -> None:
+        patches = (
+            mock.patch("onshape_browser_mode.session.get_session", return_value=self.session),
+            mock.patch("onshape_browser_mode.guard.get_guard", return_value=self.guard),
+        )
+        with patches[0], patches[1]:
+            server._browser_click({
+                "selector": ".os-primary", "modifiers": ["Control"],
+                "confirm_mutation": True,
+            })
+            server._browser_click({
+                "selector": ".os-primary", "double": True, "modifiers": ["Shift"],
+                "confirm_mutation": True,
+            })
+        self.assertEqual(self.locator.click_kwargs, [{"modifiers": ["Control"]}])
+        self.assertEqual(self.locator.dblclick_kwargs, [{"modifiers": ["Shift"]}])
+
+    def test_invalid_modifiers_fail_before_starting_session(self) -> None:
+        with mock.patch("onshape_browser_mode.session.get_session", return_value=self.session):
+            with self.assertRaises(ValueError):
+                server._browser_click({
+                    "selector": ".os-primary", "modifiers": ["Ctrl"],
+                    "confirm_mutation": True,
+                })
+        self.assertEqual(self.session.start_calls, 0)
 
     def test_no_match_makes_no_action_or_pace(self) -> None:
         self.locator = FakeLocator(count=0)
@@ -468,7 +504,7 @@ class BrowserCreateTabTest(unittest.TestCase):
         with mock.patch("onshape_browser_mode.session.get_session",
                         return_value=session) as get_session:
             with self.assertRaises(ValueError) as ctx:
-                server._browser_create_tab({"tab_type": "Assembly", "confirm_mutation": True})
+                server._browser_create_tab({"tab_type": "Bogus", "confirm_mutation": True})
         self.assertIn("tab_type", str(ctx.exception))
         get_session.assert_not_called()
         self.assertEqual(session.start_calls, 0)
@@ -487,6 +523,65 @@ class BrowserCreateTabTest(unittest.TestCase):
         create_tab.assert_called_once()
         self.assertEqual(session.start_calls, 1)
         self.assertEqual(guard.pace_calls, 1)
+
+
+    def test_action_verifies_assembly_tab_appears(self) -> None:
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        page.evaluate.side_effect = [
+            {"tabs": [{"name": "Part Studio 1", "active": True}]},
+            {"clicked": True, "text": "创建装配体"},
+            {"tabs": [
+                {"name": "Part Studio 1", "active": False},
+                {"name": "装配体 1", "active": True},
+            ]},
+        ]
+        result = actions.create_document_tab(page, "Assembly")
+        self.assertTrue(result["triggered"])
+        self.assertTrue(result["created"])
+        self.assertEqual(result["newTabs"][0]["name"], "装配体 1")
+        self.assertEqual(page.evaluate.call_args_list[1].args[1], "创建装配体")
+
+    def test_action_reports_not_triggered_when_menu_item_is_missing(self) -> None:
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        page.evaluate.side_effect = [
+            {"tabs": [{"name": "Part Studio 1", "active": True}]},
+            {"clicked": False, "reason": "dropdown item not found"},
+        ]
+        result = actions.create_document_tab(page, "Assembly")
+        self.assertFalse(result["triggered"])
+        self.assertFalse(result["created"])
+        self.assertEqual(result["tabType"], "Assembly")
+
+    def test_action_does_not_claim_created_when_prior_tabs_are_unreadable(self) -> None:
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        page.evaluate.side_effect = [
+            RuntimeError("context rebuilding"),
+            {"clicked": True, "text": "创建 Part Studio"},
+            {"tabs": [{"name": "Part Studio 2", "active": True}]},
+        ]
+        result = actions.create_document_tab(page, "Part Studio")
+        self.assertTrue(result["triggered"])
+        self.assertFalse(result["created"])
+        self.assertFalse(result["beforeTabsReadable"])
+        self.assertIn("unverified", result["reason"])
+
+    def test_action_does_not_claim_drawing_created_while_dialog_is_pending(self) -> None:
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        unchanged = {"tabs": [{"name": "Part Studio 1", "active": True}]}
+        page.evaluate.side_effect = [
+            unchanged,
+            {"clicked": True, "text": "创建工程图…"},
+            unchanged,
+        ]
+        result = actions.create_document_tab(page, "Drawing")
+        self.assertTrue(result["triggered"])
+        self.assertFalse(result["created"])
+        self.assertIn("open dialog", result["reason"])
+        self.assertEqual(page.evaluate.call_args_list[1].args[1], "创建工程图")
 
 
 class BrowserRenameTabTest(unittest.TestCase):
@@ -545,6 +640,49 @@ class BrowserDeleteTabTest(unittest.TestCase):
         delete_tab.assert_called_once()
         self.assertEqual(session.start_calls, 1)
         self.assertEqual(guard.pace_calls, 1)
+
+
+class BrowserReloadTest(unittest.TestCase):
+    def test_reload_is_read_only_and_paces(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.reconnect_if_needed", return_value={"reconnected": False}) as reconnect, \
+             mock.patch("onshape_browser_mode.actions.reload_page",
+                        return_value={"reloaded": True}) as reload_page:
+            result = server._browser_reload({})
+        self.assertTrue(result["reloaded"])
+        reconnect.assert_called_once()
+        reload_page.assert_called_once()
+        self.assertEqual(session.start_calls, 1)
+        self.assertEqual(guard.pace_calls, 1)
+
+
+    def test_reload_action_uses_bounded_waits_and_reads_tabs(self) -> None:
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        page.evaluate.return_value = {"tabs": [{"name": "Drawing 1", "active": True}]}
+        result = actions.reload_page(page)
+        page.reload.assert_called_once_with(wait_until="commit", timeout=15000)
+        page.wait_for_load_state.assert_called_once_with("domcontentloaded", timeout=15000)
+        self.assertTrue(result["reloaded"])
+        self.assertTrue(result["tabsReadable"])
+        self.assertEqual(result["warnings"], [])
+
+    def test_reload_action_returns_partial_state_on_timeouts(self) -> None:
+        page = mock.Mock()
+        type(page).url = mock.PropertyMock(side_effect=RuntimeError("url unavailable"))
+        page.reload.side_effect = TimeoutError("stuck")
+        page.wait_for_load_state.side_effect = TimeoutError("still loading")
+        page.evaluate.side_effect = RuntimeError("context rebuilding")
+        result = actions.reload_page(page)
+        self.assertFalse(result["reloaded"])
+        self.assertFalse(result["tabsReadable"])
+        self.assertIsNone(result["pageUrl"])
+        self.assertIsNone(result["hasDocumentTabsToolButton"])
+        self.assertEqual(len(result["warnings"]), 4)
 
 
 class BrowserOpenInsertFeatureDialogTest(unittest.TestCase):
@@ -621,7 +759,7 @@ class BrowserMetadataTest(unittest.TestCase):
         self.assertTrue(self.by_name["browser_delete_tab"]["annotations"]["destructiveHint"])
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 51)
+        self.assertEqual(len(server.TOOLS), 52)
 
 
 if __name__ == "__main__":
