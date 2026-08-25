@@ -162,6 +162,49 @@ These compose on the existing L1 primitives (`browser_click`/`browser_type`/
   discipline: record into `dev/button-map/` and `onshape_browser_mode/selectors.py`
   before any automation depends on them.
 
+## 8. Inferred high-value features (browser observation + official docs)
+
+Cross-referencing the live shell observation with the vendored Onshape REST
+reference, the following app-generic capabilities stand out as high-value
+browser L2/L3 semantics. Each row gives the user intent, the browser evidence
+(what the shell exposes) and the official REST endpoint that would back it.
+Nothing here is implemented; it is a plan input.
+
+| Feature | User intent | Browser evidence | Official REST reference |
+|---|---|---|---|
+| Tab navigation / management | switch, reorder, open-here, close tab | `.os-tab-bar-tablist`, `.os-tab-bar-tab.active`, `.os-tab-name` | `getElementsInDocument` (`/documents/d/{did}/{wvm}/{wvmid}/elements`) |
+| Element context actions (rename/copy/delete/export) | one-element ops independent of Studio type | tab context menu: 重命名/复制/删除/导出… | rename/delete via document element; `export2Json` (`POST /documents/.../e/{eid}/export`), assembly/part-studio `export/step|obj|gltf` |
+| Global / command search | jump to a tool or command from anywhere | `.command-search-trigger`, `.command-search` (alt/⌥c) | UI-only command palette; no REST equivalent (search is client routing) |
+| History tree management | step through document/version history, compare | left rail history/timeline icon, `enter-delayed-regen-button`, `regen-info-button` | `getDocumentHistory` (`GET /documents/.../documenthistory`), `getRevisionHistory...` (`/revisions/...`), `getCurrentMicroversion` |
+| Comments / annotations | add, reply, resolve, attach to a feature | left rail comment bubble; context-menu 添加评论 | `createComment`/`getComments`/`updateComment`/`deleteComment`/`addAttachment` (`/comments`) |
+| Notifications | read unread count, open the notifications drawer | `#user-notification-status` badge `6`, aria 通知; `（6 个未读通知）` | UI-level; notification feed is not exposed over the documented REST surface |
+| Action items | open the action-items page, triage tasks | nav action-items button (「在新窗口中将您导航到"行动项"页面。」) | UI-level; action items are not a documented REST resource |
+| Assigned / review workflows | see who owns a task, hand off | navbar action-item + share icons; `协作完成`/`监控 <part-studio>` | Company/user endpoints; review state is UI-only |
+| Drawing auto-views from a part | insert auto-views from a produced part | tab/part context menu `创建 <name> 的工程图…` | Drawing creation + `browser_drawing_insert_views` coupling (see `BROWSER_MODELING_GAPS.md`) |
+| Workspace / version & unit control | switch workspace, set document units | doc-name menu: 工作区单位/工作区属性/更新工作区/复制工作区 | `getElementsInDocument` in a version/workspace; workspace/version endpoints |
+
+### 8.1 Priority and sequencing
+
+- **P0 (browser-only, no live quota)**: tab navigation/management, element
+  context actions, command/global search, view orientation. These reuse existing
+  L1 primitives and `browser_capture_screenshot`; they are the highest-leverage
+  app-generic L2 transactions.
+- **P1 (browser + a small number of read-only REST calls)**: history tree
+  (document/version history), comments list/create. These map to documented
+  endpoints and provide real cross-document value.
+- **P2 (UI-only, may need live quota or human)**: notifications, action items,
+  review workflows. These live mainly in the Onshape web app; a browser L2 that
+  opens the matching page/panel is the honest scope until the REST surface is
+  clarified.
+
+### 8.2 Cost discipline
+
+Browser L2 semantics stay zero-REST. When a feature needs backing data (history,
+comments), prefer a browser panel read over a live API call, and reuse the
+`onshape_check_model` / `onshape_list_document_elements` cached paths before any
+live request. Any live call follows the CLAUDE.md hard budget rules (one new
+fact, `expected_live_requests=1`, no retry on 429/5xx).
+
 ## Provenance
 
 - Live evidence: `read_image`/`vision_glance` on screenshots + `browser_inspect`/
