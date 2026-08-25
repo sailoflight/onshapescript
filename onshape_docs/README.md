@@ -1,7 +1,11 @@
 # Documentation map
 
-This directory separates instructions, reusable experience, verification
-evidence, and upstream reference material. Use indexes before full originals.
+This directory separates public task guidance, reusable experience, verification
+evidence, and upstream reference material. Public MCP User pages from
+`docs/usage/` and selected generated references may also be registered in the
+project-doc index. Internal repository architecture, module contracts,
+verification routing, and Operator runbooks stay outside the public `docs_*`
+corpus and are routed through `docs/INDEX.md`. Use indexes before full originals.
 
 ## Lookup order
 
@@ -16,7 +20,7 @@ Generated JSON indexes are tool inputs, not reading material; use the matching
 
 ## Large index protection
 
-`onshape_docs/index.json` is a generated index of roughly 159 KiB; its size varies
+`onshape_docs/index.json` is a generated index of roughly 191 KiB; its size varies
 after rebuild. It must not be loaded as a whole just to answer one question.
 Use `docs_search` or `docs_list` to find a
 candidate, then `docs_section` for one exact section. If query tools are not

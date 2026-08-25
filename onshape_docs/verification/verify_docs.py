@@ -251,7 +251,7 @@ def verify_project_docs() -> None:
     allowed_roots = {
         "experience": ("onshape_docs/experience/",),
         "verification": ("onshape_docs/verification/",),
-        "reference": ("onshape_docs/reference/",),
+        "reference": ("onshape_docs/reference/", "docs/generated/TOOL_REFERENCE.md"),
         "example": ("examples/",),
     }
     ownership_issues = []
@@ -263,9 +263,15 @@ def verify_project_docs() -> None:
         category = p.get("category")
         path = p["path"]
         if category == "guide":
-            owned = path == "onshape_docs/README.md" or path.startswith("onshape_docs/guide/")
+            owned = (
+                path == "onshape_docs/README.md"
+                or path.startswith("onshape_docs/guide/")
+                or path == "docs/usage/MCP_CONSUMER.md"
+            )
         else:
-            owned = category in allowed_roots and path.startswith(allowed_roots[category])
+            owned = category in allowed_roots and any(
+                path == root or path.startswith(root) for root in allowed_roots[category]
+            )
         if not owned:
             ownership_issues.append((p["page"], category, path))
     check("Project docs categories match semantic directory ownership", not ownership_issues,

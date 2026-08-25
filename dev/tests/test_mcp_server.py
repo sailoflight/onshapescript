@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from mcp_main.runtime_prompt import RUNTIME_PROMPT, RUNTIME_PROMPT_REVISION
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -73,6 +75,12 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
+        instructions = responses[0]["result"]["instructions"]
+        self.assertEqual(instructions, RUNTIME_PROMPT)
+        self.assertIn(f"revision={RUNTIME_PROMPT_REVISION}", instructions)
+        self.assertIn("Production / User", instructions)
+        self.assertIn("Production / Operator", instructions)
+        self.assertIn("permissions never merge", instructions)
         tools = responses[1]["result"]["tools"]
         self.assertEqual(len(tools), 67)
         self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
@@ -279,7 +287,7 @@ class McpServerTest(unittest.TestCase):
                 "method": "tools/call",
                 "params": {
                     "name": "docs_section",
-                    "arguments": {"page": "mcp-server", "section": "Mutating tools"},
+                    "arguments": {"page": "mcp-consumer", "section": "Global safety contract"},
                 },
             },
             {
@@ -296,12 +304,12 @@ class McpServerTest(unittest.TestCase):
         listed = responses[0]["result"]["structuredContent"]
         self.assertGreater(listed["count"], 10)
         pages = {p["page"] for p in listed["pages"]}
-        self.assertIn("mcp-server", pages)
+        self.assertIn("mcp-consumer", pages)
         self.assertIn("llm-experience-fs", pages)
         self.assertTrue(all("sections" in p for p in listed["pages"]))
         section = responses[1]["result"]["structuredContent"]
-        self.assertEqual(section["page"], "mcp-server")
-        self.assertEqual(section["section"], "Mutating tools")
+        self.assertEqual(section["page"], "mcp-consumer")
+        self.assertEqual(section["section"], "Global safety contract")
         self.assertIn("confirm_mutation", section["text"])
         search = responses[2]["result"]["structuredContent"]
         self.assertTrue(search["results"])

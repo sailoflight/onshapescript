@@ -79,7 +79,7 @@
   {
    "name": "Project docs index.json page sha256 all match",
    "ok": true,
-   "detail": "18 pages ok"
+   "detail": "20 pages ok"
   },
   {
    "name": "Project docs sections well-formed (title + blocks)",
@@ -284,19 +284,20 @@
    ]
   },
   "docs": {
-   "pages": 18,
-   "sections": 134,
+   "pages": 20,
+   "sections": 151,
    "categories": {
     "example": 6,
     "experience": 4,
-    "guide": 4,
-    "reference": 2,
+    "guide": 5,
+    "reference": 3,
     "verification": 2
    },
    "pageNames": [
     "documentation-map",
     "fs-assistant",
     "mcp-server",
+    "mcp-consumer",
     "onshape-api",
     "llm-experience-fs",
     "llm-experience-api",
@@ -305,6 +306,7 @@
     "verification",
     "live-verification",
     "quick-reference",
+    "mcp-tool-reference",
     "reference",
     "example",
     "example-setup",

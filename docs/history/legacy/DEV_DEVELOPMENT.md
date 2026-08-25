@@ -1,3 +1,11 @@
+# Legacy browser/MCP development record
+
+> Archived during package adaptation. This file preserves completed history and
+> the original mixed plan; it is not a current architecture or capability
+> contract. Use `docs/architecture/OVERVIEW.md` and module contracts for current
+> behavior, and `docs/roadmap/DYNAMIC_TOOL_DISCOVERY.md` for unimplemented work.
+> The section-by-section migration map is `../TRACEABILITY.md`.
+
 # 开发经验与计划（MCP 工具架构 / browser 自动化线）
 
 > 本文档记录 MCP 工具架构、动态暴露和 Browser mode 的开发决策与计划。

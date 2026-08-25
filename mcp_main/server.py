@@ -8,6 +8,8 @@ import sys
 import traceback
 from typing import Any, Callable
 
+from mcp_main.identity import PROTOCOL_VERSION, SERVER_NAME, SERVER_VERSION
+from mcp_main.runtime_prompt import RUNTIME_PROMPT
 from onshape_docs.query import fs_reference, onshape_api_reference, onshape_api_docs, project_docs
 from onshape_rest_api_mode.budget import live_blocker
 from onshape_rest_api_mode.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
@@ -26,11 +28,6 @@ from onshape_rest_api_mode.operations import (
     run_validation_pipeline,
     upload_feature_studio,
 )
-
-SERVER_NAME = "onshape-branch-cable-trophy"
-SERVER_VERSION = "1.3.0"
-PROTOCOL_VERSION = "2025-06-18"
-
 
 def object_schema(
     properties: dict[str, Any] | None = None,
@@ -2462,7 +2459,30 @@ HANDLERS: dict[str, ToolHandler] = {
 
 from mcp_main.browser_tools import install as _install_browser_tools
 
+
+def _complete_cost_metadata(tools: list[dict[str, Any]]) -> None:
+    """Complete comparable network/request metadata without changing tool behavior."""
+    for tool in tools:
+        annotations = tool.get("annotations") or {}
+        properties = (tool.get("inputSchema") or {}).get("properties") or {}
+        cost = tool.setdefault("cost", {})
+        network = cost.setdefault("network", "offline")
+        default_backend = "onshape_rest" if network == "live" else network
+        cost.setdefault("backend", default_backend)
+        cost.setdefault("estimated_requests", 0)
+        cost.setdefault("max_requests", 0)
+        live_estimate = cost["estimated_requests"] if network == "live" else 0
+        live_max = cost["max_requests"] if network == "live" else 0
+        cost.setdefault("estimated_api_requests", live_estimate)
+        cost.setdefault("max_api_requests", live_max)
+        cost.setdefault("mutating", not annotations.get("readOnlyHint", True))
+        cost.setdefault("cacheable", False)
+        if network == "offline" and "confirm_mutation" in properties:
+            cost.setdefault("confirmation_required", True)
+
+
 _install_browser_tools(TOOLS, HANDLERS)
+_complete_cost_metadata(TOOLS)
 
 
 def _json_text(value: Any) -> str:
@@ -2519,21 +2539,7 @@ def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-            "instructions": (
-                "This server assists with writing Onshape FeatureScript and with testing it in Onshape. "
-                "For FeatureScript questions, use the offline reference tools first (fs_search, "
-                "fs_get_function, fs_get_type, fs_guide_section, fs_library_source): the standard library "
-                "is rarely present in language-model training data, so look up exact signatures before "
-                "writing code. Read order: start with a search/find tool (cheap candidate list), then "
-                "fs_get_function or fs_guide_section for the one entry you need (full detail) — the "
-                "vendored corpus is tiered (onshape_docs/reference/quick/ then onshape_docs/reference/index/; onshape_docs/reference/raw/ is "
-                "build input and never read). Categorized project documentation is served by docs_list, "
-                "docs_search, and docs_section. Search/list first, then read one exact section; open a complete "
-                "authored Markdown file only when that indexed detail is insufficient. Never read generated "
-                "JSON indexes directly. "
-                "Use read-only inspection tools unless the user explicitly requests a cloud "
-                "mutation; mutating tools require confirm_mutation=true and never return credentials."
-            ),
+            "instructions": RUNTIME_PROMPT,
         })
     if method == "ping":
         return response(request_id, {})

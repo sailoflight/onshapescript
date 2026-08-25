@@ -16,7 +16,7 @@
 
 ## 大索引保护
 
-`onshape_docs/index.json` 约为 159 KiB 量级（重建后大小会变化）。禁止为了回答一个问题
+`onshape_docs/index.json` 约为 191 KiB 量级（重建后大小会变化）。禁止为了回答一个问题
 把整个文件一次性放入模型上下文。优先调用 `docs_search/docs_list` 找候选，再用
 `docs_section` 读取一个精确小节。查询工具不可用时，只用 `grep`/`rg` 定位关键词、
 page id、路径或标题，然后从 authored Markdown 读取命中附近的有界行窗口；禁止输出
@@ -52,8 +52,9 @@ page id、路径或标题，然后从 authored Markdown 读取命中附近的有
    - **POST/PATCH/DELETE 对 5xx/超时也不重试**——超时≠未执行，重复发送可能
      重复执行变更。
 5. **禁止隐式 lookup**：高层工具不得偷偷 `GET documents → workspaces → elements → …`。
-   显式传 id，或用缓存/fixture/前次操作结果。`onshape_eval_featurescript` 不带
-   `part_studio_id` 时 `resolve_part_studio_id` 会走整个文档 ≈ 10 次/调用——**必须显式传**。
+   显式传 id，或使用已缓存/fixture/前次操作结果。`onshape_eval_featurescript`
+   缺少 `part_studio_id` 时只允许使用已缓存目标；没有缓存就必须在网络前报错，
+   `resolve_part_studio_id` 不得遍历文档。
 6. **禁止"写后再读"**：不默认 `POST → GET 确认 → GET 列表`。POST 响应够用就用。
 7. **不自动 cleanup、不自动分页**：用固定测试 Document/Workspace；分页前先计算
    最大请求数并设硬上限。
@@ -87,8 +88,10 @@ page id、路径或标题，然后从 authored Markdown 读取命中附近的有
 
 ## 成本标注与 dry run
 
-- 工具应暴露成本特征：`network: offline|live`、`estimated_requests`、
-  `max_requests`、`mutating`、`cacheable`。LLM 优先选 0 请求工具。
+- 工具应暴露成本特征：`network: offline|browser|live`、`estimated_requests`、
+  `max_requests`、`mutating`、`cacheable`。`offline` 表示不调用真实 Onshape REST
+  （显式参考更新仍可能访问公共零配额来源）；`browser` 为零 REST 配额但可能修改云端 UI。
+  LLM 优先选 0 请求工具。
 - 写操作应支持 `dry_run=true`：构造与正式请求**完全相同**的请求，不发网络请求，
   输出 method / URL / body / 预计请求数。只有 Dry Run 通过后才考虑 Live。
 
@@ -109,6 +112,8 @@ page id、路径或标题，然后从 authored Markdown 读取命中附近的有
   断点续跑+自适应预算）、`onshape_rest_api_mode/{client,budget,operations}.py`、
   `onshape_docs/experience/{featurescript,rest-api}.md`、
   `onshape_docs/verification/live/{README,live-is-predicates,live-symbol-sweep}.json`。
-- 验证结论（勿重复 live 验证）：`is*` 谓词集已在 3044 定案；跨版本 import 边界强证据
-  为 3029 < 版本 ≤ 3044（静默拒绝）；spec 发射由 precondition 的 bound-spec +
-  `annotation { "Name" }` 触发，与 body 无关。经验结论见 `onshape_docs/experience/`，证据见 `onshape_docs/verification/`。
+- 验证结论：`is*` 谓词集已在 3044 定案；spec 发射由 precondition 的 bound-spec +
+  `annotation { "Name" }` 触发，与 body 无关。现有持久化证据不足以排除 spec 发射
+  混淆，**跨版本 import 的精确边界仍 unknown**，不得写成 `3029 < 版本 <= 3044`
+  或因历史日志直接重跑；只有真实任务需要该唯一事实并另获 live 权限/硬预算时才设计
+  可落盘的配对探针。经验结论见 `onshape_docs/experience/`，证据见 `onshape_docs/verification/`。

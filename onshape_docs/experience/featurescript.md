@@ -216,18 +216,17 @@ Rules that save quota:
 - **ERROR on instantiation is not a compile error** — it also fires for
   runtime/empty-query conditions (e.g. `qCreatedBy(id)` finds nothing on first
   run). Distinguish by reasoning, not by the API.
-- **Do not batch-verify what a real task will verify on demand.** The
-  cross-version `import` boundary now has strong evidence (symbol-sweep
-  2026-08-14): a probe whose precondition matches experiments/01 exactly
-  (`annotation { "Name" }` + `{ (millimeter) : [...] } as LengthBoundSpec` —
-  that bound-spec/annotation pair is what emits a parameter spec; a bare
-  `isLength` emits none at any version) returns **specCount 0 at import
-  `3044.0`**, while the recorded experiments at `3029.0` return 1 spec — so the
-  boundary is 3029 < version ≤ 3044 (silent rejection, no error text). Confirm
-  with 3029/3050 probes when the rate limit clears. Never probe versions with a
-  bare precondition — `specCount 0` is meaningless without the bound spec.
+- **Do not infer an exact cross-version `import` boundary from the existing
+  probes.** Historical 3029 experiments emitted a spec while a later narrative
+  reported 3044 probes with zero specs, but the persisted corrected probes do
+  not contain an unconfounded same-shape 3029-accept/3050-reject pair. Spec
+  emission itself depends on an `annotation { "Name" }` plus bound-spec
+  precondition, so zero specs alone is not rejection evidence. The exact import
+  boundary is therefore **unknown**, not `3029 < version <= 3044`. Only run a
+  new paired probe when a real task requires that one fact and separately
+  authorizes its live budget; persist every call as evidence.
 - **429 is never retried (user policy 2026-08-14).** Onshape's Retry-After hit
-  73094s (~20h) with Rate-Limit-Remaining 0. `client.request` raises
+  about 20 hours with Rate-Limit-Remaining 0 during the recorded incident. `client.request` raises
   `RateLimited` immediately (wait time persisted to `onshape_rest_api_mode/config/api-usage.json`);
   every quota script re-raises it, writes the error to its results file, and
   exits — no retry, no skipping to the next task. Hard budgets everywhere: a

@@ -31,7 +31,7 @@ Do not open generated JSON indexes directly; use their query tools.
 
 ## Large index protection
 
-`onshape_docs/index.json` is a generated index of roughly 159 KiB; its size varies
+`onshape_docs/index.json` is a generated index of roughly 191 KiB; its size varies
 after rebuild. Never load the whole file into model context to answer one
 question. Prefer `docs_search` or `docs_list`, then retrieve one exact section
 with `docs_section`.
@@ -67,3 +67,19 @@ apply to every agent, not only Claude.
 - Keep runtime data and configuration with the module that owns it.
 - Rebuild `onshape_docs/index.json` after changing indexed documentation.
 - Run offline tests with `LIVE_API_ENABLED` unset; never enable it for regression verification.
+<!-- agent-project-guides:routing:start -->
+## Agent routing
+
+Package adaptation: status=adapted; package_revision=1.4.2; verified_at=2026-08-25T01:49:04Z; scope=repo; reason=none
+
+1. Trigger is active only if this injected root has both managed marker names `agent-project-guides:adapter-trigger:start` and `agent-project-guides:adapter-trigger:end`. Routing/state and `pending/stale` are not triggers; bootstrap is template-only. If absent, never re-read/search; route now.
+2. Before pwd/list/glob/read, an assigned compatible role/mode wins: content-grep its exact quoted `id` or literal label across `agent-project-guides/routing/*.roles.jsonl`; use one record. No fuzzy regex, discovery, planes/full registries, re-asking or rediscovery.
+3. Only when unassigned read two-line `agent-project-guides/routing/planes.jsonl`; if unclear use the structured question tool (DSH: `ask_user_question`) and wait.
+4. In that registry grep one exact role. If unclear, use the same tool and wait before its guide.
+5. Blocking questions use stable IDs, 2–4 exclusive choices and impacts, not prose lists; free text only if choices mislead; ask directly only without a tool.
+6. Resolve record `guide`/`procedure_by_mode` under `agent-project-guides/`, never relative to registry/cwd. Read only those paths; a failure is package integrity, not permission to glob.
+7. Without a trigger, ask adapt-now vs continue only if intent is unclear and state is not `adapted`; explicit adaptation needs no question. Installer owns `pending/stale`; initialize/readapt records `partial/adapted/blocked`.
+8. Roles never grant production credentials, real data, cost or destructive actions.
+
+Subagents receive explicit role/mode, scope, writable paths, environment/data permissions and deliverable; missing/conflicting authority goes to parent/captain, never end user or self-expansion.
+<!-- agent-project-guides:routing:end -->

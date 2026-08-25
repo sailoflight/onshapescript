@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "scenario": "windows-onshape-page-launch",
+  "observedAtUtc": "2026-08-24T09:47:06Z",
+  "environment": "development",
+  "server": {
+    "name": "onshape-branch-cable-trophy",
+    "version": "1.3.0",
+    "protocolVersion": "2025-06-18"
+  },
+  "transport": {
+    "client": "WSL stdio MCP",
+    "facade": "mcp_tcp_bridge.py",
+    "inner": "loopback TCP 127.0.0.1:8766",
+    "engine": "Windows MCP body"
+  },
+  "browserObservation": {
+    "playwrightInstalled": true,
+    "visibleBrowser": true,
+    "headless": false,
+    "sessionStatus": "awaiting_login",
+    "pageClass": "onshape-signin",
+    "sanitizedPageUrl": "https://cad.onshape.com/signin",
+    "loginConfirmed": false,
+    "humanActionRequired": true
+  },
+  "invocationAccounting": {
+    "onshapeRestToolsInvoked": 0,
+    "browserMutationToolsInvoked": 0,
+    "cloudWriteActionsInvoked": 0
+  },
+  "redaction": {
+    "profilePath": "<REDACTED>",
+    "credentials": "not read",
+    "accountIdentifiers": "not read",
+    "documentIdentifiers": "not read"
+  },
+  "evidenceMethod": "Sanitized projection of the MCP scenario transcript; invocation counts describe the executed tool sequence, not an Onshape server-side audit log.",
+  "limitations": [
+    "Manual login was not completed.",
+    "No account or document page was observed.",
+    "No selector or product workflow was evaluated.",
+    "This evidence does not authorize or prove any mutation."
+  ]
+}

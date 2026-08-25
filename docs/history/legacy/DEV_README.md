@@ -1,3 +1,11 @@
+# Legacy `dev/` documentation
+
+> Archived during package adaptation. This file preserves the former directory
+> landing page and is not a current development or operations contract. Use
+> `docs/development/LAB.md` for the current `dev/` directory map and
+> `docs/operations/MCP_RUNBOOK.md` for browser deployment. The migration map is
+> `../TRACEABILITY.md`.
+
 # dev/ — development lab
 
 Development, test, and exploration workspace. Nothing here is imported by
@@ -12,7 +20,7 @@ Development, test, and exploration workspace. Nothing here is imported by
 | `spike/` | Throwaway experiments (e.g. Monaco editor strategy). Gitignored. |
 | `tests/` | Offline unit, protocol, static-guard, and bridge-script tests. |
 | `tools/` | Manually invoked development probes. |
-| `DEVELOPMENT.md` | 开发经验与下一步计划。 |
+| `DEVELOPMENT.md` (retired path) | Historical development record now preserved as `DEV_DEVELOPMENT.md`; current guidance is `../../development/START.md`. |
 
 ## Browser setup
 

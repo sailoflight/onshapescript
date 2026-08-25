@@ -3,7 +3,8 @@
 
 The MCP server serves two kinds of corpora: the vendored Onshape material
 (onshape_docs/reference/) and the project's own LLM-facing docs
-(onshape_docs/guide/, onshape_docs/experience/, onshape_docs/verification/, onshape_docs/reference/, examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
+(onshape_docs/guide/, onshape_docs/experience/, onshape_docs/verification/,
+onshape_docs/reference/, public docs/usage and docs/generated pages, examples/). The vendored docs are indexed by build_fsdoc_index.py; this script
 indexes the project's own markdown into onshape_docs/index.json with the SAME
 schema as onshape_docs/reference/index/fsdoc/guide.json — pages -> heading sections -> typed blocks (para,
 code, list, table) — so the project docs are searchable and readable on demand
@@ -41,6 +42,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "documentation-map": "onshape_docs/README.md",
         "fs-assistant": "onshape_docs/guide/feature-script.md",
         "mcp-server": "onshape_docs/guide/mcp-server.md",
+        "mcp-consumer": "docs/usage/MCP_CONSUMER.md",
         "onshape-api": "onshape_docs/guide/rest-api.md",
     },
     "experience": {
@@ -55,6 +57,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
     },
     "reference": {
         "quick-reference": "onshape_docs/reference/quick-reference.md",
+        "mcp-tool-reference": "docs/generated/TOOL_REFERENCE.md",
         "reference": "onshape_docs/reference/README.md",
     },
     "example": {

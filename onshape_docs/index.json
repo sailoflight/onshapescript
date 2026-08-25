@@ -4,7 +4,7 @@
    "page": "documentation-map",
    "category": "guide",
    "path": "onshape_docs/README.md",
-   "sha256": "b8c4d5a22bfbcfe46741d3675f63a9e4fac24d9e6078c1693252bea618607efb",
+   "sha256": "a4979c569e985413d96ca16963491477395b61d2d0086f63343627ea587dec25",
    "title": "Documentation map",
    "sections": [
     {
@@ -13,7 +13,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "This directory separates instructions, reusable experience, verification evidence, and upstream reference material. Use indexes before full originals."
+       "text": "This directory separates public task guidance, reusable experience, verification evidence, and upstream reference material. Public MCP User pages from docs/usage/ and selected generated references may also be registered in the project-doc index. Internal repository architecture, module contracts, verification routing, and Operator runbooks stay outside the public docs_* corpus and are routed through docs/INDEX.md. Use indexes before full originals."
       }
      ]
     },
@@ -58,7 +58,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "onshape_docs/index.json is a generated index of roughly 159 KiB; its size varies after rebuild. It must not be loaded as a whole just to answer one question. Use docs_search or docs_list to find a candidate, then docs_section for one exact section. If query tools are not available, use grep/rg to locate keywords, page ids, paths, or headings and read only a bounded line window from the authored Markdown around the match. Never print or ingest the complete generated JSON index. Apply the same bounded navigation to large OpenAPI, standard-library, and reference/raw/ sources."
+       "text": "onshape_docs/index.json is a generated index of roughly 191 KiB; its size varies after rebuild. It must not be loaded as a whole just to answer one question. Use docs_search or docs_list to find a candidate, then docs_section for one exact section. If query tools are not available, use grep/rg to locate keywords, page ids, paths, or headings and read only a bounded line window from the authored Markdown around the match. Never print or ingest the complete generated JSON index. Apply the same bounded navigation to large OpenAPI, standard-library, and reference/raw/ sources."
       },
       {
        "type": "table",
@@ -377,458 +377,423 @@
    "page": "mcp-server",
    "category": "guide",
    "path": "onshape_docs/guide/mcp-server.md",
-   "sha256": "dac58be4c04163239e7766662882e9fde0884d21b8a02e0a8b47049afc9f45c2",
-   "title": "MCP server（WIN-WSL 桥接部署）",
+   "sha256": "b2007014d2679382abd4c8ab3469101baaa99402bba0528ca7224e71d604fd0f",
+   "title": "MCP server usage map",
    "sections": [
     {
      "level": 1,
-     "title": "MCP server（WIN-WSL 桥接部署）",
+     "title": "MCP server usage map",
      "blocks": [
       {
        "type": "para",
-       "text": "本 MCP 采用 WIN-WSL 桥接：MCP 主体（工具注册与分发、REST 客户端、浏览器自动化） 运行在 Windows 的常驻桥接进程里；WSL 只运行一层纯标准库的中继脚本。架构定义见 mcp_main/bridge/ARCHITECTURE.md。"
+       "text": "This indexed page is the public MCP User entry. It does not contain repository development, Windows deployment, or internal module instructions."
       }
      ]
     },
     {
      "level": 2,
-     "title": "Configure a client（WSL DSH 接入中继）",
+     "title": "Public contract",
      "blocks": [
       {
        "type": "para",
-       "text": "WSL 的 MCP 客户端不直接启动 MCP 包，而是启动中继脚本："
+       "text": "Read docs/usage/MCP_CONSUMER.md for:"
       },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "the required offline-first lookup order;",
+         "depth": 0
+        },
+        {
+         "text": "capability routing;",
+         "depth": 0
+        },
+        {
+         "text": "REST quota and browser side-effect classes;",
+         "depth": 0
+        },
+        {
+         "text": "confirmation, error, retry, and credential boundaries;",
+         "depth": 0
+        },
+        {
+         "text": "minimal calling examples.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Use the revisioned runtime policy delivered by the trusted MCP installation to select Production / User versus Production / Operator before the first tool decision. If tools are present but that policy is absent, stop and route the client installation to an Operator. Then use the runtime MCP tool schema for exact arguments. The derived current summary is docs/generated/TOOL_REFERENCE.md; it is generated from the registered schema and handler maps and must not be edited by hand."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Role boundary",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Production / User: public usage document, runtime schema, and exact indexed knowledge.",
+         "depth": 0
+        },
+        {
+         "text": "Operator: docs/operations/MCP_RUNBOOK.md outside the public docs index.",
+         "depth": 0
+        },
+        {
+         "text": "Developer/Maintainer/Reviewer: repository AGENTS.md and docs/INDEX.md.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "A User prompt does not grant production credentials, quota, deployment access, real data, or mutation authority."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Lookup order",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Classify the need as project docs, FeatureScript, REST reference, browser behavior, or a live operation.",
+         "depth": 0
+        },
+        {
+         "text": "Search the cheapest offline candidate index.",
+         "depth": 0
+        },
+        {
+         "text": "Open one exact section, symbol, endpoint, schema, or selected tool schema.",
+         "depth": 0
+        },
+        {
+         "text": "Use full authored/raw material only if the exact entry is insufficient.",
+         "depth": 0
+        },
+        {
+         "text": "Prefer zero-request capabilities; use browser/live operations only with their explicit safety contract.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Deployment boundary",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The Windows/WSL bridge architecture exists to host a persistent browser session, but deployment details are intentionally excluded from this public guide. Route availability, startup, credentials, login, and recovery issues to the Operator."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "mcp-consumer",
+   "category": "guide",
+   "path": "docs/usage/MCP_CONSUMER.md",
+   "sha256": "eb249a29eb9f3f06de7855689c9cac15ea5ff635d4cf99809b05ac2d2a5a725c",
+   "title": "Onshape FeatureScript MCP usage",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Onshape FeatureScript MCP usage",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Audience: Production / User operating as an MCP consumer or calling agent"
+      },
+      {
+       "type": "para",
+       "text": "This document describes the public calling contract. It does not describe source layout, development tests, Windows deployment, or repository maintenance. A runtime MCP client must deliver the server's trusted, revisioned production-role policy before the first tool decision, then prefer the exact tool schema; this authored page is the stable usage source behind that surface. If tools are visible but the Production / User and Production / Operator policy is not, stop and route the client installation problem to an Operator."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "What the server provides",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The server exposes four capability families:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "offline project, FeatureScript, and Onshape REST reference lookup;",
+         "depth": 0
+        },
+        {
+         "text": "local project state, parameters, request construction, and quota inspection;",
+         "depth": 0
+        },
+        {
+         "text": "guarded Onshape REST reads, evaluation, validation, rendering, and writes;",
+         "depth": 0
+        },
+        {
+         "text": "Windows-hosted browser observation and browser workflows that consume zero REST quota.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The exact current surface is the MCP tools/list response. A derived repository summary is available at ../generated/TOOL_REFERENCE.md; it is not a substitute for the runtime schema."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Required lookup order",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Classify the need as project documentation, FeatureScript, REST API reference, browser behavior, or a live operation.",
+         "depth": 0
+        },
+        {
+         "text": "Use the cheapest offline candidate index first.",
+         "depth": 0
+        },
+        {
+         "text": "Open one exact section, symbol, endpoint, schema, or tool definition.",
+         "depth": 0
+        },
+        {
+         "text": "Use complete authored/raw sources only when exact indexed detail is insufficient.",
+         "depth": 0
+        },
+        {
+         "text": "Prefer zero-cost local tools over browser or live REST operations.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Do not guess FeatureScript names, REST payloads, Onshape IDs, selectors, or tool arguments that can be looked up through the server."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability routes",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Need",
+         "First public capability",
+         "Exact next detail"
+        ],
+        [
+         "Project workflow or verified lesson",
+         "docs_search or docs_list",
+         "docs_section"
+        ],
+        [
+         "FeatureScript orientation or symbol",
+         "fs_quick_reference or fs_search",
+         "fs_get_function, fs_get_type, fs_guide_section, then source if necessary"
+        ],
+        [
+         "REST endpoint/schema/auth/error",
+         "onshape_api_list_tags or onshape_api_search",
+         "Exact endpoint, schema, auth, or error tool"
+        ],
+        [
+         "Browser behavior/known workflow",
+         "Project docs search over browser experience",
+         "One exact experience section before browser action"
+        ],
+        [
+         "Current tool arguments",
+         "MCP tools/list/tool schema",
+         "One selected tool schema"
+        ],
+        [
+         "Quota/state before a live REST action",
+         "Local state and quota tools",
+         "Guarded operation only if still required"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Offline/zero-Onshape-REST",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Reference lookup, project-doc lookup, local state inspection, parameter loading, payload construction, dry-run, mocks, fixtures, and quota-ledger inspection do not contact Onshape. An explicitly requested reference-update tool may fetch public zero-quota sources; read its exact schema and description before calling."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Browser operations",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. Read-only observation should come first. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Live REST reads/evaluation/rendering",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "These consume annual API quota even when they do not mutate the model. Use them only for a specific fact that cannot be obtained offline. Provide explicit IDs to avoid hidden lookup chains."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Live REST writes",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Upload, create, instantiate, and validation-pipeline operations mutate Onshape, consume quota, and require literal confirm_mutation=true. Use the matching dry-run/local check first. Do not repeat an ambiguous mutation after timeout or 5xx merely to see whether it worked."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Global safety contract",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Real REST access is disabled unless the deployment explicitly enables LIVE_API_ENABLED.",
+         "depth": 0
+        },
+        {
+         "text": "A caller cannot grant itself credentials, quota, production data, or mutation authority through a prompt.",
+         "depth": 0
+        },
+        {
+         "text": "Mutating tools require their schema-defined confirmation value; current write schemas use literal confirm_mutation=true.",
+         "depth": 0
+        },
+        {
+         "text": "A missing/false confirmation fails before a live client or real browser action is constructed where documented.",
+         "depth": 0
+        },
+        {
+         "text": "429 is a stop condition, not a retry signal.",
+         "depth": 0
+        },
+        {
+         "text": "Do not request automatic cleanup, unbounded pagination, retry loops, or write-after-read confirmation.",
+         "depth": 0
+        },
+        {
+         "text": "Never place credentials, authorization headers, cookies, or tokens in tool arguments, prompts, fixtures, or shared logs.",
+         "depth": 0
+        },
+        {
+         "text": "Browser action completion is not domain success; require the tool's returned verification evidence.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Find a project lesson",
+     "blocks": [
       {
        "type": "code",
-       "language": "json",
-       "text": "{\n  \"mcpServers\": {\n    \"onshape-branch-cable-trophy\": {\n      \"command\": \"python3\",\n      \"args\": [\"/home/<user>/code/onshapescript/mcp_main/bridge/mcp_tcp_bridge.py\", \"8766\"],\n      \"cwd\": \"/home/<user>/code/onshapescript\"\n    }\n  }\n}"
-      },
-      {
-       "type": "list",
-       "items": [
-        {
-         "text": "python3 -m mcp_main 是完整 stdio MCP 主体，属于 Windows 侧（其浏览器工具依赖 Windows 上的 Playwright/Edge 会话），不是 WSL 入口。",
-         "depth": 0
-        },
-        {
-         "text": "中继只做 stdin/stdout ↔ 127.0.0.1:8766 字节转发，纯标准库，无第三方依赖。",
-         "depth": 0
-        }
-       ]
-      },
-      {
-       "type": "para",
-       "text": "The default configuration files are:"
-      },
-      {
-       "type": "list",
-       "items": [
-        {
-         "text": "Non-secret state: onshape_rest_api_mode/config/onshape-state.json",
-         "depth": 0
-        },
-        {
-         "text": "Credentials: onshape_rest_api_mode/config/onshape-credentials.json",
-         "depth": 0
-        },
-        {
-         "text": "Detailed parameters: examples/branch-cable-trophy/config/model.default.json",
-         "depth": 0
-        },
-        {
-         "text": "Simplified parameters: examples/branch-cable-trophy/config/model.preview.json",
-         "depth": 0
-        }
-       ]
-      },
-      {
-       "type": "para",
-       "text": "Override the first two paths for another deployment with ONSHAPE_STATE and ONSHAPE_CREDENTIALS. Do not place credentials in MCP arguments, environment configuration committed to source control, prompts, or tool input."
+       "language": "text",
+       "text": "1. docs_search(query=<specific behavior>, limit=3)\n2. docs_section(page=<matched page>, section=<matched heading>)"
       }
      ]
     },
     {
      "level": 3,
-     "title": "FeatureScript reference tools — local and offline",
+     "title": "Find a FeatureScript function",
      "blocks": [
-      {
-       "type": "para",
-       "text": "These read the vendored reference under onshape_docs/reference/ and never contact Onshape or the network. They are the primary FeatureScript lookup tools. See onshape_docs/guide/feature-script.md for the recommended workflow."
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Behavior"
-        ],
-        [
-         "fs_check_version",
-         "Reports the vendored reference version (parsed from the std library) and warns docs-behind when a target and/or the Feature Studio version is newer. The last observed real versions (languageVersion + libraryVersion) are reported for free — cached from workflow responses (feature_studio_status / eval), never a dedicated call; include_live refreshes the Feature Studio's declared version (1 read-only call). Also verifies the JSON indexes are consistent with the raw pages and reports onshapeApiSpecVersion (the vendored REST API spec version + health). With check_latest it probes the mirror (one small network call) plus the live REST spec (1 call) for the newest versions."
-        ],
-        [
-         "fs_update_reference",
-         "Mutating (requires confirm_mutation=true): re-fetches the FsDoc pages + std library and rebuilds the indexes; with include_onshape_api it also refreshes the REST API OpenAPI spec (needs credentials). Returns a bounded change summary (version before/after, added/removed/changed counts) so the delta never needs to live in the caller's context."
-        ],
-        [
-         "fs_quick_reference",
-         "Returns the curated distilled cheat-sheet (onshape_docs/reference/quick-reference.md), small enough to load in one call for orientation."
-        ],
-        [
-         "fs_list_modules",
-         "Lists standard library modules grouped by category (optional filter)."
-        ],
-        [
-         "fs_list_functions",
-         "Lists functions/types/constants/predicates with signatures and summaries, filtered by module/category/kind/prefix."
-        ],
-        [
-         "fs_get_function",
-         "Full entry: signature, parameters (type, requirement, description, example), return type, module."
-        ],
-        [
-         "fs_get_type",
-         "Type/enum definition with every allowed value."
-        ],
-        [
-         "fs_search",
-         "Ranked keyword search across the entire reference and the guide (kind=guide)."
-        ],
-        [
-         "fs_guide_section",
-         "One FsDoc guide page, or a section of it, as plain text with fenced code blocks."
-        ],
-        [
-         "fs_library_source",
-         "The real standard library implementation source, optionally the window around one function."
-        ]
-       ]
-      }
-     ]
-    },
-    {
-     "level": 3,
-     "title": "Project docs tools — local and offline",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "The project's categorized guide, experience, verification, reference, and example documentation (the repository-root README.md remains the unindexed human landing page, while onshape_docs/README.md is the indexed lookup map) is parsed into onshape_docs/index.json by onshape_docs/scripts/build_docs_index.py with the same typed-block schema as the FsDoc guide, so it is searchable and readable on demand — the authored .md files remain the originals. These tools cover the project's own knowledge (tool catalog, workflows, verified lessons), distinct from the vendored Onshape reference above."
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Behavior"
-        ],
-        [
-         "docs_list",
-         "Index-first outline grouped by category, with each page title, source path, and section headings."
-        ],
-        [
-         "docs_section",
-         "One exact indexed page or heading section; use after list/search instead of opening a complete authored file."
-        ],
-        [
-         "docs_search",
-         "Ranked candidate sections with category and snippet; pass page to restrict, then call docs_section."
-        ]
-       ]
-      }
-     ]
-    },
-    {
-     "level": 3,
-     "title": "Onshape REST API reference tools — local and offline",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "These answer questions about the Onshape REST API surface from the live OpenAPI definition vendored under onshape_docs/reference/ (raw spec in onshape_docs/reference/raw/onshape-api/, indexes read from onshape_docs/reference/index/onshape-api/ and onshape_docs/reference/quick/onshape-api/). Like the FeatureScript tools they are offline; only fs_check_version/fs_update_reference (above) and the Onshape REST tools touch the network. See onshape_docs/guide/rest-api.md for the data, coverage, and the remaining documentation gaps for real operations."
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Behavior"
-        ],
-        [
-         "onshape_api_list_tags",
-         "The 42 REST domain groups (Account, Assembly, Document, FeatureStudio, PartStudio, ...) with descriptions; reports the spec version they describe."
-        ],
-        [
-         "onshape_api_search",
-         "Ranked keyword search over every REST endpoint (method/path/operationId/summary), optional tag filter."
-        ],
-        [
-         "onshape_api_endpoint",
-         "Full definition of one operation: parameters (name, path/query/header, required, type, enum/default, description), response codes and their schema references."
-        ],
-        [
-         "onshape_api_schema",
-         "A response/request schema (e.g. BTDocumentElementInfo) and its properties/required fields."
-        ],
-        [
-         "onshape_api_auth",
-         "The OAuth2 authorization-code workflow (6 steps: register app → authorize → exchange → use → refresh → grant) and API-key usage; distilled by default, full section text (incl. code) via section."
-        ],
-        [
-         "onshape_api_error_codes",
-         "All documented HTTP response codes with category/description/next steps, plus rate and annual call limits (429 X-Rate-Limit-Remaining / Retry-After); status narrows to one code."
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "fs_check_version also reports onshapeApiSpecVersion (the vendored REST API spec version + index health), and fs_update_reference accepts include_onshape_api: true to refresh the REST spec and the auth/error docs alongside the FeatureScript reference — the spec re-fetch needs onshape_rest_api_mode/config/onshape-credentials.json and is skipped with a note when it is absent."
-      }
-     ]
-    },
-    {
-     "level": 3,
-     "title": "Browser automation tools — zero REST API quota",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "These 35 tools drive the persistent Windows-hosted browser. They never call the Onshape REST API, but a real UI action can still modify cloud data. Mutation confirmation and pacing therefore apply independently of REST quota. Use tools/list as the authoritative catalog when current registration matters."
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Group",
-         "Tools",
-         "Boundary"
-        ],
-        [
-         "Session and discovery",
-         "browser_session, browser_watch, browser_inspect, browser_scroll, browser_click, browser_eval, browser_reconnect",
-         "Inspecting is read-only; actual click/eval requires confirm_mutation=true. Inspect/eval/click/scroll accept frame_url; watch can save and verify bounded recordings."
-        ],
-        [
-         "Read-only navigation and state",
-         "browser_open_document, browser_read_featurescript, browser_get_partstudio_features, browser_get_page_tabs, browser_open_insert_feature_dialog, browser_reload, browser_wait",
-         "Navigation/waiting does not create cloud data."
-        ],
-        [
-         "Confirmed local state write",
-         "browser_sync_rest_state",
-         "Explicitly merges browser ids into REST-owned local state. dry_run=true writes nothing; a real write requires confirm_mutation=true and performs no REST request."
-        ],
-        [
-         "Confirmed document changes",
-         "browser_deploy_featurescript, browser_create_document, browser_create_tab, browser_rename_tab, browser_delete_tab, browser_insert_custom_feature, browser_create_document_version, browser_press_key, browser_type, browser_insert_assembly_instances, browser_fix_instances, browser_group_instances, browser_create_drawing, browser_add_drawing_dimension, browser_delete_element, browser_deploy_and_apply_featurescript, browser_build_part, browser_assemble, browser_draw_part, browser_run_project",
-         "Every real write requires confirm_mutation=true; all new writing tools expose pure-local dry_run=true. Project execution checkpoints each successful step."
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "For selector/session behavior, search the indexed browser-automation experience page. For the create → deploy → version → apply → verify workflow and its success signals, read one matched section from browser-modeling."
-      }
-     ]
-    },
-    {
-     "level": 3,
-     "title": "Local and read-only",
-     "blocks": [
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Behavior"
-        ],
-        [
-         "onshape_get_project_state",
-         "Reads non-secret local state and credential-file presence. It never reads or returns credential values."
-        ],
-        [
-         "onshape_api_quota",
-         "Reports the local API-quota budget: configured annual limit, calls consumed (passive ledger of 2xx/3xx responses), remaining, and how many validation-pipeline runs fit. Zero network cost — no extra API call."
-        ],
-        [
-         "onshape_get_parameter_set",
-         "Reads the maintained detailed or simplified parameter map."
-        ],
-        [
-         "onshape_build_parameter_payload",
-         "Converts local values into explicit Onshape custom-feature parameter blocks."
-        ]
-       ]
-      }
-     ]
-    },
-    {
-     "level": 3,
-     "title": "Authenticated read-only Onshape tools",
-     "blocks": [
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Behavior"
-        ],
-        [
-         "onshape_list_document_elements",
-         "Lists elements and current microversions in the configured workspace — cached (zero API cost) by default; refresh=true re-fetches live."
-        ],
-        [
-         "onshape_get_feature_studio_status",
-         "Reads Feature Studio metadata and compiled feature specifications."
-        ],
-        [
-         "onshape_check_model",
-         "Checks feature state, 132/65 part count, required names, and bounds without writing the report file."
-        ],
-        [
-         "onshape_render_preview",
-         "Returns one shaded PNG as MCP image content; save=true additionally writes onshape_rest_api_mode/outputs/previews/<view>.png."
-        ],
-        [
-         "onshape_eval_featurescript",
-         "Evaluates a FeatureScript snippet on the live server (1 quota call; script must evaluate to a two-argument anonymous function function(context is Context, id is Id) {...}). Document-first guarded: a 10-call/session budget plus confirm_mutation=true to exceed it, preflighted against the quota budget, and every response reports the session/eval/quota counters. Use it to confirm version-specific semantics the vendored 2960 docs lack, and to get the deployed libraryVersion (3044) cached for fs_check_version."
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "Note: every tool in this table is read-only with respect to the model, but onshape_eval_featurescript spends 1 quota call per invocation and the render tool spends ~1; the plain status/check tools are the cheap reads."
-      }
-     ]
-    },
-    {
-     "level": 3,
-     "title": "Mutating tools",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "Every mutating tool requires the literal boolean confirm_mutation=true. A missing or false value returns an MCP tool error before an Onshape client is constructed or a remote request is sent."
-      },
-      {
-       "type": "table",
-       "rows": [
-        [
-         "Tool",
-         "Mutation"
-        ],
-        [
-         "onshape_upload_feature_studio",
-         "Overwrites configured Feature Studio contents and compiles the feature spec."
-        ],
-        [
-         "onshape_create_validation_part_studio",
-         "Creates a cloud Part Studio; by default updates local partStudioId."
-        ],
-        [
-         "onshape_instantiate_feature",
-         "Adds a custom feature to a Part Studio. Repeated calls add additional features."
-        ],
-        [
-         "onshape_run_validation_pipeline",
-         "Uploads, creates, instantiates, validates, and optionally renders. It creates a new Part Studio on every call."
-        ]
-       ]
-      },
-      {
-       "type": "para",
-       "text": "Every mutating tool also preflights against the annual quota budget before any remote call — upload ~3 calls, create 1, instantiate 1 (microversion cached) / 2 (cold), pipeline ~13 with render / ~8 without. When the configured budget would be exceeded the tool blocks with the shortfall instead of spending API calls."
-      },
-      {
-       "type": "para",
-       "text": "The quota ledger (onshape_rest_api_mode/config/api-usage.json, gitignored) is passive: every 2xx/3xx response counts toward the annual limit and each response's X-Rate-Limit-Remaining header is captured — zero extra API calls, because Onshape has no public quota-query endpoint. Configure the annual budget in onshape_rest_api_mode/config/onshape-state.json under apiQuota ({\"accountType\": \"professional\"} maps to the official 5000/year, or set {\"annualLimit\": N} directly). Seed it with your real year-to-date usage — {\"accountType\": \"standard\", \"alreadyConsumed\": 119} — read from the Onshape UI (My Account → Developer); the local ledger is added on top (consumed = alreadyConsumed + ledgerConsumed). After any other client spends quota, re-read the UI total and set alreadyConsumed = UI_total - ledgerConsumed to recalibrate. A 402 response is the server's real \"annual limit exhausted\" signal. Without an apiQuota config the tools degrade to rate-limit-only reporting."
-      },
-      {
-       "type": "para",
-       "text": "Instantiate's cached microversion is a mutation-safety window, not a freshness guarantee. onshape_instantiate_feature pins the Feature Studio at a microversion threaded from a just-finished upload or read from the local element mirror (trusted when synced within the last 5 minutes); otherwise it re-reads the element list first (2 calls). Onshape microversions are immutable snapshots, so an instantiate against an outdated microversion does not fail — it silently instantiates the OLD Feature Studio definition. Manual edits to the Feature Studio in the Onshape UI between an upload/status and a later instantiate are therefore undetectable and silently pin the pre-edit snapshot. Callers running an \"upload then instantiate later\" flow should warn the human not to edit the Feature Studio in that window, and should prefer the pipeline (upload + instantiate in one run, microversion threaded fresh). A standalone onshape_upload_feature_studio without an immediate instantiate leaves a cached microversion behind: a later instantiate re-reads the element list once the mirror is older than 5 minutes, but an edit inside that window still slips through."
-      },
-      {
-       "type": "para",
-       "text": "The confirmation field is defense in depth for autonomous MCP clients. It does not replace the MCP host's own approval UI. Configure the host to ask before mutating tools whenever it supports per-tool permissions."
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Credential and error boundary",
-     "blocks": [
-      {
-       "type": "list",
-       "items": [
-        {
-         "text": "onshape_rest_api_mode/config/onshape-credentials.json remains ignored by .gitignore.",
-         "depth": 0
-        },
-        {
-         "text": "Tool responses never include the Basic/Bearer authorization header, access key, secret key, access token, or credential-file contents.",
-         "depth": 0
-        },
-        {
-         "text": "Network errors return endpoint status/details from Onshape but not request headers. Server tracebacks go to standard error, never the MCP protocol stream.",
-         "depth": 0
-        },
-        {
-         "text": "Document/workspace/element IDs are operational identifiers rather than API secrets. Use redact_ids=true on onshape_get_project_state when sharing logs.",
-         "depth": 0
-        },
-        {
-         "text": "The server writes only JSON-RPC messages to standard output. Do not add regular print() calls to stdout; diagnostics belong on stderr.",
-         "depth": 0
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "level": 2,
-     "title": "Tests",
-     "blocks": [
-      {
-       "type": "para",
-       "text": "Local protocol and mutation-guard tests do not contact Onshape:"
-      },
       {
        "type": "code",
-       "language": "bash",
-       "text": "python3 -m unittest discover -s dev/tests -v\npython3 -m py_compile mcp_main/*.py mcp_main/bridge/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py"
-      },
+       "language": "text",
+       "text": "1. fs_search(query=<concept or symbol>, limit=3)\n2. fs_get_function(name=<exact matched name>)"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Prepare a guarded write",
+     "blocks": [
       {
-       "type": "para",
-       "text": "A credentialed read-only integration smoke test was run against the configured workspace. It verified:"
-      },
+       "type": "code",
+       "language": "text",
+       "text": "1. Look up exact endpoint/schema or tool input.\n2. Inspect local project state and quota.\n3. Run local validation/request construction/dry-run.\n4. State the one remaining live fact or requested mutation.\n5. Call the exact tool with explicit confirmation only when authorized.\n6. Stop on rate limit or ambiguous mutation outcome."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Errors",
+     "blocks": [
       {
        "type": "list",
        "items": [
         {
-         "text": "MCP initialization and 32-tool discovery;",
+         "text": "Schema/argument errors: correct the call from the exact tool schema; do not guess repeatedly.",
          "depth": 0
         },
         {
-         "text": "the compiled branchCableTrophyDisplay spec with 21 parameters;",
+         "text": "Live disabled: use offline alternatives or obtain explicit deployment authorization; do not try to bypass the gate.",
          "depth": 0
         },
         {
-         "text": "Part Studio custom-feature status OK and exactly 132 parts;",
+         "text": "Quota shortfall/rate limit: stop and preserve the returned budget/retry evidence.",
          "depth": 0
         },
         {
-         "text": "bounds within the validation contract;",
+         "text": "Missing credentials/session: route to the Operator; a User prompt cannot create those authorities.",
          "depth": 0
         },
         {
-         "text": "a non-empty 300 x 300 reference_like PNG returned as MCP image content;",
+         "text": "Browser verification failure: inspect the returned evidence and use documented read-only discovery before another mutation.",
          "depth": 0
         },
         {
-         "text": "no credential material in stdout/tool results.",
+         "text": "Version/reference conflict: report the observed and vendored versions and use the version tools; do not merge stale facts silently.",
          "depth": 0
         }
        ]
-      },
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Compatibility and authority",
+     "blocks": [
       {
        "type": "para",
-       "text": "The integration test uses only GET endpoints and does not create or update cloud resources. The mutating tools were tested at their confirmation boundary only; the existing validated CLI/API workflow remains the implementation beneath them."
+       "text": "The runtime tool schema and current server behavior are authoritative for calls. The canonical runtime policy routes product capability use to User and runtime installation/availability/recovery to Operator; role transitions are explicit and do not merge permissions. A supported client consumes native initialization instructions or an installation-generated companion from the same server revision. A tools-only connection is unsupported. The generated tool reference is a derived snapshot. Public behavior changes must update schemas, tests, this usage contract where relevant, and the generated reference together."
       }
      ]
     }
@@ -1031,7 +996,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "e01000038cf994978f7fde98059414f7470da74444bae0d9173a53a01dd3c376",
+   "sha256": "d21ab2cbd5eef8d4964b2283417d721a82a06d080db8260881f5df5dd62e15d4",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1338,11 +1303,11 @@
          "depth": 0
         },
         {
-         "text": "Do not batch-verify what a real task will verify on demand. The cross-version import boundary now has strong evidence (symbol-sweep 2026-08-14): a probe whose precondition matches experiments/01 exactly (annotation { \"Name\" } + { (millimeter) : [...] } as LengthBoundSpec — that bound-spec/annotation pair is what emits a parameter spec; a bare isLength emits none at any version) returns **specCount 0 at import 3044.0**, while the recorded experiments at 3029.0 return 1 spec — so the boundary is 3029 < version ≤ 3044 (silent rejection, no error text). Confirm with 3029/3050 probes when the rate limit clears. Never probe versions with a bare precondition — specCount 0 is meaningless without the bound spec.",
+         "text": "**Do not infer an exact cross-version import boundary from the existing probes.** Historical 3029 experiments emitted a spec while a later narrative reported 3044 probes with zero specs, but the persisted corrected probes do not contain an unconfounded same-shape 3029-accept/3050-reject pair. Spec emission itself depends on an annotation { \"Name\" } plus bound-spec precondition, so zero specs alone is not rejection evidence. The exact import boundary is therefore unknown, not 3029 < version <= 3044. Only run a new paired probe when a real task requires that one fact and separately authorizes its live budget; persist every call as evidence.",
          "depth": 0
         },
         {
-         "text": "429 is never retried (user policy 2026-08-14). Onshape's Retry-After hit 73094s (~20h) with Rate-Limit-Remaining 0. client.request raises RateLimited immediately (wait time persisted to onshape_rest_api_mode/config/api-usage.json); every quota script re-raises it, writes the error to its results file, and exits — no retry, no skipping to the next task. Hard budgets everywhere: a --budget total cap preflighted against the annual quota, plus per-operation checks (e.g. an import version probe costs 3 calls and is only started if all 3 fit the remaining budget).",
+         "text": "429 is never retried (user policy 2026-08-14). Onshape's Retry-After hit about 20 hours with Rate-Limit-Remaining 0 during the recorded incident. client.request raises RateLimited immediately (wait time persisted to onshape_rest_api_mode/config/api-usage.json); every quota script re-raises it, writes the error to its results file, and exits — no retry, no skipping to the next task. Hard budgets everywhere: a --budget total cap preflighted against the annual quota, plus per-operation checks (e.g. an import version probe costs 3 calls and is only started if all 3 fit the remaining budget).",
          "depth": 0
         },
         {
@@ -2141,7 +2106,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "99950bd0aa6d3527d5540364440f7c52b6ecd94254432549dba85ebf4e6efe06",
+   "sha256": "d584d934f93d93f1c76fb4166d38d16087ec27ac4db9531ba1918a4c5b868400",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -2504,6 +2469,10 @@
         {
          "text": "工程图标签或跨域 iframe 出现只证明容器已创建，主页面 svg 数量不能证明 工程视图或尺寸已生成。DrawingPage 与 frame-aware 通用工具现在可进入 production-drawing-* iframe；browser_draw_part 只有在 frame 可读且全部配置尺寸操作 成功且 verification_selector 节点数增加，或 canvas 坐标模式的前后截图 SHA-256 发生变化时才返回 drawn:true。canvas 模式通过 tool_key、canvas_index、 geometry_points 与 placement_point 配置，不依赖 Drawing 内部动态 id。",
          "depth": 0
+        },
+        {
+         "text": "实测修正（2026-08-24）：通用「创建工程图…」对话框只会得到空白图纸。 它（.new-drawing-dialog）有 四个视图 / 没有视图 两个视图布局按钮，但当前 browser_create_drawing 从不选择视图布局，默认落在「没有视图」→ 创建后 Sheet 为空。带自动视图的工程图必须从 Part Studio 的特定零件右键菜单创建 （右键零件 → 创建工程图），而不是通用创建对话框。跨域 Drawing iframe 里 Wt-popup.XeDialog.modal（插入视图）需先在源里选零件再点图纸放置，才算真正 生成视图；dispatchEvent 合成的鼠标事件不被 Onshape 接受，必须走 Playwright 可信点击。该缺口已记录到 docs/roadmap/BROWSER_MODELING_GAPS.md（L2 工具 browser_drawing_insert_views）。",
+         "depth": 0
         }
        ]
       }
@@ -2682,7 +2651,7 @@
    "page": "live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/live/README.md",
-   "sha256": "7008a6f237f9a1cc73254e73ecb0795d768aa7e60184a80fb4762d1c86cbc7f0",
+   "sha256": "bf756e13b91b8b0343390a2c4135fdf76ac7feb802c15aaf6f675a80a6244f57",
    "title": "Live FeatureScript verification — 实测记录",
    "sections": [
     {
@@ -2691,7 +2660,11 @@
      "blocks": [
       {
        "type": "para",
-       "text": "目标：用真实 Onshape 服务器验证 onshape_docs/experience/featurescript.md 的 语言论断。总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
+       "text": "目标：用真实 Onshape 服务器验证 onshape_docs/experience/featurescript.md 的 语言论断。原始活动声明的总预算 200 次（100 + 追加 50 + 追加 50）已全部用尽。"
+      },
+      {
+       "type": "para",
+       "text": "> Evidence interpretation：本文件保留按时间追加的实验叙述，当前结论以 > onshape_docs/experience/、根安全规则和持久化 JSON 为准。下面的额度/ledger > 数字是历史快照或事后重建，不是当前账户状态；与 JSON 冲突时 JSON 优先。文中命令 > 不构成重跑授权，跨版本 import 精确边界仍是 unresolved。迁移状态见 > ../../../docs/history/TRACEABILITY.md。"
       },
       {
        "type": "para",
@@ -2745,9 +2718,9 @@
          "body 不编译，量纲错误延迟"
         ],
         [
-         "06 import 2960.0 落后版本",
-         "✅ compile-error",
-         "版本不匹配是签名层错误"
+         "06 import 2960.0",
+         "0 specs",
+         "结果受“无 bound-spec precondition 不发射 spec”混淆，不能据此证明版本拒绝"
         ],
         [
          "07 GBTErrorStringEnum",
@@ -2827,7 +2800,7 @@
     },
     {
      "level": 2,
-     "title": "实例化层验证（body 真实执行，预算 100，实花 29）",
+     "title": "实例化层验证（body 真实执行；持久化结果记录 25 次调用）",
      "blocks": [
       {
        "type": "para",
@@ -2882,8 +2855,12 @@
     },
     {
      "level": 2,
-     "title": "预算账目（ledger 起点 25，终点 311）",
+     "title": "历史预算叙述（事后重建，非精确账本 authority）",
      "blocks": [
+      {
+       "type": "para",
+       "text": "下表保留原复盘分类；其 29、合计和终点与持久化 instance-results.json 等证据并不完全一致，不能用于当前配额计算："
+      },
       {
        "type": "table",
        "rows": [
@@ -2943,12 +2920,12 @@
      "blocks": [
       {
        "type": "para",
-       "text": "15 个文件为正确 defineFeature 形式，experiments.json 标注 expected + symbols risk。results 在 results.json。重跑："
+       "text": "15 个文件为正确 defineFeature 形式，experiments.json 标注 expected + symbols risk，历史结果在 results.json。只允许重复运行零调用的本地检查； 下面的 live runner 是历史入口，不得因本记录直接执行："
       },
       {
        "type": "code",
        "language": "bash",
-       "text": "python3 onshape_docs/scripts/fs_local_check.py onshape_docs/verification/live/experiments/  # 先本地拦截\npython3 onshape_docs/verification/live/run_live_tests.py --budget 50           # 每轮预算用 --budget 指定,preflight 护栏"
+       "text": "python3 onshape_docs/scripts/fs_local_check.py onshape_docs/verification/live/experiments/  # 先本地拦截\n# Historical live entry only; requires a new explicit unresolved fact, approval, and budget:\n# python3 onshape_docs/verification/live/run_live_tests.py --budget <approved-limit>"
       },
       {
        "type": "para",
@@ -2974,7 +2951,7 @@
       },
       {
        "type": "para",
-       "text": "代价教训：探测循环没传 part_studio_id 时，resolve_part_studio_id 每次 eval 会走整个文档（elements GET + 每 Part Studio 一个 parts GET ≈ 10 调用）， 首轮 33 符号探测白烧约 126 次；显式传 id 后每次恰好 1 调用（收敛探测 33 符号 共 12 次）。教训已写入 onshape_docs/experience/featurescript.md 的 eval 小节。"
+       "text": "代价教训：当时旧 resolver 在探针未传 part_studio_id 时会隐式遍历文档， 造成大量额外调用；该行为后来已移除。当前 resolver 只接受显式 id 或已有缓存， 二者都没有就会在网络前失败。历史调用估算保留在本记录中，不得当作当前行为； 当前规则见 onshape_docs/experience/featurescript.md 的 eval 小节。"
       },
       {
        "type": "para",
@@ -2984,11 +2961,11 @@
     },
     {
      "level": 2,
-     "title": "追加：gap-probe 收尾（2026-08-14，22 次预算，ledger 469 → 482）",
+     "title": "追加：gap-probe 收尾（2026-08-14；精确结果以 JSON 为准）",
      "blocks": [
       {
        "type": "para",
-       "text": "onshape_docs/scripts/live_gap_probe.py 分两次跑（首次 10 次 + 修正后 13 次，预算 12 越界 1 次——guard 在分区边界检查，最后一个分区可整体越界）。结果在 gap-probe-results.json。"
+       "text": "原叙述称分两次运行并使用 22 次预算；持久化 gap-probe-results.json 记录的是 budget 12、各结果合计 13 次。该差异保留为历史账目误差，不据此推断 当前 guard 或额度。"
       },
       {
        "type": "para",
@@ -3039,15 +3016,15 @@
     },
     {
      "level": 2,
-     "title": "追加：symbol-sweep 与 import 边界强证据（2026-08-14，账户被限流 ~20h）",
+     "title": "追加：symbol-sweep 与 import 边界候选证据（2026-08-14）",
      "blocks": [
       {
        "type": "para",
-       "text": "onshape_docs/scripts/live_symbol_sweep.py（已含：时间戳日志、增量落盘、断点续跑跳过已验证 符号、--budget 0 按未验证余量自适应、2s 节流、429 永不重试）。首轮 bug 白烧 61 次（无限二分 + 429），第二轮修好组件但账户限流。当前账户 Retry-After 72910s（~20h）、Rate-Limit-Remaining 0——2026-08-14 当天探测耗尽突发额度， sweep 暂停，限流过后续跑只补未验证部分。"
+       "text": "onshape_docs/scripts/live_symbol_sweep.py 后来加入时间戳、增量落盘、断点续跑、 自适应预算、节流和 429 停止策略。首轮结果未增量保存，因此本段中的部分 run/调用 叙述没有对应持久化行。当天 Retry-After/remaining 数字是已解除的历史限流快照。"
       },
       {
        "type": "para",
-       "text": "import 边界（强证据但未定论，需限流后确认）：修正形状（precondition 带 annotation { \"Name\" } + as LengthBoundSpec，与实验 01 逐字一致）在 版本 3044.0 → specCount 0（run-4/run-5 两次复现，errorType/errorMessages 全空、非 4xx）；而同形状的实验（3029.0）历史记录 → 1 spec。同一文档/FS/流程 只差版本 → import 3044.0 被静默拒绝（0 specs 无错误文本），边界位于 3029 < 版本 ≤ 3044。这与 eval libraryVersion 报告 3044 并不矛盾——报告的是 运行时版本，FS 编译支持的 std import 上限仍可能是 3029（奖杯/实验声明版本）。 待限流解除后用修正探测复测 3029（应 1 spec）与 3050（应 0 specs）坐实。"
+       "text": "import 边界（unresolved）：历史叙述将实验 3029 的 1 spec 与两次未持久化的 3044 0-spec 结果对比，提出 3029 < version <= 3044 的候选边界。但后续持久化 gap-probe-results.json 和 live-symbol-sweep.json 未形成同一 bound-spec 形状下 3029 接受、3050 拒绝的配对证据，且 0 specs 会被 spec 发射条件混淆。因此这些结果 只支持“版本边界可能存在”的假设，不证明精确边界或静默拒绝。当前 authority 必须 将精确边界报告为 unknown；只有实际任务需要该唯一事实、且获得新的 live 权限和 硬预算时，才设计一次可持久化的配对探针。"
       },
       {
        "type": "para",
@@ -3377,6 +3354,652 @@
          "depth": 0
         }
        ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "mcp-tool-reference",
+   "category": "reference",
+   "path": "docs/generated/TOOL_REFERENCE.md",
+   "sha256": "709d45db20edd60dac6ab1f346723ccd656092e90a60629c36db4973471546aa",
+   "title": "Generated MCP tool reference",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Generated MCP tool reference",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "> Generated by onshape_docs/scripts/build_tool_reference.py from the > registered mcp_main.server.TOOLS and HANDLERS. Do not edit this file > manually. Runtime MCP schemas remain authoritative for complete arguments."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Summary",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Registered tools: 67",
+         "depth": 0
+        },
+        {
+         "text": "Server: onshape-branch-cable-trophy 1.3.0",
+         "depth": 0
+        },
+        {
+         "text": "MCP protocol: 2025-06-18",
+         "depth": 0
+        },
+        {
+         "text": "Capability counts: browser=35, featurescript=10, project_docs=3, rest_operations=13, rest_reference=6",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Safety interpretation",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "network=offline means zero live Onshape REST calls; most entries are local, while an explicitly described reference refresh may use public zero-quota sources.",
+         "depth": 0
+        },
+        {
+         "text": "network=browser consumes zero REST quota but a real UI action may mutate cloud data.",
+         "depth": 0
+        },
+        {
+         "text": "Live REST operations remain disabled unless LIVE_API_ENABLED is explicitly enabled.",
+         "depth": 0
+        },
+        {
+         "text": "api_max is registered metadata, not permission to spend requests.",
+         "depth": 0
+        },
+        {
+         "text": "confirm=yes means the public schema exposes confirm_mutation; callers must still follow host approval.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability: browser",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tool",
+         "Capability",
+         "Required arguments",
+         "Registered safety/cost",
+         "Intent"
+        ],
+        [
+         "browser_add_drawing_dimension",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Run a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verify a selector-count or canvas-image change."
+        ],
+        [
+         "browser_assemble",
+         "browser",
+         "instance_names, instance_selector",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state."
+        ],
+        [
+         "browser_build_part",
+         "browser",
+         "feature_name",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Ensure a Part Studio, apply a custom feature, and return normalized part count and names."
+        ],
+        [
+         "browser_click",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Click a visible element in the Onshape browser by CSS selector and/or visible text (optionally index to pick among matches). When both selector and text are given, the text ma..."
+        ],
+        [
+         "browser_create_document",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Create a new Onshape document through the browser UI (documents page → 创建 → 文档… → name → 创建). Zero Onshape API quota. This mutates the account by creating a document, so it requ..."
+        ],
+        [
+         "browser_create_document_version",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Create a version of the current document through the browser UI so custom features become insertable (the add-custom-feature dialog shows '没有可用的特征' until a version exists). Clic..."
+        ],
+        [
+         "browser_create_drawing",
+         "browser",
+         "source_tab",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame."
+        ],
+        [
+         "browser_create_tab",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Start a Feature Studio, Part Studio, Assembly, or Drawing tab flow by clicking the matching hidden creation-menu item. Zero Onshape API quota. Adding a tab creates a document el..."
+        ],
+        [
+         "browser_delete_element",
+         "browser",
+         "element_id",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Delete a visible document element by its tab data-id and verify that the tab disappears."
+        ],
+        [
+         "browser_delete_tab",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Delete a Feature Studio or Part Studio tab (and its element) from the current Onshape document by its visible name. Right-clicks the tab to open its context menu, clicks 删除, and..."
+        ],
+        [
+         "browser_deploy_and_apply_featurescript",
+         "browser",
+         "script, feature_name",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data."
+        ],
+        [
+         "browser_deploy_featurescript",
+         "browser",
+         "script",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document..."
+        ],
+        [
+         "browser_draw_part",
+         "browser",
+         "source_tab",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Create a Drawing from a named source, add configured dimensions in its frame, and return frame/view state."
+        ],
+        [
+         "browser_eval",
+         "browser",
+         "expression",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Evaluate an arbitrary JavaScript expression in the current Onshape page and return its JSON-serializable result. page.evaluate cannot be guaranteed read-only, so actual executio..."
+        ],
+        [
+         "browser_fix_instances",
+         "browser",
+         "instance_names, instance_selector",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Multi-select named Assembly instances and invoke the 固定 context action."
+        ],
+        [
+         "browser_get_page_tabs",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), marking which one is active. Read-only, zero Onshape API quota. Use it to f..."
+        ],
+        [
+         "browser_get_partstudio_features",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read the Part Studio feature tree and part list currently on screen. Returns the feature-list header, each feature item (with isUserFeature/isDefault classification), and the pa..."
+        ],
+        [
+         "browser_group_instances",
+         "browser",
+         "instance_names, instance_selector",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Multi-select named Assembly instances and invoke the 分组 toolbar action."
+        ],
+        [
+         "browser_insert_assembly_instances",
+         "browser",
+         "instance_names, instance_selector",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Insert named Part Studio or Assembly sources through the Assembly insert dialog."
+        ],
+        [
+         "browser_insert_custom_feature",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. Optionally switches to the given Part Studio tab first, opens t..."
+        ],
+        [
+         "browser_inspect",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read-only inventory of the visible interactive elements on the current Onshape browser page: links, buttons, inputs, menus, tabs, and anything with an aria-label / data-testid...."
+        ],
+        [
+         "browser_open_document",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Open a document from the Onshape documents list by its visible name. Read-only navigation: it goes to the documents list and clicks the matching document link, then returns the..."
+        ],
+        [
+         "browser_open_insert_feature_dialog",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Open the Part Studio '添加自定义特征' dialog through the browser UI so a follow-up browser_create_document_version call can click its '创建一个版本' prompt, or so the caller can inspect the..."
+        ],
+        [
+         "browser_press_key",
+         "browser",
+         "key",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota."
+        ],
+        [
+         "browser_read_featurescript",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read the FeatureScript source currently open in the browser's Ace editor and return it together with the document/workspace/element ids parsed from the page URL. Read-only, zero..."
+        ],
+        [
+         "browser_reconnect",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Detect the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') and click the reconnect link to restore the live session. Read-only session recovery — it does not creat..."
+        ],
+        [
+         "browser_reload",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Attempt a bounded reload of the current browser page. Use this when an Onshape page (especially a Drawing) has been loading for too long. Zero REST API quota and no cloud-data m..."
+        ],
+        [
+         "browser_rename_tab",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Rename a Feature Studio or Part Studio tab in the current Onshape document by its visible name. Double-clicks the tab name to enter rename mode, fills the new name, and commits..."
+        ],
+        [
+         "browser_run_project",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Execute a validated fixture-driven browser modeling project with per-step checkpoints and resume support."
+        ],
+        [
+         "browser_scroll",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Scroll the current Onshape browser page up/down, either the whole window or a specific element matched by a CSS selector. Returns how far it actually scrolled plus the container..."
+        ],
+        [
+         "browser_session",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Inspect or establish the persistent Onshape browser session used by the browser_* tools. action='status' reports whether Playwright is installed, the persistent profile director..."
+        ],
+        [
+         "browser_sync_rest_state",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Explicitly cache browser-observed document/workspace/element ids in REST-owned local state. Performs local file I/O only and no REST request."
+        ],
+        [
+         "browser_type",
+         "browser",
+         "text",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Type text with trusted sequential keyboard events into a main-page or frame target. Zero REST API quota."
+        ],
+        [
+         "browser_wait",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota."
+        ],
+        [
+         "browser_watch",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Record a human-operated Onshape browser session to learn what UI actions do, without spending Onshape API quota. action='start' opens the persistent browser and begins recording..."
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability: featurescript",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tool",
+         "Capability",
+         "Required arguments",
+         "Registered safety/cost",
+         "Intent"
+        ],
+        [
+         "fs_check_version",
+         "featurescript",
+         "-",
+         "network=live; api_max=3; mutating=no; dry_run=no; confirm=no",
+         "Verify the vendored FeatureScript reference version and warn when it may be behind the version you are coding against. Reports the vendored reference version (parsed from the st..."
+        ],
+        [
+         "fs_get_function",
+         "featurescript",
+         "name",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return the full reference entry for one FeatureScript function: exact signature, every parameter with its type, requirement (Optional / Required), description and example, plus..."
+        ],
+        [
+         "fs_get_type",
+         "featurescript",
+         "name",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, EntityType): its kind, description, and each allowed value with type and description..."
+        ],
+        [
+         "fs_guide_section",
+         "featurescript",
+         "page",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return a section of the official FeatureScript language guide as plain text, with code blocks fenced. Omit 'section' to get the whole page plus its heading outline; pass a secti..."
+        ],
+        [
+         "fs_library_source",
+         "featurescript",
+         "module",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return the actual FeatureScript standard library source for a module (for example 'geometry', 'query', 'sweep') from the vendored mirror. With 'function' set, returns only the w..."
+        ],
+        [
+         "fs_list_functions",
+         "featurescript",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "List FeatureScript functions (or types/constants/predicates when kind is set), each with its module, signature, and one-line summary. Filter by module, category, kind, or a name..."
+        ],
+        [
+         "fs_list_modules",
+         "featurescript",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "List the FeatureScript standard library modules (geometry.fs, query.fs, sweep.fs, ...), grouped by the reference site's categories (Modeling, Math, Onshape features, Utilities,..."
+        ],
+        [
+         "fs_quick_reference",
+         "featurescript",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return the curated FeatureScript quick-reference digest (onshape_docs/reference/quick-reference.md): a distilled cheat-sheet covering the language model, feature anatomy, parame..."
+        ],
+        [
+         "fs_search",
+         "featurescript",
+         "query",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Keyword search across every FeatureScript function, type, constant, predicate, and language-guide section in the vendored reference. Results are ranked by how strongly the query..."
+        ],
+        [
+         "fs_update_reference",
+         "featurescript",
+         "confirm_mutation",
+         "network=offline; api_max=0; mutating=yes; dry_run=no; confirm=yes",
+         "Update the vendored FeatureScript reference from FREE sources only - the official FsDoc pages and the standard-library mirror (both public HTTP/GitHub, ZERO Onshape API quota)...."
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability: project_docs",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tool",
+         "Capability",
+         "Required arguments",
+         "Registered safety/cost",
+         "Intent"
+        ],
+        [
+         "docs_list",
+         "project_docs",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "List every page in the project's own structured documentation index (onshape_docs/index.json, built from categorized guide, experience, verification, reference, and example page..."
+        ],
+        [
+         "docs_search",
+         "project_docs",
+         "query",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Keyword search across categorized guide, experience, verification, reference, and example sections. Results include category, page, section, score, and a bounded snippet. Use th..."
+        ],
+        [
+         "docs_section",
+         "project_docs",
+         "page",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read one exact section from the project's categorized guide, experience, verification, reference, or example documentation. Pass page=<page> and optionally section=<heading>. Ca..."
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability: rest_operations",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tool",
+         "Capability",
+         "Required arguments",
+         "Registered safety/cost",
+         "Intent"
+        ],
+        [
+         "onshape_api_quota",
+         "rest_operations",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Report the local API-quota budget: the annual call limit (from apiQuota in onshape_rest_api_mode/config/onshape-state.json), calls consumed so far (local ledger of 2xx/3xx respo..."
+        ],
+        [
+         "onshape_build_parameter_payload",
+         "rest_operations",
+         "parameters",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Convert a local parameter mapping into Onshape's explicit custom-feature parameter blocks. Booleans become BTMParameterBoolean values; strings and numbers become quantity expres..."
+        ],
+        [
+         "onshape_check_model",
+         "rest_operations",
+         "-",
+         "network=live; api_max=3; mutating=no; dry_run=no; confirm=no",
+         "Validate an existing Part Studio through read-only Onshape requests. The result checks custom feature status, exact part count, required part-name prefixes, and bounding limits;..."
+        ],
+        [
+         "onshape_create_validation_part_studio",
+         "rest_operations",
+         "confirm_mutation",
+         "network=live; api_max=1; mutating=yes; dry_run=yes; confirm=yes",
+         "Create a new Part Studio in the configured Onshape document. Each call creates another cloud element; by default it also changes onshape_rest_api_mode/config/onshape-state.json..."
+        ],
+        [
+         "onshape_eval_featurescript",
+         "rest_operations",
+         "script",
+         "network=live; api_max=1; mutating=no; dry_run=no; confirm=yes",
+         "Evaluate a FeatureScript snippet on the live Onshape server. ⚠️ Each call spends 1 API call of the annual quota. Document-first discipline: BEFORE calling this, use the free loc..."
+        ],
+        [
+         "onshape_get_feature_studio_status",
+         "rest_operations",
+         "-",
+         "network=live; api_max=2; mutating=no; dry_run=no; confirm=no",
+         "Read the configured Feature Studio metadata and compiled feature specifications. It reports whether branchCableTrophyDisplay is exposed and how many parameters its compiled spec..."
+        ],
+        [
+         "onshape_get_parameter_set",
+         "rest_operations",
+         "name",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read one maintained local parameter set for the Branch Cable Trophy FeatureScript. The default set produces the detailed 132-part model; preview produces the simplified 65-part..."
+        ],
+        [
+         "onshape_get_project_state",
+         "rest_operations",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read the project's non-secret Onshape document/workspace/element configuration and report whether a credentials file is configured. This is a local operation: it does not read o..."
+        ],
+        [
+         "onshape_instantiate_feature",
+         "rest_operations",
+         "confirm_mutation",
+         "network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes",
+         "Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit parameter set and optional known-parameter overrides. Repeated calls add additiona..."
+        ],
+        [
+         "onshape_list_document_elements",
+         "rest_operations",
+         "-",
+         "network=live; api_max=1; mutating=no; dry_run=no; confirm=no",
+         "List elements in the configured Onshape workspace (names, element types, IDs, microversions). By default it returns the locally cached element table at ZERO API cost — that tabl..."
+        ],
+        [
+         "onshape_render_preview",
+         "rest_operations",
+         "view",
+         "network=live; api_max=1; mutating=no; dry_run=no; confirm=no",
+         "Request one shaded PNG rendering of the existing configured Part Studio from Onshape. The remote operation is read-only but may consume rendering resources. By default it return..."
+        ],
+        [
+         "onshape_run_validation_pipeline",
+         "rest_operations",
+         "confirm_mutation",
+         "network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes",
+         "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a..."
+        ],
+        [
+         "onshape_upload_feature_studio",
+         "rest_operations",
+         "confirm_mutation",
+         "network=live; api_max=3; mutating=yes; dry_run=yes; confirm=yes",
+         "Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled branchCableTrophyDisplay specification. This overwrites cloud Feature Studio content..."
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability: rest_reference",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tool",
+         "Capability",
+         "Required arguments",
+         "Registered safety/cost",
+         "Intent"
+        ],
+        [
+         "onshape_api_auth",
+         "rest_reference",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Onshape authentication reference: the OAuth2 authorization-code workflow (register app, authorize, exchange code for token, use, refresh) and API-key usage (Basic auth). Without..."
+        ],
+        [
+         "onshape_api_endpoint",
+         "rest_reference",
+         "path",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return the full definition of one Onshape REST API operation: method, path, operationId, summary, description, every parameter (name, location path/query/header, required, type,..."
+        ],
+        [
+         "onshape_api_error_codes",
+         "rest_reference",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Onshape REST HTTP response codes and API call limits: every code (200-503) with its category, description and recommended next steps, plus the rate-limit / annual-limit semantic..."
+        ],
+        [
+         "onshape_api_list_tags",
+         "rest_reference",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "List every domain group (tag) in the Onshape REST API with its one-line description: Account, Assembly, Document, Element, FeatureStudio, PartStudio, ... Use it to orient before..."
+        ],
+        [
+         "onshape_api_schema",
+         "rest_reference",
+         "name",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Return a schema definition from the Onshape REST API (a response or request type, e.g. BTDocumentElementInfo, BTMassProperties, BTObjectId): its type, description, required fiel..."
+        ],
+        [
+         "onshape_api_search",
+         "rest_reference",
+         "query",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Keyword search across every Onshape REST API endpoint (method + path + operationId + summary + description), ranked by match strength. Returns method, path, operationId, and sum..."
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Authority",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Use the runtime tools/list schema for complete argument types, defaults, and annotations. Public behavior is implemented by the matching registered handler. Update schemas and handlers together, then regenerate this file and run the MCP protocol tests."
       }
      ]
     }

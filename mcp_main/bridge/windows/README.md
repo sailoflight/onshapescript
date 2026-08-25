@@ -94,19 +94,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp_main\bridge\windows\re
 
 ## Linux/WSL 侧配置
 
-MCP 客户端不直接启动 stdio MCP 包，而是启动中继：
+MCP 客户端不直接启动 stdio MCP 包，而是启动中继。对于 DSH，必须同时安装
+`@deepseek-ai/dsh-mcp-client` 和生成的 runtime-prompt companion；唯一接线示例为：
 
-```json
-{
-  "mcpServers": {
-    "onshape-featurescript": {
-      "command": "python3",
-      "args": ["/home/<user>/code/onshapescript/mcp_main/bridge/mcp_tcp_bridge.py", "8766"],
-      "cwd": "/home/<user>/code/onshapescript"
-    }
-  }
-}
+```text
+mcp_main/bridge/dsh/cordis.patch.yml.example
 ```
+
+将其中 `<repo>` 替换为 WSL 仓库绝对路径并合并到目标 DSH profile。当前 DSH
+MCP client 0.1.0-rc.8 只注册工具，不原生投递 `initialize.instructions`，因此只配置
+relay 会形成 tools-only 不兼容状态。部署前运行：
+
+```bash
+python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 -m unittest dev.tests.test_runtime_prompt -v
+```
+
+其他支持 native MCP instructions 的客户端仍把 stdio command 指向
+`mcp_main/bridge/mcp_tcp_bridge.py 8766`。WSL 不安装 Playwright，也不运行完整
+`python3 -m mcp_main` body。
 
 首次使用 `browser_session(action='login')` 时，Windows 桌面会弹出 Edge 窗口，
 人工完成 Onshape 登录（含 SSO/2FA）。登录态保存在 Windows 侧

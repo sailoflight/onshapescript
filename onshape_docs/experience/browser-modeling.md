@@ -142,6 +142,15 @@
   成功且 `verification_selector` 节点数增加，或 canvas 坐标模式的前后截图 SHA-256
   发生变化时才返回 `drawn:true`。canvas 模式通过 `tool_key`、`canvas_index`、
   `geometry_points` 与 `placement_point` 配置，不依赖 Drawing 内部动态 id。
+- 实测修正（2026-08-24）：**通用「创建工程图…」对话框只会得到空白图纸**。
+  它（`.new-drawing-dialog`）有 `四个视图` / `没有视图` 两个视图布局按钮，但当前
+  `browser_create_drawing` 从不选择视图布局，默认落在「没有视图」→ 创建后 Sheet
+  为空。**带自动视图的工程图必须从 Part Studio 的特定零件右键菜单创建**
+  （右键零件 → `创建工程图`），而不是通用创建对话框。跨域 Drawing iframe 里
+  `Wt-popup.XeDialog.modal`（`插入视图`）需先在源里选零件再点图纸放置，才算真正
+  生成视图；`dispatchEvent` 合成的鼠标事件不被 Onshape 接受，必须走 Playwright
+  可信点击。该缺口已记录到 `docs/roadmap/BROWSER_MODELING_GAPS.md`（L2 工具
+  `browser_drawing_insert_views`）。
 
 ## 11. Fixture 驱动项目与验收
 
