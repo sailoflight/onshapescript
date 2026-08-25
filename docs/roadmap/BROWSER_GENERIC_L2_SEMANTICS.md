@@ -162,48 +162,52 @@ These compose on the existing L1 primitives (`browser_click`/`browser_type`/
   discipline: record into `dev/button-map/` and `onshape_browser_mode/selectors.py`
   before any automation depends on them.
 
-## 8. Inferred high-value features (browser observation + official docs)
+## 8. Inferred high-value features (browser observation + Onshape browser manual)
 
-Cross-referencing the live shell observation with the vendored Onshape REST
-reference, the following app-generic capabilities stand out as high-value
-browser L2/L3 semantics. Each row gives the user intent, the browser evidence
-(what the shell exposes) and the official REST endpoint that would back it.
-Nothing here is implemented; it is a plan input.
+Cross-referencing the live shell observation with the **Onshape browser manual**
+(`cad.onshape.com/help` — the Web UI user guide, not the REST API reference),
+the following app-generic capabilities stand out as high-value browser L2/L3
+semantics. Each row gives the user intent, the browser evidence (what the shell
+exposes), and the browser-manual page that documents the feature. "Export" here
+means the studio/part right-click → export-to-file capability (STEP/OBJ/glTF/
+Parasolid …), not a REST `export` endpoint. Nothing is implemented; this is a
+plan input.
 
-| Feature | User intent | Browser evidence | Official REST reference |
+| Feature | User intent | Browser evidence | Browser-manual page |
 |---|---|---|---|
-| Tab navigation / management | switch, reorder, open-here, close tab | `.os-tab-bar-tablist`, `.os-tab-bar-tab.active`, `.os-tab-name` | `getElementsInDocument` (`/documents/d/{did}/{wvm}/{wvmid}/elements`) |
-| Element context actions (rename/copy/delete/export) | one-element ops independent of Studio type | tab context menu: 重命名/复制/删除/导出… | rename/delete via document element; `export2Json` (`POST /documents/.../e/{eid}/export`), assembly/part-studio `export/step|obj|gltf` |
-| Global / command search | jump to a tool or command from anywhere | `.command-search-trigger`, `.command-search` (alt/⌥c) | UI-only command palette; no REST equivalent (search is client routing) |
-| History tree management | step through document/version history, compare | left rail history/timeline icon, `enter-delayed-regen-button`, `regen-info-button` | `getDocumentHistory` (`GET /documents/.../documenthistory`), `getRevisionHistory...` (`/revisions/...`), `getCurrentMicroversion` |
-| Comments / annotations | add, reply, resolve, attach to a feature | left rail comment bubble; context-menu 添加评论 | `createComment`/`getComments`/`updateComment`/`deleteComment`/`addAttachment` (`/comments`) |
-| Notifications | read unread count, open the notifications drawer | `#user-notification-status` badge `6`, aria 通知; `（6 个未读通知）` | UI-level; notification feed is not exposed over the documented REST surface |
-| Action items | open the action-items page, triage tasks | nav action-items button (「在新窗口中将您导航到"行动项"页面。」) | UI-level; action items are not a documented REST resource |
-| Assigned / review workflows | see who owns a task, hand off | navbar action-item + share icons; `协作完成`/`监控 <part-studio>` | Company/user endpoints; review state is UI-only |
-| Drawing auto-views from a part | insert auto-views from a produced part | tab/part context menu `创建 <name> 的工程图…` | Drawing creation + `browser_drawing_insert_views` coupling (see `BROWSER_MODELING_GAPS.md`) |
-| Workspace / version & unit control | switch workspace, set document units | doc-name menu: 工作区单位/工作区属性/更新工作区/复制工作区 | `getElementsInDocument` in a version/workspace; workspace/version endpoints |
+| Tab navigation / management | switch, reorder, open-here, close document tabs | `.os-tab-bar-tablist`, `.os-tab-bar-tab.active`, `.os-tab-name` | [Document Panel](https://cad.onshape.com/help/Content/Document/document_panel.htm) |
+| Element context actions (rename/copy/delete) | one-element ops independent of Studio type | tab context menu: 重命名/复制/删除/移至文档/创建工程图 | Document Panel + tab context menu |
+| **Export to file (Studio/part right-click)** | export a Studio/part to a file (STEP/OBJ/glTF/Parasolid…) | part/assembly context menu `导出…`; tab `创建 <name> 的工程图…` | [Exporting Files](https://cad.onshape.com/help/Content/File/exporting_files.htm) |
+| Global / command search | jump to a tool or command from anywhere | `.command-search-trigger`, `.command-search` (alt/⌥c) | Browser command-palette (client routing) |
+| History tree management | step through document/version history, compare | left rail history/timeline icon, `enter-delayed-regen-button`, `regen-info-button` | [Monitoring Releases and Tasks](https://cad.onshape.com/help/Content/Release/monitoring_releases_and_tasks.htm) |
+| Comments / annotations | add, reply, resolve, attach to a feature | left rail comment bubble; context-menu 添加评论 | Browser "comments" feature (feature/part annotation) |
+| Notifications | read unread count, open the notifications drawer | `#user-notification-status` badge `6`, aria 通知 | Browser notifications panel |
+| Action items | open the action-items page, triage tasks | nav action-items button (「在新窗口中将您导航到"行动项"页面。」) | [Action Items](https://cad.onshape.com/help/zh_CN/Content/Plans/action-items.htm) |
+| Assigned / review workflows | see who owns a task, hand off | navbar action-item + share icons; `协作完成`/`监控 <part-studio>` | [Monitoring Releases and Tasks](https://cad.onshape.com/help/Content/Release/monitoring_releases_and_tasks.htm) |
+| Drawing auto-views from a part | insert auto-views from a produced part | tab/part context menu `创建 <name> 的工程图…` | Drawing auto-views (coupling; see `BROWSER_MODELING_GAPS.md`) |
+| Workspace / version & unit control | switch workspace, set document units | doc-name menu: 工作区单位/工作区属性/更新工作区/复制工作区 | Document Panel + workspace/version menus |
 
 ### 8.1 Priority and sequencing
 
-- **P0 (browser-only, no live quota)**: tab navigation/management, element
-  context actions, command/global search, view orientation. These reuse existing
-  L1 primitives and `browser_capture_screenshot`; they are the highest-leverage
-  app-generic L2 transactions.
-- **P1 (browser + a small number of read-only REST calls)**: history tree
-  (document/version history), comments list/create. These map to documented
-  endpoints and provide real cross-document value.
-- **P2 (UI-only, may need live quota or human)**: notifications, action items,
-  review workflows. These live mainly in the Onshape web app; a browser L2 that
-  opens the matching page/panel is the honest scope until the REST surface is
-  clarified.
+- **P0 (browser-only, zero live quota)**: tab navigation/management, element
+  context actions, **export-to-file** (STP/OBJ/glTF via studio/part context
+  menu), command/global search, view orientation. These reuse existing L1
+  primitives and `browser_capture_screenshot`; they are the highest-leverage,
+  lowest-cost app-generic L2 transactions.
+- **P1 (browser panel reads, no live calls)**: history tree (document/version
+  history), comments list/create, notifications drawer, action-items page. These
+  are read from the Onshape web panels the manual documents, so a browser L2
+  that opens the matching panel and reads its DOM is the honest, zero-REST scope.
+- **P2 (may need live quota or human)**: review/approval state, release
+  tracking, anything whose backing state is not exposed in the browser DOM.
 
 ### 8.2 Cost discipline
 
-Browser L2 semantics stay zero-REST. When a feature needs backing data (history,
-comments), prefer a browser panel read over a live API call, and reuse the
-`onshape_check_model` / `onshape_list_document_elements` cached paths before any
-live request. Any live call follows the CLAUDE.md hard budget rules (one new
-fact, `expected_live_requests=1`, no retry on 429/5xx).
+Browser L2 semantics stay zero-REST (network=browser, estimated_requests=0).
+When a feature needs backing data (history, comments, notifications), prefer a
+browser panel read over a live API call. Any live call still follows the
+CLAUDE.md hard budget rules (one new fact, `expected_live_requests=1`, no retry
+on 429/5xx, no "write-then-read" confirmation loop).
 
 ## Provenance
 
