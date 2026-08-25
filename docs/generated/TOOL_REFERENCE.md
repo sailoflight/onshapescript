@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Registered tools: **67**
+- Registered tools: **68**
 - Server: `onshape-branch-cable-trophy` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=35, `featurescript`=10, `project_docs`=3, `rest_operations`=13, `rest_reference`=6
+- Capability counts: `browser`=36, `featurescript`=10, `project_docs`=3, `rest_operations`=13, `rest_reference`=6
 
 ## Safety interpretation
 
@@ -26,6 +26,7 @@
 | `browser_add_drawing_dimension` | `browser` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Run a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verify a selector-count or canvas-image change. |
 | `browser_assemble` | `browser` | `instance_names`, `instance_selector` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state. |
 | `browser_build_part` | `browser` | `feature_name` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Ensure a Part Studio, apply a custom feature, and return normalized part count and names. |
+| `browser_capture_screenshot` | `browser` | - | network=browser; api_max=0; mutating=no; dry_run=yes; confirm=no | Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; ze... |
 | `browser_click` | `browser` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Click a visible element in the Onshape browser by CSS selector and/or visible text (optionally `index` to pick among matches). When both selector and text are given, the text ma... |
 | `browser_create_document` | `browser` | - | network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes | Create a new Onshape document through the browser UI (documents page → 创建 → 文档… → name → 创建). Zero Onshape API quota. This mutates the account by creating a document, so it requ... |
 | `browser_create_document_version` | `browser` | - | network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes | Create a version of the current document through the browser UI so custom features become insertable (the add-custom-feature dialog shows '没有可用的特征' until a version exists). Clic... |

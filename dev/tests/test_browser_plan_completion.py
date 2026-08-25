@@ -68,6 +68,10 @@ class FakeLocator:
     def evaluate(self, _script):
         return {"tag": "input", "text": "", "aria": "", "title": "", "id": "x", "cls": ""}
 
+    def screenshot(self, path, full_page=False):
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\nfake-png-bytes")
+        return {"bytes": 21, "fullPage": full_page}
+
 
 class FakeScope:
     def __init__(self, url="https://cad.onshape.com/documents/d/w/w/e/e") -> None:
@@ -607,7 +611,7 @@ class HandlerCompositionTest(unittest.TestCase):
 class PlannedMetadataTest(unittest.TestCase):
     def test_registry_and_cost_contract(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
-        self.assertEqual(len(by_name), 67)
+        self.assertEqual(len(by_name), 68)
         before = len(server.TOOLS)
         browser_tools.install(server.TOOLS, server.HANDLERS)
         self.assertEqual(len(server.TOOLS), before)
@@ -617,11 +621,70 @@ class PlannedMetadataTest(unittest.TestCase):
             tool = by_name[name]
             self.assertEqual(tool["cost"]["estimated_api_requests"], 0)
             self.assertEqual(tool["cost"]["max_api_requests"], 0)
+        # Read-only browser tools need no mutation confirmation and are marked
+        # read-only; all other browser handlers are mutating and must gate on it.
         for name in browser_tools.BROWSER_HANDLERS:
-            if name == "browser_wait":
+            if name in {"browser_wait", "browser_capture_screenshot"}:
+                self.assertNotIn("confirm_mutation", by_name[name]["inputSchema"]["properties"])
+                self.assertTrue(by_name[name]["annotations"]["readOnlyHint"])
                 continue
             self.assertIn("confirm_mutation", by_name[name]["inputSchema"]["properties"])
             self.assertFalse(by_name[name]["annotations"]["readOnlyHint"])
+
+        capture = by_name["browser_capture_screenshot"]
+        self.assertEqual(capture["cost"]["estimated_requests"], 0)
+        self.assertTrue(capture["annotations"]["openWorldHint"])
+        self.assertTrue(capture["annotations"]["readOnlyHint"])
+        self.assertFalse(capture["annotations"]["destructiveHint"])
+        self.assertIn("dry_run", capture["inputSchema"]["properties"])
+        self.assertIn("output_dir", capture["inputSchema"]["properties"])
+
+
+class ScreenshotToolTest(unittest.TestCase):
+    def test_dry_run_is_pure_local(self):
+        with mock.patch.object(browser_tools, "_page", side_effect=AssertionError("session started")):
+            result = browser_tools.browser_capture_screenshot({
+                "selector": ".features-title", "dry_run": True,
+            })
+        self.assertTrue(result["dryRun"])
+        self.assertEqual(result["estimatedApiRequests"], 0)
+        self.assertIn("outputPath", result)
+
+    def test_relative_output_dir_must_stay_in_repo_root(self):
+        with self.assertRaises(ValueError):
+            browser_tools.browser_capture_screenshot({
+                "output_dir": "../escape", "filename": "x.png", "dry_run": True,
+            })
+
+    def test_handler_persists_png_and_returns_sha(self):
+        import hashlib as hl
+        payload = b"\x89PNG\r\n\x1a\nfake-png-bytes"
+        page = FakePage()
+        page.screenshot = lambda path, full_page=False: Path(path).write_bytes(payload)
+        page.target.screenshot = lambda path, full_page=False: Path(path).write_bytes(payload)
+        page.target.wait_for = lambda **kw: None
+        session = FakeSession(page)
+        guard = mock.Mock()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Patch _repo_root so the screenshot lands inside the temporary root.
+            with mock.patch.object(browser_tools, "_repo_root", return_value=Path(tmp)), \
+                 mock.patch("onshape_browser_mode.session.get_session", return_value=session), \
+                 mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+                 mock.patch.object(browser_tools, "_page", return_value=(page, guard)):
+                out_dir = Path(tmp) / "dev" / "screenshots"
+                out_dir.mkdir(parents=True)
+                result = browser_tools.browser_capture_screenshot({
+                    "selector": ".features-title", "output_dir": "dev/screenshots",
+                    "filename": "shot", "data_url": True,
+                })
+                # The persisted file must be readable by vision/read_image tools.
+                persisted = (out_dir / "shot.png").read_bytes()
+            self.assertTrue(result["captured"])
+            self.assertEqual(result["fileName"], "shot.png")
+            self.assertEqual(result["bytes"], len(payload))
+            self.assertEqual(result["sha256"], hl.sha256(payload).hexdigest())
+            self.assertTrue(result["dataUrl"].startswith("data:image/png;base64,"))
+            self.assertEqual(persisted, payload)
 
 
 if __name__ == "__main__":

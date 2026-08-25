@@ -759,7 +759,7 @@ class BrowserMetadataTest(unittest.TestCase):
         self.assertTrue(self.by_name["browser_delete_tab"]["annotations"]["destructiveHint"])
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 67)
+        self.assertEqual(len(server.TOOLS), 68)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -441,6 +445,121 @@ def browser_run_project(arguments: dict[str, Any]) -> dict[str, Any]:
     return run_project(project_name, executor=execute, resume=bool(arguments.get("resume")))
 
 
+def _repo_root() -> Path:
+    """Repository root as seen by whichever side runs this handler.
+
+    Browser handlers execute in the Windows persistent MCP body
+    (``C:\\MCP\\onshapescript``); the file path returned by a screenshot is a
+    Windows path that the Linux/WSL side reads through the ``/mnt/c`` mount.
+    """
+    return Path(__file__).resolve().parents[1]
+
+
+def browser_capture_screenshot(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Capture the current browser page (or a scoped element) to a PNG file.
+
+    This is an L1 generic read operation: it drives the live Browser viewport
+    and persists a PNG that the caller (or the visual tools ``read_image``,
+    ``vision_glance``, ``vision_ground``) can inspect. It does not configure or
+    confirm an Onshape feature, so it needs no mutation confirmation; it does
+    spend one real browser action (subject to the pacing guard).
+
+    ``selector`` scopes the capture to one element's bounding box instead of
+    the whole viewport. ``frame_url`` targets a cross-origin frame (e.g.
+    ``production-drawing-``) by substring. ``full_page`` captures the whole
+    scrollable page. ``output_dir`` is relative to the repository root and must
+    stay inside it; ``filename`` is the PNG basename (a timestamp is appended
+    when omitted). ``data_url`` additionally returns the base64 data URL.
+    """
+    from onshape_browser_mode.pages import resolve_scope, scope_url
+
+    frame_url = arguments.get("frame_url", "")
+    selector = arguments.get("selector", "")
+    if not isinstance(frame_url, str) or not isinstance(selector, str):
+        raise ValueError("frame_url and selector must be strings")
+    full_page = bool(arguments.get("full_page", False))
+    index = arguments.get("index", 0)
+    if not isinstance(index, int) or index < 0:
+        raise ValueError("index must be a non-negative integer")
+
+    output_dir = arguments.get("output_dir", "dev/screenshots")
+    if not isinstance(output_dir, str) or not output_dir.strip():
+        raise ValueError("output_dir must be a non-empty string")
+    root = _repo_root()
+
+    def _resolve_target(value: str) -> Path:
+        candidate = Path(value)
+        if candidate.is_absolute():
+            target = candidate.resolve()
+            if target != root.resolve() and root.resolve() not in target.parents:
+                raise ValueError("output_dir must be inside the repository root")
+            return target
+        return (root / candidate).resolve()
+
+    target_dir = _resolve_target(output_dir)
+    if root.resolve() not in target_dir.parents:
+        raise ValueError("output_dir must be inside the repository root")
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = arguments.get("filename", "")
+    if not isinstance(filename, str):
+        raise ValueError("filename must be a string")
+    if not filename:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        filename = f"screenshot-{stamp}.png"
+    elif not filename.endswith(".png"):
+        filename = f"{filename}.png"
+    out_path = target_dir / filename
+
+    if arguments.get("dry_run"):
+        return {
+            "dryRun": True,
+            "tool": "browser_capture_screenshot",
+            "estimatedApiRequests": 0,
+            "selector": selector,
+            "frameUrl": frame_url,
+            "fullPage": full_page,
+            "outputPath": str(out_path),
+            "note": "No browser session or file write was performed.",
+        }
+
+    page, _ = _page(pace=True)
+    try:
+        scope = resolve_scope(page, frame_url)
+        if selector:
+            locator = scope.locator(selector).nth(index)
+            locator.wait_for(state="visible", timeout=15_000)
+            # Element screenshots are clipped to the element's bounding box;
+            # Playwright's locator.screenshot() does not accept full_page.
+            locator.screenshot(path=str(out_path))
+        else:
+            scope.screenshot(path=str(out_path), full_page=full_page)
+    except Exception as exc:  # noqa: BLE001 - structured browser failure
+        return {
+            "captured": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+            "outputPath": str(out_path),
+            "frameUrl": scope_url(scope) if frame_url else None,
+        }
+
+    data = out_path.read_bytes()
+    sha256 = hashlib.sha256(data).hexdigest()
+    result: dict[str, Any] = {
+        "captured": True,
+        "outputPath": str(out_path),
+        "relativePath": str(out_path.relative_to(root)),
+        "fileName": out_path.name,
+        "sha256": sha256,
+        "bytes": len(data),
+        "selector": selector,
+        "frameUrl": scope_url(scope) if frame_url else None,
+        "pageUrl": page.url,
+    }
+    if arguments.get("data_url"):
+        result["dataUrl"] = "data:image/png;base64," + base64.b64encode(data).decode("ascii")
+    return result
+
+
 def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
     schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": False}
     if required:
@@ -500,6 +619,7 @@ BROWSER_TOOLS = [
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),
     _tool("browser_draw_part", "Create a Drawing from a named source, add configured dimensions in its frame, and return frame/view state.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "default": []}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab"]),
     _tool("browser_run_project", "Execute a validated fixture-driven browser modeling project with per-step checkpoints and resume support.", {"project": {"type": "string", "default": "module-interface-verification"}, "resume": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=600),
+    _tool("browser_capture_screenshot", "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; zero REST API quota; consumes one real browser action subject to the pacing guard.", {"selector": {"type": "string", "default": "", "description": "CSS selector scoped to one element's bounding box; empty captures the whole viewport."}, "frame_url": _FRAME, "index": {"type": "integer", "default": 0, "minimum": 0}, "full_page": {"type": "boolean", "default": False, "description": "Capture the whole scrollable page instead of the viewport."}, "output_dir": {"type": "string", "default": "dev/screenshots", "description": "Relative (or repo-rooted) output directory; must stay inside the repository root."}, "filename": {"type": "string", "default": "", "description": "PNG basename; a UTC timestamp is appended when empty."}, "data_url": {"type": "boolean", "default": False, "description": "Also return the image as a base64 data URL."}, "dry_run": _DRY}, mutating=False, seconds=10),
 ]
 
 BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
@@ -518,6 +638,7 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_assemble": browser_assemble,
     "browser_draw_part": browser_draw_part,
     "browser_run_project": browser_run_project,
+    "browser_capture_screenshot": browser_capture_screenshot,
 }
 
 

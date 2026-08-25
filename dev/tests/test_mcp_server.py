@@ -82,7 +82,7 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("Production / Operator", instructions)
         self.assertIn("permissions never merge", instructions)
         tools = responses[1]["result"]["tools"]
-        self.assertEqual(len(tools), 67)
+        self.assertEqual(len(tools), 68)
         self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
         self.assertIn("browser_session", {t["name"] for t in tools})
         self.assertIn("browser_watch", {t["name"] for t in tools})
@@ -111,7 +111,7 @@ class McpServerTest(unittest.TestCase):
             "browser_create_drawing", "browser_add_drawing_dimension",
             "browser_delete_element", "browser_deploy_and_apply_featurescript",
             "browser_build_part", "browser_assemble", "browser_draw_part",
-            "browser_run_project",
+            "browser_run_project", "browser_capture_screenshot",
         ):
             self.assertIn(planned, {t["name"] for t in tools})
         self.assertIn("docs_list", {t["name"] for t in tools})

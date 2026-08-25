@@ -3363,7 +3363,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "709d45db20edd60dac6ab1f346723ccd656092e90a60629c36db4973471546aa",
+   "sha256": "f35f66d25aa927cd7ad993cfa6a933b6c1ddff6257cc4867300959ce0d9d5145",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -3384,7 +3384,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 67",
+         "text": "Registered tools: 68",
          "depth": 0
         },
         {
@@ -3396,7 +3396,7 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=35, featurescript=10, project_docs=3, rest_operations=13, rest_reference=6",
+         "text": "Capability counts: browser=36, featurescript=10, project_docs=3, rest_operations=13, rest_reference=6",
          "depth": 0
         }
        ]
@@ -3468,6 +3468,13 @@
          "feature_name",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Ensure a Part Studio, apply a custom feature, and return normalized part count and names."
+        ],
+        [
+         "browser_capture_screenshot",
+         "browser",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=yes; confirm=no",
+         "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; ze..."
         ],
         [
          "browser_click",
