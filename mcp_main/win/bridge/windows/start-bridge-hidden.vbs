@@ -5,9 +5,9 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-root = fso.GetAbsolutePathName(fso.BuildPath(scriptDir, "..\..\.."))
+root = fso.GetAbsolutePathName(fso.BuildPath(scriptDir, "..\..\..\.."))
 pythonw = fso.BuildPath(root, ".venv\Scripts\pythonw.exe")
-bridge = fso.BuildPath(root, "mcp_main\bridge\bridge_server.py")
+bridge = fso.BuildPath(root, "mcp_main\win\bridge\bridge_server.py")
 port = "8766"
 If WScript.Arguments.Count > 0 Then port = WScript.Arguments(0)
 

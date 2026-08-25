@@ -18,7 +18,7 @@ from pathlib import Path
 
 PORT = "8766"
 ROOT = Path(__file__).resolve().parents[2]
-BRIDGE = ROOT / "mcp_main" / "bridge" / "mcp_tcp_bridge.py"
+BRIDGE = ROOT / "mcp_main" / "wsl" / "facade" / "mcp_tcp_bridge.py"
 TIMEOUT = 15.0
 
 

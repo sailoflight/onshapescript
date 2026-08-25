@@ -2,21 +2,21 @@
 #
 # This is the "一键自愈" script for a wedged bridge: it force-kills (NOT
 # gracefully closes) both the automation Edge (the one using the onshape_profile
-# user-data-dir) and any python running mcp_main\bridge\bridge_server.py, then starts a
+# user-data-dir) and any python running mcp_main\win\bridge\bridge_server.py, then starts a
 # fresh bridge. Force-kill is deliberate — Onshape logs out when the browser
 # closes gracefully; force-kill preserves the session files so the next launch
 # restores the logged-in documents page via onshape_browser_mode/config/browser-state.json.
 #
 # Usage:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp_main\bridge\windows\restart-bridge.ps1
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\mcp_main\win\bridge\windows\restart-bridge.ps1
 param(
     [int]$Port = 8766
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
 $python = Join-Path $root '.venv\Scripts\pythonw.exe'
-$bridge = Join-Path $root 'mcp_main\bridge\bridge_server.py'
+$bridge = Join-Path $root 'mcp_main\win\bridge\bridge_server.py'
 
 Write-Host "[1/3] force-killing automation Edge (onshape_profile) ..."
 Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" |
@@ -43,4 +43,4 @@ Start-Process -FilePath $python `
     -ArgumentList ('"{0}" {1}' -f $bridge, $Port) `
     -WorkingDirectory $root `
     -WindowStyle Hidden
-Write-Host "done. logs: $root\mcp_main\bridge\logs\bridge-server.log"
+Write-Host "done. logs: $root\mcp_main\win\bridge\logs\bridge-server.log"

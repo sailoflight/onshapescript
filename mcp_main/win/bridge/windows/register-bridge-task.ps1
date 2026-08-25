@@ -8,8 +8,8 @@
 #     again it reconnects and re-discovers tools automatically.
 #
 # Usage (PowerShell):
-#   powershell -ExecutionPolicy Bypass -File .\mcp_main\bridge\windows\register-bridge-task.ps1
-#   powershell -ExecutionPolicy Bypass -File .\mcp_main\bridge\windows\register-bridge-task.ps1 -Uninstall
+#   powershell -ExecutionPolicy Bypass -File .\mcp_main\win\bridge\windows\register-bridge-task.ps1
+#   powershell -ExecutionPolicy Bypass -File .\mcp_main\win\bridge\windows\register-bridge-task.ps1 -Uninstall
 param(
     [switch]$Uninstall,
     [int]$Port = 8766
@@ -28,10 +28,10 @@ if ($Uninstall) {
     exit 0
 }
 
-# ROOT = mcp_main\bridge\windows\..\..\..  (the repository root this script lives in)
-$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+# ROOT = mcp_main\win\bridge\windows\..\..\..\..  (the repository root this script lives in)
+$root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
 $python = Join-Path $root '.venv\Scripts\pythonw.exe'
-$bridge = Join-Path $root 'mcp_main\bridge\bridge_server.py'
+$bridge = Join-Path $root 'mcp_main\win\bridge\bridge_server.py'
 
 if (-not (Test-Path $python)) {
     throw "virtualenv windowless python not found: $python — run the Windows install steps first"
@@ -66,4 +66,4 @@ Write-Host "registered scheduled task '$TaskName'"
 Write-Host "  python : $python (windowless)"
 Write-Host "  bridge : $bridge $Port"
 Write-Host "  trigger: at logon of $env:USERDOMAIN\$env:USERNAME (restart on failure every 1 min)"
-Write-Host "Start it now without a window with:  wscript.exe .\mcp_main\bridge\windows\start-bridge-hidden.vbs"
+Write-Host "Start it now without a window with:  wscript.exe .\mcp_main\win\bridge\windows\start-bridge-hidden.vbs"
