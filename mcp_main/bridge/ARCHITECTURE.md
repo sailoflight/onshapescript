@@ -78,15 +78,15 @@ initialize
 
 | 模板角色 | 本项目实体 |
 |---|---|
-| WSL Facade | `mcp_main/bridge/mcp_tcp_bridge.py`（stdio ↔ TCP，纯 stdlib） |
+| WSL Facade | `mcp_main/wsl/facade/mcp_tcp_bridge.py`（stdio ↔ TCP，纯 stdlib） |
 | 内层数据方案 | loopback TCP `127.0.0.1:8766` |
-| Windows Engine | `mcp_main/bridge/bridge_server.py`（常驻进程内 dispatch） |
-| 工具本体 | `mcp_main/server.py` 的 `TOOLS`/`HANDLERS` |
+| Windows Engine | `mcp_main/win/bridge/bridge_server.py`（常驻进程内 dispatch） |
+| 工具本体 | `mcp_main/win/mcp/server.py` 的 `TOOLS`/`HANDLERS` |
 | Windows 专属资源 | Edge + Playwright + `onshape_browser_mode/user_data/onshape_profile` |
-| Canonical production prompt | `mcp_main/runtime_prompt.py`; revision combines `SERVER_VERSION` with `production-roles-v1` |
-| Initialize implementation | `mcp_main/server.py::dispatch` returns the canonical prompt |
-| DSH Web adapter | `@deepseek-ai/dsh-mcp-client` for tools plus generated `mcp_main/bridge/dsh/runtime-prompt-companion.js` for model-visible policy |
-| Operator runbook | `docs/operations/MCP_RUNBOOK.md` and `mcp_main/bridge/windows/README.md` |
+| Canonical production prompt | `mcp_main/win/mcp/runtime_prompt.py`; revision combines `SERVER_VERSION` with `production-roles-v1` |
+| Initialize implementation | `mcp_main/win/mcp/server.py::dispatch` returns the canonical prompt |
+| DSH Web adapter | `@deepseek-ai/dsh-mcp-client` for tools plus generated `mcp_main/wsl/dsh/runtime-prompt-companion.js` for model-visible policy |
+| Operator runbook | `docs/operations/MCP_RUNBOOK.md` and `mcp_main/win/bridge/windows/README.md` |
 | Verification | MCP protocol/runtime-prompt tests, Windows bridge tests, and `docs/verification/MCP_CLIENT_COMPATIBILITY.md` external-cwd evidence |
 
 Current architecture status: bridge/tool path and canonical prompt are

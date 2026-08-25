@@ -32,7 +32,7 @@ second architecture, operations, or product contract.
 | Windows Engine, WSL stdlib facade, loopback transport, persistent process/session | `../architecture/OVERVIEW.md`, `../../mcp_main/bridge/ARCHITECTURE.md`, `../modules/mcp-main.md` | Implemented architecture |
 | Browser runtime ownership, single working page, reconnect persistence, page objects, selectors | `../modules/browser-mode.md`, `../../onshape_docs/experience/browser-automation.md` | Implemented contract plus reusable verified lesson |
 | Four browser semantic layers L1-L4, dependency direction, checkpoint/resume, state verification | `../modules/browser-mode.md`, `../../onshape_docs/experience/browser-modeling.md`, `../verification/MATRIX.md` | Implemented contract and verification |
-| Windows scheduled task, restart scripts, proxy, deployment health/recovery | `../operations/MCP_RUNBOOK.md`, `../../mcp_main/bridge/windows/README.md` | Operator contract; not development architecture |
+| Windows scheduled task, restart scripts, proxy, deployment health/recovery | `../operations/MCP_RUNBOOK.md`, `../../mcp_main/win/bridge/windows/README.md` | Operator contract; not development architecture |
 | Static MCP schema/handler surface and historical tool counts | Current `mcp_main` schemas plus `../generated/TOOL_REFERENCE.md` | Generated current fact; historical counts are not copied into prose |
 | MCP consumer lookup, cost, confirmation, credential, and error boundary | `../usage/MCP_CONSUMER.md` and public tool schemas | Production / User contract |
 | REST path ownership, environment overrides, quota gate, passive ledger, state and outputs | `../modules/rest-api-mode.md`; quota calibration in `../operations/MCP_RUNBOOK.md` | Implemented module and Operator contract |

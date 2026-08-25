@@ -8,7 +8,7 @@ development material; its directory map is documented in `LAB.md`.
 
 - Python 3 is required for the MCP server, offline indexes, tests, and WSL relay.
 - WSL/Linux is the development repository and offline-test environment.
-- The WSL relay `mcp_main/bridge/mcp_tcp_bridge.py` is stdlib-only.
+- The WSL relay `mcp_main/wsl/facade/mcp_tcp_bridge.py` is stdlib-only.
 - The persistent MCP body, Playwright, Edge, credentials, and browser profile run
   in the Windows deployment copy.
 - Do not install Playwright into the WSL relay environment.
@@ -18,16 +18,16 @@ development material; its directory map is documented in `LAB.md`.
 
 | Purpose | Entrypoint | Boundary |
 |---|---|---|
-| Full stdio MCP body | `python3 -m mcp_main` | Windows runtime entry; browser tools need the Windows session |
-| WSL MCP facade | `python3 mcp_main/bridge/mcp_tcp_bridge.py 8766` | Thin stdio-to-loopback relay; no tool implementation |
-| Windows persistent body | `python mcp_main/bridge/bridge_server.py` | Owns MCP dispatch and persistent browser resources |
+| Full stdio MCP body | `python3 -m mcp_main.win.mcp` | Windows runtime entry; browser tools need the Windows session |
+| WSL MCP facade | `python3 mcp_main/wsl/facade/mcp_tcp_bridge.py 8766` | Thin stdio-to-loopback relay; no tool implementation |
+| Windows persistent body | `python mcp_main/win/bridge/bridge_server.py` | Owns MCP dispatch and persistent browser resources |
 | Offline test suite | `python3 -m unittest discover -s dev/tests -v` | Must run with `LIVE_API_ENABLED` unset |
-| Python syntax check | `python3 -m py_compile mcp_main/*.py mcp_main/bridge/*.py mcp_main/bridge/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py` | Offline |
+| Python syntax check | `python3 -m py_compile mcp_main/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py mcp_main/win/bridge/*.py mcp_main/wsl/*.py mcp_main/wsl/facade/*.py mcp_main/wsl/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py` | Offline |
 | Project-doc index | `python3 onshape_docs/scripts/build_docs_index.py` | Rebuild after changing indexed authored docs |
 | Project-doc verification | `python3 onshape_docs/verification/verify_docs.py` | Offline integrity check |
 | FeatureScript local guard | `python3 onshape_docs/scripts/fs_local_check.py <file-or-directory>` | Run before any upload; zero API calls |
 | Generated tool reference | `python3 onshape_docs/scripts/build_tool_reference.py` | Derived from the registered MCP schemas |
-| DSH runtime-prompt companion | `python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py` | Derived from `mcp_main/runtime_prompt.py`; check with `--check` |
+| DSH runtime-prompt companion | `python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py` | Derived from `mcp_main/win/mcp/runtime_prompt.py`; check with `--check` |
 
 There is no root packaging or build-system manifest. Python modules and the
 Windows browser dependency file are the current executable sources of truth.
@@ -54,7 +54,7 @@ Windows browser dependency file are the current executable sources of truth.
 | REST credentials and quota ledger | `onshape_rest_api_mode/config/` | No where secret/runtime | Never expose values in prompts, fixtures, or logs |
 | REST generated outputs | `onshape_rest_api_mode/outputs/` | Runtime | REST module owns output lifecycle |
 | Example parameter sets | `examples/branch-cable-trophy/config/` | Yes | The example owns its model inputs |
-| Bridge logs | `mcp_main/bridge/logs/` | Runtime | Windows MCP body owns them |
+| Bridge logs | `mcp_main/win/bridge/logs/` | Runtime | Windows MCP body owns them |
 | Tests/probes/fixtures | `dev/` | Mixed | See `LAB.md`; no project documentation is owned there |
 | Authored domain docs | `onshape_docs/` and `docs/` | Yes | Rebuild `onshape_docs/index.json` after indexed changes |
 

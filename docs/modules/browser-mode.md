@@ -11,7 +11,7 @@ Status: verified
 
 ## Does not own
 
-- MCP JSON-RPC registry/dispatch: `mcp_main` (browser adapters live in `mcp_main/browser_tools.py`).
+- MCP JSON-RPC registry/dispatch: `mcp_main` (browser adapters live in `mcp_main/win/mcp/browser_tools.py`).
 - REST credentials, quota, transport, or stable target-state authority: `onshape_rest_api_mode`.
 - Reusable browser behavior documentation and verification reports: `onshape_docs`.
 - Capture/test scripts and fixtures: `dev/`.
@@ -25,7 +25,7 @@ Status: verified
 | Page objects | `onshape_browser_mode/pages/` | Page/frame/locator semantics |
 | Selectors | `onshape_browser_mode/selectors.py` | Shared observed selectors |
 | Project workflows | `onshape_browser_mode/project.py` | Fixture-driven project execution and checkpoints |
-| MCP adapters | `mcp_main/browser_tools.py` | Public browser tool schemas and handler installation |
+| MCP adapters | `mcp_main/win/mcp/browser_tools.py` | Public browser tool schemas and handler installation |
 | Module tests | `dev/tests/test_browser_mode.py` | Session, selectors, configuration, and browser behavior with mocks |
 | Workflow tests | `dev/tests/test_browser_plan_completion.py` | Tool coverage, dry-run, fixtures, checkpoints, and completion contracts |
 
@@ -75,7 +75,7 @@ L4 fixture-driven projects
 | Tool schema, dry-run, semantic workflow, project/checkpoint | `python3 -m unittest dev.tests.test_browser_plan_completion dev.tests.test_mcp_server -v` |
 | Configuration/path ownership | `python3 -m unittest dev.tests.test_project_layout -v` |
 | Windows bridge integration | Offline bridge tests first; use the Operator runbook for an explicitly authorized Windows smoke test |
-| Any Python change | Matching tests plus `python3 -m py_compile onshape_browser_mode/*.py mcp_main/browser_tools.py` |
+| Any Python change | Matching tests plus `python3 -m py_compile onshape_browser_mode/*.py mcp_main/win/mcp/browser_tools.py` |
 
 Offline regression does not start a real browser, edit a cloud document, or enable `LIVE_API_ENABLED`.
 

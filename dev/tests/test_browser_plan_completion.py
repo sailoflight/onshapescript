@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mcp_main import browser_tools, server  # noqa: E402
+from mcp_main.win.mcp import browser_tools, server  # noqa: E402
 from onshape_browser_mode import interaction, listener, project, semantic  # noqa: E402
 from onshape_browser_mode.pages import (  # noqa: E402
     AmbiguousFrameError,

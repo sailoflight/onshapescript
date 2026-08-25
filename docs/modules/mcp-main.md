@@ -20,13 +20,16 @@ Status: verified
 
 | Kind | Path or symbol | Purpose |
 |---|---|---|
-| Runtime | `mcp_main/__main__.py` | Full stdio MCP body entry |
-| Runtime prompt authority | `mcp_main/runtime_prompt.py` | Canonical revisioned User/Operator policy returned by initialize |
-| DSH companion generator | `mcp_main/bridge/dsh/build_runtime_prompt_companion.py` | Generates the namespaced prompt plugin for DSH clients without native instructions projection |
-| Registry/dispatch | `mcp_main/server.py` | Server identity, tool schemas, `TOOLS`, `HANDLERS`, dispatch, and serve loop |
-| Browser registration | `mcp_main/browser_tools.py` | Browser tool schemas, handler adapters, and installation |
-| WSL facade | `mcp_main/bridge/mcp_tcp_bridge.py` | stdio-to-loopback TCP relay |
-| Windows engine | `mcp_main/bridge/bridge_server.py` | Persistent in-process MCP dispatch and browser ownership |
+| Runtime (Win MCP body) | `mcp_main/win/mcp/__main__.py` | Full stdio MCP body entry |
+| Runtime prompt authority | `mcp_main/win/mcp/runtime_prompt.py` | Canonical revisioned User/Operator policy returned by initialize |
+| Server identity | `mcp_main/win/mcp/identity.py` | `SERVER_NAME`/`SERVER_VERSION`/`PROTOCOL_VERSION` |
+| DSH companion generator | `mcp_main/wsl/dsh/build_runtime_prompt_companion.py` | Generates the namespaced prompt plugin for DSH clients without native instructions projection |
+| Registry/dispatch | `mcp_main/win/mcp/server.py` | Server identity, tool schemas, `TOOLS`, `HANDLERS`, dispatch, and serve loop |
+| Browser registration | `mcp_main/win/mcp/browser_tools.py` | Browser tool schemas, handler adapters, and installation |
+| WSL facade (relay) | `mcp_main/wsl/facade/mcp_tcp_bridge.py` | stdio-to-loopback TCP relay |
+| Windows engine (bridge) | `mcp_main/win/bridge/bridge_server.py` | Persistent in-process MCP dispatch and browser ownership |
+| WSL bridge control | `mcp_main/wsl/wsl_bridge_ctl.sh` | WSL-side start/restart/status trigger for the Windows bridge |
+| DSH plugin wiring | `mcp_main/wsl/dsh/cordis.patch.yml.example` | Two-entry DSH profile patch (MCP client + runtime-prompt companion) |
 | Generic bridge contract | `mcp_main/bridge/ARCHITECTURE.md` | Windows/WSL invariants |
 | Protocol tests | `dev/tests/test_mcp_server.py` | Initialization, tool list, local calls, result and secret boundaries |
 | Bridge tests | `dev/tests/test_windows_bridge_scripts.py` | Windows deployment script contracts |
@@ -34,7 +37,7 @@ Status: verified
 ## Contracts and invariants
 
 - Tool names are unique and every externally callable registered schema has a handler.
-- Browser tools are installed into the complete MCP registry through `mcp_main.browser_tools`.
+- Browser tools are installed into the complete MCP registry through `mcp_main.win.mcp.browser_tools`.
 - The protocol version, server identity, runtime production-role prompt, tool schema, and handler dispatch are defined by current code, not prose tool counts.
 - The prompt contains actionable `Production / User` and `Production / Operator` routing/boundaries, not an MCP introduction, and is returned through initialization independently of repository instructions.
 - Raw/relay clients use native instructions. DSH 0.1.0-rc.8 uses the generated namespaced companion; a tools-only DSH installation is unsupported.
@@ -47,18 +50,18 @@ Status: verified
 
 ## Dependencies
 
-- Allowed: query APIs from `onshape_docs`, guarded operations from `onshape_rest_api_mode`, and browser handler installation from `mcp_main.browser_tools`/`onshape_browser_mode`.
+- Allowed: query APIs from `onshape_docs`, guarded operations from `onshape_rest_api_mode`, and browser handler installation from `mcp_main.win.mcp.browser_tools`/`onshape_browser_mode`.
 - Forbidden: moving module-owned runtime state or credentials into `mcp_main`; importing Windows browser dependencies into the WSL relay; bypassing module safety gates in wrapper handlers.
 
 ## Data, configuration, and generated files
 
 | Item | Owner | Behavior | Source of truth |
 |---|---|---|---|
-| Runtime production-role prompt | `mcp_main/runtime_prompt.py` plus `mcp_main/identity.py` | Returned by initialize; revisioned with deployed server behavior | Edit canonical source, then regenerate and test |
-| DSH prompt companion | Generated `mcp_main/bridge/dsh/runtime-prompt-companion.js` | Contributes one namespaced system-prompt section | `python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py` |
-| Tool schemas | `mcp_main/server.py`, `mcp_main/browser_tools.py` | Registered at import/startup | `TOOLS` and browser tool definitions |
+| Runtime production-role prompt | `mcp_main/win/mcp/runtime_prompt.py` plus `mcp_main/win/mcp/identity.py` | Returned by initialize; revisioned with deployed server behavior | Edit canonical source, then regenerate and test |
+| DSH prompt companion | Generated `mcp_main/wsl/dsh/runtime-prompt-companion.js` | Contributes one namespaced system-prompt section | `python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py` |
+| Tool schemas | `mcp_main/win/mcp/server.py`, `mcp_main/win/mcp/browser_tools.py` | Registered at import/startup | `TOOLS` and browser tool definitions |
 | Tool handlers | Same modules | Dispatch by exact registered name | `HANDLERS` and browser handler map |
-| Bridge log | `mcp_main/bridge/logs/bridge-server.log` | Windows runtime diagnostics | `bridge_server.LOG_PATH` |
+| Bridge log | `mcp_main/win/bridge/logs/bridge-server.log` | Windows runtime diagnostics | `bridge_server.LOG_PATH` |
 | Generated tool reference | `docs/generated/TOOL_REFERENCE.md` | Rebuilt offline | Registered schemas and handlers |
 
 ## Verification

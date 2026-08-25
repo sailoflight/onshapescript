@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mcp_main.identity import SERVER_VERSION
+from mcp_main.win.mcp.identity import SERVER_VERSION
 
 RUNTIME_PROMPT_POLICY_REVISION = "production-roles-v1"
 RUNTIME_PROMPT_REVISION = f"{SERVER_VERSION}/{RUNTIME_PROMPT_POLICY_REVISION}"

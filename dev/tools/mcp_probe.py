@@ -1,6 +1,6 @@
 """Minimal end-to-end probe for the Linux<->Windows Onshape MCP bridge.
 
-Spawns `mcp_main/bridge/mcp_tcp_bridge.py` as a stdio child, performs a JSON-RPC MCP
+Spawns `mcp_main/wsl/facade/mcp_tcp_bridge.py` as a stdio child, performs a JSON-RPC MCP
 handshake through it, calls `browser_session(action='status')`, then idles with
 the connection open to prove the persistent link survives quiet periods.
 

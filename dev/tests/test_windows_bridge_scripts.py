@@ -9,12 +9,12 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-WINDOWS = ROOT / "mcp_main" / "bridge" / "windows"
-BRIDGE = ROOT / "mcp_main" / "bridge"
+WINDOWS = ROOT / "mcp_main" / "win" / "bridge" / "windows"
+BRIDGE = ROOT / "mcp_main" / "wsl"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mcp_main.bridge import bridge_server  # noqa: E402
+from mcp_main.win.bridge import bridge_server  # noqa: E402
 
 
 class WindowlessBridgeScriptTest(unittest.TestCase):

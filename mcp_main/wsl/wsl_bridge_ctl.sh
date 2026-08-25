@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # WSL-side one-shot control for the Windows-hosted onshapescript MCP bridge.
 #
-# The bridge body (mcp_main/bridge/bridge_server.py -> mcp_main.server.dispatch)
+# The bridge body (mcp_main/win/bridge/bridge_server.py -> mcp_main.win.mcp.server.dispatch)
 # must run on Windows so it can drive a real Edge window with the persistent
 # onshape_browser_mode\user_data\onshape_profile login. This script only *triggers*
 # the Windows-side hidden launchers via WSL interop; it never starts
 # bridge_server.py in WSL.
 #
 # Ported strictly from taobao-mcp tools/wsl_bridge_ctl.sh, adjusted only for
-# this project's paths: the Windows launchers live under mcp_main\bridge\windows\
+# this project's paths: the Windows launchers live under mcp_main\win\bridge\windows\
 # and the default bridge port is 8766.
 #
 # Usage:
-#   mcp_main/bridge/wsl_bridge_ctl.sh start     # windowless start on Windows
-#   mcp_main/bridge/wsl_bridge_ctl.sh restart   # force-kill browser+bridge, then start
-#   mcp_main/bridge/wsl_bridge_ctl.sh status    # check loopback port (no Windows call)
+#   mcp_main/wsl/wsl_bridge_ctl.sh start     # windowless start on Windows
+#   mcp_main/wsl/wsl_bridge_ctl.sh restart   # force-kill browser+bridge, then start
+#   mcp_main/wsl/wsl_bridge_ctl.sh status    # check loopback port (no Windows call)
 #
 # Env overrides:
 #   ONSHAPE_WIN_ROOT      Windows repo root (default C:\MCP\onshapescript)

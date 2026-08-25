@@ -9,7 +9,7 @@
         transport: stdio
         command: python3
         args:
-          - <repo>/mcp_main/bridge/mcp_tcp_bridge.py
+          - <repo>/mcp_main/wsl/facade/mcp_tcp_bridge.py
           - '8766'
         cwd: <repo>
         toolCallTimeoutMs: 300000
@@ -20,5 +20,5 @@
           maxDelayMs: 30000
           maxAttempts: 10
     - id: mcp-onshape-runtime-policy
-      name: <repo>/mcp_main/bridge/dsh/runtime-prompt-companion.js
+      name: <repo>/mcp_main/wsl/dsh/runtime-prompt-companion.js
       config: {}

@@ -22,7 +22,7 @@ The request budget was zero REST API calls and zero cloud mutations.
 
 ## Setup and procedure
 
-1. Started an MCP client against `mcp_main/bridge/mcp_tcp_bridge.py` on port 8766.
+1. Started an MCP client against `mcp_main/wsl/facade/mcp_tcp_bridge.py` on port 8766.
 2. Initialized MCP protocol version 2025-06-18.
 3. Called `browser_session(action="status")`.
 4. Called `browser_session(action="login")`, whose contract only reuses a valid session, tries the saved Onshape entry URL, or opens the public sign-in page.

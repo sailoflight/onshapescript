@@ -45,7 +45,7 @@ Current cross-module boundaries are documented in
 Full stdio body:
 
 ```bash
-python3 -m mcp_main
+python3 -m mcp_main.win.mcp
 ```
 
 In the Windows/WSL browser deployment, the MCP client in WSL launches only the
@@ -56,7 +56,7 @@ stdlib relay:
   "mcpServers": {
     "onshape-featurescript": {
       "command": "python3",
-      "args": ["/home/<user>/code/onshapescript/mcp_main/bridge/mcp_tcp_bridge.py", "8766"],
+      "args": ["/home/<user>/code/onshapescript/mcp_main/wsl/facade/mcp_tcp_bridge.py", "8766"],
       "cwd": "/home/<user>/code/onshapescript"
     }
   }
@@ -66,7 +66,7 @@ stdlib relay:
 The persistent MCP body and browser run in the Windows deployment copy. The
 Engine returns the canonical `Production / User` and `Production / Operator`
 policy during initialization. Clients without native instructions projection
-must install the generated companion under `mcp_main/bridge/dsh/`. See the
+must install the generated companion under `mcp_main/wsl/dsh/`. See the
 Operator runbook before installing, starting, restarting, or recovering it.
 
 ## Capabilities
@@ -101,8 +101,8 @@ Run offline with `LIVE_API_ENABLED` unset:
 
 ```bash
 python3 -m unittest discover -s dev/tests -v
-python3 -m py_compile mcp_main/*.py mcp_main/bridge/*.py mcp_main/bridge/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 -m py_compile mcp_main/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py mcp_main/win/bridge/*.py mcp_main/wsl/*.py mcp_main/wsl/facade/*.py mcp_main/wsl/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
 ```
 
 The complete change-to-check mapping is `docs/verification/MATRIX.md`.

@@ -8,8 +8,8 @@ import sys
 import traceback
 from typing import Any, Callable
 
-from mcp_main.identity import PROTOCOL_VERSION, SERVER_NAME, SERVER_VERSION
-from mcp_main.runtime_prompt import RUNTIME_PROMPT
+from mcp_main.win.mcp.identity import PROTOCOL_VERSION, SERVER_NAME, SERVER_VERSION
+from mcp_main.win.mcp.runtime_prompt import RUNTIME_PROMPT
 from onshape_docs.query import fs_reference, onshape_api_reference, onshape_api_docs, project_docs
 from onshape_rest_api_mode.budget import live_blocker
 from onshape_rest_api_mode.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
@@ -1702,7 +1702,7 @@ TOOLS: list[dict[str, Any]] = [
             "the browser session state, and the current page URL — zero Onshape API quota. "
             "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
             "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
-            "browser_* calls. The browser runs on the Windows host (see mcp_main/bridge/windows/README.md); the "
+            "browser_* calls. The browser runs on the Windows host (see mcp_main/win/bridge/windows/README.md); the "
             "Linux side only relays MCP stdio over the loopback bridge. If Playwright is not installed "
             "on the Windows host, this tool returns a clear setup error instead of failing the MCP server."
         ),
@@ -2457,7 +2457,7 @@ HANDLERS: dict[str, ToolHandler] = {
 }
 
 
-from mcp_main.browser_tools import install as _install_browser_tools
+from mcp_main.win.mcp.browser_tools import install as _install_browser_tools
 
 
 def _complete_cost_metadata(tools: list[dict[str, Any]]) -> None:

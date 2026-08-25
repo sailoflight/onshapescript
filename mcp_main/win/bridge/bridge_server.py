@@ -1,7 +1,7 @@
 """Windows-side localhost bridge: persistent in-process MCP server over TCP.
 
 Run this on the Windows host (once, keeps running):
-    C:\\MCP\\onshapescript\\.venv\\Scripts\\python.exe C:\\MCP\\onshapescript\\tools\\bridge_server.py [port]
+    C:\\MCP\\onshapescript\\.venv\\Scripts\\python.exe C:\\MCP\\onshapescript\\mcp_main\\win\\bridge\\bridge_server.py [port]
 
 WSL (mirrored networking) connects to 127.0.0.1:<port>. The bridge serves the
 JSON-RPC protocol directly from THIS process (no per-connection child) because
@@ -9,8 +9,8 @@ Onshape's web client logs out the moment the browser closes and has no
 "keep me signed in" option. The Playwright browser therefore must live in a
 process that survives MCP client disconnects/reconnects:
 
-    Linux MCP client -> mcp_main/bridge/mcp_tcp_bridge.py -> this process
-        -> mcp_main.server.dispatch() -> BrowserSession (persistent Edge)
+    Linux MCP client -> mcp_main/wsl/facade/mcp_tcp_bridge.py -> this process
+        -> mcp_main.win.mcp.server.dispatch() -> BrowserSession (persistent Edge)
 
 Single-copy rule
 ----------------
@@ -29,11 +29,11 @@ import threading
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mcp_main.server import dispatch, response  # noqa: E402  (needs ROOT on sys.path)
+from mcp_main.win.mcp.server import dispatch, response  # noqa: E402  (needs ROOT on sys.path)
 
 LOG_PATH = Path(__file__).resolve().parent / "logs" / "bridge-server.log"
 HOST = "127.0.0.1"
@@ -63,7 +63,7 @@ def _parse_error() -> dict:
 
 
 def _dispatch_line(line: bytes) -> dict | None:
-    """Mirror mcp_main.server.serve()'s per-line protocol handling."""
+    """Mirror mcp_main.win.mcp.server.serve()'s per-line protocol handling."""
     try:
         message = json.loads(line.decode("utf-8"))
         if not isinstance(message, dict):

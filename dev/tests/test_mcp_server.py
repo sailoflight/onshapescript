@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from mcp_main.runtime_prompt import RUNTIME_PROMPT, RUNTIME_PROMPT_REVISION
+from mcp_main.win.mcp.runtime_prompt import RUNTIME_PROMPT, RUNTIME_PROMPT_REVISION
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def invoke(messages: list[dict]) -> tuple[list[dict], str]:
     wire = "".join(json.dumps(message, separators=(",", ":")) + "\n" for message in messages)
     process = subprocess.run(
-        ["python3", "-m", "mcp_main"],
+        ["python3", "-m", "mcp_main.win.mcp"],
         input=wire,
         text=True,
         stdout=subprocess.PIPE,

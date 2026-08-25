@@ -10,9 +10,9 @@ data, or mutate Onshape.
 
 ```text
 WSL MCP client
-  -> mcp_main/bridge/mcp_tcp_bridge.py (stdio <-> 127.0.0.1:8766)
-  -> Windows mcp_main/bridge/bridge_server.py (persistent dispatch)
-  -> mcp_main.server
+  -> mcp_main/wsl/facade/mcp_tcp_bridge.py (stdio <-> 127.0.0.1:8766)
+  -> Windows mcp_main/win/bridge/bridge_server.py (persistent dispatch)
+  -> mcp_main.win.mcp.server
   -> onshape_browser_mode -> visible Edge browser
 ```
 
@@ -23,7 +23,7 @@ WSL MCP client
 - Client socket disconnect/reconnect does not close the Windows browser. Stopping the bridge does.
 
 The detailed deployment scripts remain authoritative in
-`../../mcp_main/bridge/windows/README.md`.
+`../../mcp_main/win/bridge/windows/README.md`.
 
 ## Preconditions and access
 
@@ -80,14 +80,14 @@ The MCP client launches the relay, not the full MCP body:
   "mcpServers": {
     "onshape-featurescript": {
       "command": "python3",
-      "args": ["/home/<user>/code/onshapescript/mcp_main/bridge/mcp_tcp_bridge.py", "8766"],
+      "args": ["/home/<user>/code/onshapescript/mcp_main/wsl/facade/mcp_tcp_bridge.py", "8766"],
       "cwd": "/home/<user>/code/onshapescript"
     }
   }
 }
 ```
 
-Do not use `python3 -m mcp_main` as the WSL browser entry and do not install
+Do not use `python3 -m mcp_main.win.mcp` as the WSL browser entry and do not install
 Playwright in the WSL relay environment. Initialization must also deliver the
 revisioned `Production / User` and `Production / Operator` runtime policy before
 the first model tool decision; a client that only lists tools is not healthy.
@@ -96,14 +96,14 @@ the first model tool decision; a client that only lists tools is not healthy.
 
 DSH `@deepseek-ai/dsh-mcp-client` 0.1.0-rc.8 registers tools but does not
 natively project `initialize.instructions`. Install the MCP client and both
-entries in `mcp_main/bridge/dsh/cordis.patch.yml.example`, replacing `<repo>`
+entries in `mcp_main/wsl/dsh/cordis.patch.yml.example`, replacing `<repo>`
 with the WSL checkout path. The second entry loads the generated namespaced
 prompt companion.
 
 Before changing a DSH profile:
 
 ```bash
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
 python3 -m unittest dev.tests.test_runtime_prompt -v
 ```
 

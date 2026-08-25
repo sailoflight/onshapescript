@@ -1,7 +1,7 @@
 # Windows 侧浏览器桥接部署
 
 浏览器自动化在 Windows 上运行：真实 Edge 窗口 + 持久化登录 profile。
-Linux/WSL 侧只运行 `mcp_main/bridge/mcp_tcp_bridge.py` 做 stdio↔TCP 中继，不安装任何
+Linux/WSL 侧只运行 `mcp_main/wsl/facade/mcp_tcp_bridge.py` 做 stdio↔TCP 中继，不安装任何
 浏览器内核依赖。
 
 ## 架构
@@ -10,13 +10,13 @@ Linux/WSL 侧只运行 `mcp_main/bridge/mcp_tcp_bridge.py` 做 stdio↔TCP 中�
 Linux MCP 客户端 (stdio)
         │ spawn
         ▼
-mcp_main/bridge/mcp_tcp_bridge.py (Linux)   stdio ↔ TCP
+mcp_main/wsl/facade/mcp_tcp_bridge.py (Linux)   stdio ↔ TCP
         │ 127.0.0.1:8766 (WSL2 镜像网络)
         ▼
-mcp_main/bridge/bridge_server.py (Windows)  常驻进程内 MCP dispatch（不拉起子进程）
+mcp_main/win/bridge/bridge_server.py (Windows)  常驻进程内 MCP dispatch（不拉起子进程）
         │
         ▼
-mcp_main.server → onshape_browser_mode → Edge（浏览器随常驻进程存活）
+mcp_main.win.mcp.server → onshape_browser_mode → Edge（浏览器随常驻进程存活）
 ```
 
 - 默认端口：`8766`
@@ -98,7 +98,7 @@ MCP 客户端不直接启动 stdio MCP 包，而是启动中继。对于 DSH，�
 `@deepseek-ai/dsh-mcp-client` 和生成的 runtime-prompt companion；唯一接线示例为：
 
 ```text
-mcp_main/bridge/dsh/cordis.patch.yml.example
+mcp_main/wsl/dsh/cordis.patch.yml.example
 ```
 
 将其中 `<repo>` 替换为 WSL 仓库绝对路径并合并到目标 DSH profile。当前 DSH
@@ -106,13 +106,13 @@ MCP client 0.1.0-rc.8 只注册工具，不原生投递 `initialize.instructions
 relay 会形成 tools-only 不兼容状态。部署前运行：
 
 ```bash
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
 python3 -m unittest dev.tests.test_runtime_prompt -v
 ```
 
 其他支持 native MCP instructions 的客户端仍把 stdio command 指向
-`mcp_main/bridge/mcp_tcp_bridge.py 8766`。WSL 不安装 Playwright，也不运行完整
-`python3 -m mcp_main` body。
+`mcp_main/wsl/facade/mcp_tcp_bridge.py 8766`。WSL 不安装 Playwright，也不运行完整
+`python3 -m mcp_main.win.mcp` body。
 
 首次使用 `browser_session(action='login')` 时，Windows 桌面会弹出 Edge 窗口，
 人工完成 Onshape 登录（含 SSO/2FA）。登录态保存在 Windows 侧

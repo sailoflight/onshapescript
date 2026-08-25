@@ -22,23 +22,23 @@ tests, and path-ownership tests cited by the module contracts.
 ```text
 MCP client in WSL/Linux
   -> client adapter (tools + trusted runtime-prompt projection)
-  -> mcp_main/bridge/mcp_tcp_bridge.py (stdio <-> loopback TCP, stdlib only)
-  -> Windows mcp_main/bridge/bridge_server.py (persistent MCP body)
-  -> mcp_main.server initialization, dual-production-role prompt, dispatch and handlers
+  -> mcp_main/wsl/facade/mcp_tcp_bridge.py (stdio <-> loopback TCP, stdlib only)
+  -> Windows mcp_main/win/bridge/bridge_server.py (persistent MCP body)
+  -> mcp_main.win.mcp.server initialization, dual-production-role prompt, dispatch and handlers
        -> onshape_docs query/index layer (offline)
        -> onshape_rest_api_mode (guarded live REST boundary)
        -> onshape_browser_mode (Windows Playwright/Edge boundary)
 ```
 
 The Windows body owns persistent browser resources, credentials, and the
-canonical runtime prompt in `mcp_main/runtime_prompt.py` for
+canonical runtime prompt in `mcp_main/win/mcp/runtime_prompt.py` for
 `Production / User` and `Production / Operator`. The WSL facade forwards the
 complete MCP initialization result without rewriting that prompt. Each
 supported client adapter projects the trusted, namespaced prompt before its
 first model tool decision: native instructions where supported, otherwise the
-generated companion under `mcp_main/bridge/dsh/`. Registering tool schemas alone
+generated companion under `mcp_main/wsl/dsh/`. Registering tool schemas alone
 is insufficient. Reconnecting the WSL facade must not destroy Windows state or
-accumulate prompt generations. The full `python3 -m mcp_main` stdio entry exists
+accumulate prompt generations. The full `python3 -m mcp_main.win.mcp` stdio entry exists
 for the MCP body and protocol tests; it is not the WSL browser runtime entry.
 
 The generic bridge contract and project mapping are in
@@ -48,10 +48,10 @@ The generic bridge contract and project mapping are in
 
 | Module | Owns | Does not own | Entrypoint | Contract |
 |---|---|---|---|---|
-| `mcp_main` | MCP protocol, tool schemas, dispatch, browser-tool installation, WSL/Windows bridge | Domain reference data, REST transport policy, browser page behavior | `mcp_main/__main__.py`, `mcp_main/server.py` | `../modules/mcp-main.md` |
+| `mcp_main` | MCP protocol, tool schemas, dispatch, browser-tool installation, WSL/Windows bridge | Domain reference data, REST transport policy, browser page behavior | `mcp_main/win/mcp/__main__.py`, `mcp_main.win.mcp.server.py` | `../modules/mcp-main.md` |
 | `onshape_docs` | Authored domain docs, vendored reference, offline indexes, query APIs, doc verification | Credentials, live REST state, browser session | `onshape_docs/query/`, `onshape_docs/scripts/` | `../modules/onshape-docs.md` |
 | `onshape_rest_api_mode` | REST request building/transport, quota and live gates, stable target state, REST outputs | MCP wire protocol, browser UI session, authored reference | `onshape_rest_api_mode/operations.py` | `../modules/rest-api-mode.md` |
-| `onshape_browser_mode` | Browser configuration, persistent session, page objects, selectors, browser workflows and checkpoints | REST quota accounting, MCP wire protocol, upstream documentation | `onshape_browser_mode/session.py`, `mcp_main/browser_tools.py` | `../modules/browser-mode.md` |
+| `onshape_browser_mode` | Browser configuration, persistent session, page objects, selectors, browser workflows and checkpoints | REST quota accounting, MCP wire protocol, upstream documentation | `onshape_browser_mode/session.py`, `mcp_main/win/mcp/browser_tools.py` | `../modules/browser-mode.md` |
 | `examples/branch-cable-trophy` | Example FeatureScript, parameter sets, validation contract and workflow scripts | Shared runtime configuration or general MCP behavior | Example README and scripts | Existing example documentation |
 | `dev` | Executable tests, probes, captures, fixtures, and development helpers | Project documentation and runtime imports | `dev/tests/`, `dev/tools/` | `../development/LAB.md` |
 
@@ -93,7 +93,7 @@ Rules:
 | REST outputs | `onshape_rest_api_mode/outputs/` | Generated runtime output | Module-owned lifecycle |
 | Project-doc and reference indexes | `onshape_docs/` | Generated from authored or vendored sources | Rebuild and verify; do not hand-edit |
 | Example parameters | `examples/branch-cable-trophy/config/` | Committed example input | Example-owned |
-| Bridge logs | `mcp_main/bridge/logs/` | Windows runtime | Diagnostics never enter MCP stdout |
+| Bridge logs | `mcp_main/win/bridge/logs/` | Windows runtime | Diagnostics never enter MCP stdout |
 | Test fixtures and captures | `dev/` | Committed or ignored by evidence type | Redact secrets and production data |
 
 ## Current invariants

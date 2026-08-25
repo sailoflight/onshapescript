@@ -9,7 +9,7 @@ persistent login profile. Running the Windows Python interpreter directly
 through WSL interop is not reliable for long-lived stdio sessions, so this
 script keeps the stdio side in Linux and relays it over loopback TCP
 (mirrored WSL networking shares 127.0.0.1) to the persistent Windows-side
-`mcp_main/bridge/bridge_server.py`.
+`mcp_main/win/bridge/bridge_server.py`.
 
 Critical implementation note
 ----------------------------
@@ -19,7 +19,7 @@ EOF before returning; a client that sends one JSON-RPC request and keeps stdin
 open would never have its bytes relayed.
 
 Usage (as the MCP client's stdio command):
-    python3 mcp_main/bridge/mcp_tcp_bridge.py [port]   # default 8766
+    python3 mcp_main/wsl/facade/mcp_tcp_bridge.py [port]   # default 8766
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def main() -> int:
     except OSError as exc:
         print(
             f"mcp_tcp_bridge: cannot connect to {HOST}:{PORT} ({exc}); "
-            "is mcp_main/bridge/bridge_server.py running on Windows?",
+            "is mcp_main/win/bridge/bridge_server.py running on Windows?",
             file=sys.stderr,
         )
         return 1

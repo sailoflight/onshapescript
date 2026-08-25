@@ -56,12 +56,12 @@ def _now_utc() -> str:
 
 
 def invoke(messages: list[dict], live_flag: str) -> tuple[list[dict], str]:
-    """Drive ``python -m mcp_main`` over stdio with a forced LIVE_API_ENABLED value."""
+    """Drive ``python -m mcp_main.win.mcp`` over stdio with a forced LIVE_API_ENABLED value."""
     wire = "".join(json.dumps(message, separators=(",", ":")) + "\n" for message in messages)
     env = os.environ.copy()
     env["LIVE_API_ENABLED"] = live_flag
     process = subprocess.run(
-        ["python3", "-m", "mcp_main"],
+        ["python3", "-m", "mcp_main.win.mcp"],
         input=wire,
         text=True,
         stdout=subprocess.PIPE,
@@ -339,7 +339,7 @@ class ElementCacheTest(unittest.TestCase):
 
 class McpCostMetadataTest(unittest.TestCase):
     def test_live_tools_carry_consistent_cost_metadata(self) -> None:
-        from mcp_main import server
+        from mcp_main.win.mcp import server
 
         by_name = {tool["name"]: tool for tool in server.TOOLS}
         live = {name for name, tool in by_name.items()

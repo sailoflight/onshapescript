@@ -1,14 +1,15 @@
 # DSH runtime-prompt companion
 
-`runtime-prompt-companion.js` is generated from `mcp_main.runtime_prompt` for
-DSH releases whose MCP client registers tools but does not project
-`initialize.instructions` into the model system prompt.
+`runtime-prompt-companion.js` is generated from
+`mcp_main.win.mcp.runtime_prompt` for DSH releases whose MCP client registers
+tools but does not project `initialize.instructions` into the model system
+prompt.
 
 ## Generate and verify
 
 ```bash
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
 python3 -m unittest dev.tests.test_runtime_prompt -v
 ```
 

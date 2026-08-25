@@ -15,7 +15,7 @@ generated from `mcp_main`. Follow the four-level semantics defined in
 - L4: fixture-driven projects with assertions, checkpoints, and resume.
 
 Ownership stays with the `browser` module (`onshape_browser_mode` +
-`mcp_main/browser_tools.py`); none of these items are implemented yet.
+`mcp_main/win/mcp/browser_tools.py`); none of these items are implemented yet.
 
 > The complete four-level FS-mode semantic tool surface — focused on the
 > **FS script mode** (deploy/compile-status/symbols/parameter-edit) plus its

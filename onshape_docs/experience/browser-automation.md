@@ -6,8 +6,8 @@
 
 ## 1. 运行模型
 
-- 浏览器只在 **Windows** 上跑，Linux 只跑 `mcp_main/bridge/mcp_tcp_bridge.py` 做 stdio↔TCP 中继。
-- Windows 常驻 `mcp_main/bridge/bridge_server.py`，**进程内直接 dispatch MCP**，不在每个连接拉起子进程。
+- 浏览器只在 **Windows** 上跑，Linux 只跑 `mcp_main/wsl/facade/mcp_tcp_bridge.py` 做 stdio↔TCP 中继。
+- Windows 常驻 `mcp_main/win/bridge/bridge_server.py`，**进程内直接 dispatch MCP**，不在每个连接拉起子进程。
 - 单客户端铁律 + **单工作页铁律**：`session.start()` 每次只保留一个工作页，其余标签全关
   （`_enforce_single_working_page`）。
 - 关闭方式决定登录态：**强杀进程保留登录，优雅关闭会登出**。Onshape 无“保持登录”。

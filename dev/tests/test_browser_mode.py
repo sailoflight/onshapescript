@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mcp_main import server  # noqa: E402
+from mcp_main.win.mcp import server  # noqa: E402
 from onshape_browser_mode import actions  # noqa: E402
 from onshape_browser_mode.guard import ActionGuard, ActionRateExceeded  # noqa: E402
 

@@ -24,7 +24,7 @@ Follow the four-level semantics defined in `DYNAMIC_TOOL_DISCOVERY.md`:
 - L4: fixture-driven projects with assertions, checkpoints, and resume.
 
 Ownership stays with the `browser` module (`onshape_browser_mode` +
-`mcp_main/browser_tools.py`). Nothing in this document is implemented yet.
+`mcp_main/win/mcp/browser_tools.py`). Nothing in this document is implemented yet.
 
 ## 1. Live-browser evidence (2026-08-25)
 

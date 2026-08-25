@@ -13,8 +13,8 @@
 
 ```bash
 python3 -m unittest discover -s dev/tests -v
-python3 -m py_compile mcp_main/*.py mcp_main/bridge/*.py mcp_main/bridge/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 -m py_compile mcp_main/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py mcp_main/win/bridge/*.py mcp_main/wsl/*.py mcp_main/wsl/facade/*.py mcp_main/wsl/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
 python3 onshape_docs/scripts/build_docs_index.py
 python3 onshape_docs/verification/verify_docs.py
 python3 onshape_docs/scripts/build_tool_reference.py --check
@@ -45,7 +45,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 ```bash
 # MCP protocol, canonical runtime prompt, and registered local tools
 python3 -m unittest dev.tests.test_mcp_server dev.tests.test_runtime_prompt -v
-python3 mcp_main/bridge/dsh/build_runtime_prompt_companion.py --check
+python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
 
 # REST live gates, request budgets, retry, and redaction
 python3 -m unittest dev.tests.test_quota_guards -v
@@ -81,7 +81,7 @@ python3 -m unittest dev.tests.test_mcp_server -v
 ```
 
 Generated JSON indexes, `docs/generated/TOOL_REFERENCE.md`, and
-`mcp_main/bridge/dsh/runtime-prompt-companion.js` are not hand-edited.
+`mcp_main/wsl/dsh/runtime-prompt-companion.js` are not hand-edited.
 
 ## Supported MCP clients
 
