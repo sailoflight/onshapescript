@@ -64,6 +64,7 @@ Windows browser dependency file are the current executable sources of truth.
 - `../architecture/OVERVIEW.md` records current cross-module architecture.
 - `../roadmap/DYNAMIC_TOOL_DISCOVERY.md` records unimplemented tool-exposure plans.
 - `../roadmap/BROWSER_MODELING_GAPS.md` records concrete browser modeling capability gaps by semantic level.
+- `../roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` records the four-level FS-mode semantic tool surface focused on the **FS script mode** (deploy/compile-status/symbols/parameter-edit) plus its Part-Studio coupling points (part context-menu drawing auto-views), and improvement suggestions for existing browser tools (live-browser evidence 2026-08-25). Native feature-mode transactions are explicitly out of scope there.
 - `../history/TRACEABILITY.md` maps every preserved development record to its current authority.
 - `../history/legacy/DEV_DEVELOPMENT.md` preserves the former mixed browser/MCP development record as historical evidence.
 - `../../onshape_docs/experience/` owns reusable verified behavior.

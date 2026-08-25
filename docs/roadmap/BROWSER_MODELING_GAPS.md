@@ -17,6 +17,17 @@ generated from `mcp_main`. Follow the four-level semantics defined in
 Ownership stays with the `browser` module (`onshape_browser_mode` +
 `mcp_main/browser_tools.py`); none of these items are implemented yet.
 
+> The complete four-level FS-mode semantic tool surface — focused on the
+> **FS script mode** (deploy/compile-status/symbols/parameter-edit) plus its
+> Part-Studio coupling points (part context-menu drawing auto-views), with
+> improvement suggestions for existing tools — is planned in
+> `BROWSER_FS_SEMANTIC_TOOLS.md`. This page stays focused on the concrete gaps a
+> single real modeling round exposed. Note that `BROWSER_FS_SEMANTIC_TOOLS.md`
+> currently treats **native feature-mode** transactions (sketch/extrude/
+> fillet via the Part Studio toolbar) as out of scope; the spiral/screw-on
+> ridge item below is therefore deferred from the FS-mode plan unless a native
+> transaction is separately re-approved.
+
 ## 1. Thread / screw-on spiral generation (L2 -> L3)
 
 A screw-on connection for a spiral-reinforced PU duct was a design goal. The

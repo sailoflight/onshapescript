@@ -41,6 +41,7 @@ second architecture, operations, or product contract.
 | 429 no-retry, quota-efficient probes, incremental evidence writes | `../../CLAUDE.md`, `../../onshape_docs/experience/featurescript.md`, `../../onshape_docs/experience/rest-api.md` | Current safety and reusable lesson |
 | Dynamic catalog, profiles, bounded exposure, gateway and native modeling | `../roadmap/DYNAMIC_TOOL_DISCOVERY.md` | Proposal only; not implemented behavior |
 | Concrete missing browser modeling transactions | `../roadmap/BROWSER_MODELING_GAPS.md` | Current roadmap |
+| Four-level FS-mode semantic tool surface focused on FS script mode (deploy/compile-status/symbols/parameter-edit), its Part-Studio coupling points (part context-menu drawing auto-views), and improvement suggestions for existing browser tools | `../roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` | Current roadmap (live-browser evidence 2026-08-25) |
 | One-off convergence runs, obsolete tool counts, dated account/ledger snapshots | Archived source or raw verification evidence only | Historical context; deliberately not a current contract |
 
 ## Legacy browser/MCP record mapping

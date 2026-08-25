@@ -29,6 +29,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Query FeatureScript, REST, or browser knowledge | `../onshape_docs/README.md` | One indexed section, symbol, endpoint, schema, or evidence record |
 | Trace an old development decision or log | `history/TRACEABILITY.md` | Current owning architecture, module, experience, verification, operations, or roadmap section |
 | Work in the development lab | `development/LAB.md` | One test, probe, capture fixture, or tool under `dev/` |
+| Plan FS-mode or native-modeling browser tools | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` | `roadmap/DYNAMIC_TOOL_DISCOVERY.md`, `roadmap/BROWSER_MODELING_GAPS.md` |
 | Inspect the generated tool surface | `generated/TOOL_REFERENCE.md` | Authoritative schema and handler in `mcp_main` |
 
 ## Project-level ownership

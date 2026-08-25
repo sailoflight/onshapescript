@@ -6,6 +6,12 @@ This roadmap distills the unimplemented work from the archived browser/MCP
 development plan. Current behavior remains the static registered tool surface
 described by `../architecture/OVERVIEW.md` and generated from `mcp_main`.
 
+> The concrete FS script-mode transactions (compile-status, symbols, parameter
+> edit) and their Part-Studio coupling points (part context-menu drawing
+> auto-views) are itemized in `BROWSER_FS_SEMANTIC_TOOLS.md`, with live-browser
+> evidence. Native feature-mode transactions remain Phase D of this roadmap and
+> are currently out of the FS-mode plan's scope.
+
 ## Problem
 
 As browser and native-modeling tools grow, returning every tool description and
