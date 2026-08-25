@@ -452,7 +452,9 @@ def _repo_root() -> Path:
     (``C:\\MCP\\onshapescript``); the file path returned by a screenshot is a
     Windows path that the Linux/WSL side reads through the ``/mnt/c`` mount.
     """
-    return Path(__file__).resolve().parents[1]
+    # This module lives at mcp_main/win/mcp/browser_tools.py; the repository
+    # root is three parents up (mcp_main/win/mcp -> mcp_main/win -> mcp_main -> repo).
+    return Path(__file__).resolve().parents[3]
 
 
 def browser_capture_screenshot(arguments: dict[str, Any]) -> dict[str, Any]:
