@@ -65,6 +65,10 @@ Missing L2 tools:
   dry-run + history readback), composing the existing L1 primitives into a
   verified transaction.
 
+> These print/scanner tools (plus `browser_wall_thickness_report` and
+> `browser_print_optimize_part`) are consolidated in the deduped planned-tool
+> registry `BROWSER_PLANNED_TOOLS.md`; this page records only the gap narrative.
+
 Placement: `browser.native_modeling` Phase D in
 `DYNAMIC_TOOL_DISCOVERY.md`.
 
@@ -86,6 +90,9 @@ the `browser_draw_part` frame-verification contract.
 
 Follow-up L3: a `browser_draw_part_with_views` workflow that creates the
 drawing, inserts auto-views, adds dimensions, and returns frame/view state.
+
+> Drawing-views and print tools are consolidated in the deduped planned-tool
+> registry `BROWSER_PLANNED_TOOLS.md`; this page records only the gap narrative.
 
 Also record the operational lesson in
 `../../onshape_docs/experience/browser-modeling.md` (drawing auto-views come

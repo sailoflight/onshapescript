@@ -43,6 +43,7 @@ second architecture, operations, or product contract.
 | Concrete missing browser modeling transactions | `../roadmap/BROWSER_MODELING_GAPS.md` | Current roadmap |
 | Four-level FS-mode semantic tool surface focused on FS script mode (deploy/compile-status/symbols/parameter-edit), its Part-Studio coupling points (part context-menu drawing auto-views), and improvement suggestions for existing browser tools | `../roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` | Current roadmap (live-browser evidence 2026-08-25) |
 | App-generic L2 semantics of the document shell (top navbar, left panel + icon rail, bottom tab bar, viewport chrome), the cross-Studio chrome independent of Studio type | `../roadmap/BROWSER_GENERIC_L2_SEMANTICS.md` | Current roadmap (live screenshot + DOM evidence 2026-08-25) |
+| Deduped single-source registry of all planned-but-not-implemented browser tools (FS script mode, drawing, print, app-generic shell) | `../roadmap/BROWSER_PLANNED_TOOLS.md` | Current roadmap (consolidated 2026-08-25) |
 | One-off convergence runs, obsolete tool counts, dated account/ledger snapshots | Archived source or raw verification evidence only | Historical context; deliberately not a current contract |
 
 ## Legacy browser/MCP record mapping

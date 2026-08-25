@@ -66,6 +66,7 @@ Windows browser dependency file are the current executable sources of truth.
 - `../roadmap/BROWSER_MODELING_GAPS.md` records concrete browser modeling capability gaps by semantic level.
 - `../roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` records the four-level FS-mode semantic tool surface focused on the **FS script mode** (deploy/compile-status/symbols/parameter-edit) plus its Part-Studio coupling points (part context-menu drawing auto-views), and improvement suggestions for existing browser tools (live-browser evidence 2026-08-25). Native feature-mode transactions are explicitly out of scope there.
 - `../roadmap/BROWSER_GENERIC_L2_SEMANTICS.md` records the app-generic L2 semantics of the document shell (top navbar, left panel + icon rail, bottom tab bar, viewport chrome), the regions that do not change with Studio type, with live screenshot + DOM evidence (2026-08-25).
+- `../roadmap/BROWSER_PLANNED_TOOLS.md` is the deduped single-source registry of every planned-but-not-implemented browser tool (FS script mode, drawing, print, app-generic shell), consolidating the above roadmaps and `BROWSER_MODELING_GAPS.md` so the same tool is not restated.
 - `../history/TRACEABILITY.md` maps every preserved development record to its current authority.
 - `../history/legacy/DEV_DEVELOPMENT.md` preserves the former mixed browser/MCP development record as historical evidence.
 - `../../onshape_docs/experience/` owns reusable verified behavior.

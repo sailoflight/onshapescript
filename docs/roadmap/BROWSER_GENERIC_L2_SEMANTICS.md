@@ -139,13 +139,17 @@ document shell:
 | `browser_toggle_left_panel` | left panel | collapse handle / icon rail | panel shown/hidden |
 | `browser_read_selection_preview` | left panel | preview card | preview card visible |
 | `browser_element_context_menu` | bottom tab bar | `.context-menu-list` on `.os-tab-bar-tab` | item list matches |
-| `browser_rename_element` | bottom tab bar | context menu → 重命名 → `TAB_RENAME_INPUT` | tab name changed |
 | `browser_duplicate_element` | bottom tab bar | context menu → 复制 | new tab appears |
-| `browser_delete_element` | bottom tab bar | context menu → 删除 → confirm | tab detached |
-| `browser_drawing_from_element` | bottom tab bar | context menu → 创建工程图 | drawing frame created |
+| `browser_drawing_insert_views` | bottom tab bar | context menu → `创建 <name> 的工程图…` | drawing frame gained geometry |
 | `browser_notifications_status` | top navbar right | `#user-notification-status` | badge count read |
 | `browser_share_document` | top navbar right | `.nav-share` | share dialog opened |
 | `browser_view_orientation` | viewport chrome | view cube | orientation read/set |
+
+> Tab-level rename/delete are already implemented (`browser_rename_tab` /
+> `browser_delete_tab`), and `browser_delete_element` is implemented; these are
+> not re-planned here. The full deduped list of planned tools (including the
+> renamed `browser_drawing_insert_views`) lives in
+> `BROWSER_PLANNED_TOOLS.md`.
 
 These compose on the existing L1 primitives (`browser_click`/`browser_type`/
 `browser_press_key`/`browser_wait`/`browser_inspect`/`browser_eval`) and on

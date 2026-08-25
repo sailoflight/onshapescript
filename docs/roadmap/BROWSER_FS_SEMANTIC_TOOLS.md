@@ -112,6 +112,12 @@ They are the base the missing tools compose on top of.
 
 ## 3. Missing FS script-mode tools (L2, priority order)
 
+The consolidated (deduped) list of every planned browser tool — including the
+FS items here, the drawing/print items that also appear in
+`BROWSER_MODELING_GAPS.md`, and the app-generic items in
+`BROWSER_GENERIC_L2_SEMANTICS.md` — is the single-source registry
+`BROWSER_PLANNED_TOOLS.md`. Each item below keeps its FS-mode rationale.
+
 ### 3.1 `browser_get_fs_compile_status` (L2, read) — highest priority
 
 Read the Ace editor annotations (`editor.session.getAnnotations()`) and report
