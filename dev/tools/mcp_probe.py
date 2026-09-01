@@ -1,10 +1,11 @@
-"""Minimal end-to-end probe for the Linux<->Windows Onshape MCP bridge.
+"""Minimal end-to-end probe for the ordinary Onshape stdio MCP.
 
-Spawns `mcp_main/wsl/facade/mcp_tcp_bridge.py` as a stdio child, performs a JSON-RPC MCP
-handshake through it, calls `browser_session(action='status')`, then idles with
-the connection open to prove the persistent link survives quiet periods.
+Spawns ``python -m mcp_main.win.mcp``, performs the MCP handshake, calls the
+read-only ``browser_session(action='status')`` tool, then idles with the
+connection open to verify persistent stdio behavior. Cross-host transport is an
+external deployment concern and is deliberately not implemented here.
 
-Exit code 0 = bridge chain healthy.
+Exit code 0 means the ordinary MCP entry is healthy on the current host.
 """
 from __future__ import annotations
 
@@ -16,14 +17,28 @@ import sys
 import time
 from pathlib import Path
 
-PORT = "8766"
 ROOT = Path(__file__).resolve().parents[2]
-BRIDGE = ROOT / "mcp_main" / "wsl" / "facade" / "mcp_tcp_bridge.py"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from mcp_main.win.mcp.runtime_prompt import RUNTIME_PROMPT_REVISION
+
 TIMEOUT = 15.0
 
 
 class ProbeError(RuntimeError):
     pass
+
+
+def _validate_runtime_prompt(init: dict) -> str:
+    instructions = init.get("result", {}).get("instructions") or ""
+    expected_revision = f"[revision={RUNTIME_PROMPT_REVISION}]"
+    if expected_revision not in instructions:
+        raise ProbeError(
+            "initialize runtime prompt is missing or belongs to another deployment "
+            f"generation; expected {expected_revision}"
+        )
+    return instructions
 
 
 def _wait_readable(fd: int, timeout: float) -> bool:
@@ -76,7 +91,7 @@ def _request(proc: subprocess.Popen, obj: dict) -> dict:
         proc.stdin.write(line)
         proc.stdin.flush()
     except OSError as exc:
-        raise ProbeError(f"could not write to bridge stdin: {exc}")
+        raise ProbeError(f"could not write to MCP stdin: {exc}")
     replies = _read_json_objects(proc.stdout.fileno(), obj["id"])
     for reply in replies:
         if reply.get("id") == obj["id"]:
@@ -87,12 +102,8 @@ def _request(proc: subprocess.Popen, obj: dict) -> dict:
 
 
 def main() -> int:
-    if not BRIDGE.is_file():
-        print(f"bridge script not found: {BRIDGE}", file=sys.stderr)
-        return 1
-
     proc = subprocess.Popen(
-        [sys.executable, str(BRIDGE), PORT],
+        [sys.executable, "-m", "mcp_main.win.mcp"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -111,6 +122,11 @@ def main() -> int:
         })
         server = init.get("result", {}).get("serverInfo", {})
         print(f"initialize ok: {server.get('name')} {server.get('version')}")
+        instructions = _validate_runtime_prompt(init)
+        print(
+            "runtime prompt delivered via initialize.instructions: "
+            f"yes ({len(instructions)} chars, expected {RUNTIME_PROMPT_REVISION})"
+        )
 
         proc.stdin.write(
             b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n'
@@ -145,26 +161,25 @@ def main() -> int:
         if status.get("result", {}).get("isError"):
             raise ProbeError("browser_session status returned isError=true")
 
-        # The point of the bridge: survive a quiet period with stdin still open.
+        # Keep stdin open across a quiet period to verify persistent stdio.
         idle_seconds = 12
         print(f"idle {idle_seconds}s with connection open...")
         time.sleep(idle_seconds)
         if proc.poll() is not None:
             raise ProbeError(
-                f"bridge exited during idle (rc={proc.returncode}); "
+                f"MCP exited during idle (rc={proc.returncode}); "
                 "persistent connection is still broken"
             )
-        print(f"idle-ok: bridge stayed alive for >= {idle_seconds}s")
+        print(f"idle-ok: MCP stayed alive for >= {idle_seconds}s")
 
-        # Clean shutdown through the normal EOF path: client closes stdin,
-        # bridge half-closes TCP, Windows server child exits.
+        # Clean shutdown through the ordinary stdin EOF path.
         proc.stdin.close()
         try:
             rc = proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
-            raise ProbeError("bridge did not exit after stdin EOF")
-        print(f"bridge exited cleanly after stdin EOF (rc={rc})")
+            raise ProbeError("MCP did not exit after stdin EOF")
+        print(f"MCP exited cleanly after stdin EOF (rc={rc})")
         return 0
     except ProbeError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

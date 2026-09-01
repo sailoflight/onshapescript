@@ -2,7 +2,7 @@
 
 Target: installer-selected `<project>/AGENTS.md` or `<project>/CLAUDE.md`.
 
-Merge only evidenced project-specific content from this template outside the managed routing block. Preserve the original byte prefix and existing rules. Do not copy role guides, generic adaptation workflow, usage, runbooks, or generated inventories into the auto-loaded root.
+Merge only evidenced project-specific content from this template outside the managed routing block. Keep managed routing first; preserve existing project-authored bytes after it. Do not copy role guides, generic adaptation workflow, usage, runbooks, or generated inventories into the auto-loaded root.
 
 ```markdown
 # Repository agent instructions

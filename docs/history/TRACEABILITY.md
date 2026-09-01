@@ -21,7 +21,9 @@ second architecture, operations, or product contract.
 |---|---|---|
 | `legacy/DEV_DEVELOPMENT.md` | Browser/MCP architecture decisions, completed tool work, four semantic layers, and the original dynamic-exposure plan | Distilled across architecture, browser module/experience, verification, and roadmap |
 | `legacy/ROOT_README.md` | Former mixed repository landing page, configuration, tool inventory, reference layout, startup, example, and tests | Split into role-routed landing, module, generated reference, usage, operations, and verification authorities |
-| `legacy/MCP_SERVER_GUIDE.md` | Former mixed User/Operator/Development bridge and tool guide | Split into MCP User contract, Operator runbook, bridge architecture, generated tool reference, and verification matrix |
+| `legacy/MCP_SERVER_GUIDE.md` | Former mixed User/Operator/Development bridge and tool guide | Split into MCP User contract, Operator runbook, historical relay record, generated tool reference, and verification matrix |
+| `legacy/PROJECT_RELAY_README.md` | Former production project relay wiring and lifecycle notes | Retired/non-executable; current runtime is the ordinary MCP plus independently installed adapter |
+| `legacy/SHARED_BRIDGE_MIGRATION.md` | Independent bridge extraction specification and acceptance rationale | Accepted historical migration record; shared bridge implementation/operations live outside this repository |
 | `legacy/DEV_README.md` | Former `dev/` landing page and Windows browser setup notes | Replaced by the development-lab contract and Operator runbook; documentation no longer lives in `dev/` |
 | `../../onshape_docs/verification/live/README.md` and sibling JSON records | Dated live FeatureScript experiments, quota incidents, outcomes, and raw evidence | Durable conclusions live in experience/root safety authority; raw outcomes remain evidence and dated ledger narration is not current state |
 
@@ -29,10 +31,10 @@ second architecture, operations, or product contract.
 
 | Historical topic | Current authority | Classification |
 |---|---|---|
-| Windows Engine, WSL stdlib facade, loopback transport, persistent process/session | `../architecture/OVERVIEW.md`, `../../mcp_main/bridge/ARCHITECTURE.md`, `../modules/mcp-main.md` | Implemented architecture |
+| Ordinary stdio MCP, host-owned browser/profile, and optional independently installed cross-host adapter | `../architecture/OVERVIEW.md`, `../modules/mcp-main.md`, `../operations/MCP_RUNBOOK.md`; migration history in `legacy/SHARED_BRIDGE_MIGRATION.md` | Implemented current architecture plus retired extraction record |
 | Browser runtime ownership, single working page, reconnect persistence, page objects, selectors | `../modules/browser-mode.md`, `../../onshape_docs/experience/browser-automation.md` | Implemented contract plus reusable verified lesson |
 | Four browser semantic layers L1-L4, dependency direction, checkpoint/resume, state verification | `../modules/browser-mode.md`, `../../onshape_docs/experience/browser-modeling.md`, `../verification/MATRIX.md` | Implemented contract and verification |
-| Windows scheduled task, restart scripts, proxy, deployment health/recovery | `../operations/MCP_RUNBOOK.md`, `../../mcp_main/win/bridge/windows/README.md` | Operator contract; not development architecture |
+| MCP host process, profile ownership, external-adapter registration, deployment health/recovery | `../operations/MCP_RUNBOOK.md`; retired launcher/session history in `legacy/PROJECT_RELAY_README.md` | Current Operator contract plus archived relay evidence |
 | Static MCP schema/handler surface and historical tool counts | Current `mcp_main` schemas plus `../generated/TOOL_REFERENCE.md` | Generated current fact; historical counts are not copied into prose |
 | MCP consumer lookup, cost, confirmation, credential, and error boundary | `../usage/MCP_CONSUMER.md` and public tool schemas | Production / User contract |
 | REST path ownership, environment overrides, quota gate, passive ledger, state and outputs | `../modules/rest-api-mode.md`; quota calibration in `../operations/MCP_RUNBOOK.md` | Implemented module and Operator contract |

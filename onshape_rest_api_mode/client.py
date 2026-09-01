@@ -236,6 +236,7 @@ class OnshapeClient:
         body: dict[str, Any] | None = None,
         query: dict[str, Any] | None = None,
         timeout: int = 180,
+        retry_get: bool = True,
     ) -> Any:
         # Transport-level backstop: a real request is never sent while the
         # explicit opt-in is off, regardless of whether a caller forgot to gate
@@ -265,7 +266,7 @@ class OnshapeClient:
         # ONLY an explicit GET retries (idempotent). Every non-GET — POST,
         # PATCH, DELETE and PUT alike — is sent exactly once: a timeout !=
         # "not executed", so re-sending a mutation risks double-execution.
-        retryable = method == "GET"
+        retryable = method == "GET" and retry_get
         attempts = 4 if retryable else 1
         last_error: Exception | None = None
         for attempt in range(attempts):
@@ -318,8 +319,13 @@ class OnshapeClient:
                 if not retryable:
                     # Timeout/network error on a non-GET is ambiguous (it may
                     # have executed server-side) — never re-send.
+                    retry_note = (
+                        "retry_get=false"
+                        if method == "GET"
+                        else "only idempotent GET retries"
+                    )
                     raise RuntimeError(
-                        f"{error} on {method} {path} (not retried: only idempotent GET retries)"
+                        f"{error} on {method} {path} (not retried: {retry_note})"
                     ) from error
                 last_error = error
             if attempt < attempts - 1:

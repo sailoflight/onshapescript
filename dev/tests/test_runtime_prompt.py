@@ -5,9 +5,7 @@ from __future__ import annotations
 
 import json
 import os
-import socket
 import subprocess
-import threading
 import unittest
 from pathlib import Path
 
@@ -19,8 +17,8 @@ from mcp_main.win.mcp.runtime_prompt import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-BUILDER = ROOT / "mcp_main" / "wsl" / "dsh" / "build_runtime_prompt_companion.py"
-COMPANION = ROOT / "mcp_main" / "wsl" / "dsh" / "runtime-prompt-companion.js"
+BUILDER = ROOT / "mcp_main" / "dsh" / "build_runtime_prompt_companion.py"
+COMPANION = ROOT / "mcp_main" / "dsh" / "runtime-prompt-companion.js"
 
 
 class RuntimePromptTest(unittest.TestCase):
@@ -59,61 +57,6 @@ class RuntimePromptTest(unittest.TestCase):
         )
         self.assertEqual(process.returncode, 0, process.stderr)
         self.assertIn("is current", process.stdout)
-
-    def test_wsl_facade_forwards_initialize_response_bytes(self) -> None:
-        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        listener.bind(("127.0.0.1", 0))
-        listener.listen(1)
-        port = listener.getsockname()[1]
-        request = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n'
-        response = (
-            json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "result": {"instructions": RUNTIME_PROMPT},
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
-            + b"\n"
-        )
-        observed: list[bytes] = []
-
-        def engine() -> None:
-            connection, _ = listener.accept()
-            with connection:
-                chunks = bytearray()
-                while True:
-                    chunk = connection.recv(65536)
-                    if not chunk:
-                        break
-                    chunks.extend(chunk)
-                observed.append(bytes(chunks))
-                connection.sendall(response)
-            listener.close()
-
-        thread = threading.Thread(target=engine, daemon=True)
-        thread.start()
-        process = subprocess.run(
-            [
-                "python3",
-                str(ROOT / "mcp_main" / "wsl" / "facade" / "mcp_tcp_bridge.py"),
-                str(port),
-            ],
-            cwd=ROOT,
-            input=request,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=30,
-            check=False,
-        )
-        thread.join(timeout=5)
-        self.assertFalse(thread.is_alive())
-        self.assertEqual(process.returncode, 0, process.stderr.decode())
-        self.assertEqual(process.stderr, b"")
-        self.assertEqual(observed, [request])
-        self.assertEqual(process.stdout, response)
 
     def test_dsh_companion_registers_exact_namespaced_prompt(self) -> None:
         script = f"""

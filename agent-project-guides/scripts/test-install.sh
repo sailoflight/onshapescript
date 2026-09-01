@@ -31,11 +31,16 @@ copy_package() {
   cp "$ROOT/PACKAGE_VERSION" "$ROOT/PACKAGE_REMOTE.json" "$destination/"
 }
 
-assert_original_prefix() {
+assert_original_suffix() {
   original=$1
   merged=$2
   bytes=$(wc -c < "$original" | tr -d '[:space:]')
-  dd if="$merged" bs=1 count="$bytes" 2>/dev/null | cmp - "$original" >/dev/null || fail 'original AGENTS.md prefix changed'
+  [ "$bytes" -eq 0 ] || tail -c "$bytes" "$merged" | cmp - "$original" >/dev/null || fail 'original root instruction bytes are not preserved as the suffix'
+}
+
+assert_managed_first() {
+  file=$1
+  [ "$(sed -n '1p' "$file")" = '<!-- agent-project-guides:routing:start -->' ] || fail "$file does not start with managed routing"
 }
 
 "$ROOT/scripts/install.sh" --help >/dev/null
@@ -56,10 +61,15 @@ assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" '`agent-project-guides
 assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'Routing/state and `pending/stale` are not triggers'
 assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'Before pwd/list/glob/read'
 assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'No fuzzy regex'
+assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'Unmatched labels are unresolved: ask, never infer.'
 assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'under `{{GUIDES_PATH}}/`, never relative to registry/cwd'
 assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'failure is package integrity, not permission to glob'
 assert_contains "$ROOT/bootstrap/AGENTS.routing-block.md" 'parent/captain, never end user'
 [ "$(wc -c < "$ROOT/bootstrap/AGENTS.adapter-trigger.md" | tr -d '[:space:]')" -le 3000 ] || fail 'temporary trigger exceeded token-oriented byte budget'
+[ "$(wc -c < "$ROOT/bootstrap/CLAUDE.scope-block.md" | tr -d '[:space:]')" -le 500 ] || fail 'optional CLAUDE scope gate exceeded compact byte budget'
+assert_contains "$ROOT/bootstrap/CLAUDE.scope-block.md" 'resolve plane/role/mode'
+assert_contains "$ROOT/bootstrap/CLAUDE.scope-block.md" "selected role's permitted scope"
+[ -f "$ROOT/scripts/manage-root-blocks.mjs" ] || fail 'missing byte-preserving managed-block helper'
 assert_contains "$ROOT/bootstrap/AGENTS.adapter-trigger.md" 'check-update'
 assert_contains "$ROOT/bootstrap/AGENTS.adapter-trigger.md" 'package_missing'
 assert_contains "$ROOT/bootstrap/AGENTS.adapter-trigger.md" 'Never Read/cat a registry'
@@ -82,6 +92,11 @@ maintainer_procedure=$(node -e 'const r=JSON.parse(process.argv[1]); process.std
 [ -f "$ROOT/$maintainer_procedure" ] || fail 'maintainer procedure did not resolve from package root'
 [ ! -e "$ROOT/routing/$maintainer_guide" ] || fail 'test fixture accidentally permits registry-relative guide resolution'
 [ ! -e "$ROOT/routing/$maintainer_procedure" ] || fail 'test fixture accidentally permits registry-relative procedure resolution'
+field_evaluator_alias=$(grep -F '"实战探索者"' "$ROOT/routing/development.roles.jsonl")
+printf '%s\n' "$field_evaluator_alias" | grep -Fq '"id":"field-evaluator"' || fail 'exploration/practical alias does not resolve directly to field-evaluator'
+for alias in '"实战评估者"' '"实战探索者"' '"探索评估者"'; do
+  [ "$(grep -Fc "$alias" "$ROOT/routing/development.roles.jsonl")" -eq 1 ] || fail "field-evaluator alias is not unique: $alias"
+done
 [ "$(wc -c < "$ROOT/routing/project-types.jsonl" | tr -d '[:space:]')" -le 1200 ] || fail 'project type registry exceeded token-oriented byte budget'
 project_type_ids=$(node -e 'const fs=require("fs"); const rows=fs.readFileSync(process.argv[1],"utf8").trim().split(/\n/).map(JSON.parse); process.stdout.write(rows.map(r=>r.id).join(","))' "$ROOT/routing/project-types.jsonl")
 [ "$project_type_ids" = 'mcp,library,cli,service,application-ui,data-automation,monorepo' ] || fail 'project type registry is not the exact ordered closed set'
@@ -112,6 +127,7 @@ do
   assert_contains "$file" '## 6. Cold-start acceptance'
 done
 assert_contains "$ROOT/templates/ROOT_AGENTS.md" '## Repository map'
+assert_contains "$ROOT/templates/ROOT_AGENTS.md" 'Keep managed routing first'
 assert_contains "$ROOT/templates/DOC_INDEX.md" '## Current authorities'
 assert_contains "$ROOT/templates/DEVELOPMENT_START.md" '## Supported environments'
 assert_contains "$ROOT/templates/ARCHITECTURE_OVERVIEW.md" '## Trust and side-effect boundaries'
@@ -138,7 +154,7 @@ if grep -Eq '(^|[[:space:]])(dsh|claude|codex)([[:space:]]|$)' "$ROOT/scripts/in
   fail 'installer appears to invoke an LLM runner'
 fi
 
-# Scheme 1 appends only permanent routing and preserves the original byte prefix.
+# Scheme 1 places permanent routing first and preserves original content byte-for-byte as the suffix.
 PROJECT_ONE="$TMP/scheme one"
 PACKAGE_ONE="$PROJECT_ONE/tools/agent project guides"
 mkdir -p "$PROJECT_ONE/.git" "$PROJECT_ONE/tools"
@@ -147,9 +163,10 @@ printf '# Original project rules\n\n- Preserve this exact rule.\n' > "$PROJECT_O
 cp "$PROJECT_ONE/AGENTS.md" "$TMP/original-one.md"
 
 "$PACKAGE_ONE/scripts/install.sh" merge
-assert_original_prefix "$TMP/original-one.md" "$PROJECT_ONE/AGENTS.md"
+assert_managed_first "$PROJECT_ONE/AGENTS.md"
+assert_original_suffix "$TMP/original-one.md" "$PROJECT_ONE/AGENTS.md"
 assert_contains "$PROJECT_ONE/AGENTS.md" '<!-- agent-project-guides:routing:start -->'
-assert_contains "$PROJECT_ONE/AGENTS.md" 'status=pending; package_revision=1.4.2; verified_at=never; scope=repo; reason=not_adapted'
+assert_contains "$PROJECT_ONE/AGENTS.md" 'status=pending; package_revision=1.4.3; verified_at=never; scope=repo; reason=not_adapted'
 assert_not_contains "$PROJECT_ONE/AGENTS.md" '<!-- agent-project-guides:adapter-trigger:start -->'
 assert_contains "$PROJECT_ONE/AGENTS.md" 'Routing/state and `pending/stale` are not triggers'
 [ ! -e "$PROJECT_ONE/AGENTS_origin.md" ] || fail 'scheme 1 renamed or backed up original AGENTS.md'
@@ -159,16 +176,42 @@ before=$(sha256sum "$PROJECT_ONE/AGENTS.md" | cut -d' ' -f1)
 after=$(sha256sum "$PROJECT_ONE/AGENTS.md" | cut -d' ' -f1)
 [ "$before" = "$after" ] || fail 'scheme 1 merge is not idempotent'
 
+# Byte preservation includes roots without a trailing newline.
+PROJECT_BYTES="$TMP/no-trailing-newline"
+PACKAGE_BYTES="$PROJECT_BYTES/agent-project-guides"
+mkdir -p "$PROJECT_BYTES/.git"
+copy_package "$PACKAGE_BYTES"
+printf '# No trailing newline' > "$PROJECT_BYTES/AGENTS.md"
+cp "$PROJECT_BYTES/AGENTS.md" "$TMP/original-bytes.md"
+"$PACKAGE_BYTES/scripts/install.sh" merge >/dev/null
+assert_managed_first "$PROJECT_BYTES/AGENTS.md"
+assert_original_suffix "$TMP/original-bytes.md" "$PROJECT_BYTES/AGENTS.md"
+"$PACKAGE_BYTES/scripts/install.sh" unmerge >/dev/null
+cmp "$PROJECT_BYTES/AGENTS.md" "$TMP/original-bytes.md" >/dev/null || fail 'no-newline root did not round-trip byte-for-byte'
+
+# A legacy tail-position managed block is migrated to the prefix without changing project content.
+sed -n '/<!-- agent-project-guides:routing:start -->/,/<!-- agent-project-guides:routing:end -->/p' "$PROJECT_ONE/AGENTS.md" > "$TMP/legacy-tail-routing.md"
+node "$PACKAGE_ONE/scripts/manage-root-blocks.mjs" strip "$PROJECT_ONE/AGENTS.md" "$TMP/legacy-tail-content.md" \
+  '<!-- agent-project-guides:routing:start -->' '<!-- agent-project-guides:routing:end -->'
+cat "$TMP/legacy-tail-content.md" "$TMP/legacy-tail-routing.md" > "$PROJECT_ONE/AGENTS.md"
+if "$PACKAGE_ONE/scripts/install.sh" check >/dev/null 2>&1; then
+  fail 'check accepted routing behind project-authored instructions'
+fi
+"$PACKAGE_ONE/scripts/install.sh" merge >/dev/null
+assert_managed_first "$PROJECT_ONE/AGENTS.md"
+assert_original_suffix "$TMP/original-one.md" "$PROJECT_ONE/AGENTS.md"
+"$PACKAGE_ONE/scripts/install.sh" check
+
 # Cloud freshness checks are read-only and distinguish current, differing, and unavailable sources.
 before=$(sha256sum "$PROJECT_ONE/AGENTS.md" | cut -d' ' -f1)
-current=$(AGENT_PROJECT_GUIDES_VERSION_URL='data:text/plain,1.4.2%0A' "$PACKAGE_ONE/scripts/install.sh" check-update)
+current=$(AGENT_PROJECT_GUIDES_VERSION_URL='data:text/plain,1.4.3%0A' "$PACKAGE_ONE/scripts/install.sh" check-update)
 printf '%s\n' "$current" | grep -Fq '"status":"current"' || fail 'check-update did not report current remote revision'
 different=$(AGENT_PROJECT_GUIDES_VERSION_URL='data:text/plain,9.9.9%0A' "$PACKAGE_ONE/scripts/install.sh" check-update)
 printf '%s\n' "$different" | grep -Fq '"status":"remote_differs"' || fail 'check-update did not report differing remote revision'
 unavailable=$(AGENT_PROJECT_GUIDES_VERSION_URL='data:text/plain,not%20a%20revision' "$PACKAGE_ONE/scripts/install.sh" check-update)
 printf '%s\n' "$unavailable" | grep -Fq '"status":"unavailable"' || fail 'check-update did not report invalid remote metadata as unavailable'
 mkdir -p "$TMP/fake-bin"
-printf '#!/bin/sh\nprintf "MS40LjI=\\n"\n' > "$TMP/fake-bin/gh"
+printf '#!/bin/sh\nprintf "MS40LjM=\\n"\n' > "$TMP/fake-bin/gh"
 chmod 0755 "$TMP/fake-bin/gh"
 private=$(PATH="$TMP/fake-bin:$PATH" "$PACKAGE_ONE/scripts/install.sh" check-update)
 printf '%s\n' "$private" | grep -Fq '"transport":"gh"' || fail 'check-update did not use authenticated gh fallback for a private repository'
@@ -176,7 +219,7 @@ printf '%s\n' "$private" | grep -Fq '"status":"current"' || fail 'gh fallback di
 after=$(sha256sum "$PROJECT_ONE/AGENTS.md" | cut -d' ' -f1)
 [ "$before" = "$after" ] || fail 'check-update modified root instructions'
 
-# Scheme 2 appends routing then one temporary trigger; it never renames the root file.
+# Scheme 2 places routing then one temporary trigger before project content; it never renames the root file.
 PROJECT_TWO="$TMP/scheme-two"
 PACKAGE_TWO="$PROJECT_TWO/agent-project-guides"
 mkdir -p "$PROJECT_TWO/.git"
@@ -185,7 +228,8 @@ printf '# Existing safety rules\n\n- Production writes require approval.\n' > "$
 cp "$PROJECT_TWO/AGENTS.md" "$TMP/original-two.md"
 
 "$PACKAGE_TWO/scripts/install.sh" trigger
-assert_original_prefix "$TMP/original-two.md" "$PROJECT_TWO/AGENTS.md"
+assert_managed_first "$PROJECT_TWO/AGENTS.md"
+assert_original_suffix "$TMP/original-two.md" "$PROJECT_TWO/AGENTS.md"
 assert_contains "$PROJECT_TWO/AGENTS.md" 'Source: https://github.com/sailoflight/agent-project-guides.'
 assert_contains "$PROJECT_TWO/AGENTS.md" 'routing/project-types.jsonl'
 [ ! -e "$PROJECT_TWO/AGENTS_origin.md" ] || fail 'scheme 2 renamed original AGENTS.md'
@@ -216,12 +260,12 @@ after=$(sha256sum "$PROJECT_TWO/AGENTS.md" | cut -d' ' -f1)
 # A partial result requires verified scope/time and a reason; blocked runs require explicit retry.
 "$PACKAGE_TWO/scripts/install.sh" set-state --status partial --verified-at 2026-08-24T11:30:00Z --scope docs/api --reason remaining_modules >/dev/null
 "$PACKAGE_TWO/scripts/install.sh" check
-assert_contains "$PROJECT_TWO/AGENTS.md" 'status=partial; package_revision=1.4.2; verified_at=2026-08-24T11:30:00Z; scope=docs/api; reason=remaining_modules'
+assert_contains "$PROJECT_TWO/AGENTS.md" 'status=partial; package_revision=1.4.3; verified_at=2026-08-24T11:30:00Z; scope=docs/api; reason=remaining_modules'
 "$PACKAGE_TWO/scripts/install.sh" set-state --status blocked --verified-at never --scope repo --reason missing_owner_decision
-assert_contains "$PROJECT_TWO/AGENTS.md" 'status=blocked; package_revision=1.4.2; verified_at=never; scope=repo; reason=missing_owner_decision'
+assert_contains "$PROJECT_TWO/AGENTS.md" 'status=blocked; package_revision=1.4.3; verified_at=never; scope=repo; reason=missing_owner_decision'
 "$PACKAGE_TWO/scripts/install.sh" check
 "$PACKAGE_TWO/scripts/install.sh" trigger >/dev/null
-assert_contains "$PROJECT_TWO/AGENTS.md" 'status=pending; package_revision=1.4.2; verified_at=never; scope=repo; reason=retry_requested'
+assert_contains "$PROJECT_TWO/AGENTS.md" 'status=pending; package_revision=1.4.3; verified_at=never; scope=repo; reason=retry_requested'
 
 # Crash recovery: adapted state may coexist briefly with the trigger, then cleanup removes only the trigger.
 "$PACKAGE_TWO/scripts/install.sh" set-state --status adapted --verified-at 2026-08-24T12:00:00Z --scope repo --reason none
@@ -232,20 +276,20 @@ after=$(sha256sum "$PROJECT_TWO/AGENTS.md" | cut -d' ' -f1)
 [ "$before" = "$after" ] || fail 'adapted crash recovery repeated or changed adaptation'
 "$PACKAGE_TWO/scripts/install.sh" remove-trigger
 assert_not_contains "$PROJECT_TWO/AGENTS.md" '<!-- agent-project-guides:adapter-trigger:start -->'
-[ "$(tail -n 1 "$PROJECT_TWO/AGENTS.md")" = '<!-- agent-project-guides:routing:end -->' ] || fail 'trigger removal left trailing blank lines'
-assert_contains "$PROJECT_TWO/AGENTS.md" '<!-- agent-project-guides:routing:start -->'
-assert_original_prefix "$TMP/original-two.md" "$PROJECT_TWO/AGENTS.md"
+assert_managed_first "$PROJECT_TWO/AGENTS.md"
+assert_original_suffix "$TMP/original-two.md" "$PROJECT_TWO/AGENTS.md"
 "$PACKAGE_TWO/scripts/install.sh" check
 
 # Explicit later trigger marks an adapted project stale for re-adaptation.
 "$PACKAGE_TWO/scripts/install.sh" trigger >/dev/null
-assert_contains "$PROJECT_TWO/AGENTS.md" 'status=stale; package_revision=1.4.2; verified_at=2026-08-24T12:00:00Z; scope=repo; reason=explicit_readaptation'
+assert_contains "$PROJECT_TWO/AGENTS.md" 'status=stale; package_revision=1.4.3; verified_at=2026-08-24T12:00:00Z; scope=repo; reason=explicit_readaptation'
 "$PACKAGE_TWO/scripts/install.sh" set-state --status adapted --verified-at 2026-08-24T13:00:00Z --scope repo --reason none >/dev/null
 "$PACKAGE_TWO/scripts/install.sh" remove-trigger >/dev/null
-[ "$(tail -n 1 "$PROJECT_TWO/AGENTS.md")" = '<!-- agent-project-guides:routing:end -->' ] || fail 'repeated trigger cycle accumulated trailing blank lines'
+assert_managed_first "$PROJECT_TWO/AGENTS.md"
+assert_original_suffix "$TMP/original-two.md" "$PROJECT_TWO/AGENTS.md"
 "$PACKAGE_TWO/scripts/install.sh" unmerge
 assert_not_contains "$PROJECT_TWO/AGENTS.md" '<!-- agent-project-guides:routing:start -->'
-assert_original_prefix "$TMP/original-two.md" "$PROJECT_TWO/AGENTS.md"
+cmp "$PROJECT_TWO/AGENTS.md" "$TMP/original-two.md" >/dev/null || fail 'unmerge did not restore original AGENTS.md bytes'
 
 # Root selection prefers AGENTS.md, supports a sole small CLAUDE.md, and preserves siblings.
 PROJECT_THREE="$TMP/root-selection-project"
@@ -260,8 +304,13 @@ assert_contains "$TMP/missing-root.err" 'selected root AGENTS.md does not exist'
 
 printf '# Claude-only project rules\n\n- Preserve this exact rule.\n' > "$PROJECT_THREE/CLAUDE.md"
 cp "$PROJECT_THREE/CLAUDE.md" "$TMP/original-claude.md"
+if "$PACKAGE_THREE/scripts/install.sh" trigger --sync-claude-scope >/dev/null 2>&1; then
+  fail 'CLAUDE scope sync accepted a sole CLAUDE.md root'
+fi
+cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/original-claude.md" >/dev/null || fail 'invalid scope sync changed sole CLAUDE.md'
 "$PACKAGE_THREE/scripts/install.sh" trigger >/dev/null
-assert_original_prefix "$TMP/original-claude.md" "$PROJECT_THREE/CLAUDE.md"
+assert_managed_first "$PROJECT_THREE/CLAUDE.md"
+assert_original_suffix "$TMP/original-claude.md" "$PROJECT_THREE/CLAUDE.md"
 assert_contains "$PROJECT_THREE/CLAUDE.md" 're-read `CLAUDE.md`'
 [ ! -e "$PROJECT_THREE/AGENTS.md" ] || fail 'small CLAUDE-only install unnecessarily created AGENTS.md'
 "$PACKAGE_THREE/scripts/install.sh" check
@@ -272,23 +321,79 @@ cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/original-claude.md" >/dev/null || fail 'CLA
 
 printf '# Preferred agent rules\n' > "$PROJECT_THREE/AGENTS.md"
 printf '# Local overlay\n' > "$PROJECT_THREE/AGENTS.local.md"
+cp "$PROJECT_THREE/AGENTS.md" "$TMP/multi-root-agents.md"
 cp "$PROJECT_THREE/CLAUDE.md" "$TMP/multi-root-claude.md"
+cp "$PROJECT_THREE/AGENTS.local.md" "$TMP/multi-root-local.md"
+
+# Without the opt-in flag, only the selected AGENTS.md changes.
 "$PACKAGE_THREE/scripts/install.sh" merge >/dev/null
-assert_contains "$PROJECT_THREE/AGENTS.md" '<!-- agent-project-guides:routing:start -->'
-cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/multi-root-claude.md" >/dev/null || fail 'multi-root merge changed non-selected CLAUDE.md'
-assert_not_contains "$PROJECT_THREE/CLAUDE.md" '<!-- agent-project-guides:routing:start -->'
+assert_managed_first "$PROJECT_THREE/AGENTS.md"
+cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/multi-root-claude.md" >/dev/null || fail 'multi-root merge changed non-selected CLAUDE.md without opt-in'
+assert_not_contains "$PROJECT_THREE/CLAUDE.md" '<!-- agent-project-guides:claude-scope:start -->'
 "$PACKAGE_THREE/scripts/install.sh" check
+if "$PACKAGE_THREE/scripts/install.sh" check --sync-claude-scope >/dev/null 2>&1; then
+  fail 'opt-in check accepted a missing CLAUDE scope block'
+fi
+"$PACKAGE_THREE/scripts/install.sh" unmerge >/dev/null
+cmp "$PROJECT_THREE/AGENTS.md" "$TMP/multi-root-agents.md" >/dev/null || fail 'multi-root unmerge did not restore AGENTS.md'
+
+# The opt-in scope sync prepends only a generic role gate and is idempotent.
+"$PACKAGE_THREE/scripts/install.sh" merge --sync-claude-scope >/dev/null
+assert_managed_first "$PROJECT_THREE/AGENTS.md"
+[ "$(sed -n '1p' "$PROJECT_THREE/CLAUDE.md")" = '<!-- agent-project-guides:claude-scope:start -->' ] || fail 'opt-in CLAUDE scope block is not first'
+assert_original_suffix "$TMP/multi-root-claude.md" "$PROJECT_THREE/CLAUDE.md"
+assert_not_contains "$PROJECT_THREE/CLAUDE.md" '<!-- agent-project-guides:routing:start -->'
+"$PACKAGE_THREE/scripts/install.sh" check --sync-claude-scope
+agents_before=$(sha256sum "$PROJECT_THREE/AGENTS.md" | cut -d' ' -f1)
+claude_before=$(sha256sum "$PROJECT_THREE/CLAUDE.md" | cut -d' ' -f1)
+"$PACKAGE_THREE/scripts/install.sh" merge --sync-claude-scope >/dev/null
+[ "$agents_before" = "$(sha256sum "$PROJECT_THREE/AGENTS.md" | cut -d' ' -f1)" ] || fail 'opt-in AGENTS merge is not idempotent'
+[ "$claude_before" = "$(sha256sum "$PROJECT_THREE/CLAUDE.md" | cut -d' ' -f1)" ] || fail 'opt-in CLAUDE scope sync is not idempotent'
+
+# A transaction marker makes interrupted two-root sync detectable and recoverable.
+printf 'sync-claude-scope\n' > "$PROJECT_THREE/.agent-project-guides.transaction"
+node "$PACKAGE_THREE/scripts/manage-root-blocks.mjs" strip "$PROJECT_THREE/CLAUDE.md" "$TMP/partial-claude.md" \
+  '<!-- agent-project-guides:claude-scope:start -->' '<!-- agent-project-guides:claude-scope:end -->'
+cp "$TMP/partial-claude.md" "$PROJECT_THREE/CLAUDE.md"
+if "$PACKAGE_THREE/scripts/install.sh" check >/dev/null 2>&1; then
+  fail 'check accepted an incomplete two-root transaction'
+fi
+"$PACKAGE_THREE/scripts/install.sh" merge --sync-claude-scope >/dev/null
+[ ! -e "$PROJECT_THREE/.agent-project-guides.transaction" ] || fail 'scope recovery left a transaction marker'
+[ "$claude_before" = "$(sha256sum "$PROJECT_THREE/CLAUDE.md" | cut -d' ' -f1)" ] || fail 'scope recovery did not restore canonical CLAUDE content'
+
+"$PACKAGE_THREE/scripts/install.sh" merge >/dev/null
+[ "$claude_before" = "$(sha256sum "$PROJECT_THREE/CLAUDE.md" | cut -d' ' -f1)" ] || fail 'ordinary merge removed or changed an existing optional CLAUDE scope'
+
+# Interrupted unmerge is also resumed idempotently.
+printf 'unmerge\n' > "$PROJECT_THREE/.agent-project-guides.transaction"
+node "$PACKAGE_THREE/scripts/manage-root-blocks.mjs" strip "$PROJECT_THREE/CLAUDE.md" "$TMP/partial-unmerge-claude.md" \
+  '<!-- agent-project-guides:claude-scope:start -->' '<!-- agent-project-guides:claude-scope:end -->'
+cp "$TMP/partial-unmerge-claude.md" "$PROJECT_THREE/CLAUDE.md"
+"$PACKAGE_THREE/scripts/install.sh" unmerge >/dev/null
+[ ! -e "$PROJECT_THREE/.agent-project-guides.transaction" ] || fail 'unmerge recovery left a transaction marker'
+cmp "$PROJECT_THREE/AGENTS.md" "$TMP/multi-root-agents.md" >/dev/null || fail 'scope unmerge did not restore AGENTS.md'
+cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/multi-root-claude.md" >/dev/null || fail 'scope unmerge did not restore CLAUDE.md'
+cmp "$PROJECT_THREE/AGENTS.local.md" "$TMP/multi-root-local.md" >/dev/null || fail 'scope sync changed local overlay'
+
+# Real routing markers in a non-selected root remain a hard conflict.
+"$PACKAGE_THREE/scripts/install.sh" merge >/dev/null
 printf '\n<!-- agent-project-guides:routing:start -->\n' >> "$PROJECT_THREE/CLAUDE.md"
 if "$PACKAGE_THREE/scripts/install.sh" check >/dev/null 2>&1; then
-  fail 'check accepted package markers in multiple root candidates'
+  fail 'check accepted package routing markers in multiple root candidates'
 fi
 cp "$TMP/multi-root-claude.md" "$PROJECT_THREE/CLAUDE.md"
 "$PACKAGE_THREE/scripts/install.sh" unmerge >/dev/null
 rm "$PROJECT_THREE/AGENTS.md" "$PROJECT_THREE/AGENTS.local.md"
 
 # A sole oversized CLAUDE.md remains untouched; routing moves to a new short AGENTS.md.
-dd if=/dev/zero bs=13000 count=1 2>/dev/null | tr '\000' x > "$PROJECT_THREE/CLAUDE.md"
+dd if=/dev/zero bs=16200 count=1 2>/dev/null | tr '\000' x > "$PROJECT_THREE/CLAUDE.md"
 cp "$PROJECT_THREE/CLAUDE.md" "$TMP/oversized-claude.md"
+if "$PACKAGE_THREE/scripts/install.sh" merge --sync-claude-scope >/dev/null 2>&1; then
+  fail 'scope sync accepted a CLAUDE.md that would exceed the instruction cap'
+fi
+[ ! -e "$PROJECT_THREE/AGENTS.md" ] || fail 'failed CLAUDE scope preflight created AGENTS.md'
+cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/oversized-claude.md" >/dev/null || fail 'failed CLAUDE scope preflight changed original content'
 "$PACKAGE_THREE/scripts/install.sh" merge >/dev/null
 assert_contains "$PROJECT_THREE/AGENTS.md" '<!-- agent-project-guides:routing:start -->'
 cmp "$PROJECT_THREE/CLAUDE.md" "$TMP/oversized-claude.md" >/dev/null || fail 'oversized CLAUDE.md fallback changed original content'
@@ -300,12 +405,30 @@ rm "$PROJECT_THREE/AGENTS.md" "$PROJECT_THREE/CLAUDE.md"
 printf '# Legacy\n<!-- agent-project-guides:handoff:start -->\n' > "$PROJECT_THREE/AGENTS.md"
 cp "$PROJECT_THREE/AGENTS.md" "$TMP/legacy-root.md"
 if "$PACKAGE_THREE/scripts/install.sh" merge >/dev/null 2>&1; then
-  fail 'append-only merge accepted a legacy root-replacement handoff'
+  fail 'managed-prefix merge accepted a legacy root-replacement handoff'
 fi
 cmp "$PROJECT_THREE/AGENTS.md" "$TMP/legacy-root.md" >/dev/null || fail 'legacy refusal changed root instructions'
 rm "$PROJECT_THREE/AGENTS.md"
 
-# Root symlinks are refused so append-only merge cannot change their semantics.
+# Unbalanced reserved markers fail before any root rewrite.
+printf '# Original\n<!-- agent-project-guides:routing:end -->\n' > "$PROJECT_THREE/AGENTS.md"
+cp "$PROJECT_THREE/AGENTS.md" "$TMP/unbalanced-root.md"
+if "$PACKAGE_THREE/scripts/install.sh" merge >/dev/null 2>&1; then
+  fail 'merge accepted an unbalanced existing routing marker'
+fi
+cmp "$PROJECT_THREE/AGENTS.md" "$TMP/unbalanced-root.md" >/dev/null || fail 'marker preflight failure changed root instructions'
+rm "$PROJECT_THREE/AGENTS.md"
+
+# A balanced trigger without permanent routing is invalid and is not silently dropped.
+printf '# Original\n<!-- agent-project-guides:adapter-trigger:start -->\n<!-- agent-project-guides:adapter-trigger:end -->\n' > "$PROJECT_THREE/AGENTS.md"
+cp "$PROJECT_THREE/AGENTS.md" "$TMP/orphan-trigger.md"
+if "$PACKAGE_THREE/scripts/install.sh" merge >/dev/null 2>&1; then
+  fail 'merge accepted an adapter trigger without permanent routing'
+fi
+cmp "$PROJECT_THREE/AGENTS.md" "$TMP/orphan-trigger.md" >/dev/null || fail 'orphan-trigger refusal changed root instructions'
+rm "$PROJECT_THREE/AGENTS.md"
+
+# Root symlinks are refused so managed-prefix merge cannot change their semantics.
 printf '# Shared instructions\n' > "$PROJECT_THREE/shared-agents.md"
 ln -s shared-agents.md "$PROJECT_THREE/AGENTS.md"
 if "$PACKAGE_THREE/scripts/install.sh" merge >/dev/null 2>&1; then
@@ -344,6 +467,20 @@ assert_contains "$PROJECT_FOUR/AGENTS.md" 'Trigger revision: 1.5.0'
 assert_contains "$PROJECT_FOUR/AGENTS.md" 'status=stale; package_revision=1.5.0'
 [ "$(grep -Fc '<!-- agent-project-guides:adapter-trigger:start -->' "$PROJECT_FOUR/AGENTS.md")" -eq 1 ] || fail 'version refresh duplicated the trigger'
 "$PACKAGE_FOUR/scripts/install.sh" check
+
+# A trigger already active during a package upgrade is refreshed, not dropped or duplicated.
+PROJECT_FOUR_ACTIVE="$TMP/version-project-active-trigger"
+PACKAGE_FOUR_ACTIVE="$PROJECT_FOUR_ACTIVE/agent-project-guides"
+mkdir -p "$PROJECT_FOUR_ACTIVE/.git"
+copy_package "$PACKAGE_FOUR_ACTIVE"
+"$PACKAGE_FOUR_ACTIVE/scripts/install.sh" trigger >/dev/null
+printf '1.5.0\n' > "$PACKAGE_FOUR_ACTIVE/PACKAGE_VERSION"
+"$PACKAGE_FOUR_ACTIVE/scripts/install.sh" merge >/dev/null
+assert_managed_first "$PROJECT_FOUR_ACTIVE/AGENTS.md"
+assert_contains "$PROJECT_FOUR_ACTIVE/AGENTS.md" 'status=stale; package_revision=1.5.0'
+assert_contains "$PROJECT_FOUR_ACTIVE/AGENTS.md" 'Trigger revision: 1.5.0'
+[ "$(grep -Fc '<!-- agent-project-guides:adapter-trigger:start -->' "$PROJECT_FOUR_ACTIVE/AGENTS.md")" -eq 1 ] || fail 'active trigger upgrade changed trigger cardinality'
+"$PACKAGE_FOUR_ACTIVE/scripts/install.sh" check
 
 # Invalid JSONL or unresolved registry paths fail before root instructions change.
 PROJECT_FIVE="$TMP/jsonl-project"
@@ -393,4 +530,4 @@ if "$PACKAGE_FIVE/scripts/install.sh" merge >/dev/null 2>&1; then
 fi
 [ ! -e "$PROJECT_FIVE/AGENTS.md" ] || fail 'invalid remote metadata failure created root instructions'
 
-printf 'PASS: append-only schemes, exact routing, project profiles, MCP subtypes, artifact presets, cloud freshness, state lifecycle, and safety guards\n'
+printf 'PASS: managed-prefix routing, recoverable CLAUDE scope transactions, exact aliases, project profiles, MCP subtypes, cloud freshness, state lifecycle, and safety guards\n'

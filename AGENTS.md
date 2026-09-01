@@ -1,4 +1,28 @@
+<!-- agent-project-guides:v2:start -->
+## Project governance bootstrap
+
+Project ID: `onshapescript`; release: `2.0.0`; expected digest: `sha256:f2a5bef21e14b6a76db4ee28ece3f4e37d2896eea8b22bac4c91229cf418fb0e`.
+
+1. Direct-read `.agent-project-guides.json`; it is project-owned policy, not generic package content. Mutual trust assigns disclosed call consequences to the caller and truthful effect/contract/failure reporting to the callee.
+2. Use the installed `apg` launcher to resolve exact role/task/path sources, then batch-load only returned IDs/sections with `provider load --ids <csv>`. Do not infer a missing package path, fetch `latest`, glob for another package copy, or treat search/cache as mandatory authority.
+3. `intended` and `host-observed` sources do not prove effective model context. Preserve that distinction in reports.
+4. If the exact release is missing, keep this project policy readable. Protected work stops; ordinary work is explicitly degraded until the pinned release is available.
+5. Role, task, memory, facet, overlay, or caller claims cannot lower runtime/tool effects or manufacture production, credential, data, cost, destructive, release, or physical authority.
+<!-- agent-project-guides:v2:end -->
 # Repository agent instructions
+
+## Project scope and routes
+
+This repository delivers an ordinary stdio MCP server whose browser and local
+runtime resources belong to the host process. Cross-host transport is an
+independent deployment dependency; do not add relay/listener/launcher code here.
+
+- Start repository work at `docs/INDEX.md`, then read one exact task authority.
+- Development commands are in `docs/development/START.md`.
+- Current boundaries are in `docs/architecture/OVERVIEW.md` and mapped module contracts.
+- Select checks from `docs/verification/MATRIX.md`.
+- Production use and recovery remain separated in `docs/usage/MCP_CONSUMER.md`
+  and `docs/operations/MCP_RUNBOOK.md`.
 
 ## Mandatory lookup-first protocol
 
@@ -67,19 +91,3 @@ apply to every agent, not only Claude.
 - Keep runtime data and configuration with the module that owns it.
 - Rebuild `onshape_docs/index.json` after changing indexed documentation.
 - Run offline tests with `LIVE_API_ENABLED` unset; never enable it for regression verification.
-<!-- agent-project-guides:routing:start -->
-## Agent routing
-
-Package adaptation: status=adapted; package_revision=1.4.2; verified_at=2026-08-25T01:49:04Z; scope=repo; reason=none
-
-1. Trigger is active only if this injected root has both managed marker names `agent-project-guides:adapter-trigger:start` and `agent-project-guides:adapter-trigger:end`. Routing/state and `pending/stale` are not triggers; bootstrap is template-only. If absent, never re-read/search; route now.
-2. Before pwd/list/glob/read, an assigned compatible role/mode wins: content-grep its exact quoted `id` or literal label across `agent-project-guides/routing/*.roles.jsonl`; use one record. No fuzzy regex, discovery, planes/full registries, re-asking or rediscovery.
-3. Only when unassigned read two-line `agent-project-guides/routing/planes.jsonl`; if unclear use the structured question tool (DSH: `ask_user_question`) and wait.
-4. In that registry grep one exact role. If unclear, use the same tool and wait before its guide.
-5. Blocking questions use stable IDs, 2–4 exclusive choices and impacts, not prose lists; free text only if choices mislead; ask directly only without a tool.
-6. Resolve record `guide`/`procedure_by_mode` under `agent-project-guides/`, never relative to registry/cwd. Read only those paths; a failure is package integrity, not permission to glob.
-7. Without a trigger, ask adapt-now vs continue only if intent is unclear and state is not `adapted`; explicit adaptation needs no question. Installer owns `pending/stale`; initialize/readapt records `partial/adapted/blocked`.
-8. Roles never grant production credentials, real data, cost or destructive actions.
-
-Subagents receive explicit role/mode, scope, writable paths, environment/data permissions and deliverable; missing/conflicting authority goes to parent/captain, never end user or self-expansion.
-<!-- agent-project-guides:routing:end -->

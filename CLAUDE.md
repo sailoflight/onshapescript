@@ -1,3 +1,6 @@
+<!-- agent-project-guides:claude-scope:start -->
+Agent role gate: resolve plane/role/mode from the package-managed routing in `AGENTS.md` before applying this file. Apply these instructions only within the selected role's permitted scope; the selected role guide controls allowed evidence and actions.
+<!-- agent-project-guides:claude-scope:end -->
 # Onshape MCP 开发：API 配额保护与测试优化
 
 > 所有代理先读取根目录 `AGENTS.md`。以下检索顺序是硬约束，不得用模型记忆替代本地证据。

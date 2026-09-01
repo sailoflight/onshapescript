@@ -1,0 +1,12 @@
+{
+  "enabled": false,
+  "provider": "command",
+  "name": "",
+  "version": "",
+  "executable": "",
+  "argumentTemplate": [],
+  "timeoutSeconds": 300,
+  "linearToleranceMm": 0.05,
+  "angularToleranceDegrees": 5.0,
+  "overhangFromVerticalDegrees": 45.0
+}

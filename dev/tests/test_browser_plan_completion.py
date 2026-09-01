@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mcp_main.win.mcp import browser_tools, server  # noqa: E402
-from onshape_browser_mode import interaction, listener, project, semantic  # noqa: E402
+from onshape_browser_mode import actions, interaction, listener, project, semantic  # noqa: E402
 from onshape_browser_mode.pages import (  # noqa: E402
     AmbiguousFrameError,
     AssemblyPage,
@@ -132,6 +132,19 @@ class PageObjectAndFrameTest(unittest.TestCase):
         self.assertIn(evidence["insertDialogSelector"], selectors.ASM_INSERT_DIALOG)
         self.assertEqual(selectors.ASM_INSERT_ACCEPT, evidence["insertAcceptSelector"])
 
+    def test_fs_outline_selectors_match_live_evidence(self):
+        from onshape_browser_mode import selectors
+        evidence = json.loads(
+            (ROOT / "dev/button-map/scan-fs-module-outline.json").read_text(encoding="utf-8")
+        )["moduleOutline"]
+        self.assertEqual(selectors.FS_MODULE_OUTLINE, evidence["buttonSelector"])
+        self.assertEqual(selectors.FS_MODULE_OUTLINE_DROPDOWN, evidence["dropdownSelector"])
+        self.assertEqual(selectors.FS_MODULE_OUTLINE_LIST, evidence["listSelector"])
+        self.assertEqual(selectors.FS_MODULE_OUTLINE_ITEM, evidence["itemSelector"])
+        self.assertEqual(selectors.FS_MODULE_OUTLINE_ICON, evidence["iconSelector"])
+        self.assertEqual(selectors.FS_MODULE_OUTLINE_NAME, evidence["nameSelector"])
+        self.assertIn("Φ", evidence["observedIcons"])
+
     def test_all_planned_page_objects_exist(self):
         for cls in (DocumentsPage, FeatureStudioPage, PartStudioPage, AssemblyPage):
             self.assertIsNotNone(cls(FakePage()).scope)
@@ -200,6 +213,69 @@ class GenericInteractionTest(unittest.TestCase):
         self.assertIn("Control+A", page.target.press_calls)
         self.assertEqual(page.target.type_calls[-1], ("42 mm", {"delay": 10}))
 
+    def test_fs_read_tools_return_page_identity_and_semantic_results(self):
+        page = FakePage()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        guard = mock.Mock()
+        with mock.patch.object(browser_tools, "_page", return_value=(page, guard)), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status", return_value={
+                 "found": True, "compiled": True, "annotationCount": 0, "errors": [],
+             }), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_symbols", return_value={
+                 "found": True, "symbolCount": 2,
+                 "symbols": [
+                     {"kind": "const", "name": "BOUNDS", "displayName": "BOUNDS", "rawIcon": "C"},
+                     {"kind": "function", "name": "build", "displayName": "build(context)", "rawIcon": "ƒ"},
+                 ],
+             }):
+            status = browser_tools.browser_get_fs_compile_status({})
+            symbols = browser_tools.browser_get_fs_symbols({})
+        self.assertTrue(status["compiled"])
+        self.assertEqual(status["elementId"], "e1")
+        self.assertEqual(symbols["symbolCount"], 2)
+        self.assertEqual(symbols["symbols"][1]["name"], "build")
+
+    def test_fs_symbol_reader_preserves_feature_kind(self):
+        dropdown = mock.Mock()
+        dropdown.first = dropdown
+        dropdown.count.return_value = 1
+        dropdown.is_visible.return_value = True
+        page = mock.Mock()
+        page.locator.return_value = dropdown
+        page.evaluate.return_value = {
+            "found": True,
+            "items": [
+                {"rawIcon": "C", "displayName": "BOUNDS"},
+                {"rawIcon": "ƒ", "displayName": "helper(context)"},
+                {"rawIcon": "Φ", "displayName": "buildFeature(context, id, definition)"},
+            ],
+        }
+        result = actions.read_featurescript_symbols(page)
+        self.assertEqual(result["symbolCount"], 3)
+        self.assertEqual(
+            [item["kind"] for item in result["symbols"]],
+            ["const", "function", "feature"],
+        )
+        self.assertEqual(result["symbols"][2]["name"], "buildFeature")
+        dropdown.click.assert_not_called()
+
+    def test_stale_context_menu_is_dismissed_only_when_blocking(self):
+        page = mock.Mock()
+        page.evaluate.side_effect = [
+            {"present": True, "blocking": True, "childCount": 0},
+            {"present": True, "blocking": False, "childCount": 0},
+        ]
+        result = actions.dismiss_stale_context_menu(page)
+        self.assertTrue(result["attempted"])
+        self.assertTrue(result["dismissed"])
+        page.keyboard.press.assert_called_once_with("Escape")
+
+        page = mock.Mock()
+        page.evaluate.return_value = {"present": True, "blocking": False, "childCount": 0}
+        result = actions.dismiss_stale_context_menu(page)
+        self.assertFalse(result["attempted"])
+        page.keyboard.press.assert_not_called()
+
     def test_mutating_tools_require_confirmation_before_session(self):
         calls = {
             "browser_press_key": {"key": "Enter", "selector": "#x"},
@@ -214,7 +290,7 @@ class GenericInteractionTest(unittest.TestCase):
             "browser_deploy_and_apply_featurescript": {"script": "FeatureScript 1;", "feature_name": "F"},
             "browser_build_part": {"feature_name": "F"},
             "browser_assemble": {"instance_names": ["A"], "instance_selector": ".ns-tree-root .ns-assembly-instance-row.is-instance"},
-            "browser_draw_part": {"source_tab": "Part Studio 1"},
+            "browser_draw_part": {"source_tab": "Part Studio 1", "dimensions": [{"tool_selector": "#dimension-tool", "geometry_selectors": ["#edge-1"], "verification_selector": "#dimension-1"}]},
             "browser_run_project": {},
         }
         with mock.patch.object(browser_tools, "_page", side_effect=AssertionError("session started")):
@@ -236,7 +312,7 @@ class GenericInteractionTest(unittest.TestCase):
             "browser_deploy_and_apply_featurescript": {"script": "FeatureScript 1;", "feature_name": "F"},
             "browser_build_part": {"feature_name": "F"},
             "browser_assemble": {"instance_names": ["A"], "instance_selector": ".ns-tree-root .ns-assembly-instance-row.is-instance"},
-            "browser_draw_part": {"source_tab": "PS"},
+            "browser_draw_part": {"source_tab": "PS", "dimensions": [{"tool_selector": "#dimension-tool", "geometry_selectors": ["#edge-1"], "verification_selector": "#dimension-1"}]},
             "browser_run_project": {},
         }
         with mock.patch.object(browser_tools, "_page", side_effect=AssertionError("session started")):
@@ -322,6 +398,9 @@ class SemanticOperationTest(unittest.TestCase):
              mock.patch("onshape_browser_mode.actions.write_featurescript_editor", return_value={"ok": True, "length": 3}), \
              mock.patch("onshape_browser_mode.actions.click_commit", return_value={
                  "clicked": True, "before": {"disabled": False}, "after": {"disabled": False},
+             }), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status", return_value={
+                 "compiled": True, "annotationCount": 0, "errors": [],
              }):
             result = semantic.deploy_featurescript(mock.Mock(), "new")
         self.assertFalse(result["deployed"])
@@ -333,10 +412,33 @@ class SemanticOperationTest(unittest.TestCase):
              mock.patch("onshape_browser_mode.actions.write_featurescript_editor", return_value={"ok": True, "length": 3}), \
              mock.patch("onshape_browser_mode.actions.click_commit", return_value={
                  "clicked": True, "before": {"disabled": False}, "after": {"disabled": True},
+             }), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status", return_value={
+                 "compiled": True, "annotationCount": 0, "errors": [],
              }):
             result = semantic.deploy_featurescript(mock.Mock(), "new")
         self.assertTrue(result["deployed"])
         self.assertTrue(result["commitAccepted"])
+        self.assertTrue(result["compiled"])
+
+    def test_deploy_rejects_compiler_annotations(self):
+        compile_error = {
+            "compiled": False,
+            "annotationCount": 1,
+            "errors": [{"row": 4, "col": 2, "text": "Unexpected token", "type": "error"}],
+        }
+        with mock.patch("onshape_browser_mode.actions.read_featurescript_editor", side_effect=["old", "new"]), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor", return_value={"ok": True, "length": 3}), \
+             mock.patch("onshape_browser_mode.actions.click_commit", return_value={
+                 "clicked": True, "before": {"disabled": False}, "after": {"disabled": True},
+             }), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status", return_value=compile_error):
+            result = semantic.deploy_featurescript(mock.Mock(), "new")
+        self.assertFalse(result["deployed"])
+        self.assertTrue(result["commitAccepted"])
+        self.assertFalse(result["compiled"])
+        self.assertEqual(result["annotationCount"], 1)
+        self.assertEqual(result["errors"], compile_error["errors"])
 
     def test_insert_assembly_separates_source_and_expected_names(self):
         assembly = mock.Mock()
@@ -427,7 +529,7 @@ class SemanticOperationTest(unittest.TestCase):
     def test_project_fixture_is_complete_and_secret_free(self):
         loaded = project.load_project("module-interface-verification")
         self.assertEqual(len(loaded["steps"]), 6)
-        self.assertEqual(loaded["steps"][-1]["tool"], "browser_draw_part")
+        self.assertEqual(loaded["steps"][-1]["tool"], "browser_drawing_insert_views")
 
 
 class WatchAndProjectTest(unittest.TestCase):
@@ -486,14 +588,14 @@ class WatchAndProjectTest(unittest.TestCase):
             calls = []
             def failing(tool, args):
                 calls.append((tool, args))
-                return {"ok": True, "value": "v1"} if tool == "browser_build_part" else {"ok": False}
+                return {"built": True, "value": "v1"} if tool == "browser_build_part" else {"assembled": False}
             failed = project.run_project("sample", executor=failing, projects_dir=projects, checkpoint_dir=checkpoints)
             self.assertEqual(failed["completed"], ["one"])
             self.assertEqual(failed["failed"]["id"], "two")
             resumed_calls = []
             def succeeding(tool, args):
                 resumed_calls.append((tool, args))
-                return {"ok": True}
+                return {"assembled": True}
             resumed = project.run_project("sample", executor=succeeding, resume=True, projects_dir=projects, checkpoint_dir=checkpoints)
             self.assertTrue(resumed["ok"])
             self.assertEqual(resumed_calls, [("browser_assemble", {"prior": "v1"})])
@@ -579,7 +681,13 @@ class HandlerCompositionTest(unittest.TestCase):
                 "instance_names": ["A", "B"], "instance_selector": ".ns-tree-root .ns-assembly-instance-row.is-instance", "confirm_mutation": True,
             })
             drawn = browser_tools.browser_draw_part({
-                "source_tab": "PS", "confirm_mutation": True,
+                "source_tab": "PS",
+                "dimensions": [{
+                    "tool_selector": "#dimension-tool",
+                    "geometry_selectors": ["#edge-1"],
+                    "verification_selector": "#dimension-1",
+                }],
+                "confirm_mutation": True,
             })
         self.assertTrue(assembled["assembled"])
         self.assertTrue(drawn["drawn"])
@@ -611,7 +719,7 @@ class HandlerCompositionTest(unittest.TestCase):
 class PlannedMetadataTest(unittest.TestCase):
     def test_registry_and_cost_contract(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
-        self.assertEqual(len(by_name), 68)
+        self.assertEqual(len(by_name), 104)
         before = len(server.TOOLS)
         browser_tools.install(server.TOOLS, server.HANDLERS)
         self.assertEqual(len(server.TOOLS), before)
@@ -624,12 +732,27 @@ class PlannedMetadataTest(unittest.TestCase):
         # Read-only browser tools need no mutation confirmation and are marked
         # read-only; all other browser handlers are mutating and must gate on it.
         for name in browser_tools.BROWSER_HANDLERS:
-            if name in {"browser_wait", "browser_capture_screenshot"}:
+            if name in {
+                "browser_get_fs_compile_status", "browser_get_fs_symbols",
+                "browser_fs_goto_definition", "browser_fs_toggle_fold",
+                "browser_set_panel_filter", "browser_toggle_left_panel",
+                "browser_read_selection_preview", "browser_element_context_menu",
+                "browser_notifications_status", "browser_share_document",
+                "browser_view_orientation", "browser_print_orientation_check",
+                "browser_print_optimize_part", "browser_wall_thickness_report", "browser_wait",
+                "browser_capture_screenshot", "browser_discover_tools",
+                "browser_geometry_status",
+            }:
                 self.assertNotIn("confirm_mutation", by_name[name]["inputSchema"]["properties"])
                 self.assertTrue(by_name[name]["annotations"]["readOnlyHint"])
                 continue
             self.assertIn("confirm_mutation", by_name[name]["inputSchema"]["properties"])
             self.assertFalse(by_name[name]["annotations"]["readOnlyHint"])
+
+        configure = by_name["browser_configure_geometry_backend"]["inputSchema"]["properties"]
+        self.assertEqual(set(configure), {"candidate_id", "dry_run", "confirm_mutation"})
+        self.assertNotIn("executable", configure)
+        self.assertNotIn("argument_template", configure)
 
         capture = by_name["browser_capture_screenshot"]
         self.assertEqual(capture["cost"]["estimated_requests"], 0)
@@ -649,6 +772,23 @@ class ScreenshotToolTest(unittest.TestCase):
         self.assertTrue(result["dryRun"])
         self.assertEqual(result["estimatedApiRequests"], 0)
         self.assertIn("outputPath", result)
+
+    def test_dry_run_does_not_create_output_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "not-created"
+            with mock.patch.object(browser_tools, "_repo_root", return_value=Path(tmp)), \
+                 mock.patch.object(browser_tools, "_page", side_effect=AssertionError("session started")):
+                result = browser_tools.browser_capture_screenshot({
+                    "output_dir": "not-created", "filename": "preview.png", "dry_run": True,
+                })
+            self.assertTrue(result["dryRun"])
+            self.assertFalse(output.exists())
+
+    def test_filename_must_be_a_basename(self):
+        with self.assertRaisesRegex(ValueError, "basename"):
+            browser_tools.browser_capture_screenshot({
+                "filename": "../escape.png", "dry_run": True,
+            })
 
     def test_relative_output_dir_must_stay_in_repo_root(self):
         with self.assertRaises(ValueError):

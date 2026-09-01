@@ -267,6 +267,7 @@ def verify_project_docs() -> None:
                 path == "onshape_docs/README.md"
                 or path.startswith("onshape_docs/guide/")
                 or path == "docs/usage/MCP_CONSUMER.md"
+                or path == "fdm_analysis/README.md"
             )
         else:
             owned = category in allowed_roots and any(

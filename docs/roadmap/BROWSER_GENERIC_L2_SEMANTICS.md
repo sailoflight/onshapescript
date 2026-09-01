@@ -1,13 +1,14 @@
-# Browser generic L2 semantics (roadmap)
+# Browser generic shell semantics (historical L2 roadmap)
 
-Status: proposed, not implemented.
+Status: implemented 2026-08-25; retained as shell rationale and evidence map.
 
-This roadmap records the **app-generic L2 semantics** of the Onshape browser
+This roadmap records the **app-generic shell semantics** of the Onshape browser
 document shell — the regions that do **not** change with the Studio type
-(Part Studio / Feature Studio / Assembly / Drawing). It is the complement to
-`BROWSER_FS_SEMANTIC_TOOLS.md`, which covers FS-script-mode transactions, and
-to the four-level semantic taxonomy in `DYNAMIC_TOOL_DISCOVERY.md` (L1 generic
-primitives, L2 user-intent transactions, L3 workflows, L4 projects).
+(Part Studio / Feature Studio / Assembly / Drawing). The filename retains the
+historical four-level "L2" label; under the optional six-level taxonomy in
+`DYNAMIC_TOOL_DISCOVERY.md`, generic browser flows are L2, Onshape-aware shell
+interactions are L3, completed Onshape transactions/observations are L4, and
+multi-transaction Drawing workflows are L5.
 
 Evidence: live read-only screenshots (`read_image`/`vision_*`) plus DOM
 inventories (`browser_inspect`/`browser_eval`) of a real document shell
@@ -126,34 +127,35 @@ tab), already covered by `browser_create_tab`.
   (`document-tabs-button`) — the read surfaces a printability/measure check
   would consume (referenced by `BROWSER_FS_SEMANTIC_TOOLS.md`).
 
-## 6. Generic L2 transaction candidates
+## 6. Generic shell transaction candidates
 
-These are the app-generic L2 transactions (one user intent, own acceptance
-evidence) that do not depend on Studio type, most reusable across the whole
-document shell:
+These app-generic interactions and transactions are implemented in
+`onshape_browser_mode/transactions.py` (drawing/print composition is in
+`modeling_transactions.py`). A surface absent from the current DOM returns a
+structured negative/unknown result; registration does not imply click-only
+success:
 
-| Candidate L2 | Region | Evidence source | Verifies |
-|---|---|---|---|
-| `browser_open_doc_menu` | top navbar left | dropdown-menu document-dropdown-menu | menu shown; item clicked |
-| `browser_set_panel_filter` | left panel | `.os-search-box-input` (+ funnel) | filter applied; tree narrows |
-| `browser_toggle_left_panel` | left panel | collapse handle / icon rail | panel shown/hidden |
-| `browser_read_selection_preview` | left panel | preview card | preview card visible |
-| `browser_element_context_menu` | bottom tab bar | `.context-menu-list` on `.os-tab-bar-tab` | item list matches |
-| `browser_duplicate_element` | bottom tab bar | context menu → 复制 | new tab appears |
-| `browser_drawing_insert_views` | bottom tab bar | context menu → `创建 <name> 的工程图…` | drawing frame gained geometry |
-| `browser_notifications_status` | top navbar right | `#user-notification-status` | badge count read |
-| `browser_share_document` | top navbar right | `.nav-share` | share dialog opened |
-| `browser_view_orientation` | viewport chrome | view cube | orientation read/set |
+| Tool | Six-level class | Region | Evidence source | Verifies |
+|---|---|---|---|---|
+| `browser_open_doc_menu` | L3 interaction | top navbar left | dropdown-menu document-dropdown-menu | menu shown; item clicked |
+| `browser_set_panel_filter` | L3 interaction | left panel | `.os-search-box-input` (+ funnel) | filter applied; tree narrows |
+| `browser_toggle_left_panel` | L3 interaction | left panel | collapse handle / icon rail | panel shown/hidden |
+| `browser_read_selection_preview` | L3 interaction | left panel | preview card | preview card visible |
+| `browser_element_context_menu` | L3 interaction | bottom tab bar | `.context-menu-list` on `.os-tab-bar-tab` | item list matches |
+| `browser_duplicate_element` | L4 transaction | bottom tab bar | context menu → 复制 | new tab appears |
+| `browser_drawing_insert_views` | L5 workflow | Part Studio part list | exact part row context menu → `创建 <name> 的工程图…` | exactly one new tab + DOM/pixel view evidence |
+| `browser_notifications_status` | L3 interaction | top navbar right | `#user-notification-status` | badge count read |
+| `browser_share_document` | L3 interaction | top navbar right | `.nav-share` | share dialog opened |
+| `browser_view_orientation` | L4 transaction | viewport chrome | view cube | orientation read/set |
 
 > Tab-level rename/delete are already implemented (`browser_rename_tab` /
-> `browser_delete_tab`), and `browser_delete_element` is implemented; these are
-> not re-planned here. The full deduped list of planned tools (including the
-> renamed `browser_drawing_insert_views`) lives in
+> `browser_delete_tab`), and `browser_delete_element` is implemented. The full
+> implementation record and currently empty planned-only list live in
 > `BROWSER_PLANNED_TOOLS.md`.
 
 These compose on the existing L1 primitives (`browser_click`/`browser_type`/
 `browser_press_key`/`browser_wait`/`browser_inspect`/`browser_eval`) and on
-`browser_capture_screenshot` for visual verification, per the L1-to-L4 layering.
+`browser_capture_screenshot` for visual verification, per the six-level layering.
 
 ## 7. Selectors / frame notes
 
@@ -161,16 +163,16 @@ These compose on the existing L1 primitives (`browser_click`/`browser_type`/
   `.command-search-trigger`, `#user-notification-status`, `.nav-share`,
   `.os-search-box-input`, `.feature-list-header-button`,
   `button.measure-button`, `button.analysis-button`, `button.mass-properties`.
-- The always-present search box `.os-search-box-input` and the tab context menu
-  are confirmed generic. Selector evidence should follow the established
-  discipline: record into `dev/button-map/` and `onshape_browser_mode/selectors.py`
-  before any automation depends on them.
+- Selector evidence is stored in `dev/button-map/scan-app-shell.json` and
+  constants live in `onshape_browser_mode/selectors.py`. Candidates that were
+  not visible during the scan remain labeled `unverifiedCandidates`; dependent
+  read tools report absence rather than assuming them.
 
 ## 8. Inferred high-value features (browser observation + Onshape browser manual)
 
 Cross-referencing the live shell observation with the **Onshape browser manual**
 (`cad.onshape.com/help` — the Web UI user guide, not the REST API reference),
-the following app-generic capabilities stand out as high-value browser L2/L3
+the following app-generic capabilities stand out as high-value browser L2-L5
 semantics. Each row gives the user intent, the browser evidence (what the shell
 exposes), and the browser-manual page that documents the feature. "Export" here
 means the studio/part right-click → export-to-file capability (STEP/OBJ/glTF/
@@ -197,18 +199,19 @@ plan input.
   context actions, **export-to-file** (STP/OBJ/glTF via studio/part context
   menu), command/global search, view orientation. These reuse existing L1
   primitives and `browser_capture_screenshot`; they are the highest-leverage,
-  lowest-cost app-generic L2 transactions.
+  lowest-cost app-generic L3/L4 capabilities.
 - **P1 (browser panel reads, no live calls)**: history tree (document/version
   history), comments list/create, notifications drawer, action-items page. These
-  are read from the Onshape web panels the manual documents, so a browser L2
-  that opens the matching panel and reads its DOM is the honest, zero-REST scope.
+  are read from the Onshape web panels the manual documents, so an L3 shell
+  interaction that opens the matching panel and reads its DOM is the honest, zero-REST scope.
 - **P2 (may need live quota or human)**: review/approval state, release
   tracking, anything whose backing state is not exposed in the browser DOM.
 
 ### 8.2 Cost discipline
 
-Browser L2 semantics stay zero-REST (network=browser, estimated_requests=0).
-When a feature needs backing data (history, comments, notifications), prefer a
+Classified browser semantics stay zero-REST (network=browser,
+estimated_requests=0). L1/L3 are default-hidden for context efficiency but remain
+explicitly discoverable and documented. When a feature needs backing data (history, comments, notifications), prefer a
 browser panel read over a live API call. Any live call still follows the
 CLAUDE.md hard budget rules (one new fact, `expected_live_requests=1`, no retry
 on 429/5xx, no "write-then-read" confirmation loop).
@@ -221,4 +224,4 @@ on 429/5xx, no "write-then-read" confirmation loop).
   during exploration.
 - Related: `BROWSER_FS_SEMANTIC_TOOLS.md` (FS-script-mode transactions),
   `BROWSER_MODELING_GAPS.md` (drawing auto-views via context menu),
-  `DYNAMIC_TOOL_DISCOVERY.md` (four-level taxonomy).
+  `DYNAMIC_TOOL_DISCOVERY.md` (six-level taxonomy).

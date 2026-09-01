@@ -4,12 +4,34 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import traceback
 from typing import Any, Callable
 
 from mcp_main.win.mcp.identity import PROTOCOL_VERSION, SERVER_NAME, SERVER_VERSION
 from mcp_main.win.mcp.runtime_prompt import RUNTIME_PROMPT
+from mcp_main.win.mcp.tool_catalog import (
+    DEFAULT_SEARCH_RESULTS,
+    MAX_SEARCH_RESULTS,
+    VALID_MODULES,
+    VALID_NETWORKS,
+    ToolCatalogIndex,
+)
+from mcp_main.win.mcp.tool_views import (
+    CATALOG_TOOL_NAME,
+    CONTROL_TOOL_NAME,
+    ToolViewState,
+    VALID_PROFILES,
+    VALID_SEMANTIC_LEVELS,
+    exposure_mode,
+)
+from onshape_rest_api_mode.geometry import (
+    build_rest_geometry_package,
+    configure_rest_geometry_backend,
+    geometry_backend_status,
+)
+from onshape_rest_api_mode.step_export import export_step
 from onshape_docs.query import fs_reference, onshape_api_reference, onshape_api_docs, project_docs
 from onshape_rest_api_mode.budget import live_blocker
 from onshape_rest_api_mode.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
@@ -254,6 +276,62 @@ def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
     return create_validation_part_studio(
         name=arguments.get("name", "Cable trophy model validation"),
         save_to_project_state=bool(arguments.get("save_to_project_state", True)),
+    )
+
+
+def _export_step(arguments: dict[str, Any]) -> dict[str, Any]:
+    _confirm(arguments)
+    max_polls = arguments.get("max_polls", 3)
+    translation_id = arguments.get("translation_id") or None
+    if arguments.get("dry_run"):
+        return export_step(
+            document_id=arguments["document_id"],
+            wv=arguments["wv"],
+            wvid=arguments["wvid"],
+            element_id=arguments["element_id"],
+            translation_id=translation_id,
+            max_polls=max_polls,
+            poll_interval_seconds=arguments.get("poll_interval_seconds", 10),
+            destination_name=arguments.get("destination_name", "model.step"),
+            exclude_hidden_entities=arguments.get("exclude_hidden_entities", True),
+            step_version=arguments.get("step_version", "AP242"),
+            dry_run=True,
+        )
+    estimate = (0 if translation_id else 1) + max_polls + 1
+    _preflight_or_raise(estimate, "part_studio_step_export")
+    return export_step(
+        document_id=arguments["document_id"],
+        wv=arguments["wv"],
+        wvid=arguments["wvid"],
+        element_id=arguments["element_id"],
+        translation_id=translation_id,
+        max_polls=max_polls,
+        poll_interval_seconds=arguments.get("poll_interval_seconds", 10),
+        destination_name=arguments.get("destination_name", "model.step"),
+        exclude_hidden_entities=arguments.get("exclude_hidden_entities", True),
+        step_version=arguments.get("step_version", "AP242"),
+    )
+
+
+def _geometry_status(arguments: dict[str, Any]) -> dict[str, Any]:
+    return geometry_backend_status()
+
+
+def _configure_geometry_backend(arguments: dict[str, Any]) -> dict[str, Any]:
+    candidate_id = arguments.get("candidate_id")
+    if not isinstance(candidate_id, str) or not candidate_id.strip():
+        raise ValueError("candidate_id is required")
+    if arguments.get("dry_run"):
+        return configure_rest_geometry_backend(candidate_id, dry_run=True)
+    _confirm(arguments)
+    return configure_rest_geometry_backend(candidate_id)
+
+
+def _build_geometry_package(arguments: dict[str, Any]) -> dict[str, Any]:
+    _confirm(arguments)
+    return build_rest_geometry_package(
+        arguments["translation_id"],
+        dry_run=bool(arguments.get("dry_run", False)),
     )
 
 
@@ -804,16 +882,27 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     # submitted source — this is the "deploy → verify" leg, still 0 quota.
     verified_source = actions.read_featurescript_editor(page)
     verified = bool(verified_source is not None and verified_source == script)
+    compile_status = actions.read_featurescript_compile_status(page)
+    committed = (
+        bool(commit.get("clicked"))
+        and (commit.get("before") or {}).get("disabled") is False
+        and (commit.get("after") or {}).get("disabled") is True
+    )
+    compiled = bool(compile_status.get("compiled"))
 
     return {
-        "deployed": bool(commit.get("clicked")),
+        "deployed": committed and verified and compiled,
         "dryRun": False,
         "pageUrl": page.url,
         "beforeLength": len(before),
         "afterLength": written.get("length"),
         "commit": commit,
+        "commitAccepted": committed,
         "verified": verified,
         "verifiedLength": len(verified_source) if verified_source is not None else None,
+        "compiled": compiled,
+        "annotationCount": compile_status.get("annotationCount", 0),
+        "errors": compile_status.get("errors", []),
     }
 
 
@@ -959,15 +1048,18 @@ def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_create_tab(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Create a Feature Studio, Part Studio, Assembly, or Drawing tab flow in the current document (0 quota)."""
+    """Create one immediately terminal Feature Studio, Part Studio, or Assembly tab."""
+    tab_type = arguments.get("tab_type", "Feature Studio")
+    if tab_type not in ("Feature Studio", "Part Studio", "Assembly"):
+        raise ValueError(
+            "tab_type must be 'Feature Studio', 'Part Studio', or 'Assembly'; "
+            "use browser_create_drawing for a completed Drawing transaction"
+        )
+    _confirm(arguments)
+
     from onshape_browser_mode import actions
     from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
-
-    _confirm(arguments)
-    tab_type = arguments.get("tab_type", "Feature Studio")
-    if tab_type not in ("Feature Studio", "Part Studio", "Assembly", "Drawing"):
-        raise ValueError("tab_type must be 'Feature Studio', 'Part Studio', 'Assembly' or 'Drawing'")
 
     session = get_session()
     page = session.start()
@@ -1114,6 +1206,96 @@ def _eval_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
 
 ToolHandler = Callable[[dict[str, Any]], Any]
 TOOLS: list[dict[str, Any]] = [
+    {
+        "name": CONTROL_TOOL_NAME,
+        "cost": {
+            "network": "offline",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "mutating": True,
+            "cacheable": False,
+            "side_effects": ["connection_view"],
+        },
+        "description": (
+            "Inspect or change the current connection's tool-display view. This is a context-routing convention, "
+            "not an authorization boundary: hidden known-name tools remain callable and all confirmation, quota, "
+            "pacing, and acceptance gates remain authoritative. action=status works in every exposure mode; "
+            "set/reset require ONSHAPE_MCP_TOOL_EXPOSURE=dynamic and emit notifications/tools/list_changed when "
+            "the effective view changes."
+        ),
+        "inputSchema": object_schema({
+            "action": {"type": "string", "enum": ["status", "set", "reset"], "default": "status"},
+            "profile": {"type": "string", "enum": list(VALID_PROFILES)},
+            "semantic_levels": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(VALID_SEMANTIC_LEVELS)},
+                "minItems": 1,
+                "uniqueItems": True,
+                "description": "Optional browser semantic-level filter for action=set.",
+            },
+        }),
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
+    {
+        "name": CATALOG_TOOL_NAME,
+        "cost": {
+            "network": "offline",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "mutating": False,
+            "cacheable": True,
+        },
+        "description": (
+            "Search and describe the complete authoritative MCP tool registry without expanding tools/list. "
+            "The index is built once after registration. search is bounded and never returns input schemas; "
+            "describe requires one exact tool name and returns its full current schema, cost, annotations, profiles, "
+            "semantic metadata, and current-view visibility. Catalog visibility is a discovery convention only and "
+            "does not grant or restrict execution authority."
+        ),
+        "inputSchema": object_schema({
+            "action": {"type": "string", "enum": ["status", "search", "describe"], "default": "status"},
+            "query": {"type": "string", "maxLength": 200, "default": ""},
+            "name": {"type": "string", "description": "Exact registered tool name for action=describe."},
+            "modules": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(VALID_MODULES)},
+                "minItems": 1,
+                "uniqueItems": True,
+            },
+            "profiles": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(VALID_PROFILES)},
+                "minItems": 1,
+                "uniqueItems": True,
+            },
+            "semantic_levels": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(VALID_SEMANTIC_LEVELS)},
+                "minItems": 1,
+                "uniqueItems": True,
+            },
+            "network": {"type": "string", "enum": list(VALID_NETWORKS)},
+            "mutating": {"type": "boolean"},
+            "visible_only": {"type": "boolean", "default": False},
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": MAX_SEARCH_RESULTS,
+                "default": DEFAULT_SEARCH_RESULTS,
+            },
+        }),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    },
     # --- FeatureScript reference tools (local, offline) ---------------------
     {
         "name": "fs_check_version",
@@ -1611,6 +1793,75 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
     },
     {
+        "name": "onshape_export_step",
+        "cost": {"network": "live", "estimated_requests": 5, "max_requests": 7, "mutating": True, "cacheable": False},
+        "description": (
+            "Asynchronously export one explicit Part Studio to a canonical millimeter AP242 STEP file. "
+            "The operation creates at most one translation request, polls with a caller-bounded budget and no "
+            "implicit GET retry, downloads exactly one external-data result, and writes module-owned staging. "
+            "Pass translation_id to resume without repeating the POST. dry_run=true constructs the exact request "
+            "plan at zero network cost. This tool does not perform geometry analysis or Bambu slicing."
+        ),
+        "inputSchema": object_schema({
+            "confirm_mutation": mutating_confirmation(),
+            "document_id": {"type": "string"},
+            "wv": {"type": "string", "enum": ["w", "v"]},
+            "wvid": {"type": "string"},
+            "element_id": {"type": "string"},
+            "translation_id": {"type": "string", "description": "Resume an existing translation without creating another."},
+            "max_polls": {"type": "integer", "minimum": 1, "maximum": 5, "default": 3},
+            "poll_interval_seconds": {"type": "integer", "minimum": 5, "maximum": 120, "default": 10},
+            "destination_name": {"type": "string", "default": "model.step"},
+            "exclude_hidden_entities": {"type": "boolean", "default": True},
+            "step_version": {"type": "string", "enum": ["AP242", "AP203", "AP214"], "default": "AP242"},
+            "dry_run": {"type": "boolean", "default": False, "description": "Build the bounded POST/poll/download request plan without sending it."},
+        }, ["confirm_mutation", "document_id", "wv", "wvid", "element_id"]),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
+        "name": "onshape_geometry_status",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": False},
+        "description": (
+            "Report module-owned non-slicer geometry readiness. If the selected backend is unavailable, perform "
+            "a bounded zero-network search of sibling project virtual environments, global Python environments, "
+            "and the Windows/WSL counterpart. Returns opaque versioned candidates without executable paths; when "
+            "none exist, agents are instructed to ask before installation. Never installs automatically."
+        ),
+        "inputSchema": object_schema({}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_configure_geometry_backend",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": True, "cacheable": False},
+        "description": (
+            "Configure REST mode from one opaque candidate_id returned by onshape_geometry_status. The bounded "
+            "dependency scan is repeated before writing, so callers cannot provide an executable or argv. "
+            "dry_run previews the candidate; actual local configuration requires confirm_mutation=true. Never installs dependencies."
+        ),
+        "inputSchema": object_schema({
+            "candidate_id": {"type": "string"},
+            "dry_run": {"type": "boolean", "default": False},
+            "confirm_mutation": mutating_confirmation(),
+        }, ["candidate_id"]),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "onshape_build_geometry_package",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": True, "cacheable": False},
+        "description": (
+            "Build a non-slicer L6 geometry-analysis package from a previously staged REST STEP translation. "
+            "The executable and argv template come only from module-owned configuration; MCP arguments cannot "
+            "select a process. The tool re-verifies the persisted STEP manifest/SHA, runs the pinned converter "
+            "and dependency-free STL analyzer, then writes STEP/STL/reports/manifest. No REST or Bambu call."
+        ),
+        "inputSchema": object_schema({
+            "confirm_mutation": mutating_confirmation(),
+            "translation_id": {"type": "string"},
+            "dry_run": {"type": "boolean", "default": False, "description": "Report source/backend/destination readiness without executing or writing."},
+        }, ["confirm_mutation", "translation_id"]),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
+    },
+    {
         "name": "onshape_create_validation_part_studio",
         "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": True, "cacheable": False},
         "description": (
@@ -1702,9 +1953,10 @@ TOOLS: list[dict[str, Any]] = [
             "the browser session state, and the current page URL — zero Onshape API quota. "
             "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
             "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
-            "browser_* calls. The browser runs on the Windows host (see mcp_main/win/bridge/windows/README.md); the "
-            "Linux side only relays MCP stdio over the loopback bridge. If Playwright is not installed "
-            "on the Windows host, this tool returns a clear setup error instead of failing the MCP server."
+            "browser_* calls. The browser runs on the host that owns the ordinary stdio MCP process; "
+            "cross-host transport, when needed, is supplied by an independently installed bridge. If "
+            "Playwright is not installed on that host, this tool returns a clear setup error instead of "
+            "failing the MCP server."
         ),
         "inputSchema": object_schema({
             "action": {
@@ -1732,21 +1984,20 @@ TOOLS: list[dict[str, Any]] = [
         },
         "description": (
             "Record a human-operated Onshape browser session to learn what UI actions do, without spending "
-            "Onshape API quota. action='start' opens the persistent browser and begins recording page opens, "
-            "URL changes, network responses (URL pattern/method/status/content-type), and dialogs; "
-            "action='status' reports the recorder state; action='stop' stops recording and returns the report; "
-            "action='report' returns the aggregated report. The report is the input for building the "
-            "dev/button-map selector/action mapping — combine it with onshape_docs/guide documentation before "
-            "adding a selector to onshape_browser_mode/selectors.py. The browser runs on the Windows host; "
-            "if Playwright is missing there, action='start' returns a clear setup error."
+            "Onshape API quota. start/status/stop/report manage and inspect the in-memory recorder; save writes "
+            "a bounded report file; workflows lists saved templates; verify compares one named workflow template. "
+            "Recording observes page opens, URL changes, bounded network metadata, and dialogs. It never automates "
+            "human UI input and does not mutate Onshape cloud data."
         ),
         "inputSchema": object_schema({
             "action": {
                 "type": "string",
-                "enum": ["start", "status", "stop", "report"],
+                "enum": ["start", "status", "stop", "report", "save", "verify", "workflows"],
                 "default": "status",
-                "description": "start = begin recording; status = recorder state; stop = stop and report; report = aggregated report.",
+                "description": "Recorder action; workflow is required for verify and filename is optional for save.",
             },
+            "workflow": {"type": "string", "description": "Recording/template name; required for verify."},
+            "filename": {"type": "string", "default": ""},
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
@@ -1946,7 +2197,8 @@ TOOLS: list[dict[str, Any]] = [
             "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. "
             "An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document "
             "if needed, writes the Ace editor content, clicks the FeatureScript Commit button, then reads "
-            "the editor back and reports `verified=true` only if the on-screen source now matches exactly. "
+            "the editor and compiler annotations back. It reports `deployed=true` only when the Commit "
+            "button transitions from enabled to disabled, the source matches exactly, and annotations are empty. "
             "Every real navigation/write/commit is paced through the browser action guard. "
             "With `dry_run=true` (no confirmation needed) it is a pure local preview: it starts no browser "
             "session and performs no navigation, editor read/write, or click — it only reports the "
@@ -2101,7 +2353,7 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "Document name; empty keeps Onshape's default '无标题文档'.",
             },
             "confirm_mutation": mutating_confirmation(),
-        }),
+        }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2119,20 +2371,20 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Start a Feature Studio, Part Studio, Assembly, or Drawing tab flow by clicking the matching "
-            "hidden creation-menu item. Zero Onshape API quota. Adding a tab creates a document element, so "
-            "it requires confirm_mutation=true. created=true is returned only after a new visible tab is "
-            "observed; Drawing may require completing its source/template dialog first."
+            "Create a Feature Studio, Part Studio, or Assembly tab and verify that a new visible tab appears. "
+            "Zero Onshape API quota. Adding a tab creates a document element, so confirm_mutation=true is required. "
+            "Use browser_create_drawing for Drawing because that separate L4 transaction completes and verifies "
+            "the source/template dialog instead of leaving a pending UI state."
         ),
         "inputSchema": object_schema({
             "tab_type": {
                 "type": "string",
-                "enum": ["Feature Studio", "Part Studio", "Assembly", "Drawing"],
+                "enum": ["Feature Studio", "Part Studio", "Assembly"],
                 "default": "Feature Studio",
-                "description": "Which kind of tab to create.",
+                "description": "Which immediately creatable tab kind to create.",
             },
             "confirm_mutation": mutating_confirmation(),
-        }),
+        }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2165,7 +2417,7 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "New tab name.",
             },
             "confirm_mutation": mutating_confirmation(),
-        }),
+        }, ["name", "new_name", "confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2183,10 +2435,10 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Delete a Feature Studio or Part Studio tab (and its element) from the current Onshape "
-            "document by its visible name. Right-clicks the tab to open its context menu, clicks 删除, "
-            "and confirms any dialog. Zero Onshape API quota; destructive, so it requires "
-            "confirm_mutation=true. Returns the updated tab list."
+            "Deprecated compatibility wrapper: resolve one exact unique visible tab name to its observed data-id, "
+            "then execute the same exact-ID deletion core as browser_delete_element. Ambiguous or partial names fail "
+            "before mutation. Prefer browser_delete_element for destructive automation. Zero REST quota; "
+            "confirm_mutation=true is required."
         ),
         "inputSchema": object_schema({
             "name": {
@@ -2194,7 +2446,7 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "Visible tab name to delete.",
             },
             "confirm_mutation": mutating_confirmation(),
-        }),
+        }, ["name", "confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2213,16 +2465,17 @@ TOOLS: list[dict[str, Any]] = [
         },
         "description": (
             "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO "
-            "Onshape API quota. Optionally switches to the given Part Studio tab first, opens the "
-            "添加自定义特征 dialog, picks 当前文档, selects the feature by name, and clicks 插入. This mutates "
-            "the document (adds a feature instance), so it requires confirm_mutation=true. Returns the resulting "
-            "feature-tree/part-list state, or a clear reason when the Feature Studio needs a version created first."
+            "Onshape API quota. Optionally switches to the given Part Studio tab, opens the workspace custom-feature "
+            "toolbar dropdown, selects the exact named feature, then accepts its parameter dialog so the row computes. "
+            "This mutates the document (adds a feature instance), so it requires confirm_mutation=true. Returns the "
+            "resulting feature-tree/part-list state; the separate 添加自定义特征 picker is not used because it may "
+            "leave a not-computed row."
         ),
         "inputSchema": object_schema({
             "feature_name": {
                 "type": "string",
                 "default": "Branch cable trophy display",
-                "description": "Feature name shown in the insert dialog.",
+                "description": "Exact feature name shown in the workspace custom-feature toolbar dropdown.",
             },
             "part_studio_tab": {
                 "type": "string",
@@ -2230,7 +2483,7 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "Part Studio tab name to switch to first; empty means use the current tab.",
             },
             "confirm_mutation": mutating_confirmation(),
-        }),
+        }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2284,7 +2537,7 @@ TOOLS: list[dict[str, Any]] = [
                 "description": "Version name; empty keeps Onshape's default (V1, V2, ...).",
             },
             "confirm_mutation": mutating_confirmation(),
-        }),
+        }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2335,7 +2588,18 @@ TOOLS: list[dict[str, Any]] = [
 
 ]
 
+
+def _tool_view_requires_connection(_: dict[str, Any]) -> dict[str, Any]:
+    raise ValueError("mcp_tool_view must be dispatched through an MCP connection")
+
+
+def _tool_catalog_requires_connection(_: dict[str, Any]) -> dict[str, Any]:
+    raise ValueError("mcp_tool_catalog must be dispatched through an MCP connection")
+
+
 HANDLERS: dict[str, ToolHandler] = {
+    CONTROL_TOOL_NAME: _tool_view_requires_connection,
+    CATALOG_TOOL_NAME: _tool_catalog_requires_connection,
     "browser_session": _browser_session,
     "browser_watch": _browser_watch,
     "browser_inspect": _browser_inspect,
@@ -2375,6 +2639,10 @@ HANDLERS: dict[str, ToolHandler] = {
     ),
     "onshape_render_preview": _render_preview,
     "onshape_upload_feature_studio": _upload,
+    "onshape_export_step": _export_step,
+    "onshape_geometry_status": _geometry_status,
+    "onshape_configure_geometry_backend": _configure_geometry_backend,
+    "onshape_build_geometry_package": _build_geometry_package,
     "onshape_create_validation_part_studio": _create_part_studio,
     "onshape_instantiate_feature": _instantiate,
     "onshape_run_validation_pipeline": _pipeline,
@@ -2475,14 +2743,36 @@ def _complete_cost_metadata(tools: list[dict[str, Any]]) -> None:
         live_max = cost["max_requests"] if network == "live" else 0
         cost.setdefault("estimated_api_requests", live_estimate)
         cost.setdefault("max_api_requests", live_max)
-        cost.setdefault("mutating", not annotations.get("readOnlyHint", True))
+        mutating = cost.setdefault("mutating", not annotations.get("readOnlyHint", True))
         cost.setdefault("cacheable", False)
+        cost.setdefault(
+            "side_effects",
+            ["remote_or_cloud_state"] if mutating and network in {"browser", "live"}
+            else (["local_state"] if mutating else []),
+        )
         if network == "offline" and "confirm_mutation" in properties:
             cost.setdefault("confirmation_required", True)
 
 
+def _annotate_conditional_side_effects(tools: list[dict[str, Any]]) -> None:
+    """Expose persistent local/session effects separately from cloud mutation."""
+    effects = {
+        "browser_session": ["browser_session", "persistent_profile_when_login"],
+        "browser_watch": ["recorder_state", "local_file_when_save"],
+        "browser_capture_screenshot": ["local_file"],
+        "onshape_render_preview": ["local_file_when_save"],
+        "onshape_list_document_elements": ["local_cache_when_refresh"],
+        "onshape_get_feature_studio_status": ["local_cache"],
+    }
+    by_name = {tool["name"]: tool for tool in tools}
+    for name, values in effects.items():
+        by_name[name].setdefault("cost", {})["side_effects"] = values
+
+
 _install_browser_tools(TOOLS, HANDLERS)
+_annotate_conditional_side_effects(TOOLS)
 _complete_cost_metadata(TOOLS)
+TOOL_CATALOG = ToolCatalogIndex(TOOLS)
 
 
 def _json_text(value: Any) -> str:
@@ -2520,6 +2810,15 @@ def tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+def tool_exposure_mode() -> str:
+    return exposure_mode()
+
+
+def listed_tools() -> list[dict[str, Any]]:
+    """Return the startup view without changing handlers or authority."""
+    return ToolViewState.from_environment(TOOLS).listed_tools()
+
+
 def response(request_id: Any, result: Any = None, error: dict[str, Any] | None = None) -> dict[str, Any]:
     payload: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
     if error is not None:
@@ -2529,33 +2828,82 @@ def response(request_id: Any, result: Any = None, error: dict[str, Any] | None =
     return payload
 
 
+def _connection_tool_result(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "content": [{"type": "text", "text": _json_text(value)}],
+        "structuredContent": value,
+        "isError": False,
+    }
+
+
+class McpConnection:
+    """One connection's context view; never an execution-authority boundary."""
+
+    def __init__(
+        self,
+        view: ToolViewState | None = None,
+        catalog: ToolCatalogIndex | None = None,
+    ) -> None:
+        self.view = view or ToolViewState.from_environment(TOOLS)
+        self.catalog = catalog or TOOL_CATALOG
+
+    def dispatch_messages(self, message: dict[str, Any]) -> list[dict[str, Any]]:
+        method = message.get("method")
+        request_id = message.get("id")
+        if request_id is None:
+            return []
+        if method == "initialize":
+            return [response(request_id, {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {"listChanged": self.view.list_changed_capability}},
+                "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+                "instructions": RUNTIME_PROMPT,
+            })]
+        if method == "ping":
+            return [response(request_id, {})]
+        if method == "tools/list":
+            return [response(request_id, {
+                "tools": self.view.listed_tools(),
+                "exposureMode": self.view.mode,
+                "toolView": self.view.status(),
+            })]
+        if method == "tools/call":
+            params = message.get("params") or {}
+            name = params.get("name")
+            arguments = params.get("arguments") or {}
+            if not isinstance(name, str) or not isinstance(arguments, dict):
+                return [response(request_id, error={"code": -32602, "message": "Invalid tools/call parameters"})]
+            try:
+                if name == CONTROL_TOOL_NAME:
+                    value, changed = self.view.apply(arguments)
+                    outgoing = [response(request_id, _connection_tool_result(value))]
+                    if changed:
+                        outgoing.append({
+                            "jsonrpc": "2.0",
+                            "method": "notifications/tools/list_changed",
+                            "params": {},
+                        })
+                    return outgoing
+                if name == CATALOG_TOOL_NAME:
+                    visible_names = {tool["name"] for tool in self.view.listed_tools()}
+                    value = self.catalog.apply(arguments, visible_names=visible_names)
+                    return [response(request_id, _connection_tool_result(value))]
+                return [response(request_id, tool_result(name, arguments))]
+            except ValueError as error:
+                return [response(request_id, error={"code": -32602, "message": str(error)})]
+        return [response(request_id, error={"code": -32601, "message": f"Method not found: {method}"})]
+
+
+_LEGACY_CONNECTION: McpConnection | None = None
+
+
 def dispatch(message: dict[str, Any]) -> dict[str, Any] | None:
-    method = message.get("method")
-    request_id = message.get("id")
-    if request_id is None:
-        return None
-    if method == "initialize":
-        return response(request_id, {
-            "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-            "instructions": RUNTIME_PROMPT,
-        })
-    if method == "ping":
-        return response(request_id, {})
-    if method == "tools/list":
-        return response(request_id, {"tools": TOOLS})
-    if method == "tools/call":
-        params = message.get("params") or {}
-        name = params.get("name")
-        arguments = params.get("arguments") or {}
-        if not isinstance(name, str) or not isinstance(arguments, dict):
-            return response(request_id, error={"code": -32602, "message": "Invalid tools/call parameters"})
-        try:
-            return response(request_id, tool_result(name, arguments))
-        except ValueError as error:
-            return response(request_id, error={"code": -32602, "message": str(error)})
-    return response(request_id, error={"code": -32601, "message": f"Method not found: {method}"})
+    """Compatibility wrapper for callers that do not manage connection state."""
+    global _LEGACY_CONNECTION
+    if _LEGACY_CONNECTION is None:
+        _LEGACY_CONNECTION = McpConnection()
+    outgoing = _LEGACY_CONNECTION.dispatch_messages(message)
+    return outgoing[0] if outgoing else None
 
 
 def serve() -> None:
@@ -2570,6 +2918,7 @@ def serve() -> None:
     """
     stdin_buffer = sys.stdin.buffer
     stdout_buffer = sys.stdout.buffer
+    connection = McpConnection()
     for raw in stdin_buffer:
         if not raw.strip():
             continue
@@ -2577,11 +2926,11 @@ def serve() -> None:
             message = json.loads(raw.decode("utf-8"))
             if not isinstance(message, dict):
                 raise ValueError("Message must be a JSON object")
-            outgoing = dispatch(message)
+            outgoing = connection.dispatch_messages(message)
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-            outgoing = response(None, error={"code": -32700, "message": f"Parse error: {error}"})
-        if outgoing is not None:
-            payload = json.dumps(outgoing, separators=(",", ":"), ensure_ascii=False)
+            outgoing = [response(None, error={"code": -32700, "message": f"Parse error: {error}"})]
+        for item in outgoing:
+            payload = json.dumps(item, separators=(",", ":"), ensure_ascii=False)
             stdout_buffer.write(payload.encode("utf-8") + b"\n")
             stdout_buffer.flush()
 

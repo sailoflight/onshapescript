@@ -49,17 +49,21 @@
     },
     {
       "id": "draw-rail",
-      "tool": "browser_draw_part",
+      "tool": "browser_drawing_insert_views",
       "args": {
-        "source_tab": "Fixed wall (rail)",
+        "part_name": "Fixed wall (rail)",
+        "part_studio_tab": "Fixed wall (rail)",
+        "view_layout": "four",
         "template": ""
       }
     },
     {
       "id": "draw-groove",
-      "tool": "browser_draw_part",
+      "tool": "browser_drawing_insert_views",
       "args": {
-        "source_tab": "Module block (groove)",
+        "part_name": "Module block (groove)",
+        "part_studio_tab": "Module block (groove)",
+        "view_layout": "four",
         "template": ""
       }
     }
@@ -87,12 +91,12 @@
     },
     {
       "step": "draw-rail",
-      "key": "drawn",
+      "key": "viewsInserted",
       "equals": true
     },
     {
       "step": "draw-groove",
-      "key": "drawn",
+      "key": "viewsInserted",
       "equals": true
     }
   ]

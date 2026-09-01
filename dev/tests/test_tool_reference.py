@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mcp_main.win.mcp import server  # noqa: E402
+from onshape_browser_mode import semantics as browser_semantics  # noqa: E402
 
 
 class ToolReferenceTest(unittest.TestCase):
@@ -56,6 +57,17 @@ class ToolReferenceTest(unittest.TestCase):
         self.assertIn(f"Registered tools: **{len(server.TOOLS)}**", text)
         for tool in server.TOOLS:
             self.assertEqual(text.count(f"| `{tool['name']}` |"), 1, tool["name"])
+
+    def test_generated_reference_records_optional_browser_semantics(self) -> None:
+        text = (ROOT / "docs" / "generated" / "TOOL_REFERENCE.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Browser semantic counts:", text)
+        self.assertIn("`L1 browser_primitive`", text)
+        self.assertIn("`L4 onshape_transaction`", text)
+        self.assertIn("`L5 onshape_workflow`", text)
+        self.assertIn("`project_control`", text)
+        self.assertEqual(browser_semantics.validate_catalog(), [])
 
 
 if __name__ == "__main__":

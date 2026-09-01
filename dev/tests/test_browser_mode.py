@@ -407,14 +407,22 @@ class BrowserDeployTest(unittest.TestCase):
                         return_value=session), \
              mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
              mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
-                        return_value="old source"), \
+                        side_effect=["old source", "feature X {}"]), \
              mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
-                        return_value={"ok": True, "length": 9, "lineCount": 1}) as write, \
+                        return_value={"ok": True, "length": 12, "lineCount": 1}) as write, \
              mock.patch("onshape_browser_mode.actions.click_commit",
-                        return_value={"clicked": True}) as commit:
+                        return_value={
+                            "clicked": True,
+                            "before": {"disabled": False},
+                            "after": {"disabled": True},
+                        }) as commit, \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value={"compiled": True, "annotationCount": 0, "errors": []}):
             result = server._browser_deploy_featurescript(
                 {"script": "feature X {}", "dry_run": False, "confirm_mutation": True})
         self.assertTrue(result["deployed"])
+        self.assertTrue(result["verified"])
+        self.assertTrue(result["compiled"])
         self.assertFalse(result["dryRun"])
         self.assertEqual(session.start_calls, 1)
         write.assert_called_once()
@@ -422,6 +430,35 @@ class BrowserDeployTest(unittest.TestCase):
         # Pacing enforced before the editor write and before the Commit click
         # (the editor is already on screen, so no navigation pacing is added).
         self.assertEqual(guard.pace_calls, 2)
+
+    def test_deploy_rejects_compiler_annotations(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        compile_error = {
+            "compiled": False,
+            "annotationCount": 1,
+            "errors": [{"row": 1, "col": 0, "text": "bad token", "type": "error"}],
+        }
+        with mock.patch("onshape_browser_mode.session.get_session", return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        side_effect=["old", "new"]), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": True, "length": 3}), \
+             mock.patch("onshape_browser_mode.actions.click_commit", return_value={
+                 "clicked": True,
+                 "before": {"disabled": False},
+                 "after": {"disabled": True},
+             }), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value=compile_error):
+            result = server._browser_deploy_featurescript({
+                "script": "new", "dry_run": False, "confirm_mutation": True,
+            })
+        self.assertFalse(result["deployed"])
+        self.assertTrue(result["commitAccepted"])
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["errors"], compile_error["errors"])
 
 
 class BrowserInsertCustomFeatureTest(unittest.TestCase):
@@ -582,6 +619,11 @@ class BrowserCreateTabTest(unittest.TestCase):
         self.assertFalse(result["created"])
         self.assertIn("open dialog", result["reason"])
         self.assertEqual(page.evaluate.call_args_list[1].args[1], "创建工程图")
+    def test_public_handler_rejects_nonterminal_drawing_flow_before_session(self) -> None:
+        with mock.patch("onshape_browser_mode.session.get_session") as get_session:
+            with self.assertRaisesRegex(ValueError, "browser_create_drawing"):
+                server._browser_create_tab({"tab_type": "Drawing", "confirm_mutation": True})
+        get_session.assert_not_called()
 
 
 class BrowserRenameTabTest(unittest.TestCase):
@@ -640,6 +682,31 @@ class BrowserDeleteTabTest(unittest.TestCase):
         delete_tab.assert_called_once()
         self.assertEqual(session.start_calls, 1)
         self.assertEqual(guard.pace_calls, 1)
+
+    def test_name_wrapper_requires_exact_unique_match(self) -> None:
+        page = mock.Mock(url="https://cad.onshape.com/documents/d1/w/w1/e/e1")
+        tabs = {
+            "tabs": [
+                {"name": "Part Studio 1", "id": "e1"},
+                {"name": "Part Studio 2", "id": "e2"},
+            ]
+        }
+        with mock.patch("onshape_browser_mode.actions.list_document_tabs", return_value=tabs), \
+             mock.patch("onshape_browser_mode.actions.delete_element_by_id") as delete_by_id:
+            result = actions.delete_tab(page, "Part")
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["matchCount"], 0)
+        delete_by_id.assert_not_called()
+
+    def test_name_wrapper_delegates_exact_name_to_shared_id_core(self) -> None:
+        page = mock.Mock(url="https://cad.onshape.com/documents/d1/w/w1/e/e1")
+        tabs = {"tabs": [{"name": "Part Studio 2", "id": "e2"}]}
+        with mock.patch("onshape_browser_mode.actions.list_document_tabs", return_value=tabs), \
+             mock.patch("onshape_browser_mode.actions.delete_element_by_id", return_value={"deleted": True, "elementId": "e2"}) as delete_by_id:
+            result = actions.delete_tab(page, "Part Studio 2")
+        self.assertTrue(result["deleted"])
+        self.assertTrue(result["compatibilityWrapper"])
+        delete_by_id.assert_called_once_with(page, "e2")
 
 
 class BrowserReloadTest(unittest.TestCase):
@@ -759,7 +826,7 @@ class BrowserMetadataTest(unittest.TestCase):
         self.assertTrue(self.by_name["browser_delete_tab"]["annotations"]["destructiveHint"])
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 68)
+        self.assertEqual(len(server.TOOLS), 104)
 
 
 if __name__ == "__main__":

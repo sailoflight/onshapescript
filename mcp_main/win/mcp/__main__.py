@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Full stdio MCP server entry (the MCP *body*).
+"""Ordinary stdio entry for the complete Onshape MCP server.
 
-NOTE: in the WSL/Windows split this is NOT the WSL entry point. The WSL DSH
-must run only the thin relay `mcp_main/wsl/facade/mcp_tcp_bridge.py`; the body
-runs on Windows inside `mcp_main/win/bridge/bridge_server.py`, which owns the
-browser session. Running this `__main__` on WSL would start the full server
-whose browser tools depend on the Windows Playwright/Edge session.
+Run this entry on the host that owns the configured browser/profile and local
+REST state. Cross-host clients must connect through an independently installed
+MCP bridge that launches this command; this repository does not implement that
+transport.
 """
 
 from mcp_main.win.mcp.server import serve

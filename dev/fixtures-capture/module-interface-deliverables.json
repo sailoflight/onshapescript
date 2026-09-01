@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 2,
+  "name": "module-interface-deliverables",
+  "description": "Build two accepted Part Studio deliverables, one Assembly deliverable, and two Drawing deliverables.",
+  "setup": [
+    {
+      "id": "create-document",
+      "tool": "browser_create_document",
+      "args": {
+        "name": "Module interface deliverables"
+      }
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "rail-part",
+      "kind": "part_studio",
+      "depends_on": [],
+      "steps": [
+        {
+          "id": "build-rail",
+          "tool": "browser_deploy_and_apply_featurescript",
+          "args": {
+            "script_file": "dev/fixtures-capture/module-rail-fixed-wall.fs",
+            "feature_name": "Module rail fixed wall",
+            "feature_studio_tab": "Feature Studio - Rail",
+            "part_studio_tab": "Fixed wall (rail)"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "build-rail",
+          "key": "parts",
+          "minimum": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "part-studio",
+          "step": "build-rail",
+          "key": "partStudio",
+          "mediaType": "application/vnd.onshape.partstudio",
+          "artifactKind": "remote"
+        }
+      ]
+    },
+    {
+      "id": "groove-part",
+      "kind": "part_studio",
+      "depends_on": [],
+      "steps": [
+        {
+          "id": "build-groove",
+          "tool": "browser_deploy_and_apply_featurescript",
+          "args": {
+            "script_file": "dev/fixtures-capture/module-groove-block.fs",
+            "feature_name": "Module groove block",
+            "feature_studio_tab": "Feature Studio - Groove",
+            "part_studio_tab": "Module block (groove)"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "build-groove",
+          "key": "parts",
+          "minimum": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "part-studio",
+          "step": "build-groove",
+          "key": "partStudio",
+          "mediaType": "application/vnd.onshape.partstudio",
+          "artifactKind": "remote"
+        }
+      ]
+    },
+    {
+      "id": "assembly",
+      "kind": "assembly",
+      "depends_on": [
+        "rail-part",
+        "groove-part"
+      ],
+      "steps": [
+        {
+          "id": "assemble",
+          "tool": "browser_assemble",
+          "args": {
+            "instance_names": [
+              "Fixed wall (rail)",
+              "Module block (groove)"
+            ],
+            "assembly_tab": "Module interface assembly",
+            "fix": true,
+            "group": false,
+            "instance_selector": ".ns-tree-root .ns-assembly-instance-row.is-instance",
+            "source_names": [
+              "PS-PartA-wall",
+              "PS-PartB-block"
+            ]
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "assemble",
+          "key": "assembled",
+          "equals": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "assembly-studio",
+          "step": "assemble",
+          "key": "assembly",
+          "mediaType": "application/vnd.onshape.assembly",
+          "artifactKind": "remote"
+        }
+      ]
+    },
+    {
+      "id": "rail-drawing",
+      "kind": "drawing",
+      "depends_on": [
+        "rail-part"
+      ],
+      "steps": [
+        {
+          "id": "draw-rail",
+          "tool": "browser_drawing_insert_views",
+          "args": {
+            "part_name": "Fixed wall (rail)",
+            "part_studio_tab": "Fixed wall (rail)",
+            "view_layout": "four",
+            "template": ""
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "draw-rail",
+          "key": "viewsInserted",
+          "equals": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "drawing",
+          "step": "draw-rail",
+          "key": "drawingState",
+          "mediaType": "application/vnd.onshape.drawing",
+          "artifactKind": "remote"
+        }
+      ]
+    },
+    {
+      "id": "groove-drawing",
+      "kind": "drawing",
+      "depends_on": [
+        "groove-part"
+      ],
+      "steps": [
+        {
+          "id": "draw-groove",
+          "tool": "browser_drawing_insert_views",
+          "args": {
+            "part_name": "Module block (groove)",
+            "part_studio_tab": "Module block (groove)",
+            "view_layout": "four",
+            "template": ""
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "draw-groove",
+          "key": "viewsInserted",
+          "equals": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "drawing",
+          "step": "draw-groove",
+          "key": "drawingState",
+          "mediaType": "application/vnd.onshape.drawing",
+          "artifactKind": "remote"
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "step": "assemble",
+      "key": "configurationTriggered",
+      "equals": true
+    }
+  ]
+}

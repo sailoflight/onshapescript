@@ -58,15 +58,143 @@ public zero-quota sources; read its exact schema and description before calling.
 ### Browser operations
 
 Browser tools consume zero REST API quota because they drive the Windows browser.
-Read-only observation should come first. A real click, type, submit, create,
-delete, deploy, assemble, or drawing action can still mutate the cloud document
-and requires the tool's confirmation contract.
+Read-only observation should come first. `browser_get_fs_compile_status` reads
+Ace annotations, and `browser_get_fs_symbols` reads the Module-outline inventory;
+neither requires mutation confirmation. FeatureScript deployment succeeds only
+when the Commit state transition, exact source readback, and empty compiler
+annotations all verify. The 22 transactions promoted from the planned registry
+are in the complete browser registry; ordinary `tools/list` uses semantic
+exposure. FS insertion writes require dry-run and
+confirmation; fold/navigation and app-shell observations are zero-REST UI
+operations. Drawing auto-view success requires exactly one new tab plus DOM or
+decoded-canvas view evidence. The later FDM review marks the draft-analysis-based
+`browser_print_orientation_check` and dependent `browser_print_optimize_part`
+semantically invalid and default-hidden; draft analysis is not an FDM orientation
+engine. A real click, type, submit, create, delete, deploy, assemble, or drawing
+action can still mutate the cloud document and requires the tool's confirmation
+contract. Also inspect catalog `sideEffects`: screenshot/report artifacts,
+recorder state, persistent login profiles, and local caches can be written even
+when the Onshape operation itself is cloud-read-only. Prefer exact-ID
+`browser_delete_element` over the deprecated name wrapper,
+`browser_drawing_insert_views` for views only, and
+`browser_draw_part_with_views` only when one or more dimensions are required.
+
+#### Six-level browser selection
+
+Semantic level is optional discovery metadata, not registration, permission, or
+execution policy:
+
+- L1: generic browser primitive.
+- L2: composite generic browser transaction.
+- L3: Onshape-aware prepare/inspect/recovery interaction without domain success.
+- L4: one completed and verified Onshape transaction or complete observation.
+- L5: multi-transaction Onshape workflow.
+- L6: independently consumable deliverable with final acceptance and manifest.
+
+Project control is outside L1-L6 and coordinates one or more L6 nodes. Ordinary
+selection ranks L5 workflows first, then L4 verified transactions/observations,
+then L2 generic browser transactions, then L6 deliverable recipes. This maximizes
+reuse of completed workflows while reserving L6 for an explicitly requested
+independent artifact/manifest boundary; do not decompose a suitable candidate into
+lower levels automatically. L1/L3 are omitted from
+ordinary discovery to save context, but their existence and purpose are not
+secret: call `browser_discover_tools` with `semantic_levels=["L1"]` or
+`semantic_levels=["L3"]`, inspect the returned exact schema, then use
+`browser_invoke_discovered`. No additional intent parameter is required, and the
+gateway does not bypass confirmation or handler acceptance. Unclassified tools
+remain valid and visible by default. Set `ONSHAPE_MCP_TOOL_EXPOSURE=static` only
+for complete-registry compatibility or debugging.
+
+#### Tool catalog search and description
+
+`mcp_tool_catalog` is the lookup-first entry for MCP capabilities across all
+modules and profiles. Its immutable index is built once from the complete
+registered `TOOLS` surface after cost metadata and browser tools are installed;
+it does not maintain a second hand-authored catalog.
+
+Use the bounded sequence:
+
+1. `action=status` to read the registry fingerprint, counts, filters, and result limits.
+2. `action=search` with a short query and, where known, `modules`, `profiles`,
+   `semantic_levels`, `network`, `mutating`, or `visible_only`. Search defaults to
+   8 results and cannot exceed 12. It returns compact summaries and never returns
+   `inputSchema`.
+3. `action=describe` with one exact result name to load the full current
+   `inputSchema`, cost, annotations, profiles, browser semantics, view visibility,
+   confirmation mode, and explicit local/session `sideEffects`.
+4. Treat `confirmation.mode=always` as unconditional, `non_dry_run` as required
+   only for real execution, and `budget_override` as a session-budget override
+   rather than mutation approval. `confirmation.schemaRequired` reports the JSON
+   Schema contract separately.
+5. Call the described tool normally. Catalog output does not grant confirmation,
+   quota, browser, credential, or mutation authority.
+
+Search always covers the complete registry, including tools absent from the
+current `tools/list`; `visibleInCurrentView` is informational. Exact-name and name
+prefix matches rank before description matches. Profile names are structured
+filters rather than free-text tokens, preventing ubiquitous control tools from
+polluting capability searches. Cache search/describe results against the returned
+SHA-256 `fingerprint`; refresh the cache when it changes.
+
+#### Dynamic tool display
+
+Tool display is a connection-scoped context and routing convention, never an
+authorization boundary. The complete `TOOLS`/`HANDLERS` registry remains loaded;
+a known-name `tools/call`, internal composition, and
+`browser_invoke_discovered` remain available when a tool is absent from the
+current `tools/list`. Confirmation, quota, browser pacing, cost, and acceptance
+gates remain authoritative.
+
+Deployment modes are explicit:
+
+- `semantic` keeps the current fixed ordinary view and is the compatibility default.
+- `static` keeps the complete registry visible.
+- `profile` selects one fixed `ONSHAPE_MCP_TOOL_PROFILE` at connection start.
+- `dynamic` enables per-connection `mcp_tool_view set/reset` and advertises
+  `capabilities.tools.listChanged=true` during initialization.
+
+Profiles are `default`, `browser`, `rest`, `featurescript`, `documentation`,
+`geometry`, and `all`. An optional `semantic_levels` list narrows classified
+browser tools. `mcp_tool_view`, `mcp_tool_catalog`, `browser_session`,
+`browser_discover_tools`, and
+`browser_invoke_discovered` remain available as navigation/recovery surfaces in
+the relevant view.
+
+Correct dynamic-client flow:
+
+1. Configure `ONSHAPE_MCP_TOOL_EXPOSURE=dynamic` and an optional startup
+   `ONSHAPE_MCP_TOOL_PROFILE`, then restart the MCP process/client adapter.
+2. Check initialize capability `tools.listChanged`. If false, use the fixed view
+   or discovery gateway; do not assume the client can refresh dynamically.
+3. Call `mcp_tool_view` with `action=status` before changing the view.
+4. Call it with `action=set`, a profile, and optional browser semantic levels.
+5. After `notifications/tools/list_changed`, issue a fresh `tools/list`; replace
+   the client's displayed tool schemas instead of appending to a stale list.
+6. Use `action=reset` to restore that connection's startup profile. Reconnecting
+   also creates a fresh view and does not inherit another connection's state.
+
+A repeated set that does not change the effective view emits no notification.
+Clients that ignore `list_changed` should reconnect, refresh manually, or stay in
+`semantic`/`profile` mode. Never interpret a missing displayed tool as denied or
+a displayed tool as authorized.
 
 ### Live REST reads/evaluation/rendering
 
 These consume annual API quota even when they do not mutate the model. Use them
 only for a specific fact that cannot be obtained offline. Provide explicit IDs to
-avoid hidden lookup chains.
+avoid hidden lookup chains. `onshape_export_step` is a bounded asynchronous
+POST/poll/download transaction: dry-run first, pass an existing `translation_id`
+to resume without repeating POST, and treat `exported=false` as a resumable
+non-terminal result rather than starting another export. A completed export
+persists `step-manifest.json`. Use the owning mode's geometry status before its
+build tool. Status first checks explicit configuration, then performs a bounded
+sibling-project/global/Windows-WSL scan. A reusable dependency is represented by
+an opaque versioned `candidateId`; configure only through
+`browser_configure_geometry_backend` or `onshape_configure_geometry_backend`,
+which re-scans and never accepts executable/argv input. When status returns
+`nextAction.kind=ask_before_install`, ask the human whether to install and do
+nothing until answered. Installation is never automatic. Geometry build remains
+an offline L6 recipe accepting only its staged export/translation ID.
 
 ### Live REST writes
 

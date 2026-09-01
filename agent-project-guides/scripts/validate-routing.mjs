@@ -84,6 +84,9 @@ for (const [plane, records] of [['production', production], ['development', deve
   }
 }
 if (seen.size !== expectedRoles.size) fail(`missing role ids: ${[...expectedRoles].filter(id => !seen.has(id)).join(', ')}`);
+for (const alias of ['实战评估者', '实战探索者', '探索评估者']) {
+  if (roleLabels.get(alias) !== 'field-evaluator') fail(`required field-evaluator alias is missing or ambiguous: ${alias}`);
+}
 
 const expectedProjectTypes = new Map([
   ['mcp', 'profiles/MCP_PROJECT.md'],

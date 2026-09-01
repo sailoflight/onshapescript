@@ -20,12 +20,13 @@ smallest exact module or verification section. Domain knowledge remains under
 | Need | First read | Next exact detail |
 |---|---|---|
 | Modify repository code | `development/START.md` | One file under `modules/`, then matched code and tests |
-| Understand system boundaries | `architecture/OVERVIEW.md` | One module contract or linked bridge architecture |
+| Understand system boundaries | `architecture/OVERVIEW.md` | One module contract |
 | Select verification | `verification/MATRIX.md` | Exact test, checker, fixture, or script |
 | Verify MCP client prompt compatibility | `verification/MCP_CLIENT_COMPATIBILITY.md` | Canonical prompt source, generated companion, then one external-cwd smoke |
 | Evaluate a non-production browser scenario | one approved file under `evaluation/` | Matching public usage contract and sanitized evidence only |
 | Use the MCP server | `usage/MCP_CONSUMER.md` | One tool schema or generated tool entry |
-| Deploy, restart, or recover the bridge | `operations/MCP_RUNBOOK.md` | Exact Windows bridge document or script |
+| Deploy, restart, or recover the ordinary MCP or its external adapter | `operations/MCP_RUNBOOK.md` | MCP host state, then the adapter's own runbook |
+| Trace the retired project relay/shared-bridge migration | `history/TRACEABILITY.md` | Archived records under `history/legacy/` only |
 | Query FeatureScript, REST, or browser knowledge | `../onshape_docs/README.md` | One indexed section, symbol, endpoint, schema, or evidence record |
 | Trace an old development decision or log | `history/TRACEABILITY.md` | Current owning architecture, module, experience, verification, operations, or roadmap section |
 | Work in the development lab | `development/LAB.md` | One test, probe, capture fixture, or tool under `dev/` |

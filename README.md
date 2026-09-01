@@ -27,7 +27,7 @@ initialization/adaptation dependency, not ordinary MCP User context.
 ## Architecture
 
 ```text
-mcp_main/               MCP protocol, registered schemas/handlers, bridge
+mcp_main/               MCP protocol, registered schemas/handlers, DSH companion
 onshape_docs/            offline documentation, reference, indexes, query tools
 onshape_rest_api_mode/   REST transport, live/quota guards, state and outputs
 onshape_browser_mode/    Windows Playwright/Edge session and UI workflows
@@ -37,37 +37,28 @@ docs/                    role routing, architecture, module contracts and verifi
 ```
 
 Current cross-module boundaries are documented in
-`docs/architecture/OVERVIEW.md`. The generic Windows/WSL bridge contract is
-`mcp_main/bridge/ARCHITECTURE.md`.
+`docs/architecture/OVERVIEW.md`. Cross-host transport is supplied by an
+independently installed `win-wsl-mcp-bridge`; this repository intentionally owns
+no relay, listener, launcher, registry, or fixed bridge port.
 
-## MCP entrypoints
+## MCP entrypoint
 
-Full stdio body:
+Run the ordinary stdio MCP on the host that owns the configured browser/profile
+and local REST state:
 
 ```bash
 python3 -m mcp_main.win.mcp
 ```
 
-In the Windows/WSL browser deployment, the MCP client in WSL launches only the
-stdlib relay:
+A cross-host client registers that command with an independently installed
+`win-wsl-mcp-bridge` under id `onshape`, then invokes
+`win-wsl-mcp-wsl connect onshape`. See `docs/operations/MCP_RUNBOOK.md` and
+`mcp_main/dsh/cordis.patch.yml.example`. The external bridge owns transport,
+registry, listener, supervision, and reconnect behavior.
 
-```json
-{
-  "mcpServers": {
-    "onshape-featurescript": {
-      "command": "python3",
-      "args": ["/home/<user>/code/onshapescript/mcp_main/wsl/facade/mcp_tcp_bridge.py", "8766"],
-      "cwd": "/home/<user>/code/onshapescript"
-    }
-  }
-}
-```
-
-The persistent MCP body and browser run in the Windows deployment copy. The
-Engine returns the canonical `Production / User` and `Production / Operator`
+The MCP returns the canonical `Production / User` and `Production / Operator`
 policy during initialization. Clients without native instructions projection
-must install the generated companion under `mcp_main/wsl/dsh/`. See the
-Operator runbook before installing, starting, restarting, or recovering it.
+must install the generated companion under `mcp_main/dsh/`.
 
 ## Capabilities
 
@@ -101,8 +92,8 @@ Run offline with `LIVE_API_ENABLED` unset:
 
 ```bash
 python3 -m unittest discover -s dev/tests -v
-python3 -m py_compile mcp_main/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py mcp_main/win/bridge/*.py mcp_main/wsl/*.py mcp_main/wsl/facade/*.py mcp_main/wsl/dsh/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
-python3 mcp_main/wsl/dsh/build_runtime_prompt_companion.py --check
+python3 -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
+python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
 ```
 
 The complete change-to-check mapping is `docs/verification/MATRIX.md`.

@@ -182,10 +182,9 @@ class BrowserSession:
 
         if not self.playwright_available():
             raise PlaywrightNotInstalled(
-                "Playwright is not installed on the Windows browser host. See "
-                "mcp_main/win/bridge/windows/README.md for setup, or run: "
+                "Playwright is not installed on the MCP browser host. Run: "
                 "C:\\path\\to\\onshapescript\\.venv\\Scripts\\python.exe -m pip install "
-                "-r tools\\windows\\requirements-browser.txt"
+                "-r onshape_browser_mode\\requirements-windows.txt"
             )
 
         from playwright.sync_api import sync_playwright
@@ -226,7 +225,7 @@ class BrowserSession:
                 f"Could not launch browser (channel={browser_cfg.channel!r}): {last_exc}. "
                 "Use the Windows host's existing Chrome/Edge (no browser download); "
                 "set channel/executable_path in onshape_browser_mode/config/browser.local.toml. See "
-                "mcp_main/win/bridge/windows/README.md."
+                "docs/operations/MCP_RUNBOOK.md."
             ) from last_exc
 
         # Residual-tab cleanup (same fix taobao-mcp landed 2026-08-20):

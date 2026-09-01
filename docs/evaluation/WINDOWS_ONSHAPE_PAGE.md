@@ -1,5 +1,10 @@
 # Windows Onshape page launch field evaluation
 
+> **Dated historical evidence.** This scenario observed the now-retired
+> project-owned port-8766 relay. Keep its recorded facts intact, but do not use
+> its transport paths as current deployment instructions. See
+> `../operations/MCP_RUNBOOK.md`.
+
 Mode: scenario-validation
 Environment: development
 Data: approved-real-data-copy (approved existing test identity; no account data read)

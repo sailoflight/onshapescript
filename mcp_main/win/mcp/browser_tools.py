@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -170,6 +171,357 @@ def _mutation_plan(name: str, arguments: dict[str, Any], steps: list[str]) -> di
     return None
 
 
+def browser_get_fs_compile_status(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Read normalized compiler annotations from the active Feature Studio."""
+    page, _ = _page(pace=False)
+    from onshape_browser_mode import actions
+
+    return {
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+        **actions.read_featurescript_compile_status(page),
+    }
+
+
+def browser_get_fs_symbols(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Open Module outline and read the active Feature Studio symbol inventory."""
+    page, _ = _page()
+    from onshape_browser_mode import actions
+
+    return {
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+        **actions.read_featurescript_symbols(page),
+    }
+
+
+def browser_fs_goto_definition(arguments: dict[str, Any]) -> dict[str, Any]:
+    symbol = arguments.get("symbol", "")
+    if not isinstance(symbol, str) or not symbol.strip():
+        raise ValueError("symbol is required")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import fs_goto_definition
+    return fs_goto_definition(page, symbol.strip())
+
+
+def browser_fs_insert_snippet(arguments: dict[str, Any]) -> dict[str, Any]:
+    for name in ("row", "column"):
+        value = arguments.get(name)
+        if value is not None and (not isinstance(value, int) or value < 0):
+            raise ValueError(f"{name} must be a non-negative integer")
+    preview = _mutation_plan("browser_fs_insert_snippet", arguments, ["position Ace cursor", "open editor context menu", "click exact 插入代码段", "verify source delta and dirty state"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.transactions import fs_insert_snippet
+    return fs_insert_snippet(page, row=arguments.get("row"), column=arguments.get("column"))
+
+
+def browser_fs_insert_parameter(arguments: dict[str, Any]) -> dict[str, Any]:
+    for name in ("row", "column"):
+        value = arguments.get(name)
+        if value is not None and (not isinstance(value, int) or value < 0):
+            raise ValueError(f"{name} must be a non-negative integer")
+    preview = _mutation_plan("browser_fs_insert_parameter", arguments, ["position FeatureScript cursor", "click verified Length parameter toolbar item", "verify source delta and dirty state"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.transactions import fs_insert_parameter
+    return fs_insert_parameter(page, row=arguments.get("row"), column=arguments.get("column"))
+
+
+def browser_fs_toggle_fold(arguments: dict[str, Any]) -> dict[str, Any]:
+    action = arguments.get("action", "toggle")
+    if action not in {"toggle", "fold", "unfold"}:
+        raise ValueError("action must be toggle, fold, or unfold")
+    row = arguments.get("row")
+    if row is not None and (not isinstance(row, int) or row < 0):
+        raise ValueError("row must be a non-negative integer")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import fs_toggle_fold
+    return fs_toggle_fold(page, row=row, action=action)
+
+
+def browser_edit_feature_parameters(arguments: dict[str, Any]) -> dict[str, Any]:
+    feature_name = arguments.get("feature_name", "")
+    parameters = arguments.get("parameters")
+    if not isinstance(feature_name, str) or not feature_name.strip():
+        raise ValueError("feature_name is required")
+    if not isinstance(parameters, dict) or not parameters:
+        raise ValueError("parameters must be a non-empty object")
+    for key, value in parameters.items():
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", key):
+            raise ValueError("parameter ids must be CSS-safe identifiers")
+        if not isinstance(value, (str, int, float, bool)):
+            raise ValueError("parameter values must be strings, numbers, or booleans")
+    preview = _mutation_plan("browser_edit_feature_parameters", arguments, ["open feature dialog", "update named fields", "read values back", "accept dialog", "reopen and verify persistence/regen"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.transactions import edit_feature_parameters
+    return edit_feature_parameters(page, feature_name.strip(), parameters, accept=True)
+
+
+def browser_fs_watch_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
+    part_studio = arguments.get("part_studio", "")
+    mode = arguments.get("mode", "watch")
+    if not isinstance(part_studio, str) or not part_studio.strip():
+        raise ValueError("part_studio is required")
+    if mode not in {"watch", "configure"}:
+        raise ValueError("mode must be watch or configure")
+    preview = _mutation_plan("browser_fs_watch_part_studio", arguments, ["read current watch target", "open exact watch/configure dropdown", "select exact target", "verify toolbar readback"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.transactions import fs_watch_part_studio
+    return fs_watch_part_studio(page, part_studio.strip(), mode=mode)
+
+
+def browser_open_doc_menu(arguments: dict[str, Any]) -> dict[str, Any]:
+    command = arguments.get("command", "")
+    if not isinstance(command, str):
+        raise ValueError("command must be a string")
+    preview = _mutation_plan("browser_open_doc_menu", arguments, ["open document-name menu", "read item list", "optionally trigger exact command"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.transactions import open_doc_menu
+    return open_doc_menu(page, command)
+
+
+def browser_set_panel_filter(arguments: dict[str, Any]) -> dict[str, Any]:
+    query = arguments.get("query", "")
+    if not isinstance(query, str):
+        raise ValueError("query must be a string")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import set_panel_filter
+    return set_panel_filter(page, query)
+
+
+def browser_toggle_left_panel(arguments: dict[str, Any]) -> dict[str, Any]:
+    target = arguments.get("target", "toggle")
+    if target not in {"toggle", "show", "hide"}:
+        raise ValueError("target must be toggle, show, or hide")
+    width = arguments.get("expanded_width", 200)
+    if not isinstance(width, int) or not 80 <= width <= 600:
+        raise ValueError("expanded_width must be an integer from 80 through 600")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import toggle_left_panel
+    return toggle_left_panel(page, target=target, expanded_width=width)
+
+
+def browser_read_selection_preview(arguments: dict[str, Any]) -> dict[str, Any]:
+    page, _ = _page(pace=False)
+    from onshape_browser_mode.transactions import read_selection_preview
+    return read_selection_preview(page)
+
+
+def browser_element_context_menu(arguments: dict[str, Any]) -> dict[str, Any]:
+    element_id = arguments.get("element_id", "")
+    if not isinstance(element_id, str) or not element_id.strip():
+        raise ValueError("element_id is required")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import element_context_menu
+    return element_context_menu(page, element_id=element_id.strip())
+
+
+def browser_duplicate_element(arguments: dict[str, Any]) -> dict[str, Any]:
+    element_id = arguments.get("element_id", "")
+    if not isinstance(element_id, str) or not element_id.strip():
+        raise ValueError("element_id is required")
+    preview = _mutation_plan("browser_duplicate_element", arguments, ["open exact element-id context menu", "click exact 复制 item", "complete copy dialog", "verify exactly one new tab id"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.transactions import duplicate_element
+    return duplicate_element(page, element_id=element_id.strip(), new_name=arguments.get("new_name", ""))
+
+
+def browser_notifications_status(arguments: dict[str, Any]) -> dict[str, Any]:
+    page, _ = _page()
+    from onshape_browser_mode.transactions import notifications_status
+    return notifications_status(page, open_drawer=bool(arguments.get("open_drawer", False)))
+
+
+def browser_share_document(arguments: dict[str, Any]) -> dict[str, Any]:
+    page, _ = _page()
+    from onshape_browser_mode.transactions import share_document
+    return share_document(page)
+
+
+def browser_view_orientation(arguments: dict[str, Any]) -> dict[str, Any]:
+    orientation = arguments.get("orientation", "current")
+    if orientation not in {"current", "front", "back", "top", "bottom", "left", "right", "isometric"}:
+        raise ValueError("unsupported orientation")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import view_orientation
+    return view_orientation(page, orientation="" if orientation == "current" else ("iso" if orientation == "isometric" else orientation))
+
+
+def browser_drawing_insert_views(arguments: dict[str, Any]) -> dict[str, Any]:
+    part_name = arguments.get("part_name", "")
+    layout = arguments.get("view_layout", "four")
+    if not isinstance(part_name, str) or not part_name.strip():
+        raise ValueError("part_name is required")
+    if layout not in {"four", "single", "iso"}:
+        raise ValueError("view_layout must be four, single, or iso")
+    preview = _mutation_plan("browser_drawing_insert_views", arguments, ["open exact Part Studio", "open exact part context menu", "select drawing layout", "accept", "verify drawing-view geometry"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.modeling_transactions import drawing_insert_views
+    return drawing_insert_views(page, part_name=part_name.strip(), view_layout=layout, part_studio_tab=arguments.get("part_studio_tab", ""), template=arguments.get("template", ""))
+
+
+def browser_draw_part_with_views(arguments: dict[str, Any]) -> dict[str, Any]:
+    part_name = arguments.get("part_name", "")
+    layout = arguments.get("view_layout", "four")
+    if not isinstance(part_name, str) or not part_name.strip():
+        raise ValueError("part_name is required")
+    if layout not in {"four", "single", "iso"}:
+        raise ValueError("view_layout must be four, single, or iso")
+    dimensions = arguments.get("dimensions")
+    if not isinstance(dimensions, list) or not dimensions:
+        raise ValueError("dimensions must be a non-empty array; use browser_drawing_insert_views for views only")
+    normalized = []
+    for index, dimension in enumerate(dimensions):
+        if not isinstance(dimension, dict):
+            raise ValueError(f"dimensions[{index}] must be an object")
+        normalized.append(_normalize_dimension(dimension, f"dimensions[{index}]"))
+    preview = _mutation_plan("browser_draw_part_with_views", arguments, ["insert verified drawing views", "add requested dimensions", "require every stage acceptance"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.modeling_transactions import draw_part_with_views
+    return draw_part_with_views(page, part_name=part_name.strip(), view_layout=layout, part_studio_tab=arguments.get("part_studio_tab", ""), template=arguments.get("template", ""), dimensions=normalized)
+
+
+def browser_print_orientation_check(arguments: dict[str, Any]) -> dict[str, Any]:
+    body_name = arguments.get("body_name", "")
+    direction = arguments.get("build_direction", "+z")
+    limit = arguments.get("max_overhang_angle_degrees", 45)
+    if not isinstance(body_name, str) or not body_name.strip():
+        raise ValueError("body_name is required")
+    if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"}:
+        raise ValueError("unsupported build_direction")
+    if not isinstance(limit, (int, float)) or not 0 <= limit <= 90:
+        raise ValueError("max_overhang_angle_degrees must be from 0 through 90")
+    from onshape_browser_mode.modeling_transactions import print_orientation_check
+    return print_orientation_check(None, body_name=body_name.strip(), build_direction=direction, max_overhang_angle_degrees=float(limit))
+
+
+def browser_wall_thickness_report(arguments: dict[str, Any]) -> dict[str, Any]:
+    body_name = arguments.get("body_name", "")
+    minimum = arguments.get("minimum_allowed_mm")
+    samples = arguments.get("samples", [])
+    if not isinstance(body_name, str) or not body_name.strip():
+        raise ValueError("body_name is required")
+    if not isinstance(minimum, (int, float)) or minimum <= 0:
+        raise ValueError("minimum_allowed_mm must be positive")
+    if not isinstance(samples, list) or any(not isinstance(item, str) or not item.strip() for item in samples) or len(samples) > 32:
+        raise ValueError("samples must contain at most 32 non-empty semantic names")
+    page, _ = _page()
+    from onshape_browser_mode.modeling_transactions import wall_thickness_report
+    return wall_thickness_report(page, body_name=body_name.strip(), minimum_allowed_mm=float(minimum), samples=samples)
+
+
+def browser_apply_blend(arguments: dict[str, Any]) -> dict[str, Any]:
+    operation = arguments.get("operation", "fillet")
+    targets = _strings(arguments.get("targets"), "targets")
+    amount = arguments.get("amount", "")
+    if operation not in {"fillet", "chamfer", "draft"}:
+        raise ValueError("operation must be fillet, chamfer, or draft")
+    amount_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(?:mm|cm|m|in|inch|deg|°)\s*", amount, re.I) if isinstance(amount, str) else None
+    if amount_match is None or float(amount_match.group(1)) <= 0:
+        raise ValueError("amount must be a positive unit-bearing quantity")
+    preview = _mutation_plan("browser_apply_blend", arguments, ["select semantic targets", f"open {operation} tool", "set amount", "accept", "verify exact new history row"])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode.modeling_transactions import apply_blend
+    return apply_blend(page, operation=operation, targets=targets, amount=amount.strip())
+
+
+def browser_print_optimize_part(arguments: dict[str, Any]) -> dict[str, Any]:
+    body_name = arguments.get("body_name", "")
+    orientation = arguments.get("orientation")
+    wall = arguments.get("wall")
+    blend = arguments.get("blend")
+    if not isinstance(body_name, str) or not body_name.strip():
+        raise ValueError("body_name is required")
+    if not isinstance(orientation, dict) or not isinstance(wall, dict):
+        raise ValueError("orientation and wall stage objects are required")
+    direction = orientation.get("build_direction")
+    angle = orientation.get("max_overhang_angle_degrees")
+    if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"} or not isinstance(angle, (int, float)) or not 0 <= angle <= 90:
+        raise ValueError("orientation requires a valid build_direction and 0..90 angle")
+    minimum = wall.get("minimum_allowed_mm")
+    samples = wall.get("samples", [])
+    if not isinstance(minimum, (int, float)) or minimum <= 0:
+        raise ValueError("wall.minimum_allowed_mm must be positive")
+    if not isinstance(samples, list) or len(samples) > 32 or any(not isinstance(item, str) or not item.strip() for item in samples):
+        raise ValueError("wall.samples must contain at most 32 non-empty names")
+    if blend is not None:
+        if not isinstance(blend, dict):
+            raise ValueError("blend must be an object")
+        if blend.get("operation") not in {"fillet", "chamfer", "draft"}:
+            raise ValueError("blend.operation must be fillet, chamfer, or draft")
+        _strings(blend.get("targets"), "blend.targets")
+        amount = blend.get("amount", "")
+        amount_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(?:mm|cm|m|in|inch|deg|°)\s*", amount, re.I) if isinstance(amount, str) else None
+        if amount_match is None or float(amount_match.group(1)) <= 0:
+            raise ValueError("blend.amount must be a positive unit-bearing quantity")
+    if arguments.get("dry_run", False):
+        return {
+            "dryRun": True,
+            "tool": "browser_print_optimize_part",
+            "semanticValidity": "invalid",
+            "browserActionPlanned": False,
+            "mutationPlanned": False,
+            "reason": "draft analysis is not an FDM orientation engine",
+        }
+    from onshape_browser_mode.modeling_transactions import print_optimize_part
+    return print_optimize_part(None, body_name=body_name.strip(), blend=blend, orientation=orientation, wall=wall)
+
+
+def browser_spiral_ridge(arguments: dict[str, Any]) -> dict[str, Any]:
+    numeric = {}
+    ranges = {
+        "base_radius_mm": (0.1, 10_000.0),
+        "pitch_mm": (0.1, 10_000.0),
+        "ridge_width_mm": (0.05, 1_000.0),
+        "ridge_height_mm": (0.05, 1_000.0),
+        "length_mm": (0.1, 100_000.0),
+    }
+    for name, (minimum, maximum) in ranges.items():
+        value = arguments.get(name)
+        if not isinstance(value, (int, float)) or not minimum <= value <= maximum:
+            raise ValueError(f"{name} must be from {minimum} through {maximum}")
+        numeric[name] = float(value)
+    if numeric["length_mm"] / numeric["pitch_mm"] > 10_000:
+        raise ValueError("spiral ridge may not exceed 10000 revolutions")
+    if numeric["ridge_width_mm"] >= numeric["pitch_mm"]:
+        raise ValueError("ridge_width_mm must be smaller than pitch_mm")
+    if numeric["ridge_height_mm"] >= numeric["base_radius_mm"]:
+        raise ValueError("ridge_height_mm must be smaller than base_radius_mm")
+    preview = _mutation_plan("browser_spiral_ridge", arguments, ["generate bounded helix+sweep FeatureScript", "deploy with compile verification", "apply custom feature", "verify part/history result"])
+    if preview:
+        return {**preview, "revolutions": numeric["length_mm"] / numeric["pitch_mm"]}
+    from onshape_browser_mode.modeling_transactions import generate_spiral_ridge_script
+    script = generate_spiral_ridge_script(**numeric, clockwise=bool(arguments.get("clockwise", True)))
+    result = browser_deploy_and_apply_featurescript({
+        "script": script,
+        "feature_name": "Spiral ridge",
+        "feature_studio_tab": arguments.get("feature_studio_tab", "Spiral ridge FS"),
+        "part_studio_tab": arguments.get("part_studio_tab", "Spiral ridge PS"),
+        "create_version": bool(arguments.get("create_version", True)),
+        "version_name": arguments.get("version_name", ""),
+        "apply": True,
+        "confirm_mutation": True,
+    })
+    return {"ridgeCreated": bool(result.get("deployed") and result.get("built")), "revolutions": numeric["length_mm"] / numeric["pitch_mm"], "result": result}
+
+
 def browser_insert_assembly_instances(arguments: dict[str, Any]) -> dict[str, Any]:
     names = _strings(arguments.get("instance_names"), "instance_names")
     instance_selector = arguments.get("instance_selector", "")
@@ -303,6 +655,7 @@ def _ensure_tab(page: Any, tab_name: str, tab_type: str) -> dict[str, Any]:
         )
         if not tab_id:
             locator = locator.filter(has_text=tab_name)
+        actions.dismiss_stale_context_menu(page)
         locator.first.click()
         return {"created": False, "name": tab_name, **wait_ready()}
     created = actions.create_document_tab(page, tab_type)
@@ -407,9 +760,9 @@ def browser_draw_part(arguments: dict[str, Any]) -> dict[str, Any]:
     source = arguments.get("source_tab", "")
     if not source:
         raise ValueError("source_tab is required")
-    dimensions = arguments.get("dimensions", [])
-    if not isinstance(dimensions, list):
-        raise ValueError("dimensions must be an array")
+    dimensions = arguments.get("dimensions")
+    if not isinstance(dimensions, list) or not dimensions:
+        raise ValueError("dimensions must be a non-empty array; use browser_drawing_insert_views for views only")
     normalized_dimensions = []
     for index, dimension in enumerate(dimensions):
         if not isinstance(dimension, dict):
@@ -440,7 +793,13 @@ def browser_run_project(arguments: dict[str, Any]) -> dict[str, Any]:
         handler = BROWSER_HANDLERS.get(tool)
         if handler is None or tool == "browser_run_project":
             raise ValueError(f"Project tool is not allowed: {tool}")
-        return handler({**args, "confirm_mutation": True})
+        definition = next((item for item in BROWSER_TOOLS if item["name"] == tool), None)
+        if definition is None:
+            raise ValueError(f"Project tool has no registered schema: {tool}")
+        call_args = dict(args)
+        if not definition["annotations"]["readOnlyHint"]:
+            call_args["confirm_mutation"] = True
+        return handler(call_args)
 
     return run_project(project_name, executor=execute, resume=bool(arguments.get("resume")))
 
@@ -501,11 +860,12 @@ def browser_capture_screenshot(arguments: dict[str, Any]) -> dict[str, Any]:
     target_dir = _resolve_target(output_dir)
     if root.resolve() not in target_dir.parents:
         raise ValueError("output_dir must be inside the repository root")
-    target_dir.mkdir(parents=True, exist_ok=True)
 
     filename = arguments.get("filename", "")
     if not isinstance(filename, str):
         raise ValueError("filename must be a string")
+    if filename and (Path(filename).name != filename or filename in {".", ".."}):
+        raise ValueError("filename must be a PNG basename without directory components")
     if not filename:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         filename = f"screenshot-{stamp}.png"
@@ -525,6 +885,7 @@ def browser_capture_screenshot(arguments: dict[str, Any]) -> dict[str, Any]:
             "note": "No browser session or file write was performed.",
         }
 
+    target_dir.mkdir(parents=True, exist_ok=True)
     page, _ = _page(pace=True)
     try:
         scope = resolve_scope(page, frame_url)
@@ -560,6 +921,109 @@ def browser_capture_screenshot(arguments: dict[str, Any]) -> dict[str, Any]:
     if arguments.get("data_url"):
         result["dataUrl"] = "data:image/png;base64," + base64.b64encode(data).decode("ascii")
     return result
+
+
+def browser_geometry_status(arguments: dict[str, Any]) -> dict[str, Any]:
+    from onshape_browser_mode.geometry import browser_geometry_status as status
+
+    return status()
+
+
+def browser_configure_geometry_backend(arguments: dict[str, Any]) -> dict[str, Any]:
+    candidate_id = arguments.get("candidate_id")
+    if not isinstance(candidate_id, str) or not candidate_id.strip():
+        raise ValueError("candidate_id is required")
+    from onshape_browser_mode.geometry import configure_browser_geometry_backend
+
+    if arguments.get("dry_run"):
+        return configure_browser_geometry_backend(candidate_id, dry_run=True)
+    _confirm(arguments)
+    return configure_browser_geometry_backend(candidate_id)
+
+
+def browser_build_geometry_package(arguments: dict[str, Any]) -> dict[str, Any]:
+    export_id = arguments.get("export_id")
+    if not isinstance(export_id, str) or not export_id.strip():
+        raise ValueError("export_id is required")
+    from onshape_browser_mode.geometry import build_browser_geometry_package
+
+    if arguments.get("dry_run"):
+        return build_browser_geometry_package(export_id, dry_run=True)
+    _confirm(arguments)
+    return build_browser_geometry_package(export_id)
+
+
+def browser_export_step(arguments: dict[str, Any]) -> dict[str, Any]:
+    required = ("source_tab", "export_id", "document_id", "workspace_id", "element_id")
+    if any(not isinstance(arguments.get(key), str) or not arguments[key].strip() for key in required):
+        raise ValueError(f"{', '.join(required)} are required")
+    from onshape_browser_mode.step_export import export_browser_step, plan_browser_step_export
+
+    if arguments.get("dry_run"):
+        return plan_browser_step_export(
+            source_tab=arguments["source_tab"],
+            export_id=arguments["export_id"],
+        )
+    _confirm(arguments)
+    page, _ = _page()
+    return export_browser_step(
+        page,
+        source_tab=arguments["source_tab"],
+        export_id=arguments["export_id"],
+        document_id=arguments["document_id"],
+        workspace_id=arguments["workspace_id"],
+        element_id=arguments["element_id"],
+        timeout_ms=arguments.get("timeout_ms", 120_000),
+    )
+
+
+def browser_discover_tools(arguments: dict[str, Any]) -> dict[str, Any]:
+    query = arguments.get("query", "")
+    levels = arguments.get("semantic_levels")
+    limit = arguments.get("limit", 8)
+    include_schema = arguments.get("include_schema", True)
+    if levels is not None and (
+        not isinstance(levels, list)
+        or any(level not in {"L1", "L2", "L3", "L4", "L5", "L6"} for level in levels)
+    ):
+        raise ValueError("semantic_levels must contain only L1 through L6")
+    if not isinstance(include_schema, bool):
+        raise ValueError("include_schema must be a boolean")
+    from mcp_main.win.mcp import server
+    from onshape_browser_mode.semantics import discover_tools
+
+    return discover_tools(
+        server.TOOLS,
+        query=query,
+        semantic_levels=levels,
+        limit=limit,
+        include_schema=include_schema,
+    )
+
+
+def browser_invoke_discovered(arguments: dict[str, Any]) -> dict[str, Any]:
+    name = arguments.get("name", "")
+    nested = arguments.get("arguments", {})
+    if not isinstance(name, str) or not name.startswith("browser_"):
+        raise ValueError("name must identify a browser tool")
+    if name in {"browser_discover_tools", "browser_invoke_discovered"}:
+        raise ValueError("discovery gateways cannot invoke themselves")
+    if not isinstance(nested, dict):
+        raise ValueError("arguments must be an object")
+    forwarded = dict(nested)
+    if "dry_run" in arguments:
+        forwarded.setdefault("dry_run", arguments["dry_run"])
+    if "confirm_mutation" in arguments:
+        forwarded.setdefault("confirm_mutation", arguments["confirm_mutation"])
+    from mcp_main.win.mcp import server
+
+    handler = server.HANDLERS.get(name)
+    if handler is None:
+        raise ValueError(f"Unknown browser tool: {name}")
+    result = handler(forwarded)
+    if not isinstance(result, dict):
+        raise ValueError("discovered browser handler returned a non-object result")
+    return {"invokedTool": name, "result": result}
 
 
 def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -603,9 +1067,42 @@ def _tool(name: str, description: str, properties: dict[str, Any], *, mutating: 
 
 _POINT = {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}, "required": ["x", "y"], "additionalProperties": False}
 _DIMENSION_PROPERTIES = {"tool_selector": {"type": "string", "default": ""}, "geometry_selectors": {**_STRING_ARRAY, "default": []}, "placement_selector": {"type": "string", "default": ""}, "verification_selector": {"type": "string", "default": ""}, "tool_key": {"type": "string", "default": ""}, "canvas_selector": {"type": "string", "default": "canvas"}, "canvas_index": {"type": "integer", "default": 0, "minimum": 0}, "geometry_points": {"type": "array", "items": _POINT, "default": []}, "placement_point": _POINT, "frame_url": {"type": "string", "default": "production-drawing-"}}
+_ORIENTATION_STAGE = {"type": "object", "properties": {"build_direction": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]}, "max_overhang_angle_degrees": {"type": "number", "minimum": 0, "maximum": 90}}, "required": ["build_direction", "max_overhang_angle_degrees"], "additionalProperties": False}
+_WALL_STAGE = {"type": "object", "properties": {"minimum_allowed_mm": {"type": "number", "exclusiveMinimum": 0}, "samples": {"type": "array", "items": {"type": "string"}, "maxItems": 32, "default": []}}, "required": ["minimum_allowed_mm"], "additionalProperties": False}
+_BLEND_STAGE = {"type": "object", "properties": {"operation": {"type": "string", "enum": ["fillet", "chamfer", "draft"]}, "targets": _STRING_ARRAY, "amount": {"type": "string"}}, "required": ["operation", "targets", "amount"], "additionalProperties": False}
 
 
 BROWSER_TOOLS = [
+    _tool("browser_discover_tools", "Search the optional six-level browser catalog. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact schemas. Classification guides discovery only and grants no execution authority.", {"query": {"type": "string", "default": ""}, "semantic_levels": {"type": "array", "items": {"type": "string", "enum": ["L1", "L2", "L3", "L4", "L5", "L6"]}, "uniqueItems": True, "maxItems": 6}, "limit": {"type": "integer", "minimum": 1, "maximum": 12, "default": 8}, "include_schema": {"type": "boolean", "default": True}}, mutating=False, seconds=1, network="offline"),
+    _tool("browser_invoke_discovered", "Invoke one browser tool returned by browser_discover_tools. Nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative; this gateway does not grant permission or bypass a handler gate.", {"name": {"type": "string"}, "arguments": {"type": "object", "additionalProperties": True}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["name", "arguments"]),
+    _tool("browser_export_step", "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP result, and persist a browser-owned step-manifest with SHA/provenance. Zero REST quota. Actual UI/download execution requires confirm_mutation=true; dry_run is local.", {"source_tab": {"type": "string"}, "export_id": {"type": "string"}, "document_id": {"type": "string"}, "workspace_id": {"type": "string"}, "element_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 30000, "maximum": 300000, "default": 120000}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=180, required=["source_tab", "export_id", "document_id", "workspace_id", "element_id"]),
+    _tool("browser_geometry_status", "Report browser-mode non-slicer geometry backend readiness without starting the browser or revealing executable paths. If the configured backend is unavailable, perform a bounded search of sibling project virtual environments, global Python environments, and the Windows/WSL counterpart. Reusable versioned candidates are returned by opaque ID; when none exist, agents are instructed to ask before installation. Never installs automatically.", {}, mutating=False, seconds=90, network="offline"),
+    _tool("browser_configure_geometry_backend", "Configure browser mode from one opaque candidate_id returned by browser_geometry_status. The candidate is re-discovered before writing, so callers cannot supply an executable or argv. dry_run previews the selection; actual local configuration requires confirm_mutation=true. Never installs dependencies.", {"candidate_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["candidate_id"], network="offline"),
+    _tool("browser_build_geometry_package", "Build an offline L6 geometry-analysis package from one browser-owned STEP export manifest. The executable and argv come only from browser module configuration; MCP may select only export_id. Re-verifies STEP provenance/SHA and writes STEP/STL/reports/manifest without browser, REST, or Bambu calls.", {"export_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=360, required=["export_id"], network="offline"),
+    _tool("browser_get_fs_compile_status", "Read the active FeatureScript Ace annotations and report compiled status, normalized errors, and annotation count. Read-only and zero REST API quota.", {}, mutating=False, seconds=5),
+    _tool("browser_get_fs_symbols", "Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names. Read-only and zero REST API quota.", {}, mutating=False, seconds=10),
+    _tool("browser_fs_goto_definition", "Navigate to a named top-level FeatureScript definition through Module outline and return the verified Ace cursor target.", {"symbol": {"type": "string"}}, mutating=False, seconds=10, required=["symbol"]),
+    _tool("browser_fs_insert_snippet", "Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
+    _tool("browser_fs_insert_parameter", "Insert the verified Length parameter template at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
+    _tool("browser_fs_toggle_fold", "Fold, unfold, or toggle a FeatureScript Ace fold and return the resulting folded ranges.", {"action": {"type": "string", "enum": ["toggle", "fold", "unfold"], "default": "toggle"}, "row": {"type": "integer", "minimum": 0}}, mutating=False, seconds=5),
+    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback and persistence, accept, and require an error-free feature row.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_fs_watch_part_studio", "Select the exact watched/configured Part Studio through the Feature Studio toolbar dropdown and verify the toolbar readback.", {"part_studio": {"type": "string"}, "mode": {"type": "string", "enum": ["watch", "configure"], "default": "watch"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=15, required=["part_studio"]),
+    _tool("browser_open_doc_menu", "Open the document-name menu, return its item inventory, and optionally trigger one exact command.", {"command": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
+    _tool("browser_set_panel_filter", "Set the left document-panel filter and verify the trusted input value and visible tree count.", {"query": {"type": "string"}}, mutating=False, seconds=10, required=["query"]),
+    _tool("browser_toggle_left_panel", "Collapse, expand, or toggle the left panel through its splitter and verify the resulting width.", {"target": {"type": "string", "enum": ["toggle", "show", "hide"], "default": "toggle"}}, mutating=False, seconds=10),
+    _tool("browser_read_selection_preview", "Read a visible left-panel selection or tab-preview card and return its text and labeled fields.", {}, mutating=False, seconds=5),
+    _tool("browser_element_context_menu", "Open an id-addressed document-element tab context menu and return its visible item list.", {"element_id": {"type": "string"}}, mutating=False, seconds=10, required=["element_id"]),
+    _tool("browser_duplicate_element", "Duplicate an id-addressed document element through its exact context-menu command and verify exactly one new tab id.", {"element_id": {"type": "string"}, "new_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["element_id"]),
+    _tool("browser_notifications_status", "Read the notification badge count and optionally open and read the notification drawer.", {"open_drawer": {"type": "boolean", "default": False}}, mutating=False, seconds=10),
+    _tool("browser_share_document", "Open the document share dialog and return its visible text without changing permissions.", {}, mutating=False, seconds=10),
+    _tool("browser_view_orientation", "Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes.", {"orientation": {"type": "string", "enum": ["current", "front", "back", "top", "bottom", "left", "right", "isometric"], "default": "current"}}, mutating=False, seconds=10),
+    _tool("browser_drawing_insert_views", "Create a drawing from an exact Part Studio part row, select a semantic view layout, and require drawing-view geometry evidence.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=60, required=["part_name"]),
+    _tool("browser_draw_part_with_views", "Create verified drawing views from a part, add one or more requested dimensions, and fail if any stage lacks acceptance evidence. Use browser_drawing_insert_views when dimensions are not required.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120, required=["part_name", "dimensions"]),
+    _tool("browser_print_orientation_check", "Deprecated compatibility result: returns semantically invalid/unassessable without a browser action because Onshape draft analysis is not an FDM orientation engine.", {"body_name": {"type": "string"}, "build_direction": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"], "default": "+z"}, "max_overhang_angle_degrees": {"type": "number", "minimum": 0, "maximum": 90, "default": 45}}, mutating=False, seconds=1, required=["body_name"], network="offline"),
+    _tool("browser_wall_thickness_report", "Read sampled browser measurements for a named body, report the minimum in millimeters, and never claim an unverified global minimum.", {"body_name": {"type": "string"}, "minimum_allowed_mm": {"type": "number", "exclusiveMinimum": 0}, "samples": {"type": "array", "items": {"type": "string"}, "maxItems": 32, "default": []}}, mutating=False, seconds=15, required=["body_name", "minimum_allowed_mm"]),
+    _tool("browser_apply_blend", "Apply a fillet, chamfer, or draft to semantic targets and require amount readback plus an exact new error-free history row.", {"operation": {"type": "string", "enum": ["fillet", "chamfer", "draft"], "default": "fillet"}, "targets": _STRING_ARRAY, "amount": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["targets", "amount"]),
+    _tool("browser_print_optimize_part", "Deprecated compatibility workflow: validates inputs, then stops before browser/model mutation because its draft-based FDM orientation dependency is semantically invalid.", {"body_name": {"type": "string"}, "blend": _BLEND_STAGE, "orientation": _ORIENTATION_STAGE, "wall": _WALL_STAGE, "dry_run": _DRY}, mutating=False, seconds=1, required=["body_name", "orientation", "wall"], network="offline"),
+    _tool("browser_spiral_ridge", "Generate bounded helix+sweep FeatureScript, deploy and apply it through the browser, and verify the resulting feature and part.", {"base_radius_mm": {"type": "number", "minimum": 0.1, "maximum": 10000}, "pitch_mm": {"type": "number", "minimum": 0.1, "maximum": 10000}, "ridge_width_mm": {"type": "number", "minimum": 0.05, "maximum": 1000}, "ridge_height_mm": {"type": "number", "minimum": 0.05, "maximum": 1000}, "length_mm": {"type": "number", "minimum": 0.1, "maximum": 100000}, "clockwise": {"type": "boolean", "default": True}, "feature_studio_tab": {"type": "string", "default": "Spiral ridge FS"}, "part_studio_tab": {"type": "string", "default": "Spiral ridge PS"}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120, required=["base_radius_mm", "pitch_mm", "ridge_width_mm", "ridge_height_mm", "length_mm"]),
     _tool("browser_wait", "Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota.", {"condition": {"type": "string", "enum": ["visible", "hidden", "attached", "detached", "text", "url", "network_idle", "frame"], "default": "visible"}, "selector": {"type": "string", "default": ""}, "text": {"type": "string", "default": ""}, "frame_url": _FRAME, "timeout_ms": {"type": "integer", "default": 30000, "minimum": 1, "maximum": 60000}}, mutating=False, seconds=60),
     _tool("browser_press_key", "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota.", {"selector": {"type": "string", "default": ""}, "target_text": {"type": "string", "default": ""}, "index": {"type": "integer", "default": 0, "minimum": 0}, "key": {"type": "string"}, "frame_url": _FRAME, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=5, required=["key"]),
     _tool("browser_type", "Type text with trusted sequential keyboard events into a main-page or frame target. Zero REST API quota.", {"selector": {"type": "string", "default": ""}, "target_text": {"type": "string", "default": ""}, "index": {"type": "integer", "default": 0, "minimum": 0}, "text": {"type": "string"}, "frame_url": _FRAME, "delay_ms": {"type": "integer", "default": 25, "minimum": 0, "maximum": 1000}, "clear": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10, required=["text"]),
@@ -619,12 +1116,42 @@ BROWSER_TOOLS = [
     _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data.", {"script": {"type": "string"}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["script", "feature_name"], destructive=True),
     _tool("browser_build_part", "Ensure a Part Studio, apply a custom feature, and return normalized part count and names.", {"feature_name": {"type": "string"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"]),
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),
-    _tool("browser_draw_part", "Create a Drawing from a named source, add configured dimensions in its frame, and return frame/view state.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "default": []}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab"]),
-    _tool("browser_run_project", "Execute a validated fixture-driven browser modeling project with per-step checkpoints and resume support.", {"project": {"type": "string", "default": "module-interface-verification"}, "resume": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=600),
+    _tool("browser_draw_part", "Deprecated compatibility workflow: create a generic Drawing from a source tab and add one or more dimensions. It rejects empty dimensions before mutation; prefer browser_drawing_insert_views or browser_draw_part_with_views for verified part views.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab", "dimensions"]),
+    _tool("browser_run_project", "Execute a validated browser project with checkpoints and resume. Legacy v1 runs flat steps; v2 runs setup plus a DAG of one or more independently asserted L6 deliverables and records a manifest for each accepted node.", {"project": {"type": "string", "default": "module-interface-verification"}, "resume": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=600),
     _tool("browser_capture_screenshot", "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; zero REST API quota; consumes one real browser action subject to the pacing guard.", {"selector": {"type": "string", "default": "", "description": "CSS selector scoped to one element's bounding box; empty captures the whole viewport."}, "frame_url": _FRAME, "index": {"type": "integer", "default": 0, "minimum": 0}, "full_page": {"type": "boolean", "default": False, "description": "Capture the whole scrollable page instead of the viewport."}, "output_dir": {"type": "string", "default": "dev/screenshots", "description": "Relative (or repo-rooted) output directory; must stay inside the repository root."}, "filename": {"type": "string", "default": "", "description": "PNG basename; a UTC timestamp is appended when empty."}, "data_url": {"type": "boolean", "default": False, "description": "Also return the image as a base64 data URL."}, "dry_run": _DRY}, mutating=False, seconds=10),
 ]
 
 BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    "browser_discover_tools": browser_discover_tools,
+    "browser_invoke_discovered": browser_invoke_discovered,
+    "browser_export_step": browser_export_step,
+    "browser_geometry_status": browser_geometry_status,
+    "browser_configure_geometry_backend": browser_configure_geometry_backend,
+    "browser_build_geometry_package": browser_build_geometry_package,
+    "browser_get_fs_compile_status": browser_get_fs_compile_status,
+    "browser_get_fs_symbols": browser_get_fs_symbols,
+    "browser_fs_goto_definition": browser_fs_goto_definition,
+    "browser_fs_insert_snippet": browser_fs_insert_snippet,
+    "browser_fs_insert_parameter": browser_fs_insert_parameter,
+    "browser_fs_toggle_fold": browser_fs_toggle_fold,
+    "browser_edit_feature_parameters": browser_edit_feature_parameters,
+    "browser_fs_watch_part_studio": browser_fs_watch_part_studio,
+    "browser_open_doc_menu": browser_open_doc_menu,
+    "browser_set_panel_filter": browser_set_panel_filter,
+    "browser_toggle_left_panel": browser_toggle_left_panel,
+    "browser_read_selection_preview": browser_read_selection_preview,
+    "browser_element_context_menu": browser_element_context_menu,
+    "browser_duplicate_element": browser_duplicate_element,
+    "browser_notifications_status": browser_notifications_status,
+    "browser_share_document": browser_share_document,
+    "browser_view_orientation": browser_view_orientation,
+    "browser_drawing_insert_views": browser_drawing_insert_views,
+    "browser_draw_part_with_views": browser_draw_part_with_views,
+    "browser_print_orientation_check": browser_print_orientation_check,
+    "browser_wall_thickness_report": browser_wall_thickness_report,
+    "browser_apply_blend": browser_apply_blend,
+    "browser_print_optimize_part": browser_print_optimize_part,
+    "browser_spiral_ridge": browser_spiral_ridge,
     "browser_wait": browser_wait,
     "browser_press_key": browser_press_key,
     "browser_type": browser_type,
@@ -653,9 +1180,3 @@ def install(tools: list[dict[str, Any]], handlers: dict[str, Callable[..., Any]]
     for name in ("browser_inspect", "browser_scroll", "browser_click", "browser_eval"):
         by_name[name]["inputSchema"]["properties"]["frame_url"] = _FRAME
     by_name["browser_sync_rest_state"]["annotations"]["idempotentHint"] = True
-    watch_action = by_name["browser_watch"]["inputSchema"]["properties"]["action"]
-    watch_action["enum"] = ["start", "status", "stop", "report", "save", "verify", "workflows"]
-    by_name["browser_watch"]["inputSchema"]["properties"].update({
-        "workflow": {"type": "string", "description": "Recording/template name; required for verify."},
-        "filename": {"type": "string", "default": ""},
-    })

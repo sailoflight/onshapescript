@@ -6,8 +6,8 @@
 
 ## 1. 运行模型
 
-- 浏览器只在 **Windows** 上跑，Linux 只跑 `mcp_main/wsl/facade/mcp_tcp_bridge.py` 做 stdio↔TCP 中继。
-- Windows 常驻 `mcp_main/win/bridge/bridge_server.py`，**进程内直接 dispatch MCP**，不在每个连接拉起子进程。
+- 普通 MCP 与浏览器运行在同一宿主（当前实测宿主为 **Windows**）；跨宿主客户端通过独立安装的 `win-wsl-mcp-bridge` 连接。
+- 项目源码入口是 `python -m mcp_main.win.mcp`。共享桥若需要跨客户端重连保持会话，必须在其自身生命周期契约中保持同一 MCP 进程并禁止 profile 多 owner；本仓库不再实现 relay/listener。
 - 单客户端铁律 + **单工作页铁律**：`session.start()` 每次只保留一个工作页，其余标签全关
   （`_enforce_single_working_page`）。
 - 关闭方式决定登录态：**强杀进程保留登录，优雅关闭会登出**。Onshape 无“保持登录”。
@@ -43,6 +43,55 @@
 真实浏览器动作还受 `onshape_browser_mode/config/browser.toml` 的 `[pacing]` 约束：
 默认最多 8 次/分钟，并在动作前随机等待 0.8–2 秒。新增工具或参数以
 `docs_section(page="mcp-server")` 和 `tools/list` 为准，本页不承担完整注册表职责。
+
+### 3.1 六级语义发现约定
+
+六级语义只帮助发现和选型，不授予执行权限，也不要求每个工具必须标级：
+
+- L1/L2 分别是通用浏览器原语和通用浏览器事务；
+- L3 是不声明领域成功的 Onshape 准备、诊断或恢复交互；
+- L4 是一个完整且已验证的 Onshape 事务或观察；
+- L5 是多个独立 L4 组成的工作流；
+- L6 是带最终验收、manifest 和 provenance 的独立成果；
+- Project 是一个或多个 L6 的控制平面，不属于 L1-L6。
+
+普通发现按 L5 workflow → L4 verified transaction/observation → L2 generic
+transaction → L6 deliverable recipe 排序。这样先复用完成的多事务能力，只有明确需要
+独立 artifact/manifest/retry 边界时才选择 L6。L1/L3 为减少
+普通上下文默认不暴露，但并非隐藏知识：开发、异常恢复或人工辅助需要时调用
+`browser_discover_tools` 并显式传 `semantic_levels=["L1"]` 或
+`semantic_levels=["L3"]`，再通过 `browser_invoke_discovered` 按返回 schema 调用；不
+要求额外 `intent` 参数。gateway 不绕过确认、成本或 handler 验收。未分类工具继续
+有效并默认可见；`ONSHAPE_MCP_TOOL_EXPOSURE=static` 保留完整列表兼容模式。当前审阅
+元数据和非阻断 lint 在
+`onshape_browser_mode/semantics.py`。
+
+### 3.2 连接级动态展示约定
+
+`mcp_tool_view` 的 profile/semantic-level 只缩小当前连接返回的 `tools/list`，不修改
+完整 registry，不拒绝已知工具名，也不改变确认、quota、pacing 或验收门。正确流程是：
+Operator 以 `ONSHAPE_MCP_TOOL_EXPOSURE=dynamic` 启动；client 在 initialize 中确认
+`tools.listChanged=true`；agent 先 `status`，再 `set`；client 收到
+`notifications/tools/list_changed` 后重新请求并**替换** `tools/list`，不能在旧列表上追加。
+`reset` 回到该连接启动时的 profile；重新连接创建独立的新 view。
+
+窄化 browser semantic levels 时必须常驻 `browser_session`、
+`browser_discover_tools` 和 `browser_invoke_discovered`，否则 agent 难以观察、继续发现或
+恢复视图。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用
+固定 `semantic`/`profile` 或 discovery gateway，不要把“未展示”解释为“禁止”。
+
+### 3.3 跨模块工具目录约定
+
+`mcp_tool_catalog` 是 MCP capability 的统一 lookup-first 入口，不受当前 view 限制。
+索引只在完整 registry 安装和 cost metadata 补全后构建一次；所有连接共享同一 immutable
+index，仅 `visibleInCurrentView` 按连接计算。使用顺序固定为 `status` → bounded `search`
+→ exact `describe` → normal call。search 默认 8、上限 12，描述截断且绝不含
+`inputSchema`；只有 exact-name describe 返回完整 schema/cost/annotations。
+
+自由文本只索引名称、描述、module 和 browser semantic name。profile/network/mutating/
+semantic level 必须作为结构化过滤器，尤其不能把 profile 名加入全文 token，否则属于每个
+profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓存目录结果；fingerprint
+变化时失效。目录命中、当前可见和可按已知名调用都只是发现事实，不是授权事实。
 
 ## 4. Onshape 页面结构实测
 
@@ -81,9 +130,25 @@
 - FeatureScript 工具栏（容器 `.os-feature-studio-main-menu-bar`，按钮 `.tool.is-activatable.is-button`）：
   - 撤消（disabled）、新特征、`Length parameter`、导入、**提交**（`.os-primary`，无改动时 disabled）、
     `Module outline`（`.top-level-symbols-button`，标签在 `.top-level-symbols-label`）、ref 前进/后退（disabled）
+  - 编译状态由 Ace `editor.session.getAnnotations()` 读取；`browser_get_fs_compile_status`
+    归一化为 `compiled/errors/annotationCount`。部署只有在提交按钮从 enabled 变为
+    disabled、源码精确回读且注解为空时才返回 `deployed:true`。
+  - Module outline 展开后使用 `.top-level-symbols-dropdown` / `.top-level-symbol-list` /
+    `.top-level-symbol-item`；名称和图标分别是 `.top-level-symbol-name` 与
+    `.top-level-symbol-icon`。实测 `C`、`ƒ`、`Φ` 分别表示 const、function、feature。
+    `browser_get_fs_symbols` 保留 `displayName/rawIcon` 并返回归一化 `kind/name`；
+    原始证据见 `dev/button-map/scan-fs-module-outline.json`。
+  - Ace 右键菜单实测为 `粘贴` / `转至定义` / `插入代码段`；`插入代码段`
+    直接修改源码，没有另开对话框。Ace 同时暴露 `fold` / `unfold` /
+    `toggleFoldWidget` 命令，`.ace_fold-widget` 的开放状态类为
+    `ace_start ace_open`。探测插入已立即撤消，浏览器源码长度和 FNV-1a
+    与 fixture 完全一致；证据在 `dev/button-map/scan-fs-editor.json`。
 - FeatureScript 悬浮文档：`.os-feature-script-doc-popup-layer`（当前显示
   `LengthBoundSpec type A spec to be used with the isLength pre...`）。
-- 每个标签都有「监控 / 配置文件」菜单：`.os-menu-tool`（文本形如 `监控 Cable trophy model v1`）。
+- 监控/配置 split control：可见根为 `.watch-part-studio-menu`，下拉箭头是
+  `.os-toolgroup-open-button`，当前目标在 `.os-tool-command-name`；下拉选项才使用
+  `.os-tool-dropdown-content .os-menu-tool`（文本形如 `监控 PS-PartA-wall` /
+  `配置文件 PS-PartA-wall`）。
 
 ### 4.3 会话超时弹窗（重要）
 
@@ -151,6 +216,10 @@
 
 - 标签元素：`<tab-list-item class="os-tab-bar-tab" data-id="<elementId>">`，
   名称在 `.os-tab-name`；`data-id` 即 elementId。
+- 实测残留的 `#context-menu-layer` 即使没有菜单项也可能覆盖标签并拦截真实点击；
+  高层标签事务应先检查其 `pointer-events` 与可见尺寸，仅在确实阻塞时发送一次
+  `Escape`，再执行标签点击。不要在任意普通点击前无条件发送 `Escape`，否则会关闭
+  调用方正在操作的对话框。
 - 右键上下文菜单：`ul.context-menu-list.context-menu-root` 下
   `li.context-menu-item`，文本为 `删除` / `重命名` / `属性…` / `在新浏览器页签中打开`。
 - **必须用 Playwright 真实点击**（`locator.click()` / `click(button="right")` /
@@ -161,6 +230,27 @@
 - 删除：右键 → `li.context-menu-item` 含「删除」→ 通常无二次确认对话框，删除后
   该标签消失；被删标签会先激活再消失，其余标签顺序保持。
 - 删除/重命名都是 0 REST 配额的 UI 写操作，仍需 `confirm_mutation=true`。
+- `dev/button-map/scan-app-shell.json` 证明 Part Studio 标签和 part row 的右键菜单都出现
+  `导出…`。登录恢复后又实测了 Part Studio export dialog：根节点
+  `.modal.export-dialog`；文件名 `#export-filename-input`；格式
+  `#export-format-dropdown`；STEP 版本 `#step-export-version-dropdown`；自定义单位
+  checkbox `#custom-step-units-checkbox`；单位 selector
+  `[ng-model='options.stepExportUnit']`；下载方式 `#export-options-dropdown`；单独文件
+  `[ng-model='download.shouldExportPartsAsIndividualFiles']`；隐藏实例
+  `#export-hidden-entities-checkbox`。可稳定选择 STEP/AP242/Millimeter/下载，并取消对话框。
+- `browser_export_step` 使用上述 live-observed selector，先激活并核对 URL 中的
+  document/workspace/element IDs，再要求单一非 ZIP `.step`/`.stp` download，保存到
+  browser-owned staging 并写 SHA/provenance manifest。一次显式授权的真实提交已验证
+  AP242/Millimeter/直接下载，得到 34,084-byte STEP 且独立 SHA 复算一致。
+- Windows browser owning mode 启动 `wsl.exe`/converter CLI 时不得显示 console；
+  `CommandStepConverter` 在 Windows 固定传 `CREATE_NO_WINDOW`。首次 CadQ field run 暴露
+  了可见 CMD 窗口并形成此要求，后续 CLI backend 必须保留 windowless 断言。
+- Geometry dependency 复用顺序固定为 explicit config → repo 上级目录的 sibling
+  venv → global Python PATH → Windows/WSL 对端的 sibling/global 环境。扫描有目录、
+  distro 和 timeout 上限；公开结果只含 opaque `candidateId`、来源和版本，不含 executable/
+  argv。configure 工具必须重新扫描 candidate，不能接受调用方路径。若没有 candidate，
+  status 返回 `ask_before_install` + `requiresUserConfirmation=true`；agent 必须询问用户，
+  不得自动安装。
 
 ## 8. 标签页创建菜单的真实位置
 
@@ -217,3 +307,10 @@
   DOM 只能确认动作已触发，返回 `verification: action-triggered`。尺寸工具支持 DOM
   selector count 增量，或 Drawing canvas 的按键 + 相对坐标操作并比较前后 screenshot
   SHA-256；只有对应读回条件满足时，高层工具才返回 `assembled:true` / `drawn:true`。
+- 2026-08-25 的 app-shell / Drawing 只读扫描记录在
+  `dev/button-map/scan-app-shell.json`。Drawing 的实际四视图位于 canvas 内，DOM
+  view selector 返回 0；`browser_drawing_insert_views` 因此还要求恰好一个新 tab，
+  并解码 main-canvas PNG，排除图框/标题栏后检查主体墨迹比例和空间集中度。
+  实测 1240×694 fixture 中有四个投影视图，证据图为
+  `dev/button-map/scan-drawing-four-views.png`。不可见的 preview/drawer 候选仍标记
+  unverified，读取工具返回结构化 absence/unknown。

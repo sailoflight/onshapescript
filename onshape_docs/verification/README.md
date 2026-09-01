@@ -11,6 +11,7 @@ uses zero Onshape API quota. Reusable conclusions are published separately under
 |---|---|
 | `verify_docs.py` | Runs all checks and statistics, writes `report.json`. |
 | `report.json` | Latest run: every check's pass/fail + corpus statistics + known official gaps. |
+| `browser-tools-2026-08-25.md` | Developer/tester/field-evaluator evidence and explicit live-validation boundaries for the 22 promoted browser tools. |
 | `live/` | The raw live-verification record: experiment `.fs` files, `results.json`, `instance-results.json`, and `README.md` with the budget ledger. |
 
 The four corpora verified here are: the vendored FS reference, the vendored

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "name": "browser-geometry-windowless-validation",
+  "description": "Rebuild the approved geometry package with Windows CREATE_NO_WINDOW process execution.",
+  "setup": [],
+  "deliverables": [
+    {
+      "id": "windowless-geometry-package",
+      "kind": "geometry_analysis_package",
+      "depends_on": [],
+      "steps": [
+        {
+          "id": "build-windowless-geometry",
+          "tool": "browser_build_geometry_package",
+          "args": {
+            "export_id": "field_export_20260825_windowless"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "build-windowless-geometry",
+          "key": "packaged",
+          "equals": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "geometry-manifest",
+          "step": "build-windowless-geometry",
+          "key": "manifestPath",
+          "mediaType": "application/json",
+          "artifactKind": "local"
+        }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,14 @@ from typing import Any
 
 from onshape_browser_mode.selectors import (
     ACE_EDITOR,
+    CONTEXT_MENU_LAYER,
     FS_COMMIT_BUTTON,
+    FS_MODULE_OUTLINE,
+    FS_MODULE_OUTLINE_DROPDOWN,
+    FS_MODULE_OUTLINE_ICON,
+    FS_MODULE_OUTLINE_ITEM,
+    FS_MODULE_OUTLINE_LIST,
+    FS_MODULE_OUTLINE_NAME,
     TIMEOUT_RECONNECT_LINK,
 )
 
@@ -42,6 +49,130 @@ def read_featurescript_editor(page: Any) -> str | None:
         }
         """
     )
+
+
+def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
+    """Read and normalize the active Ace session's compiler annotations."""
+    return page.evaluate(
+        """
+        () => {
+          const el = document.querySelector('%s');
+          if (!el) {
+            return {
+              found: false,
+              compiled: false,
+              annotationCount: 0,
+              errors: [],
+              reason: 'FeatureScript editor not found',
+            };
+          }
+          const ed = (el.env && el.env.editor) || (window.ace && window.ace.edit(el));
+          if (!ed || !ed.session || typeof ed.session.getAnnotations !== 'function') {
+            return {
+              found: false,
+              compiled: false,
+              annotationCount: 0,
+              errors: [],
+              reason: 'Ace annotation API unavailable',
+            };
+          }
+          const annotations = ed.session.getAnnotations() || [];
+          return {
+            found: true,
+            compiled: annotations.length === 0,
+            annotationCount: annotations.length,
+            errors: annotations.map((item) => ({
+              row: Number.isInteger(item.row) ? item.row : 0,
+              col: Number.isInteger(item.column)
+                ? item.column
+                : (Number.isInteger(item.col) ? item.col : 0),
+              text: String(item.text || ''),
+              type: String(item.type || 'error'),
+            })),
+          };
+        }
+        """ % ACE_EDITOR
+    )
+
+
+def _featurescript_symbol_kind(icon: str) -> str:
+    """Map the Module-outline glyph to a stable public symbol kind."""
+    if icon == "C":
+        return "const"
+    if icon == "Φ":
+        return "feature"
+    return "function"
+
+
+def read_featurescript_symbols(page: Any) -> dict[str, Any]:
+    """Open Module outline and return its normalized top-level symbols."""
+    dropdown = page.locator(FS_MODULE_OUTLINE_DROPDOWN).first
+    try:
+        visible = dropdown.count() > 0 and dropdown.is_visible()
+        if not visible:
+            button = page.locator(FS_MODULE_OUTLINE).first
+            if button.count() == 0:
+                return {
+                    "found": False,
+                    "symbolCount": 0,
+                    "symbols": [],
+                    "reason": "Module outline button not found",
+                }
+            button.click()
+            page.locator(FS_MODULE_OUTLINE_LIST).first.wait_for(
+                state="visible", timeout=10_000
+            )
+    except Exception as exc:  # noqa: BLE001 - structured browser failure
+        return {
+            "found": False,
+            "symbolCount": 0,
+            "symbols": [],
+            "reason": f"Module outline unavailable: {type(exc).__name__}: {exc}",
+        }
+
+    raw = page.evaluate(
+        """
+        (selectors) => ({
+          found: true,
+          items: Array.from(document.querySelectorAll(selectors.item)).map((item) => ({
+            rawIcon: (item.querySelector(selectors.icon)?.textContent || '').trim(),
+            displayName: (item.querySelector(selectors.name)?.textContent || '').trim(),
+          })),
+        })
+        """,
+        {
+            "item": FS_MODULE_OUTLINE_ITEM,
+            "icon": FS_MODULE_OUTLINE_ICON,
+            "name": FS_MODULE_OUTLINE_NAME,
+        },
+    )
+    if not isinstance(raw, dict) or not raw.get("found"):
+        return {
+            "found": False,
+            "symbolCount": 0,
+            "symbols": [],
+            "reason": "Module outline symbols could not be read",
+        }
+    symbols = []
+    for item in raw.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        display_name = str(item.get("displayName", "")).strip()
+        name = display_name.split("(", 1)[0].strip()
+        if not name:
+            continue
+        raw_icon = str(item.get("rawIcon", "")).strip()
+        symbols.append({
+            "kind": _featurescript_symbol_kind(raw_icon),
+            "name": name,
+            "displayName": display_name,
+            "rawIcon": raw_icon,
+        })
+    return {
+        "found": True,
+        "symbolCount": len(symbols),
+        "symbols": symbols,
+    }
 
 
 def write_featurescript_editor(page: Any, text: str) -> dict[str, Any]:
@@ -251,6 +382,7 @@ def rename_tab(page: Any, name: str, new_name: str) -> dict[str, Any]:
         tab = page.locator(TAB_BAR_TAB).filter(has_text=name)
         if tab.count() == 0:
             return {"renamed": False, "reason": f"tab {name!r} not found", "pageUrl": page.url}
+        dismiss_stale_context_menu(page)
         tab.first.click(button="right")
         page.wait_for_timeout(2000)
         item = page.locator(TAB_CONTEXT_MENU_ITEM).filter(has_text="重命名")
@@ -278,49 +410,90 @@ def rename_tab(page: Any, name: str, new_name: str) -> dict[str, Any]:
     return {"renamed": renamed, **tabs, "pageUrl": page.url}
 
 
-def delete_tab(page: Any, name: str) -> dict[str, Any]:
-    """Delete a document tab (Feature Studio / Part Studio) by its visible name.
+def _tab_locators_by_id(page: Any, element_id: str) -> list[Any]:
+    """Return exact data-id matches without interpolating caller text into CSS."""
+    from onshape_browser_mode.selectors import TAB_BAR_TAB
 
-    Right-clicks the tab, clicks 删除 from the context menu, and confirms any
-    follow-up dialog — all through real Playwright clicks (trusted events).
-    Zero Onshape REST API quota.
-    """
-    from onshape_browser_mode.selectors import TAB_BAR_TAB, TAB_CONTEXT_MENU_ITEM
+    rows = page.locator(TAB_BAR_TAB)
+    matches = []
+    for index in range(rows.count()):
+        row = rows.nth(index)
+        try:
+            if row.get_attribute("data-id") == element_id:
+                matches.append(row)
+        except Exception:
+            continue
+    return matches
 
-    # 1. Right-click the tab and click 删除.
+
+def delete_element_by_id(page: Any, element_id: str) -> dict[str, Any]:
+    """Delete exactly one visible tab by observed data-id and verify detachment."""
+    from onshape_browser_mode.selectors import DIALOG_ACCEPT, TAB_CONTEXT_MENU_ITEM
+
+    matches = _tab_locators_by_id(page, element_id)
+    if len(matches) != 1:
+        return {
+            "deleted": False,
+            "elementId": element_id,
+            "matchCount": len(matches),
+            "reason": "element data-id must match exactly one visible tab",
+            "pageUrl": page.url,
+        }
+    tab = matches[0]
     try:
-        tab = page.locator(TAB_BAR_TAB).filter(has_text=name)
-        if tab.count() == 0:
-            return {"deleted": False, "reason": f"tab {name!r} not found", "pageUrl": page.url}
-        tab.first.click(button="right")
-        page.wait_for_timeout(2000)
-        item = page.locator(TAB_CONTEXT_MENU_ITEM).filter(has_text="删除")
-        if item.count() == 0:
-            return {"deleted": False, "reason": "删除 menu item not found", "pageUrl": page.url}
-        item.first.click()
-        page.wait_for_timeout(2500)
-    except Exception as exc:  # noqa: BLE001 - surface as structured result
-        return {"deleted": False, "reason": f"delete-menu click failed: {exc}", "pageUrl": page.url}
-
-    # 2. Confirm a follow-up dialog when present (also a trusted click).
-    confirmed = {"dialogPresent": False, "confirmClicked": False}
-    try:
-        ok = page.locator(".ns-dialog-button-ok, .osx-message .btn-primary, [class*=\"confirm\"] button")
-        confirm_names = ["删除", "确定", "确认", "是"]
-        for cname in confirm_names:
-            btn = page.get_by_role("button", name=cname)
-            if btn.count() > 0:
-                confirmed = {"dialogPresent": True, "confirmButton": cname}
-                btn.first.click()
-                confirmed["confirmClicked"] = True
-                page.wait_for_timeout(3000)
-                break
-    except Exception as exc:  # noqa: BLE001 - dialog optional, never fatal
-        confirmed["reason"] = str(exc)
-
+        dismiss_stale_context_menu(page)
+        tab.click(button="right")
+        candidates = page.locator(TAB_CONTEXT_MENU_ITEM)
+        exact_visible = []
+        for index in range(candidates.count()):
+            candidate = candidates.nth(index)
+            try:
+                if candidate.is_visible() and candidate.inner_text().strip() == "删除":
+                    exact_visible.append(candidate)
+            except Exception:
+                continue
+        if len(exact_visible) != 1:
+            return {
+                "deleted": False,
+                "elementId": element_id,
+                "reason": "exact unique visible 删除 menu item not found",
+                "pageUrl": page.url,
+            }
+        exact_visible[0].click()
+        confirm = page.locator(DIALOG_ACCEPT)
+        if confirm.count() > 0:
+            confirm.first.click()
+        tab.wait_for(state="detached", timeout=30_000)
+    except Exception as exc:  # noqa: BLE001
+        return {"deleted": False, "elementId": element_id, "reason": str(exc), "pageUrl": page.url}
     tabs = list_document_tabs(page)
-    deleted = not any(t.get("name") == name for t in tabs.get("tabs", []))
-    return {"deleted": deleted, **confirmed, **tabs, "pageUrl": page.url}
+    deleted = not _tab_locators_by_id(page, element_id)
+    return {"deleted": deleted, "elementId": element_id, **tabs, "pageUrl": page.url}
+
+
+def delete_tab(page: Any, name: str) -> dict[str, Any]:
+    """Compatibility wrapper: resolve one exact visible name, then delete by ID."""
+    tabs = list_document_tabs(page)
+    exact = [tab for tab in tabs.get("tabs", []) if tab.get("name") == name]
+    if len(exact) != 1:
+        return {
+            "deleted": False,
+            "name": name,
+            "matchCount": len(exact),
+            "reason": "tab name must match exactly one visible tab; prefer browser_delete_element",
+            **tabs,
+            "pageUrl": page.url,
+        }
+    element_id = exact[0].get("id")
+    if not isinstance(element_id, str) or not element_id:
+        return {
+            "deleted": False,
+            "name": name,
+            "reason": "exact tab has no observable data-id; use browser_delete_element when ID is available",
+            **tabs,
+            "pageUrl": page.url,
+        }
+    return {**delete_element_by_id(page, element_id), "resolvedName": name, "compatibilityWrapper": True}
 
 
 def open_document_by_name(
@@ -390,6 +563,8 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
               name: (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100),
               isUserFeature: cls.includes('ns-user-feature'),
               isDefault: cls.includes('ns-default-feature'),
+              className: String(cls).slice(0, 180),
+              hasError: /error|not-computed|未计算|错误/i.test(cls + ' ' + (el.innerText || el.textContent || '')),
               iconCls: icon ? (typeof icon.className === 'string' ? icon.className : '').slice(0, 90) : '',
             };
           }).filter(f => f.name);
@@ -432,6 +607,43 @@ def list_document_tabs(page: Any) -> dict[str, Any]:
         }
         """
     )
+
+
+def dismiss_stale_context_menu(page: Any) -> dict[str, Any]:
+    """Dismiss a pointer-blocking context-menu layer before a tab click."""
+    expression = """
+        (selector) => {
+          const layer = document.querySelector(selector);
+          if (!layer) return {present: false, blocking: false};
+          const rect = layer.getBoundingClientRect();
+          const style = window.getComputedStyle(layer);
+          return {
+            present: true,
+            blocking: style.pointerEvents !== 'none' && rect.width > 0 && rect.height > 0,
+            childCount: layer.childElementCount,
+          };
+        }
+    """
+    before = page.evaluate(expression, CONTEXT_MENU_LAYER)
+    if not isinstance(before, dict) or not before.get("blocking"):
+        return {"attempted": False, "dismissed": False, "before": before}
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(100)
+        after = page.evaluate(expression, CONTEXT_MENU_LAYER)
+    except Exception as exc:  # noqa: BLE001 - structured browser failure
+        return {
+            "attempted": True,
+            "dismissed": False,
+            "before": before,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+    return {
+        "attempted": True,
+        "dismissed": isinstance(after, dict) and not after.get("blocking", False),
+        "before": before,
+        "after": after,
+    }
 
 
 def reload_page(page: Any) -> dict[str, Any]:
@@ -551,6 +763,7 @@ def insert_custom_feature(
         if not tab_id:
             tab = tab.filter(has_text=part_studio_tab)
         try:
+            dismiss_stale_context_menu(page)
             tab.first.click()
             page.locator(".features-title").first.wait_for(state="visible", timeout=30_000)
         except Exception as exc:  # noqa: BLE001 - structured missing/unready tab
@@ -577,10 +790,15 @@ def insert_custom_feature(
     #    hold several workspace features; clicking the container hits whichever
     #    item sits at its centre, so scope the text match to the item rows).
     try:
-        item = page.locator(".os-tool-dropdown-content .tool").filter(has_text=feature_name)
-        if item.count() == 0:
-            return {"inserted": False, "reason": f"feature {feature_name!r} not found in workspace dropdown"}
-        item.first.click()
+        items = page.locator(".os-tool-dropdown-content .tool")
+        matches = [
+            items.nth(index)
+            for index in range(items.count())
+            if items.nth(index).is_visible() and items.nth(index).inner_text().strip() == feature_name
+        ]
+        if len(matches) != 1:
+            return {"inserted": False, "reason": f"feature {feature_name!r} must match exactly one workspace dropdown item"}
+        matches[0].click()
         page.wait_for_timeout(10000)
     except Exception as exc:  # noqa: BLE001 - surface as structured result
         return {"inserted": False, "reason": f"feature dropdown click failed: {exc}"}

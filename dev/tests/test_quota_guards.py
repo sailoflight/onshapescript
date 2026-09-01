@@ -352,6 +352,7 @@ class McpCostMetadataTest(unittest.TestCase):
             "onshape_check_model",
             "onshape_render_preview",
             "onshape_upload_feature_studio",
+            "onshape_export_step",
             "onshape_create_validation_part_studio",
             "onshape_instantiate_feature",
             "onshape_run_validation_pipeline",
@@ -483,6 +484,17 @@ class RetryClassificationTest(unittest.TestCase):
                         cl.request(method, "/api/thing")
             self.assertEqual(urlopen.call_count, expected, method)
             self.assertEqual(cl.attempted, expected, method)
+
+    def test_get_retry_can_be_explicitly_disabled_for_bounded_polling(self) -> None:
+        cl = recording_client()
+        with mock.patch.dict(os.environ, {"LIVE_API_ENABLED": "1"}):
+            with mock.patch.object(
+                client_module.urllib.request, "urlopen", side_effect=http_error(500),
+            ) as urlopen, mock.patch.object(client_module.time, "sleep"):
+                with self.assertRaises(RuntimeError):
+                    cl.request("GET", "/api/translations/fixture", retry_get=False)
+        self.assertEqual(urlopen.call_count, 1)
+        self.assertEqual(cl.attempted, 1)
 
     def test_get_retries_network_error_non_get_does_not(self) -> None:
         for method, expected in (("GET", 4), ("PUT", 1), ("POST", 1)):

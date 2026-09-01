@@ -24,7 +24,10 @@ Status: verified
 | Client/transport | `onshape_rest_api_mode/client.py` | Paths, credentials boundary, request transport, live enablement |
 | Budget policy | `onshape_rest_api_mode/budget.py` | `live_blocker`, budget guard, request-cost preflight |
 | Operations | `onshape_rest_api_mode/operations.py` | Read, evaluate, upload, instantiate, validate, render workflows |
+| STEP export | `onshape_rest_api_mode/step_export.py` | Bounded asynchronous AP242 export, resume, external-data download, persisted STEP manifest, module-owned staging |
+| Geometry package | `onshape_rest_api_mode/geometry.py` | Offline readiness observation and REST-owned non-slicer L6 package orchestration from module configuration |
 | Stable configuration | `onshape_rest_api_mode/config/onshape-state.json` | Target IDs and quota configuration |
+| Geometry backend configuration | `onshape_rest_api_mode/config/geometry-backend.json` | Disabled-by-default pinned command provider; never selected through MCP arguments |
 | Guard tests | `dev/tests/test_quota_guards.py` | Live gate, budgets, retry, redaction, and failure paths |
 | Layout tests | `dev/tests/test_project_layout.py` | Module-owned path contracts |
 
@@ -34,8 +37,19 @@ Status: verified
 - Regression verification never enables the live gate.
 - Live requests require one unresolved fact, an expected/max request budget, and preflight.
 - 429 is not retried; mutating timeout/5xx paths are not automatically retried.
+- Asynchronous STEP polling disables implicit GET retry, uses an explicit
+  `max_polls`, returns a resumable translation ID on a non-terminal result, and
+  never repeats the export POST during resume.
 - Higher-level operations must not hide unbudgeted lookup chains, pagination, cleanup, or write-after-read confirmation.
 - Stable metadata uses explicit IDs, cached state, fixtures, or prior results rather than implicit discovery.
+- Local converter executable/version/argv ownership stays in
+  `config/geometry-backend.json`; MCP arguments may select only a staged
+  translation ID and cannot choose a process.
+- `onshape_geometry_status` performs bounded sibling/global/Windows-WSL reuse
+  discovery when explicit configuration is unavailable. Candidates expose opaque
+  IDs and pinned versions only; `onshape_configure_geometry_backend` re-scans the
+  ID before a confirmed local write. If none exist, agents must ask before
+  installation; no tool installs automatically.
 - Mutating MCP tools require explicit confirmation before constructing a live client.
 - Credential values and authorization material never enter tool responses, committed fixtures, prompts, or protocol stdout.
 - Runtime data and configuration stay under the REST module; example parameter files stay with the example.
@@ -50,6 +64,7 @@ Status: verified
 | Item | Owner | Behavior | Source of truth |
 |---|---|---|---|
 | Stable target/quota config | `onshape_rest_api_mode/config/onshape-state.json` | Read and explicit updates | Committed state file |
+| Geometry backend config | `onshape_rest_api_mode/config/geometry-backend.json` | Disabled by default; operator-owned pinned executable/argv/tolerances | Committed non-secret config |
 | Credentials | `onshape_rest_api_mode/config/onshape-credentials.json` | Ignored, read only at live boundary | Local secret file |
 | Passive usage ledger | `onshape_rest_api_mode/config/api-usage.json` | Ignored runtime accounting | Successful response accounting |
 | REST outputs/previews | `onshape_rest_api_mode/outputs/` | Generated | Operations producing them |

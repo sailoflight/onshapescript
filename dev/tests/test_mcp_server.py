@@ -75,48 +75,42 @@ class McpServerTest(unittest.TestCase):
         ])
         self.assertEqual(stderr, "")
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
+        self.assertEqual(
+            responses[0]["result"]["serverInfo"],
+            {"name": "onshape-mcp", "version": "1.3.0"},
+        )
+        self.assertFalse(responses[0]["result"]["capabilities"]["tools"]["listChanged"])
         instructions = responses[0]["result"]["instructions"]
         self.assertEqual(instructions, RUNTIME_PROMPT)
         self.assertIn(f"revision={RUNTIME_PROMPT_REVISION}", instructions)
         self.assertIn("Production / User", instructions)
         self.assertIn("Production / Operator", instructions)
         self.assertIn("permissions never merge", instructions)
-        tools = responses[1]["result"]["tools"]
-        self.assertEqual(len(tools), 68)
-        self.assertIn("onshape_eval_featurescript", {t["name"] for t in tools})
-        self.assertIn("browser_session", {t["name"] for t in tools})
-        self.assertIn("browser_watch", {t["name"] for t in tools})
-        self.assertIn("browser_inspect", {t["name"] for t in tools})
-        self.assertIn("browser_scroll", {t["name"] for t in tools})
-        self.assertIn("browser_click", {t["name"] for t in tools})
-        self.assertIn("browser_eval", {t["name"] for t in tools})
-        self.assertIn("browser_deploy_featurescript", {t["name"] for t in tools})
-        self.assertIn("browser_open_document", {t["name"] for t in tools})
-        self.assertIn("browser_read_featurescript", {t["name"] for t in tools})
-        self.assertIn("browser_get_partstudio_features", {t["name"] for t in tools})
-        self.assertIn("browser_create_document_version", {t["name"] for t in tools})
-        self.assertIn("browser_insert_custom_feature", {t["name"] for t in tools})
-        self.assertIn("browser_get_page_tabs", {t["name"] for t in tools})
-        self.assertIn("browser_create_document", {t["name"] for t in tools})
-        self.assertIn("browser_create_tab", {t["name"] for t in tools})
-        self.assertIn("browser_rename_tab", {t["name"] for t in tools})
-        self.assertIn("browser_delete_tab", {t["name"] for t in tools})
-        self.assertIn("browser_open_insert_feature_dialog", {t["name"] for t in tools})
-        self.assertIn("browser_reconnect", {t["name"] for t in tools})
-        self.assertIn("browser_reload", {t["name"] for t in tools})
-        for planned in (
-            "browser_wait", "browser_press_key", "browser_type",
-            "browser_sync_rest_state", "browser_insert_assembly_instances",
-            "browser_fix_instances", "browser_group_instances",
-            "browser_create_drawing", "browser_add_drawing_dimension",
-            "browser_delete_element", "browser_deploy_and_apply_featurescript",
-            "browser_build_part", "browser_assemble", "browser_draw_part",
-            "browser_run_project", "browser_capture_screenshot",
-        ):
-            self.assertIn(planned, {t["name"] for t in tools})
-        self.assertIn("docs_list", {t["name"] for t in tools})
-        self.assertIn("docs_section", {t["name"] for t in tools})
-        self.assertIn("docs_search", {t["name"] for t in tools})
+        tool_result = responses[1]["result"]
+        self.assertEqual(tool_result["exposureMode"], "semantic")
+        tools = tool_result["tools"]
+        names = {tool["name"] for tool in tools}
+        self.assertEqual(len(tools), 80)
+        self.assertIn("mcp_tool_view", names)
+        self.assertIn("mcp_tool_catalog", names)
+        view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")
+        self.assertIn("not an authorization boundary", view_tool["description"])
+        self.assertNotIn("confirm_mutation", view_tool["inputSchema"]["properties"])
+        self.assertIn("onshape_eval_featurescript", names)
+        self.assertIn("docs_list", names)
+        self.assertIn("docs_section", names)
+        self.assertIn("docs_search", names)
+        self.assertIn("browser_session", names)
+        self.assertIn("browser_get_fs_compile_status", names)
+        self.assertIn("browser_create_drawing", names)
+        self.assertIn("browser_run_project", names)
+        self.assertIn("browser_discover_tools", names)
+        self.assertIn("browser_invoke_discovered", names)
+        self.assertNotIn("browser_inspect", names)
+        self.assertNotIn("browser_click", names)
+        self.assertNotIn("browser_fs_goto_definition", names)
+        self.assertNotIn("browser_open_doc_menu", names)
+        self.assertNotIn("browser_print_orientation_check", names)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -126,6 +120,204 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("consumed", quota)
         self.assertNotIn("accessKey", json.dumps(responses))
         self.assertNotIn("secretKey", json.dumps(responses))
+
+    def test_semantic_discovery_reveals_and_invokes_hidden_tools(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "browser_discover_tools",
+                    "arguments": {
+                        "query": "click",
+                        "semantic_levels": ["L1"],
+                        "limit": 4,
+                    },
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "browser_invoke_discovered",
+                    "arguments": {
+                        "name": "browser_print_orientation_check",
+                        "arguments": {"body_name": "fixture"},
+                    },
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        discovered = responses[0]["result"]["structuredContent"]
+        self.assertEqual(discovered["semanticLevels"], ["L1"])
+        self.assertTrue(discovered["explicitLevelQuery"])
+        self.assertIn("browser_click", {item["name"] for item in discovered["candidates"]})
+        click = next(item for item in discovered["candidates"] if item["name"] == "browser_click")
+        self.assertEqual(click["semantic"]["semanticLevel"], "L1")
+        self.assertIn("inputSchema", click)
+        invoked = responses[1]["result"]["structuredContent"]
+        self.assertEqual(invoked["invokedTool"], "browser_print_orientation_check")
+        self.assertFalse(invoked["result"]["orientationChecked"])
+        self.assertFalse(invoked["result"]["browserActionPerformed"])
+
+    def test_catalog_search_is_bounded_and_describe_is_exact_schema_path(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "mcp_tool_catalog",
+                    "arguments": {
+                        "action": "search",
+                        "query": "export step",
+                        "profiles": ["geometry"],
+                        "limit": 4,
+                    },
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "mcp_tool_catalog",
+                    "arguments": {"action": "describe", "name": "onshape_export_step"},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        search = responses[0]["result"]["structuredContent"]
+        self.assertLessEqual(search["returnedCount"], 4)
+        self.assertFalse(search["schemaIncluded"])
+        self.assertNotIn("inputSchema", json.dumps(search))
+        self.assertIn("onshape_export_step", {item["name"] for item in search["results"]})
+        described = responses[1]["result"]["structuredContent"]
+        self.assertTrue(described["schemaIncluded"])
+        self.assertIn("inputSchema", described["tool"])
+        self.assertTrue(described["conventionOnly"])
+        self.assertFalse(described["authorityChanged"])
+
+    def test_dynamic_connection_switches_view_emits_notification_and_keeps_hidden_calls(self) -> None:
+        with mock.patch.dict(os.environ, {
+            "ONSHAPE_MCP_TOOL_EXPOSURE": "dynamic",
+            "ONSHAPE_MCP_TOOL_PROFILE": "default",
+        }):
+            responses, stderr = invoke([
+                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "mcp_tool_view",
+                        "arguments": {
+                            "action": "set",
+                            "profile": "browser",
+                            "semantic_levels": ["L5"],
+                        },
+                    },
+                },
+                {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}},
+                {
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "onshape_get_parameter_set",
+                        "arguments": {"name": "preview"},
+                    },
+                },
+            ])
+        self.assertEqual(stderr, "")
+        self.assertTrue(responses[0]["result"]["capabilities"]["tools"]["listChanged"])
+        changed = responses[1]["result"]["structuredContent"]
+        self.assertTrue(changed["changed"])
+        self.assertTrue(changed["conventionOnly"])
+        self.assertEqual(responses[2]["method"], "notifications/tools/list_changed")
+        listed = responses[3]["result"]
+        self.assertEqual(listed["exposureMode"], "dynamic")
+        names = {tool["name"] for tool in listed["tools"]}
+        self.assertIn("browser_assemble", names)
+        self.assertNotIn("onshape_get_parameter_set", names)
+        hidden_call = responses[4]["result"]["structuredContent"]
+        self.assertFalse(hidden_call["parameters"]["detailedStrands"])
+
+    def test_static_exposure_mode_lists_complete_registry(self) -> None:
+        with mock.patch.dict(os.environ, {"ONSHAPE_MCP_TOOL_EXPOSURE": "static"}):
+            responses, stderr = invoke([
+                {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+            ])
+        self.assertEqual(stderr, "")
+        result = responses[0]["result"]
+        self.assertEqual(result["exposureMode"], "static")
+        self.assertEqual(len(result["tools"]), 104)
+        self.assertIn("browser_inspect", {tool["name"] for tool in result["tools"]})
+
+    def test_browser_step_export_dry_run_is_local(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "browser_export_step",
+                    "arguments": {
+                        "source_tab": "Part Studio 1",
+                        "export_id": "fixture1",
+                        "document_id": "doc1",
+                        "workspace_id": "workspace1",
+                        "element_id": "element1",
+                        "dry_run": True,
+                    },
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        result = responses[0]["result"]["structuredContent"]
+        self.assertTrue(result["dryRun"])
+        self.assertEqual(result["configuration"]["format"], "STEP")
+        self.assertEqual(result["configuration"]["unit"], "Millimeter")
+        self.assertEqual(result["estimatedApiRequests"], 0)
+        self.assertFalse(result["bambuIncluded"])
+
+    def test_browser_geometry_tools_are_offline_and_fail_closed(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "browser_geometry_status", "arguments": {}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "browser_build_geometry_package",
+                    "arguments": {"export_id": "fixture_missing", "dry_run": True},
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        status = responses[0]["result"]["structuredContent"]
+        self.assertFalse(status["configured"])
+        self.assertFalse(status["ready"])
+        self.assertFalse(status["bambuIncluded"])
+        resolution = status["dependencyResolution"]
+        self.assertFalse(resolution["automaticInstall"])
+        self.assertIn(resolution["state"], {"reusable_candidates_found", "not_found"})
+        if resolution["state"] == "not_found":
+            self.assertEqual(resolution["nextAction"]["kind"], "ask_before_install")
+            self.assertTrue(resolution["nextAction"]["requiresUserConfirmation"])
+        else:
+            self.assertEqual(resolution["nextAction"]["tool"], "browser_configure_geometry_backend")
+        plan = responses[1]["result"]["structuredContent"]
+        self.assertEqual(plan["semanticLevel"], "L6")
+        self.assertFalse(plan["sourceManifestPresent"])
+        self.assertEqual(plan["estimatedApiRequests"], 0)
 
     def test_browser_session_status_is_offline_and_safe(self) -> None:
         responses, stderr = invoke([
@@ -584,6 +776,73 @@ class McpServerTest(unittest.TestCase):
             self.assertTrue(response["result"]["isError"])
             self.assertIn("script must be a non-empty string",
                           response["result"]["content"][0]["text"])
+
+    def test_step_export_dry_run_is_bounded_and_zero_network(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_export_step",
+                    "arguments": {
+                        "confirm_mutation": True,
+                        "document_id": "doc1",
+                        "wv": "w",
+                        "wvid": "workspace1",
+                        "element_id": "element1",
+                        "max_polls": 3,
+                        "dry_run": True,
+                    },
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        result = responses[0]["result"]["structuredContent"]
+        self.assertTrue(result["dryRun"])
+        self.assertEqual(result["estimatedRequests"], 5)
+        self.assertFalse(result["pollPolicy"]["getRetry"])
+        self.assertFalse(result["pollPolicy"]["repeatPost"])
+
+    def test_geometry_status_and_package_dry_run_are_offline(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "onshape_geometry_status", "arguments": {}},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "onshape_build_geometry_package",
+                    "arguments": {
+                        "confirm_mutation": True,
+                        "translation_id": "fixture_missing",
+                        "dry_run": True,
+                    },
+                },
+            },
+        ])
+        self.assertEqual(stderr, "")
+        status = responses[0]["result"]["structuredContent"]
+        self.assertFalse(status["configured"])
+        self.assertFalse(status["ready"])
+        self.assertFalse(status["bambuIncluded"])
+        resolution = status["dependencyResolution"]
+        self.assertFalse(resolution["automaticInstall"])
+        if resolution["state"] == "not_found":
+            self.assertEqual(resolution["nextAction"]["kind"], "ask_before_install")
+        else:
+            self.assertEqual(resolution["nextAction"]["tool"], "onshape_configure_geometry_backend")
+        plan = responses[1]["result"]["structuredContent"]
+        self.assertTrue(plan["dryRun"])
+        self.assertEqual(plan["semanticLevel"], "L6")
+        self.assertFalse(plan["sourceManifestPresent"])
+        self.assertEqual(plan["estimatedApiRequests"], 0)
+        self.assertFalse(plan["bambuIncluded"])
 
     def test_mutation_requires_explicit_confirmation(self) -> None:
         responses, stderr = invoke([

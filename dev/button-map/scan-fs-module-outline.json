@@ -1,0 +1,55 @@
+{
+  "source": "live Onshape browser, read-only inspection",
+  "observedAt": "2026-08-25",
+  "documentName": "module-interface-verification",
+  "tabName": "FS-PartA-wall",
+  "cloudMutation": "none",
+  "restApiRequests": 0,
+  "compileStatus": {
+    "editorSelector": ".ace_editor",
+    "browserApi": "editor.session.getAnnotations()",
+    "annotationCount": 0,
+    "compiled": true
+  },
+  "moduleOutline": {
+    "buttonSelector": ".top-level-symbols-button",
+    "dropdownSelector": ".top-level-symbols-dropdown",
+    "countSelector": ".top-level-symbol-count",
+    "listSelector": ".top-level-symbol-list",
+    "itemSelector": ".top-level-symbol-item",
+    "iconSelector": ".top-level-symbol-icon",
+    "nameSelector": ".top-level-symbol-name",
+    "reportedCount": 16,
+    "observedIcons": {
+      "C": "const",
+      "ƒ": "function",
+      "Φ": "FeatureScript feature"
+    },
+    "sampleSymbols": [
+      {
+        "icon": "C",
+        "displayName": "WALL_LENGTH_X_BOUNDS"
+      },
+      {
+        "icon": "ƒ",
+        "displayName": "makeWall(context, id, definition)"
+      },
+      {
+        "icon": "Φ",
+        "displayName": "moduleRailFixedWall(context, id, definition)"
+      }
+    ]
+  },
+  "newRequirements": [
+    {
+      "id": "browser-dismiss-stale-context-menu",
+      "observation": "#context-menu-layer intercepted a visible enabled tab click until Escape was sent.",
+      "candidateBehavior": "High-level tab transactions should dismiss a stale context-menu overlay before clicking."
+    },
+    {
+      "id": "browser-fs-symbol-feature-kind",
+      "observation": "Module outline uses the distinct Φ icon for a FeatureScript feature.",
+      "candidateBehavior": "The symbol contract should expose feature as a distinct kind while preserving rawIcon compatibility."
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "name": "browser-geometry-field-validation",
+  "description": "Build one approved non-slicer L6 geometry package from the field-exported browser STEP artifact.",
+  "setup": [],
+  "deliverables": [
+    {
+      "id": "geometry-analysis-package",
+      "kind": "geometry_analysis_package",
+      "depends_on": [],
+      "steps": [
+        {
+          "id": "build-geometry",
+          "tool": "browser_build_geometry_package",
+          "args": {
+            "export_id": "field_export_20260825"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "step": "build-geometry",
+          "key": "packaged",
+          "equals": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "geometry-manifest",
+          "step": "build-geometry",
+          "key": "manifestPath",
+          "mediaType": "application/json",
+          "artifactKind": "local"
+        }
+      ]
+    }
+  ]
+}

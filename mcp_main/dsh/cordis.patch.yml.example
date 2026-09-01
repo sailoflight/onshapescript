@@ -1,0 +1,27 @@
+# Merge both entries into the target DSH profile's cordis.patch.yml.
+# Register id `onshape` in the independently installed win-wsl-mcp-bridge first.
+# Replace <bridge-client> with its WSL client executable and <repo> with this
+# checkout's absolute path. The bridge nodes/lifecycle are Operator-owned and
+# intentionally not implemented by this repository.
+- insert:
+    - id: mcp-onshape-featurescript
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: onshape
+        transport: stdio
+        command: <bridge-client>
+        args:
+          - connect
+          - onshape
+          - --local-port
+          - '8769'
+        toolCallTimeoutMs: 300000
+        failOnStartupError: false
+        reconnect:
+          enabled: true
+          initialDelayMs: 500
+          maxDelayMs: 30000
+          maxAttempts: 10
+    - id: mcp-onshape-runtime-policy
+      name: <repo>/mcp_main/dsh/runtime-prompt-companion.js
+      config: {}

@@ -43,6 +43,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "fs-assistant": "onshape_docs/guide/feature-script.md",
         "mcp-server": "onshape_docs/guide/mcp-server.md",
         "mcp-consumer": "docs/usage/MCP_CONSUMER.md",
+        "fdm-analysis": "fdm_analysis/README.md",
         "onshape-api": "onshape_docs/guide/rest-api.md",
     },
     "experience": {
@@ -53,6 +54,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
     },
     "verification": {
         "verification": "onshape_docs/verification/README.md",
+        "browser-tools-verification": "onshape_docs/verification/browser-tools-2026-08-25.md",
         "live-verification": "onshape_docs/verification/live/README.md",
     },
     "reference": {

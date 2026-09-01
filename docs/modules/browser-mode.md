@@ -34,33 +34,56 @@ Status: verified
 Browser semantics are layered:
 
 ```text
-L4 fixture-driven projects
-  -> L3 multi-transaction workflows
-  -> L2 user-intent transactions
-  -> L1 generic browser actions
+Project control plane (one or more L6 nodes)
+  -> L6 independently consumable deliverable recipes
+  -> L5 multi-transaction Onshape workflows
+  -> L4 completed and verified Onshape transactions/observations
+  -> L3 Onshape-aware prepare/inspect/recovery interactions
+  -> L2 generic browser transactions
+  -> L1 generic browser primitives
   -> selectors, page objects, frames, and waits
 ```
 
-- A lower layer never calls a higher layer.
+- A lower layer never calls a higher layer; same-level composition is allowed when it remains inside the same public contract and is acyclic.
+- Semantic levels are optional discovery metadata, not registration, execution, or permission gates.
+- Default semantic exposure omits L1/L3; `browser_discover_tools` with an explicit `semantic_levels` filter reveals exact schemas and `browser_invoke_discovered` routes them through the original handler gates. `ONSHAPE_MCP_TOOL_EXPOSURE=static` retains complete-list compatibility. Ordinary ranking is L5 workflow, L4 verified transaction/observation, L2 generic browser transaction, then L6 deliverable recipe.
+- `ONSHAPE_MCP_TOOL_EXPOSURE=profile|dynamic` adds fixed or per-connection views. Dynamic `mcp_tool_view` changes only `tools/list`, emits `notifications/tools/list_changed`, and never blocks a known-name handler call; it is a context convention, not authority.
 - Selectors and frame/locator resolution do not appear as duplicated literals in high-level tools.
 - The Windows process owns Playwright, Edge, the persistent profile, and logged-in session.
 - A persistent browser profile has one process owner; client reconnect does not own session teardown.
 - Generic observation does not claim business success. High-level operations verify the relevant state, part count, feature history, DOM increment, or canvas change.
 - New write tools perform a pure-local dry run where supported and require explicit mutation confirmation for real UI actions.
 - Browser tools consume zero REST quota, but real UI actions can still mutate cloud data.
+- `browser_export_step` owns the UI/download half of canonical STEP acquisition:
+  it uses live-observed export-dialog selectors, matches the active Part Studio URL
+  to explicit IDs, saves a single AP242 millimeter STEP in browser staging, and
+  persists SHA/provenance. `browser_geometry_status` first checks explicit config,
+  then bounded sibling/global/Windows-WSL reusable dependencies.
+  `browser_configure_geometry_backend` accepts only a re-discovered opaque
+  candidate ID; no executable/argv or automatic installation is exposed.
+  `browser_build_geometry_package` owns the subsequent
+  offline L6 package and accepts only an export ID; its executable remains in
+  disabled-by-default browser module configuration.
 - `browser_sync_rest_state` is an explicit boundary operation: it may merge observed IDs into REST-owned local state but does not take ownership of quota or credentials.
 - Project checkpoints bind plans/fixtures and referenced sources; resume rejects incompatible changes.
+- Project schema v1 keeps legacy flat `steps/assertions`. Schema v2 separates
+  optional `setup` from a DAG of one or more `deliverables`; every L6 node owns
+  non-empty final assertions, declared outputs, an acceptance manifest, and an
+  independent completed-deliverable checkpoint boundary. The runner remains the
+  Project control plane rather than an L6 tool.
 
 ## Dependencies
 
 - Allowed: Windows Playwright/Edge runtime, module-owned page objects/selectors/settings, explicit REST state synchronization boundary, and development fixtures.
-- Forbidden: installing browser dependencies into the WSL relay; silently issuing REST calls; storing credentials in selectors, captures, checkpoints, or tool results; claiming success from click completion alone.
+- Forbidden: installing browser dependencies on a client-only host; silently issuing REST calls; storing credentials in selectors, captures, checkpoints, or tool results; claiming success from click completion alone.
 
 ## Data, configuration, and generated files
 
 | Item | Owner | Behavior | Source of truth |
 |---|---|---|---|
 | Browser defaults | `onshape_browser_mode/config/browser.toml` | Committed defaults | Settings loader |
+| Geometry backend | `onshape_browser_mode/config/geometry-backend.json` | Disabled-by-default pinned executable/argv/tolerances | Browser mode owner |
+| STEP and geometry staging | `onshape_browser_mode/outputs/{step_exports,geometry_packages}/` | Runtime artifacts with verified manifests | Browser export/geometry transactions |
 | Local config/state | `onshape_browser_mode/config/` | Ignored local/runtime writes where applicable | Browser settings/session |
 | Persistent profile | `onshape_browser_mode/user_data/onshape_profile/` | Windows persistent runtime | Browser session |
 | Project checkpoints | `onshape_browser_mode/user_data/project-runs/` | Atomic runtime writes | Project runner |
@@ -74,7 +97,7 @@ L4 fixture-driven projects
 | Session, page object, selector, settings | `python3 -m unittest dev.tests.test_browser_mode -v` |
 | Tool schema, dry-run, semantic workflow, project/checkpoint | `python3 -m unittest dev.tests.test_browser_plan_completion dev.tests.test_mcp_server -v` |
 | Configuration/path ownership | `python3 -m unittest dev.tests.test_project_layout -v` |
-| Windows bridge integration | Offline bridge tests first; use the Operator runbook for an explicitly authorized Windows smoke test |
+| Host/external-adapter integration | Ordinary stdio tests first; use the Operator runbook and the adapter's own acceptance suite for an authorized smoke test |
 | Any Python change | Matching tests plus `python3 -m py_compile onshape_browser_mode/*.py mcp_main/win/mcp/browser_tools.py` |
 
 Offline regression does not start a real browser, edit a cloud document, or enable `LIVE_API_ENABLED`.

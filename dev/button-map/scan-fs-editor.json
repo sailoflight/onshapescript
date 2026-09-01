@@ -1,0 +1,62 @@
+{
+  "source": "live Feature Studio browser inspection",
+  "observedAt": "2026-08-25",
+  "documentName": "module-interface-verification",
+  "tab": "FS-PartA-wall",
+  "cloudMutation": "none retained; 插入代码段 was immediately undone and source hash matched the fixture",
+  "restApiRequests": 0,
+  "selectors": {
+    "editor": ".ace_editor",
+    "foldWidget": ".ace_fold-widget",
+    "contextMenu": "ul.context-menu-list.context-menu-root",
+    "contextMenuItem": "li.context-menu-item",
+    "toolbarItem": ".toolbar-item",
+    "watchMenu": ".watch-part-studio-menu",
+    "watchMenuOpen": ".watch-part-studio-menu .os-toolgroup-open-button",
+    "watchCurrent": ".watch-part-studio-menu .os-tool-command-name",
+    "watchItems": ".watch-part-studio-menu .os-tool-dropdown-content .os-menu-tool"
+  },
+  "contextMenuItems": ["粘贴", "转至定义", "插入代码段"],
+  "aceCommands": [
+    "fold",
+    "unfold",
+    "toggleFoldWidget",
+    "toggleParentFoldWidget",
+    "foldall",
+    "foldAllComments",
+    "foldOther",
+    "unfoldall",
+    "foldToLevel1",
+    "foldToLevel2",
+    "foldToLevel3",
+    "foldToLevel4",
+    "foldToLevel5",
+    "foldToLevel6",
+    "foldToLevel7",
+    "foldToLevel8"
+  ],
+  "foldWidgetObservation": {
+    "countVisible": 4,
+    "class": "ace_fold-widget ace_start ace_open",
+    "title": "Fold code",
+    "widthPx": 11,
+    "heightPx": 16
+  },
+  "toolbarItems": ["Length parameter"],
+  "watchObservation": {
+    "current": "监控 PS-PartA-wall",
+    "items": ["监控 PS-PartA-wall", "配置文件 PS-PartA-wall", "监控 PS-PartB-block", "配置文件 PS-PartB-block"],
+    "openButtonBoundsPx": {"width": 15, "height": 30}
+  },
+  "restorationProof": {
+    "browserSourceLength": 10284,
+    "fixtureSourceLength": 10284,
+    "browserFNV1a32": "7093403a",
+    "fixtureFNV1a32": "7093403a"
+  },
+  "notes": [
+    "The context-menu command 插入代码段 inserted directly; no snippet dialog was observed.",
+    "The Module outline remains the verified deterministic top-level definition navigator.",
+    "Ace exposed fold/unfold commands and visible fold widgets; no native goto-definition Ace command was present."
+  ]
+}

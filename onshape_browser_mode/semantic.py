@@ -49,6 +49,7 @@ def _open_tab(page: Any, name: str) -> bool:
         tab = tab.filter(has_text=name)
     if tab.count() == 0:
         return False
+    actions.dismiss_stale_context_menu(page)
     tab.first.click()
     try:
         page.locator(selectors.ASM_INSERT_BUTTON).first.wait_for(
@@ -306,24 +307,8 @@ def add_drawing_dimension(
 
 
 def delete_element(page: Any, element_id: str) -> dict[str, Any]:
-    """Delete a visible document element by exact tab data-id throughout."""
-    selector = f'{selectors.TAB_BAR_TAB}[data-id="{element_id}"]'
-    tab = page.locator(selector)
-    if tab.count() == 0:
-        return {"deleted": False, "reason": f"element {element_id!r} not found"}
-    try:
-        tab.first.click(button="right")
-        item = page.locator(selectors.TAB_CONTEXT_MENU_ITEM).filter(has_text="删除")
-        if item.count() == 0:
-            return {"deleted": False, "reason": "删除 menu item not found"}
-        item.first.click()
-        confirm = page.locator(selectors.DIALOG_ACCEPT)
-        if confirm.count() > 0:
-            confirm.first.click()
-        page.locator(selector).first.wait_for(state="detached", timeout=30_000)
-    except Exception as exc:  # noqa: BLE001
-        return {"deleted": False, "elementId": element_id, "reason": str(exc)}
-    return {"deleted": page.locator(selector).count() == 0, "elementId": element_id}
+    """Delete one visible document element through the shared exact-ID core."""
+    return actions.delete_element_by_id(page, element_id)
 
 
 def deploy_featurescript(page: Any, script: str) -> dict[str, Any]:
@@ -336,16 +321,21 @@ def deploy_featurescript(page: Any, script: str) -> dict[str, Any]:
         return {"deployed": False, "reason": written.get("error", "editor write failed")}
     commit = actions.click_commit(page)
     verified_source = actions.read_featurescript_editor(page)
+    compile_status = actions.read_featurescript_compile_status(page)
     verified = verified_source == script
     committed = (
         bool(commit.get("clicked"))
         and (commit.get("before") or {}).get("disabled") is False
         and (commit.get("after") or {}).get("disabled") is True
     )
+    compiled = bool(compile_status.get("compiled"))
     return {
-        "deployed": committed and verified,
+        "deployed": committed and verified and compiled,
         "verified": verified,
         "commitAccepted": committed,
+        "compiled": compiled,
+        "annotationCount": compile_status.get("annotationCount", 0),
+        "errors": compile_status.get("errors", []),
         "beforeLength": len(before),
         "afterLength": written.get("length"),
         "commit": commit,
@@ -401,7 +391,15 @@ def draw_part(
     template: str = "",
     dimensions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Create a Drawing, add configured dimensions, and return frame state."""
+    """Compatibility workflow for a generic drawing plus required dimensions."""
+    if not dimensions:
+        return {
+            "drawn": False,
+            "browserActionPerformed": False,
+            "reason": "at least one dimension is required before creating a drawing",
+            "drawing": None,
+            "dimensions": [],
+        }
     drawing = create_drawing(page, source_tab, template)
     if not drawing.get("created"):
         return {"drawn": False, "drawing": drawing, "dimensions": []}
@@ -418,7 +416,9 @@ def draw_part(
             "dimensions": dimension_results,
             "reason": f"drawing frame unreadable: {exc}",
         }
-    dimensions_ok = all(result.get("dimensionAdded") for result in dimension_results)
+    dimensions_ok = bool(dimension_results) and all(
+        result.get("dimensionAdded") for result in dimension_results
+    )
     return {
         "drawn": dimensions_ok,
         "drawing": drawing,

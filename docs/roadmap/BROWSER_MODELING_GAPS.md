@@ -1,23 +1,22 @@
 # Browser modeling capability gaps (roadmap)
 
-Status: proposed, not implemented
+Status: geometry, drawing, and active non-Bambu FDM gaps resolved 2026-08-26; Windows Bambu deferred
 
-This roadmap records the concrete tool capabilities missing from the current
-browser surface that a real modeling round (100mm PU duct -> 12025 fan exhaust
-adapter, 2026-08-24) exposed. It is a plan, not current behavior: current
-behavior is the static registry described by `../architecture/OVERVIEW.md` and
-generated from `mcp_main`. Follow the four-level semantics defined in
-`DYNAMIC_TOOL_DISCOVERY.md`:
-
-- L1: generic observation/input/wait primitives.
-- L2: one verified user-intent transaction with its own acceptance evidence.
-- L3: a workflow composed from L2 transactions.
-- L4: fixture-driven projects with assertions, checkpoints, and resume.
+This roadmap records the concrete tool capabilities exposed by a real modeling
+round (100mm PU duct -> 12025 fan exhaust adapter, 2026-08-24) and their
+subsequent resolution. Current behavior keeps a complete registry and exposes a
+semantic default view as described by `../architecture/OVERVIEW.md`. Follow the
+optional six-level semantics defined in `DYNAMIC_TOOL_DISCOVERY.md`: L1/L2 are
+generic browser primitives/transactions, L3 is an Onshape interaction, L4 is one
+verified Onshape transaction or observation, L5 is a multi-transaction workflow,
+and L6 is an independently consumable deliverable. Project control is outside
+L1-L6.
 
 Ownership stays with the `browser` module (`onshape_browser_mode` +
-`mcp_main/win/mcp/browser_tools.py`); none of these items are implemented yet.
+`mcp_main/win/mcp/browser_tools.py`); the items below are implemented and retain
+their original gap narrative for provenance.
 
-> The complete four-level FS-mode semantic tool surface — focused on the
+> The complete six-level FS-mode semantic tool surface — focused on the
 > **FS script mode** (deploy/compile-status/symbols/parameter-edit) plus its
 > Part-Studio coupling points (part context-menu drawing auto-views), with
 > improvement suggestions for existing tools — is planned in
@@ -28,51 +27,46 @@ Ownership stays with the `browser` module (`onshape_browser_mode` +
 > ridge item below is therefore deferred from the FS-mode plan unless a native
 > transaction is separately re-approved.
 
-## 1. Thread / screw-on spiral generation (L2 -> L3)
+## 1. Thread / screw-on spiral generation (L5)
 
-A screw-on connection for a spiral-reinforced PU duct was a design goal. The
-current surface has **no atomic transaction that generates a real spiral /
-helical ridge on a cylinder**. `externalThread` only handles standard
-ANSI/ISO sizes and cosmetic attributes, not a custom coarse pitch such as the
-~12.7 mm PU-duct wire pitch. The workaround (hand-written `opHelix` +
-`opSweep` in a custom FeatureScript) is fragile and was not completed this
-round.
+A screw-on connection for a spiral-reinforced PU duct was a design goal.
+`externalThread` only handles standard ANSI/ISO sizes and cosmetic attributes,
+not a custom coarse pitch such as the ~12.7 mm PU-duct wire pitch.
 
-Missing L2 tool: `browser_spiral_ridge` (or a `partstudio`-level
-"add custom spiral" transaction) that, given a cylinder face, a pitch, a ridge
-width/height, and a length, adds a verified helical ridge body (opHelix path +
-opSweep profile, dry-run + confirmation + part-count/feature-history readback).
+Resolution: `browser_spiral_ridge` accepts bounded numeric radius/pitch/profile/
+length parameters, rejects more than 10000 revolutions, generates a fixed
+`opHelix` + rectangular-profile `opSweep` FeatureScript, then reuses the
+compiler-gated browser deploy/apply workflow. It exposes no raw script or CSS
+input, supports dry-run/confirmation, and requires deployed+built acceptance.
+The generated script passes the local FeatureScript static checker. This is a
+FeatureScript-backed workflow, not an unsupported native-toolbar helix guess.
 
-Follow-up L3: a "screw-on duct coupling" workflow composing flange + spigot +
-spiral, with the spiral as a toggleable step so a plain spigot (hose clamp /
-tape) remains the fallback.
+## 2. FDM print analysis and delivery (L4 -> L6)
 
-Placement: `browser.native_modeling` / `browser.partstudio` Phase D in
-`DYNAMIC_TOOL_DISCOVERY.md`.
+Correction:
 
-## 2. 3D-print optimization transactions (L2)
+- `browser_print_orientation_check` currently opens Onshape draft analysis. That
+  surface cannot establish FDM bed contact, support demand, bridge behavior,
+  center-of-mass stability, print height, layer strength, build volume, or
+  profile-specific slice results. The tool remains compatibility code but is
+  marked `semantically_invalid` and default-hidden in the optional catalog.
+- `browser_wall_thickness_report` is only an L4 sampled UI observation; it is not
+  a global mesh wall-thickness result.
+- `browser_apply_blend` remains one L4 Onshape transaction.
+- `browser_print_optimize_part` is structurally L5, but its invalid orientation
+  dependency and apply-before-assessment ordering mean it cannot be treated as a
+  valid FDM workflow.
 
-The adapter should be print-friendly (wall thickness, fillets, draft, support
-minimization, print-orientation check). Current browser surface has no
-printability verification: no atomic transaction to inspect wall thickness,
-overhang, or print orientation, and no transaction that auto-applies fillets /
-chamfers / draft to a body.
+The replacement uses canonical STEP from browser or REST source adapters,
+explicit STEP tessellation, and the shared root-level `fdm_analysis` library.
+Browser owning tools now provide L4 STEP acquisition/readiness plus an L6
+STEP/STL/report/manifest package; REST has the equivalent mock/replay-verified
+transport and offline package wrapper. The adjacent CadQuery 2.8.0 / OCP 7.9.3.1
+backend was field-validated on a real browser export. Windows Bambu slicing stays
+explicitly deferred and is not part of the accepted non-slicer package. The
+detailed staged record is `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`.
 
-Missing L2 tools:
-- `browser_print_orientation_check` — read the current view/orientation and
-  report overhang/wall-thickness risk against configured thresholds.
-- `browser_apply_blend` (fillet/chamfer/draft on selected edges/faces with
-  dry-run + history readback), composing the existing L1 primitives into a
-  verified transaction.
-
-> These print/scanner tools (plus `browser_wall_thickness_report` and
-> `browser_print_optimize_part`) are consolidated in the deduped planned-tool
-> registry `BROWSER_PLANNED_TOOLS.md`; this page records only the gap narrative.
-
-Placement: `browser.native_modeling` Phase D in
-`DYNAMIC_TOOL_DISCOVERY.md`.
-
-## 3. Drawing auto-view insertion from a part (L2)
+## 3. Drawing auto-view insertion from a part (L5)
 
 The drawing tab was created but stayed an empty sheet: `browser_create_drawing`
 and `browser_draw_part` complete the source/template dialog but do **not** pick
@@ -83,36 +77,32 @@ creation dialog. The current `create_drawing` semantic
 (`onshape_browser_mode/semantic.py`) never selects the view layout, so the
 result is a blank sheet with no views.
 
-Missing L2 tool: `browser_drawing_insert_views` — select the sheet, choose a
-view layout (four views / single / iso), place the views on the sheet, and
-verify the drawing frame gained geometry (canvas-image or DOM change), matching
-the `browser_draw_part` frame-verification contract.
+Resolution: `browser_drawing_insert_views` targets an exact Part Studio part row
+and exact `创建 <name> 的工程图…` command, selects a semantic view layout, requires
+exactly one new drawing tab, and verifies view content through a Drawing DOM
+node or decoded main-canvas ink distribution. `browser_draw_part_with_views`
+composes this with dimensions. The legacy `browser_draw_part` now rejects an
+empty dimension list, removing the `all([])` blank-sheet false positive.
 
-Follow-up L3: a `browser_draw_part_with_views` workflow that creates the
-drawing, inserts auto-views, adds dimensions, and returns frame/view state.
-
-> Drawing-views and print tools are consolidated in the deduped planned-tool
-> registry `BROWSER_PLANNED_TOOLS.md`; this page records only the gap narrative.
-
-Also record the operational lesson in
-`../../onshape_docs/experience/browser-modeling.md` (drawing auto-views come
-from the part context menu "创建工程图", not the generic dialog).
-
-Placement: `browser.drawing` Phase D in `DYNAMIC_TOOL_DISCOVERY.md`.
+The live four-view canvas fixture, pixel metrics, and selector limitations are
+stored under `dev/button-map/scan-app-shell.json` and
+`scan-drawing-four-views.png`.
 
 ## Summary table
 
-| # | Missing capability | Level | Module / capability family | Key gap |
+| # | Resolved capability | Level | Module / capability family | Implemented acceptance |
 |---|---|---|---|---|
-| 1 | Spiral / screw-on ridge generation | L2 -> L3 | browser.partstudio / native_modeling | No atomic helix+sweep transaction; externalThread is standard-size only |
-| 2 | 3D-print optimization (fillet/chamfer/draft, orientation/wall check) | L2 | browser.native_modeling | No printability or blend transactions |
-| 3 | Drawing auto-view insertion from a part | L2 -> L3 | browser.drawing | create_drawing never selects view layout; auto-views require part context-menu "创建工程图" |
+| 1 | Spiral / screw-on ridge generation | L5 | browser.partstudio / FeatureScript workflow | bounded helix+sweep script + compile/deploy/apply verification |
+| 2 | FDM analysis and delivery | L4 -> L6 | shared `fdm_analysis` + browser/REST source adapters | draft proxy invalid; real browser AP242 STEP + CadQuery/OCP STL + verified non-slicer L6 package; Bambu deferred |
+| 3 | Drawing auto-view insertion from a part | L5 | browser.drawing | exact new tab + DOM or decoded canvas view evidence |
 
 ## Provenance
 
 Identified during the 2026-08-24 modeling round: new document
 `100mm PU duct to 12025 fan adapter` (Part Studio 1, one verified part
-`100mm duct fan adapter`); Drawing 1 created but blank; spiral and print
-optimization not implemented. This document records only the missing tool
-surface; the completed part model and FeatureScript live under
-`../../examples/duct-fan-adapter/`.
+`100mm duct fan adapter`); Drawing 1 was created blank and spiral/print
+transactions were absent. The 2026-08-25 implementation resolves the geometry
+and Drawing tool surface while preserving the conservative unknown/sample print
+results. The later six-level review identifies the draft-analysis FDM dependency
+as semantically invalid; the 2026-08-26 browser STEP/CadQuery field run closes the
+active non-Bambu deliverable gap. The original part model and FeatureScript live under `../../examples/duct-fan-adapter/`.

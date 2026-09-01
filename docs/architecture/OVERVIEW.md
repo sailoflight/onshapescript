@@ -4,15 +4,20 @@
 
 This repository implements an MCP server for offline Onshape FeatureScript and
 REST documentation lookup, guarded REST validation, and Windows-hosted browser
-automation. The current implementation exposes a static registered tool surface;
-dynamic tool discovery described in the roadmap is not implemented behavior.
-The Windows/WSL tool bridge and canonical dual-production-role runtime prompt
-are implemented. Raw stdio clients and the WSL facade receive native
-`initialize.instructions`; DSH 0.1.0-rc.8 requires the generated namespaced
-companion because its MCP client registers tools but does not project those
-instructions. The companion has external-cwd model-visible evidence; whether a
-particular production DSH profile has deployed that companion remains Operator
-runtime state, not inferred repository behavior.
+automation. The complete registered tool/handler surface is static, while
+`tools/list` supports fixed semantic/static/profile views and an opt-in dynamic
+per-connection view. A one-build `mcp_tool_catalog` index covers the complete
+registry independent of the current view; bounded search returns summaries and
+exact describe is the only on-demand full-schema path. Fixed browser
+discovery/invocation gateways reveal
+default-hidden L1/L3 tools on explicit level queries; dynamic mode emits
+`notifications/tools/list_changed` after `mcp_tool_view` changes. Exposure is a
+context convention only: known-name dispatch and all safety gates remain unchanged.
+The ordinary stdio MCP and canonical dual-production-role runtime prompt are
+implemented. Native clients receive `initialize.instructions`; DSH 0.1.0-rc.8
+requires the generated namespaced companion because its MCP client registers
+tools but does not project those instructions. Cross-host transport is supplied
+by an independently installed bridge and is not part of this repository.
 
 Evidence status: `verified` by the module entrypoints, registration code, offline
 tests, and path-ownership tests cited by the module contracts.
@@ -20,35 +25,36 @@ tests, and path-ownership tests cited by the module contracts.
 ## Runtime topology
 
 ```text
-MCP client in WSL/Linux
-  -> client adapter (tools + trusted runtime-prompt projection)
-  -> mcp_main/wsl/facade/mcp_tcp_bridge.py (stdio <-> loopback TCP, stdlib only)
-  -> Windows mcp_main/win/bridge/bridge_server.py (persistent MCP body)
-  -> mcp_main.win.mcp.server initialization, dual-production-role prompt, dispatch and handlers
+MCP client or independently installed adapter
+  -> ordinary stdio
+  -> python -m mcp_main.win.mcp
+  -> identity, runtime prompt, schemas, dispatch and handlers
        -> onshape_docs query/index layer (offline)
        -> onshape_rest_api_mode (guarded live REST boundary)
-       -> onshape_browser_mode (Windows Playwright/Edge boundary)
+       -> onshape_browser_mode (host Playwright/Edge boundary)
 ```
 
-The Windows body owns persistent browser resources, credentials, and the
-canonical runtime prompt in `mcp_main/win/mcp/runtime_prompt.py` for
-`Production / User` and `Production / Operator`. The WSL facade forwards the
-complete MCP initialization result without rewriting that prompt. Each
-supported client adapter projects the trusted, namespaced prompt before its
-first model tool decision: native instructions where supported, otherwise the
-generated companion under `mcp_main/wsl/dsh/`. Registering tool schemas alone
-is insufficient. Reconnecting the WSL facade must not destroy Windows state or
-accumulate prompt generations. The full `python3 -m mcp_main.win.mcp` stdio entry exists
-for the MCP body and protocol tests; it is not the WSL browser runtime entry.
+The MCP process owns its browser resources, configured profile, local REST
+state, and canonical runtime prompt at `mcp_main/win/mcp/runtime_prompt.py`. A
+deployment that needs WSL-to-Windows transport registers this ordinary command
+with an external bridge. The bridge owns registry, listeners, process
+supervision, reconnect, and redacted peer metadata; no equivalent relay or
+launcher is shipped here.
 
-The generic bridge contract and project mapping are in
-`../../mcp_main/bridge/ARCHITECTURE.md`.
+Each supported client adapter projects the trusted namespaced prompt before its
+first model tool decision: native instructions where supported, otherwise the
+generated companion under `mcp_main/dsh/`. Registering tool schemas alone is
+insufficient. One browser profile must have one ordinary MCP process owner.
+
+The retired project relay and the shared-bridge extraction acceptance record are
+preserved under `../history/legacy/`; they are historical, non-executable, and
+not current deployment authority.
 
 ## Modules
 
 | Module | Owns | Does not own | Entrypoint | Contract |
 |---|---|---|---|---|
-| `mcp_main` | MCP protocol, tool schemas, dispatch, browser-tool installation, WSL/Windows bridge | Domain reference data, REST transport policy, browser page behavior | `mcp_main/win/mcp/__main__.py`, `mcp_main.win.mcp.server.py` | `../modules/mcp-main.md` |
+| `mcp_main` | MCP protocol, identity/runtime prompt, tool schemas, dispatch, browser-tool installation, ordinary stdio entry, DSH companion | Domain reference data, REST transport policy, browser page behavior, cross-host transport | `mcp_main/win/mcp/__main__.py`, `mcp_main.win.mcp.server.py` | `../modules/mcp-main.md` |
 | `onshape_docs` | Authored domain docs, vendored reference, offline indexes, query APIs, doc verification | Credentials, live REST state, browser session | `onshape_docs/query/`, `onshape_docs/scripts/` | `../modules/onshape-docs.md` |
 | `onshape_rest_api_mode` | REST request building/transport, quota and live gates, stable target state, REST outputs | MCP wire protocol, browser UI session, authored reference | `onshape_rest_api_mode/operations.py` | `../modules/rest-api-mode.md` |
 | `onshape_browser_mode` | Browser configuration, persistent session, page objects, selectors, browser workflows and checkpoints | REST quota accounting, MCP wire protocol, upstream documentation | `onshape_browser_mode/session.py`, `mcp_main/win/mcp/browser_tools.py` | `../modules/browser-mode.md` |
@@ -66,21 +72,25 @@ MCP protocol/dispatch
 Browser semantic layering is:
 
 ```text
-project fixtures (L4)
-  -> workflows (L3)
-  -> transaction operations (L2)
-  -> generic browser actions (L1)
+project control (outside L1-L6)
+  -> L6 independently consumable deliverable recipes
+  -> L5 multi-transaction workflows
+  -> L4 complete verified Onshape transactions or observations
+  -> L3 Onshape-aware incomplete interactions
+  -> L2 generic browser transactions
+  -> L1 browser primitives with no Onshape semantics
   -> selectors and page/frame primitives
 ```
 
 Rules:
 
-- Higher browser semantic levels may call lower levels; lower levels do not call higher levels.
+- Higher semantic levels may compose lower levels; same-level composition is
+  allowed when acyclic and contained within one contract.
 - Selectors and frame-resolution logic stay in browser selectors/page objects, not high-level tools.
 - `mcp_main` may compose module handlers but does not take ownership of module state.
 - `onshape_browser_mode` may explicitly synchronize observed IDs through the REST-owned state boundary; it must not silently take ownership of quota or credentials.
 - `onshape_docs/reference/raw/` is build input and provenance, not a normal query dependency.
-- The WSL relay must remain stdlib-only and must not import Windows browser dependencies.
+- Cross-host transport and supervision stay outside the business MCP and must preserve byte-transparent MCP semantics.
 
 ## Data and configuration ownership
 
@@ -93,7 +103,7 @@ Rules:
 | REST outputs | `onshape_rest_api_mode/outputs/` | Generated runtime output | Module-owned lifecycle |
 | Project-doc and reference indexes | `onshape_docs/` | Generated from authored or vendored sources | Rebuild and verify; do not hand-edit |
 | Example parameters | `examples/branch-cable-trophy/config/` | Committed example input | Example-owned |
-| Bridge logs | `mcp_main/win/bridge/logs/` | Windows runtime | Diagnostics never enter MCP stdout |
+| MCP/browser logs | module-owned ignored output/log paths | MCP host runtime | Diagnostics never enter MCP stdout |
 | Test fixtures and captures | `dev/` | Committed or ignored by evidence type | Redact secrets and production data |
 
 ## Current invariants
@@ -101,35 +111,34 @@ Rules:
 - Real REST access is disabled unless `LIVE_API_ENABLED` is explicitly enabled.
 - Development and regression tests run offline and never enable the live gate.
 - Mutating tools require explicit confirmation; supported writes expose dry-run where documented.
-- MCP stdout contains JSON-RPC only; diagnostics go to stderr or the bridge log.
+- MCP stdout contains JSON-RPC only; diagnostics go to stderr or module-owned logs.
 - MCP initialization supplies an actionable, bounded dual-production-role prompt; it is not a product introduction or copied tool list.
 - Production role guidance must reach supported clients in external cwd/chat environments without repository `AGENTS.md`.
 - Tool/schema/handler and runtime-prompt revisions cannot silently diverge across deploy, reconnect, or rollback.
-- A persistent browser profile has one Windows process owner.
-- Closing or reconnecting the WSL client does not own or destroy the Windows browser session.
+- A persistent browser profile has one ordinary MCP process owner.
+- Reconnect persistence, when required, is an external supervisor contract and must not create a second profile owner.
 - Current code and offline tests take precedence over prose when behavior conflicts.
 - Generated indexes and the tool reference must be rebuilt from their authoritative sources.
 
-## Current static tool surface
+## Current tool surface
 
 The registered tool schemas and handlers in `mcp_main` are authoritative. The
-derived summary is `../generated/TOOL_REFERENCE.md`. The planned bounded dynamic
-exposure architecture is explicitly future work in
-`../roadmap/DYNAMIC_TOOL_DISCOVERY.md`.
+derived summary is `../generated/TOOL_REFERENCE.md`; semantic, static, fixed
+profile, and per-connection dynamic views are implemented as context-routing
+conventions and do not change known-name dispatch authority.
 
 ## Decisions and history
 
-- Generic Windows/WSL bridge architecture: `../../mcp_main/bridge/ARCHITECTURE.md`.
+- Retired project relay and accepted shared-bridge extraction record: `../history/legacy/SHARED_BRIDGE_MIGRATION.md`.
 - Development-history migration and current-authority map: `../history/TRACEABILITY.md`.
 - Reusable verified behavior: `../../onshape_docs/experience/`.
 
 ## Unknowns
 
-- Dynamic/profile/gateway tool exposure remains unimplemented and must not be
-  inferred from the current static registry.
-- MCP client compatibility for future dynamic `tools/list_changed` behavior
-  requires an explicit compatibility matrix before implementation.
+- External bridge compatibility is deployment state verified by that bridge's
+  own protocol, registry, lifecycle, and client tests; this repository verifies
+  only the ordinary MCP contract and its DSH adapter example.
 - Supported-client runtime-prompt delivery modes and current evidence are
   versioned in `../verification/MCP_CLIENT_COMPATIBILITY.md`; an individual
-  production profile may still lag that repository generation until an Operator
-  deploys and verifies it.
+  production profile may lag the repository generation until an Operator deploys
+  and verifies it.

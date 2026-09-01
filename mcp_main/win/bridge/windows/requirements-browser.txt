@@ -1,4 +1,0 @@
-# Windows-side Python dependency for onshape_browser_mode.
-# Browser binary is NOT installed here: use the machine's existing Chrome/Edge
-# (same approach as taobao-mcp config.local.toml). Linux side stays stdlib-only.
-playwright>=1.40,<2

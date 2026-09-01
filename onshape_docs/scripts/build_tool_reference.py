@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mcp_main.win.mcp import server  # noqa: E402
+from onshape_browser_mode import semantics as browser_semantics  # noqa: E402
 
 OUTPUT_PATH = REPO_ROOT / "docs" / "generated" / "TOOL_REFERENCE.md"
 
@@ -51,6 +52,17 @@ def bool_text(value: Any) -> str:
     return "yes" if value is True else "no"
 
 
+def semantic_label(name: str) -> str:
+    if not name.startswith("browser_"):
+        return "-"
+    metadata = browser_semantics.semantic_metadata(name)
+    if metadata is None:
+        return "`unclassified`"
+    level = metadata["semanticLevel"]
+    semantic_name = metadata["semanticName"]
+    return f"`{level} {semantic_name}`" if level else f"`{semantic_name}`"
+
+
 def tool_row(tool: dict[str, Any]) -> str:
     name = tool["name"]
     schema = tool.get("inputSchema") or {}
@@ -69,7 +81,7 @@ def tool_row(tool: dict[str, Any]) -> str:
         f"dry_run={bool_text(dry_run)}; confirm={bool_text(confirmation)}"
     )
     return (
-        f"| `{name}` | `{capability(name)}` | {required_text} | {safety} | "
+        f"| `{name}` | `{capability(name)}` | {semantic_label(name)} | {required_text} | {safety} | "
         f"{compact(str(tool.get('description', '')))} |"
     )
 
@@ -92,6 +104,17 @@ def render() -> str:
         )
 
     counts = Counter(capability(name) for name in tool_names)
+    semantic_counts = Counter()
+    for name in tool_names:
+        if not name.startswith("browser_"):
+            continue
+        metadata = browser_semantics.semantic_metadata(name)
+        key = (
+            "unclassified"
+            if metadata is None
+            else str(metadata["semanticLevel"] or metadata["semanticName"])
+        )
+        semantic_counts[key] += 1
     lines = [
         "# Generated MCP tool reference",
         "",
@@ -106,6 +129,8 @@ def render() -> str:
         f"- MCP protocol: `{server.PROTOCOL_VERSION}`",
         "- Capability counts: "
         + ", ".join(f"`{name}`={counts[name]}" for name in sorted(counts)),
+        "- Browser semantic counts: "
+        + ", ".join(f"`{name}`={semantic_counts[name]}" for name in sorted(semantic_counts)),
         "",
         "## Safety interpretation",
         "",
@@ -114,14 +139,15 @@ def render() -> str:
         "- Live REST operations remain disabled unless `LIVE_API_ENABLED` is explicitly enabled.",
         "- `api_max` is registered metadata, not permission to spend requests.",
         "- `confirm=yes` means the public schema exposes `confirm_mutation`; callers must still follow host approval.",
+        "- Browser semantic classification is optional discovery guidance; it is not a registration, permission, or execution gate.",
     ]
     for group in sorted(counts):
         lines.extend([
             "",
             f"## Capability: {group}",
             "",
-            "| Tool | Capability | Required arguments | Registered safety/cost | Intent |",
-            "|---|---|---|---|---|",
+            "| Tool | Capability | Optional semantic classification | Required arguments | Registered safety/cost | Intent |",
+            "|---|---|---|---|---|---|",
         ])
         lines.extend(
             tool_row(tool)

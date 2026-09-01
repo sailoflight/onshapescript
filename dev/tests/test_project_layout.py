@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mcp_main.win.bridge import bridge_server  # noqa: E402
 from onshape_browser_mode import settings as browser_settings  # noqa: E402
 from onshape_browser_mode.session import BrowserSession  # noqa: E402
 from onshape_docs.query import project_docs  # noqa: E402
@@ -56,10 +55,16 @@ class ProjectLayoutTest(unittest.TestCase):
             ROOT / "examples" / "branch-cable-trophy" / "config",
         )
 
-    def test_bridge_runtime_is_owned_by_mcp_module(self) -> None:
-        self.assertEqual(
-            bridge_server.LOG_PATH,
-            ROOT / "mcp_main" / "win" / "bridge" / "logs" / "bridge-server.log",
+    def test_project_owns_no_cross_host_relay_runtime(self) -> None:
+        for relative in (
+            "mcp_main/wsl",
+            "mcp_main/win/bridge",
+            "mcp_main/bridge",
+        ):
+            self.assertFalse((ROOT / relative).exists(), relative)
+        self.assertTrue((ROOT / "mcp_main" / "dsh" / "cordis.patch.yml.example").is_file())
+        self.assertTrue(
+            (ROOT / "onshape_browser_mode" / "requirements-windows.txt").is_file()
         )
 
     def test_legacy_root_directories_do_not_return(self) -> None:
@@ -151,7 +156,7 @@ class ProjectLayoutTest(unittest.TestCase):
             ROOT / "docs" / "verification" / "MCP_CLIENT_COMPATIBILITY.md"
         ).read_text(encoding="utf-8")
         example = (
-            ROOT / "mcp_main" / "wsl" / "dsh" / "cordis.patch.yml.example"
+            ROOT / "mcp_main" / "dsh" / "cordis.patch.yml.example"
         ).read_text(encoding="utf-8")
 
         self.assertIn("Field Evaluator", docs_index)

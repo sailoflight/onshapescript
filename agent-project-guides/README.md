@@ -9,7 +9,7 @@ DeepSeek Harness 从 `.git` 根到 cwd 自动加载精确命名的 `AGENTS.md`�
 普通任务路由：
 
 1. active adapter trigger 只由当前已注入根上下文中的 exact `adapter-trigger:start/end` markers 决定；routing/state、`pending/stale` 和 bootstrap template 都不是 trigger。
-2. 用户或 parent 已指定 plane/role/mode 时，在任何仓库发现前 exact content-grep quoted `id` 或 literal alias，直接使用唯一记录；禁止模糊 regex、全 registry 读取和重新分类。
+2. 用户或 parent 已指定 plane/role/mode 时，在任何仓库发现前 exact content-grep quoted `id` 或 literal alias，直接使用唯一记录；禁止模糊 regex、全 registry 读取和重新分类。未精确命中的标签保持 unresolved，结构化询问而不做语义猜测。
 3. 未指定时只读 `routing/planes.jsonl`；不明确则用结构化问答并等待。
 4. 确定 plane 后只搜索对应 role registry，只读命中的 `guide` 和当前 mode 的 `procedure_by_mode`。
 5. 阻塞问题使用稳定 ID、2–4 个互斥选项和一行影响；无问答工具时才直接提问。
@@ -43,11 +43,12 @@ routing/mcp-subtypes.jsonl
 
 ## 3. 安装和状态
 
-治理包必须 vendored 在目标项目内部；移除内层 `.git`。安装器只操作选中的根入口，优先级为 existing `AGENTS.md` > 可容纳的 sole `CLAUDE.md`；过大的 sole `CLAUDE.md` 保持不变并新建短 `AGENTS.md`。原文件始终保留为 byte-prefix，local overlay 和未选中的根候选不变。
+治理包必须 vendored 在目标项目内部；移除内层 `.git`。安装器按 existing `AGENTS.md` > 可容纳的 sole `CLAUDE.md` 选择根入口；过大的 sole `CLAUDE.md` 保持不变并新建短 `AGENTS.md`。managed routing 从所选文件 byte 0 开始，原项目内容 byte-identical 地保留为 suffix；旧尾部 block 会在下一次 merge 时迁移。local overlay 和未选根默认不变。
 
 ```bash
 ./agent-project-guides/scripts/install.sh merge         # permanent routing/state only
 ./agent-project-guides/scripts/install.sh trigger       # permanent block + one temporary trigger
+./agent-project-guides/scripts/install.sh merge --sync-claude-scope  # optional AGENTS + CLAUDE role gate
 ./agent-project-guides/scripts/install.sh check
 ./agent-project-guides/scripts/install.sh check-update
 ./agent-project-guides/scripts/install.sh set-state --status adapted --verified-at <UTC> --scope <scope> --reason none
@@ -55,7 +56,7 @@ routing/mcp-subtypes.jsonl
 ./agent-project-guides/scripts/install.sh unmerge
 ```
 
-脚本不调用 LLM。重复 merge/trigger 幂等；多个根候选已有 managed marker、symlink、非 UTF-8、无 Git root、包位于项目外或超过大小上限时拒绝。
+脚本不调用 LLM。重复 merge/trigger 幂等；`--sync-claude-scope` 仅在 `AGENTS.md` 被选中且 sibling `CLAUDE.md` 存在时，为后者前置一个独立 managed scope block。双文件 sync/unmerge 使用短暂 transaction marker；中断后任何 check 都失败，重跑同一命令恢复。unmerge 同时移除可选 block 并恢复两份原内容。重复 routing、symlink、非 UTF-8、无 Git root、包位于项目外或超过大小上限时拒绝。
 
 状态 ownership：
 
@@ -67,7 +68,7 @@ routing/mcp-subtypes.jsonl
 当前初始行：
 
 ```text
-Package adaptation: status=pending; package_revision=1.4.2; verified_at=never; scope=repo; reason=not_adapted
+Package adaptation: status=pending; package_revision=1.4.3; verified_at=never; scope=repo; reason=not_adapted
 ```
 
 ## 4. 云端新鲜度
@@ -84,7 +85,7 @@ private GitHub 依次使用 `GH_TOKEN/GITHUB_TOKEN`、authenticated `gh api`、a
 
 | 文件族 | 唯一职责 |
 |---|---|
-| `bootstrap/` | permanent routing 和一次性 trigger 模板 |
+| `bootstrap/` | permanent routing、一次性 trigger 和可选 CLAUDE scope 模板 |
 | `routing/` | 精确选择记录和 package-root-relative 路径 |
 | `roles/` | 一个角色的日常行为、权限和 mode 边界 |
 | `procedures/` | 跨角色复用的执行算法；当前只有适配流程 |
@@ -146,12 +147,13 @@ node scripts/validate-routing.mjs
 ./scripts/test-install.sh
 ```
 
-完整 suite 覆盖 append-only、root selection、exact routing、aliases、path safety、project profiles、MCP subtypes、artifact decisions、cloud freshness、state lifecycle、UTF-8、symlink、size 和 invalid metadata。
+完整 suite 覆盖 managed-prefix ordering、旧 block 迁移、双根 opt-in scope 与中断恢复、原内容 round-trip、exact routing/aliases、path safety、profiles/subtypes、cloud freshness、state lifecycle、UTF-8、symlink、size 和 invalid metadata。
 
 | 每步/路由文件 | 上限 |
 |---|---:|
 | permanent routing | 2,000 bytes |
 | temporary trigger | 3,000 bytes |
+| optional CLAUDE scope | 500 bytes |
 | plane + role JSONL | 2,200 bytes |
 | project type JSONL | 1,200 bytes |
 | MCP subtype JSONL | 400 bytes |

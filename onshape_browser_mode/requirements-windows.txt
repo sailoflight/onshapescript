@@ -1,0 +1,4 @@
+# Windows-side dependency for the ordinary Onshape MCP browser module.
+# The browser binary is not installed here; use the machine's existing Chrome
+# or Edge configured through browser.toml/browser.local.toml.
+playwright>=1.40,<2

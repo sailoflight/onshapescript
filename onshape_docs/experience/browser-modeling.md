@@ -137,26 +137,49 @@
   点 `.ns-dialog-button-ok.button-ok`。实例树出现
   `Fixed wall (rail) <1>` / `Module block (groove) <1>`。
 - 工程图标签或跨域 iframe 出现只证明容器已创建，主页面 `svg` 数量不能证明
-  工程视图或尺寸已生成。`DrawingPage` 与 frame-aware 通用工具现在可进入
-  `production-drawing-*` iframe；`browser_draw_part` 只有在 frame 可读且全部配置尺寸操作
-  成功且 `verification_selector` 节点数增加，或 canvas 坐标模式的前后截图 SHA-256
-  发生变化时才返回 `drawn:true`。canvas 模式通过 `tool_key`、`canvas_index`、
-  `geometry_points` 与 `placement_point` 配置，不依赖 Drawing 内部动态 id。
-- 实测修正（2026-08-24）：**通用「创建工程图…」对话框只会得到空白图纸**。
-  它（`.new-drawing-dialog`）有 `四个视图` / `没有视图` 两个视图布局按钮，但当前
-  `browser_create_drawing` 从不选择视图布局，默认落在「没有视图」→ 创建后 Sheet
-  为空。**带自动视图的工程图必须从 Part Studio 的特定零件右键菜单创建**
-  （右键零件 → `创建工程图`），而不是通用创建对话框。跨域 Drawing iframe 里
-  `Wt-popup.XeDialog.modal`（`插入视图`）需先在源里选零件再点图纸放置，才算真正
-  生成视图；`dispatchEvent` 合成的鼠标事件不被 Onshape 接受，必须走 Playwright
-  可信点击。该缺口已记录到 `docs/roadmap/BROWSER_MODELING_GAPS.md`（L2 工具
-  `browser_drawing_insert_views`）。
+  工程视图或尺寸已生成。`DrawingPage` 与 frame-aware 通用工具可进入
+  `production-drawing-*` iframe；旧 `browser_draw_part` 现要求至少一个尺寸并验证
+  每个尺寸，空列表不再因 `all([])` 误报成功。
+- 实测修正（2026-08-25）：通用「创建工程图…」路径可能得到空白图纸。自动视图应
+  从 Part Studio 的精确零件行右键菜单 `创建 <name> 的工程图…` 进入。
+  `browser_drawing_insert_views` 选择 `four` / `single` / `iso` 语义布局，要求恰好
+  一个新 drawing tab，并用 Drawing DOM 或 main-canvas PNG 墨迹分布验证视图。
+  当前 Drawing DOM 没有可靠 view 节点，实际四视图的 1240×694 canvas 已经视觉确认；
+  原图、SHA 和像素指标在 `dev/button-map/scan-app-shell.json` /
+  `scan-drawing-four-views.png`。`browser_draw_part_with_views` 在此基础上再添加尺寸，
+  任一阶段失败即 `drawn:false`。
 
 ## 11. Fixture 驱动项目与验收
 
 - `browser_deploy_and_apply_featurescript` 把“确保 FS/PS → 提交 → 可选建版本 → 应用 →
-  读取零件”固化为一个高级事务，输出标准化 `{parts, partNames}`。
+  读取零件”固化为一个 L5 工作流，输出标准化 `{parts, partNames}`；它本身没有具体设计
+  规格、最终成果验收和 manifest，因此不自动升级为 L6。
 - `browser_run_project` 从 `dev/fixtures-capture/<project>.json` 串行执行，不接受任意文件
   路径；每步写本地 checkpoint。失败后 `resume=true` 只继续 pending 步骤，避免再次建文档。
+  它属于 Project 控制平面而不是 L6；未来项目由一个或多个独立验收的 L6 成果组成。
+  允许工具仍是闭集，但已覆盖新增 L3-L5；每个工具绑定自己的 outcome key，未知或缺失
+  outcome 不再默认成功。只给实际写工具注入 `confirm_mutation=true`。
+- Project schema v2 将 `setup` 与 `deliverables[]` 分开。成果节点使用
+  `depends_on` 构成无环 DAG；每个节点必须有非空步骤、最终 assertions 和 outputs。
+  节点验收后 checkpoint 写入 `completedDeliverables` 以及独立 manifest，其中记录
+  `semanticLevel:L6`、fixture SHA、依赖、断言、media type、来源 step/key 和实际远程或
+  本地成果引用。旧 v1 平面 fixture 保持兼容。
+- `module-interface-deliverables` 是多 L6 fixture：两个 Part Studio 成果、一个依赖两者的
+  Assembly 成果和两张分别依赖零件的 Drawing 成果。
 - `module-interface-verification` 固定执行 6 步：建文档、建 rail/groove 两零件、装配、
-  两张工程图；最终断言两侧零件数、装配状态和两个 drawing frame 状态。
+  两张工程图；两个 drawing 步骤使用 `browser_draw_part_with_views`，最终断言零件数、
+  装配状态和非空视图验收。
+
+## 12. FDM 分析边界修正
+
+- Onshape `拔模分析` 是制造角度可视化，不是 FDM 打印朝向分析。它不能单独证明床面
+  接触、支撑、桥接、重心稳定性、打印高度、层间强度、构建体积或 Bambu Studio
+  profile 下的切片结果。
+- 当前 `browser_print_orientation_check` 只会得到 `assessable:false` /
+  `risk:"unknown"`，六级 catalog 已将其标为 `semantically_invalid` 并默认隐藏；依赖它的
+  `browser_print_optimize_part` 同样不能作为有效 FDM 工作流。
+- 正确边界是：浏览器或 REST 模式各自导出规范 STEP 并构造相同 artifact contract；根级
+  共享 `fdm_analysis` 库负责显式 STEP tessellation、网格指标、Bambu Studio 切片、报告
+  和 manifest。共享库本身不是 MCP 语义工具。
+- 一个明确朝向的模式包装器是 L4，多朝向排序/临时完整分析是 L5，包含 STEP、网格、
+  3MF、报告和 manifest 的正式成果包是 L6。

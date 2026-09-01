@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "eb249a29eb9f3f06de7855689c9cac15ea5ff635d4cf99809b05ac2d2a5a725c",
+   "sha256": "f2f82457d0a5092e980d61bd9059744d6ae0a2f515be77b4dbf818fee6bd8b47",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -652,7 +652,169 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. Read-only observation should come first. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract."
+       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. Read-only observation should come first. browser_get_fs_compile_status reads Ace annotations, and browser_get_fs_symbols reads the Module-outline inventory; neither requires mutation confirmation. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and empty compiler annotations all verify. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses semantic exposure. FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The later FDM review marks the draft-analysis-based browser_print_orientation_check and dependent browser_print_optimize_part semantically invalid and default-hidden; draft analysis is not an FDM orientation engine. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, browser_drawing_insert_views for views only, and browser_draw_part_with_views only when one or more dimensions are required."
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "title": "Six-level browser selection",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Semantic level is optional discovery metadata, not registration, permission, or execution policy:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "L1: generic browser primitive.",
+         "depth": 0
+        },
+        {
+         "text": "L2: composite generic browser transaction.",
+         "depth": 0
+        },
+        {
+         "text": "L3: Onshape-aware prepare/inspect/recovery interaction without domain success.",
+         "depth": 0
+        },
+        {
+         "text": "L4: one completed and verified Onshape transaction or complete observation.",
+         "depth": 0
+        },
+        {
+         "text": "L5: multi-transaction Onshape workflow.",
+         "depth": 0
+        },
+        {
+         "text": "L6: independently consumable deliverable with final acceptance and manifest.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Project control is outside L1-L6 and coordinates one or more L6 nodes. Ordinary selection ranks L5 workflows first, then L4 verified transactions/observations, then L2 generic browser transactions, then L6 deliverable recipes. This maximizes reuse of completed workflows while reserving L6 for an explicitly requested independent artifact/manifest boundary; do not decompose a suitable candidate into lower levels automatically. L1/L3 are omitted from ordinary discovery to save context, but their existence and purpose are not secret: call browser_discover_tools with semantic_levels=[\"L1\"] or semantic_levels=[\"L3\"], inspect the returned exact schema, then use browser_invoke_discovered. No additional intent parameter is required, and the gateway does not bypass confirmation or handler acceptance. Unclassified tools remain valid and visible by default. Set ONSHAPE_MCP_TOOL_EXPOSURE=static only for complete-registry compatibility or debugging."
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "title": "Tool catalog search and description",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "mcp_tool_catalog is the lookup-first entry for MCP capabilities across all modules and profiles. Its immutable index is built once from the complete registered TOOLS surface after cost metadata and browser tools are installed; it does not maintain a second hand-authored catalog."
+      },
+      {
+       "type": "para",
+       "text": "Use the bounded sequence:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "action=status to read the registry fingerprint, counts, filters, and result limits.",
+         "depth": 0
+        },
+        {
+         "text": "action=search with a short query and, where known, modules, profiles, semantic_levels, network, mutating, or visible_only. Search defaults to 8 results and cannot exceed 12. It returns compact summaries and never returns inputSchema.",
+         "depth": 0
+        },
+        {
+         "text": "action=describe with one exact result name to load the full current inputSchema, cost, annotations, profiles, browser semantics, view visibility, confirmation mode, and explicit local/session sideEffects.",
+         "depth": 0
+        },
+        {
+         "text": "Treat confirmation.mode=always as unconditional, non_dry_run as required only for real execution, and budget_override as a session-budget override rather than mutation approval. confirmation.schemaRequired reports the JSON Schema contract separately.",
+         "depth": 0
+        },
+        {
+         "text": "Call the described tool normally. Catalog output does not grant confirmation, quota, browser, credential, or mutation authority.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Search always covers the complete registry, including tools absent from the current tools/list; visibleInCurrentView is informational. Exact-name and name prefix matches rank before description matches. Profile names are structured filters rather than free-text tokens, preventing ubiquitous control tools from polluting capability searches. Cache search/describe results against the returned SHA-256 fingerprint; refresh the cache when it changes."
+      }
+     ]
+    },
+    {
+     "level": 4,
+     "title": "Dynamic tool display",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Tool display is a connection-scoped context and routing convention, never an authorization boundary. The complete TOOLS/HANDLERS registry remains loaded; a known-name tools/call, internal composition, and browser_invoke_discovered remain available when a tool is absent from the current tools/list. Confirmation, quota, browser pacing, cost, and acceptance gates remain authoritative."
+      },
+      {
+       "type": "para",
+       "text": "Deployment modes are explicit:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "semantic keeps the current fixed ordinary view and is the compatibility default.",
+         "depth": 0
+        },
+        {
+         "text": "static keeps the complete registry visible.",
+         "depth": 0
+        },
+        {
+         "text": "profile selects one fixed ONSHAPE_MCP_TOOL_PROFILE at connection start.",
+         "depth": 0
+        },
+        {
+         "text": "dynamic enables per-connection mcp_tool_view set/reset and advertises capabilities.tools.listChanged=true during initialization.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Profiles are default, browser, rest, featurescript, documentation, geometry, and all. An optional semantic_levels list narrows classified browser tools. mcp_tool_view, mcp_tool_catalog, browser_session, browser_discover_tools, and browser_invoke_discovered remain available as navigation/recovery surfaces in the relevant view."
+      },
+      {
+       "type": "para",
+       "text": "Correct dynamic-client flow:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Configure ONSHAPE_MCP_TOOL_EXPOSURE=dynamic and an optional startup ONSHAPE_MCP_TOOL_PROFILE, then restart the MCP process/client adapter.",
+         "depth": 0
+        },
+        {
+         "text": "Check initialize capability tools.listChanged. If false, use the fixed view or discovery gateway; do not assume the client can refresh dynamically.",
+         "depth": 0
+        },
+        {
+         "text": "Call mcp_tool_view with action=status before changing the view.",
+         "depth": 0
+        },
+        {
+         "text": "Call it with action=set, a profile, and optional browser semantic levels.",
+         "depth": 0
+        },
+        {
+         "text": "After notifications/tools/list_changed, issue a fresh tools/list; replace the client's displayed tool schemas instead of appending to a stale list.",
+         "depth": 0
+        },
+        {
+         "text": "Use action=reset to restore that connection's startup profile. Reconnecting also creates a fresh view and does not inherit another connection's state.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "A repeated set that does not change the effective view emits no notification. Clients that ignore list_changed should reconnect, refresh manually, or stay in semantic/profile mode. Never interpret a missing displayed tool as denied or a displayed tool as authorized."
       }
      ]
     },
@@ -662,7 +824,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These consume annual API quota even when they do not mutate the model. Use them only for a specific fact that cannot be obtained offline. Provide explicit IDs to avoid hidden lookup chains."
+       "text": "These consume annual API quota even when they do not mutate the model. Use them only for a specific fact that cannot be obtained offline. Provide explicit IDs to avoid hidden lookup chains. onshape_export_step is a bounded asynchronous POST/poll/download transaction: dry-run first, pass an existing translation_id to resume without repeating POST, and treat exported=false as a resumable non-terminal result rather than starting another export. A completed export persists step-manifest.json. Use the owning mode's geometry status before its build tool. Status first checks explicit configuration, then performs a bounded sibling-project/global/Windows-WSL scan. A reusable dependency is represented by an opaque versioned candidateId; configure only through browser_configure_geometry_backend or onshape_configure_geometry_backend, which re-scans and never accepts executable/argv input. When status returns nextAction.kind=ask_before_install, ask the human whether to install and do nothing until answered. Installation is never automatic. Geometry build remains an offline L6 recipe accepting only its staged export/translation ID."
       }
      ]
     },
@@ -794,6 +956,217 @@
       {
        "type": "para",
        "text": "The runtime tool schema and current server behavior are authoritative for calls. The canonical runtime policy routes product capability use to User and runtime installation/availability/recovery to Operator; role transitions are explicit and do not merge permissions. A supported client consumes native initialization instructions or an installation-generated companion from the same server revision. A tools-only connection is unsupported. The generated tool reference is a derived snapshot. Public behavior changes must update schemas, tests, this usage contract where relevant, and the generated reference together."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "fdm-analysis",
+   "category": "guide",
+   "path": "fdm_analysis/README.md",
+   "sha256": "7fc67afd9edf671d2482e5c74e30b814d33299de356894fabcd2c5a2c7c816ce",
+   "title": "Shared FDM analysis library",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Shared FDM analysis library",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "fdm_analysis is a transport-independent local library. It is deliberately separate from onshape_browser_mode and onshape_rest_api_mode:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser mode owns browser STEP export and download evidence;",
+         "depth": 0
+        },
+        {
+         "text": "REST mode owns asynchronous STEP export, quota, polling, and download;",
+         "depth": 0
+        },
+        {
+         "text": "both modes convert the resulting file into the same StepArtifact contract;",
+         "depth": 0
+        },
+        {
+         "text": "this package owns STEP tessellation interfaces, mesh-analysis interfaces, slicer interfaces, reports, and L6 package manifests.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The package registers no MCP tools and performs no Onshape REST request."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Current status",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Windows Bambu exclusion: the current computer does not have Bambu Studio. Non-Bambu STEP, geometry, report/manifest, source-adapter, and exchange work may continue, but this package is not a working slicer integration. Existing Bambu command/execution code is protocol/replay infrastructure only and must not be presented as installed or field-validated."
+      },
+      {
+       "type": "para",
+       "text": "Implemented offline infrastructure:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "canonical STEP, normalized mesh, profile, and sliced-project contracts;",
+         "depth": 0
+        },
+        {
+         "text": "explicit StepConverter, GeometryAnalyzer, and SlicerBackend protocols;",
+         "depth": 0
+        },
+        {
+         "text": "pinned argv-only CommandStepConverter adapter with no shell, bounded timeout, exit-code handling, non-empty STL parsing, triangle count, tolerance provenance, and Windows CREATE_NO_WINDOW execution;",
+         "depth": 0
+        },
+        {
+         "text": "cadquery_step_to_stl.py field-validated against the adjacent CadQ environment (CadQuery 2.8.0 / OCP 7.9.3.1), including deterministic Windows-to-WSL path mapping. Committed owning-mode configs remain disabled by default; the Windows field deployment selects this backend through wsl.exe --exec;",
+         "depth": 0
+        },
+        {
+         "text": "bounded reusable dependency discovery in sibling project virtual environments, global Python environments, and the Windows/WSL counterpart. Results expose versioned opaque candidate IDs rather than paths; configure re-scans before writing, and no-match results require an agent to ask before any installation;",
+         "depth": 0
+        },
+        {
+         "text": "fail-closed unavailable converter/analyzer placeholders;",
+         "depth": 0
+        },
+        {
+         "text": "Bambu Studio CLI command construction for documented STL/3MF input;",
+         "depth": 0
+        },
+        {
+         "text": "Windows-native, WSL-to-Windows interop, and offline-replay execution adapters;",
+         "depth": 0
+        },
+        {
+         "text": "report and manifest generation with artifact SHA values;",
+         "depth": 0
+        },
+        {
+         "text": "dependency-free ASCII/binary STL geometry analysis for watertightness, bounds, print height, bed contact, downward-face area, volume, and center-of-mass stability; wall thickness remains explicitly unknown;",
+         "depth": 0
+        },
+        {
+         "text": "non-slicer build_geometry_package L6 recipe containing canonical STEP, normalized STL, JSON/Markdown reports, relative artifact paths, SHA values, backend provenance, and threshold-free acceptance;",
+         "depth": 0
+        },
+        {
+         "text": "browser and REST source adapters that produce the same STEP contract;",
+         "depth": 0
+        },
+        {
+         "text": "browser-owned browser_export_step using live-observed dialog selectors, explicit URL-ID acceptance, AP242 millimeter direct-download configuration, non-ZIP STEP acceptance, and persisted browser provenance manifest;",
+         "depth": 0
+        },
+        {
+         "text": "browser-owned browser_geometry_status and browser_build_geometry_package using disabled-by-default browser module converter configuration;",
+         "depth": 0
+        },
+        {
+         "text": "REST-owned onshape_export_step with a bounded asynchronous dry-run/replay contract, resumable translation IDs, no implicit polling retry, module-owned staging, and persisted step-manifest.json;",
+         "depth": 0
+        },
+        {
+         "text": "REST-owned onshape_geometry_status and onshape_build_geometry_package wrappers using only module-owned converter configuration. The default config is disabled and actual execution fails closed until an operator selects a pinned executable.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Optional future non-Bambu work:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "add a validated wall-thickness backend instead of reporting unknown;",
+         "depth": 0
+        },
+        {
+         "text": "field-validate REST STEP acquisition only if a separately approved live REST request is justified. The current REST transport remains mock/replay verified to preserve the zero-REST regression boundary.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Deferred by explicit scope: the version-bound Bambu Studio metrics parser, production slicer integration, and slicer-owning MCP tools."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Windows and WSL execution",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The field-validated non-Bambu converter runs C:\\Windows\\System32\\wsl.exe with fixed argv to the adjacent CadQ Python environment. The CLI maps Windows staging paths to /mnt/<drive> deterministically, and CommandStepConverter sets Windows CREATE_NO_WINDOW; a human-observed rerun confirmed that no console window appeared."
+      },
+      {
+       "type": "para",
+       "text": "Bambu Studio is a Windows application. Production browser/REST tools normally run inside the persistent Windows MCP Engine and use NativeWindowsExecution."
+      },
+      {
+       "type": "para",
+       "text": "Direct WSL use is supported through WslWindowsExecution only when every executable/input/profile/output path lives under /mnt/<drive>/.... The adapter invokes the Windows executable through WSL interop and converts artifact arguments to C:\\... style paths. It rejects /home/... paths because the Windows process cannot safely share the same artifact contract there."
+      },
+      {
+       "type": "para",
+       "text": "ReplayExecution exists only for offline fixtures. Its metadata explicitly says production: false; it must not be used as evidence that Bambu Studio is installed or functional."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Artifact exchange back to the agent workspace",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The agent workspace normally lives under WSL /home/...; Bambu Studio must not consume that path directly. The package therefore uses two phases:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Windows Engine performs STEP conversion, analysis, and slicing in a Windows local staging directory.",
+         "depth": 0
+        },
+        {
+         "text": "After manifest.json is complete, WindowsToWslDelivery maps the configured WSL destination to \\\\wsl.localhost\\\\<distro>\\\\..., copies the whole package, and re-verifies every manifest artifact's byte count and SHA.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "When the library is invoked directly from WSL, WslLocalDelivery copies from the /mnt/<drive> staging directory into the WSL workspace and applies the same verification. Manifest artifact paths are relative, so Windows staging paths do not leak into final workspace paths."
+      },
+      {
+       "type": "para",
+       "text": "WorkspaceDeliveryTarget.allowed_workspace_root is a configured boundary, not a caller-granted permission. Destinations outside that root, traversal paths, existing output directories, invalid distro names, missing artifacts, and SHA mismatches fail closed."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "FDM conclusion boundary",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "A package can be structurally complete while its FDM assessment remains unknown. The report requires both geometry and slicer metrics. Even when all metrics exist, pass stays null until a reviewed printer/material/process threshold policy exists. Persisting files is not sufficient evidence of printability."
       }
      ]
     }
@@ -1501,7 +1874,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "410c829407a189db8735515ba4de1ce442cf65b7d79c89ae6880b6be37d7c4db",
+   "sha256": "f09de9ba788a9ce073ae0a952791f5e18b9763fb77a1db98b0037ad076f5627f",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -1522,11 +1895,11 @@
        "type": "list",
        "items": [
         {
-         "text": "浏览器只在 Windows 上跑，Linux 只跑 mcp_main/wsl/facade/mcp_tcp_bridge.py 做 stdio↔TCP 中继。",
+         "text": "普通 MCP 与浏览器运行在同一宿主（当前实测宿主为 Windows）；跨宿主客户端通过独立安装的 win-wsl-mcp-bridge 连接。",
          "depth": 0
         },
         {
-         "text": "Windows 常驻 mcp_main/win/bridge/bridge_server.py，进程内直接 dispatch MCP，不在每个连接拉起子进程。",
+         "text": "项目源码入口是 python -m mcp_main.win.mcp。共享桥若需要跨客户端重连保持会话，必须在其自身生命周期契约中保持同一 MCP 进程并禁止 profile 多 owner；本仓库不再实现 relay/listener。",
          "depth": 0
         },
         {
@@ -1646,6 +2019,77 @@
     },
     {
      "level": 3,
+     "title": "3.1 六级语义发现约定",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "六级语义只帮助发现和选型，不授予执行权限，也不要求每个工具必须标级："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "L1/L2 分别是通用浏览器原语和通用浏览器事务；",
+         "depth": 0
+        },
+        {
+         "text": "L3 是不声明领域成功的 Onshape 准备、诊断或恢复交互；",
+         "depth": 0
+        },
+        {
+         "text": "L4 是一个完整且已验证的 Onshape 事务或观察；",
+         "depth": 0
+        },
+        {
+         "text": "L5 是多个独立 L4 组成的工作流；",
+         "depth": 0
+        },
+        {
+         "text": "L6 是带最终验收、manifest 和 provenance 的独立成果；",
+         "depth": 0
+        },
+        {
+         "text": "Project 是一个或多个 L6 的控制平面，不属于 L1-L6。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "普通发现按 L5 workflow → L4 verified transaction/observation → L2 generic transaction → L6 deliverable recipe 排序。这样先复用完成的多事务能力，只有明确需要 独立 artifact/manifest/retry 边界时才选择 L6。L1/L3 为减少 普通上下文默认不暴露，但并非隐藏知识：开发、异常恢复或人工辅助需要时调用 browser_discover_tools 并显式传 semantic_levels=[\"L1\"] 或 semantic_levels=[\"L3\"]，再通过 browser_invoke_discovered 按返回 schema 调用；不 要求额外 intent 参数。gateway 不绕过确认、成本或 handler 验收。未分类工具继续 有效并默认可见；ONSHAPE_MCP_TOOL_EXPOSURE=static 保留完整列表兼容模式。当前审阅 元数据和非阻断 lint 在 onshape_browser_mode/semantics.py。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "3.2 连接级动态展示约定",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "mcp_tool_view 的 profile/semantic-level 只缩小当前连接返回的 tools/list，不修改 完整 registry，不拒绝已知工具名，也不改变确认、quota、pacing 或验收门。正确流程是： Operator 以 ONSHAPE_MCP_TOOL_EXPOSURE=dynamic 启动；client 在 initialize 中确认 tools.listChanged=true；agent 先 status，再 set；client 收到 notifications/tools/list_changed 后重新请求并替换 tools/list，不能在旧列表上追加。 reset 回到该连接启动时的 profile；重新连接创建独立的新 view。"
+      },
+      {
+       "type": "para",
+       "text": "窄化 browser semantic levels 时必须常驻 browser_session、 browser_discover_tools 和 browser_invoke_discovered，否则 agent 难以观察、继续发现或 恢复视图。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用 固定 semantic/profile 或 discovery gateway，不要把“未展示”解释为“禁止”。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "3.3 跨模块工具目录约定",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "mcp_tool_catalog 是 MCP capability 的统一 lookup-first 入口，不受当前 view 限制。 索引只在完整 registry 安装和 cost metadata 补全后构建一次；所有连接共享同一 immutable index，仅 visibleInCurrentView 按连接计算。使用顺序固定为 status → bounded search → exact describe → normal call。search 默认 8、上限 12，描述截断且绝不含 inputSchema；只有 exact-name describe 返回完整 schema/cost/annotations。"
+      },
+      {
+       "type": "para",
+       "text": "自由文本只索引名称、描述、module 和 browser semantic name。profile/network/mutating/ semantic level 必须作为结构化过滤器，尤其不能把 profile 名加入全文 token，否则属于每个 profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓存目录结果；fingerprint 变化时失效。目录命中、当前可见和可按已知名调用都只是发现事实，不是授权事实。"
+      }
+     ]
+    },
+    {
+     "level": 3,
      "title": "4.1 「我所有的文档」页（Documents）",
      "blocks": [
       {
@@ -1751,11 +2195,23 @@
          "depth": 1
         },
         {
+         "text": "编译状态由 Ace editor.session.getAnnotations() 读取；browser_get_fs_compile_status 归一化为 compiled/errors/annotationCount。部署只有在提交按钮从 enabled 变为 disabled、源码精确回读且注解为空时才返回 deployed:true。",
+         "depth": 1
+        },
+        {
+         "text": "Module outline 展开后使用 .top-level-symbols-dropdown / .top-level-symbol-list / .top-level-symbol-item；名称和图标分别是 .top-level-symbol-name 与 .top-level-symbol-icon。实测 C、ƒ、Φ 分别表示 const、function、feature。 browser_get_fs_symbols 保留 displayName/rawIcon 并返回归一化 kind/name； 原始证据见 dev/button-map/scan-fs-module-outline.json。",
+         "depth": 1
+        },
+        {
+         "text": "Ace 右键菜单实测为 粘贴 / 转至定义 / 插入代码段；插入代码段 直接修改源码，没有另开对话框。Ace 同时暴露 fold / unfold / toggleFoldWidget 命令，.ace_fold-widget 的开放状态类为 ace_start ace_open。探测插入已立即撤消，浏览器源码长度和 FNV-1a 与 fixture 完全一致；证据在 dev/button-map/scan-fs-editor.json。",
+         "depth": 1
+        },
+        {
          "text": "FeatureScript 悬浮文档：.os-feature-script-doc-popup-layer（当前显示 LengthBoundSpec type A spec to be used with the isLength pre...）。",
          "depth": 0
         },
         {
-         "text": "每个标签都有「监控 / 配置文件」菜单：.os-menu-tool（文本形如 监控 Cable trophy model v1）。",
+         "text": "监控/配置 split control：可见根为 .watch-part-studio-menu，下拉箭头是 .os-toolgroup-open-button，当前目标在 .os-tool-command-name；下拉选项才使用 .os-tool-dropdown-content .os-menu-tool（文本形如 监控 PS-PartA-wall / 配置文件 PS-PartA-wall）。",
          "depth": 0
         }
        ]
@@ -1962,6 +2418,10 @@
          "depth": 0
         },
         {
+         "text": "实测残留的 #context-menu-layer 即使没有菜单项也可能覆盖标签并拦截真实点击； 高层标签事务应先检查其 pointer-events 与可见尺寸，仅在确实阻塞时发送一次 Escape，再执行标签点击。不要在任意普通点击前无条件发送 Escape，否则会关闭 调用方正在操作的对话框。",
+         "depth": 0
+        },
+        {
          "text": "右键上下文菜单：ul.context-menu-list.context-menu-root 下 li.context-menu-item，文本为 删除 / 重命名 / 属性… / 在新浏览器页签中打开。",
          "depth": 0
         },
@@ -1979,6 +2439,22 @@
         },
         {
          "text": "删除/重命名都是 0 REST 配额的 UI 写操作，仍需 confirm_mutation=true。",
+         "depth": 0
+        },
+        {
+         "text": "dev/button-map/scan-app-shell.json 证明 Part Studio 标签和 part row 的右键菜单都出现 导出…。登录恢复后又实测了 Part Studio export dialog：根节点 .modal.export-dialog；文件名 #export-filename-input；格式 #export-format-dropdown；STEP 版本 #step-export-version-dropdown；自定义单位 checkbox #custom-step-units-checkbox；单位 selector [ng-model='options.stepExportUnit']；下载方式 #export-options-dropdown；单独文件 [ng-model='download.shouldExportPartsAsIndividualFiles']；隐藏实例 #export-hidden-entities-checkbox。可稳定选择 STEP/AP242/Millimeter/下载，并取消对话框。",
+         "depth": 0
+        },
+        {
+         "text": "browser_export_step 使用上述 live-observed selector，先激活并核对 URL 中的 document/workspace/element IDs，再要求单一非 ZIP .step/.stp download，保存到 browser-owned staging 并写 SHA/provenance manifest。一次显式授权的真实提交已验证 AP242/Millimeter/直接下载，得到 34,084-byte STEP 且独立 SHA 复算一致。",
+         "depth": 0
+        },
+        {
+         "text": "Windows browser owning mode 启动 wsl.exe/converter CLI 时不得显示 console； CommandStepConverter 在 Windows 固定传 CREATE_NO_WINDOW。首次 CadQ field run 暴露 了可见 CMD 窗口并形成此要求，后续 CLI backend 必须保留 windowless 断言。",
+         "depth": 0
+        },
+        {
+         "text": "Geometry dependency 复用顺序固定为 explicit config → repo 上级目录的 sibling venv → global Python PATH → Windows/WSL 对端的 sibling/global 环境。扫描有目录、 distro 和 timeout 上限；公开结果只含 opaque candidateId、来源和版本，不含 executable/ argv。configure 工具必须重新扫描 candidate，不能接受调用方路径。若没有 candidate， status 返回 ask_before_install + requiresUserConfirmation=true；agent 必须询问用户， 不得自动安装。",
          "depth": 0
         }
        ]
@@ -2095,6 +2571,10 @@
         {
          "text": "装配工具要求显式 instance_selector，选择和验证不得退回整页文本。2026-08-21 的 只读 DOM 扫描确认实例行 selector 为 .ns-tree-root .ns-assembly-instance-row.is-instance；插入 dialog 行也经只读扫描确认。source_names 表示 dialog 中的 Part Studio 标签，instance_names 表示插入后树中的预期零件实例名，两者按索引对应，证据在 dev/button-map/scan-assembly-instances.json；固定/分组在当前 DOM 只能确认动作已触发，返回 verification: action-triggered。尺寸工具支持 DOM selector count 增量，或 Drawing canvas 的按键 + 相对坐标操作并比较前后 screenshot SHA-256；只有对应读回条件满足时，高层工具才返回 assembled:true / drawn:true。",
          "depth": 0
+        },
+        {
+         "text": "2026-08-25 的 app-shell / Drawing 只读扫描记录在 dev/button-map/scan-app-shell.json。Drawing 的实际四视图位于 canvas 内，DOM view selector 返回 0；browser_drawing_insert_views 因此还要求恰好一个新 tab， 并解码 main-canvas PNG，排除图框/标题栏后检查主体墨迹比例和空间集中度。 实测 1240×694 fixture 中有四个投影视图，证据图为 dev/button-map/scan-drawing-four-views.png。不可见的 preview/drawer 候选仍标记 unverified，读取工具返回结构化 absence/unknown。",
+         "depth": 0
         }
        ]
       }
@@ -2106,7 +2586,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "d584d934f93d93f1c76fb4166d38d16087ec27ac4db9531ba1918a4c5b868400",
+   "sha256": "5b1c82b3a121097ac8f312b1cc011284a4f28b6364ff15a44b188e6ae92776f0",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -2467,11 +2947,11 @@
          "depth": 0
         },
         {
-         "text": "工程图标签或跨域 iframe 出现只证明容器已创建，主页面 svg 数量不能证明 工程视图或尺寸已生成。DrawingPage 与 frame-aware 通用工具现在可进入 production-drawing-* iframe；browser_draw_part 只有在 frame 可读且全部配置尺寸操作 成功且 verification_selector 节点数增加，或 canvas 坐标模式的前后截图 SHA-256 发生变化时才返回 drawn:true。canvas 模式通过 tool_key、canvas_index、 geometry_points 与 placement_point 配置，不依赖 Drawing 内部动态 id。",
+         "text": "工程图标签或跨域 iframe 出现只证明容器已创建，主页面 svg 数量不能证明 工程视图或尺寸已生成。DrawingPage 与 frame-aware 通用工具可进入 production-drawing-* iframe；旧 browser_draw_part 现要求至少一个尺寸并验证 每个尺寸，空列表不再因 all([]) 误报成功。",
          "depth": 0
         },
         {
-         "text": "实测修正（2026-08-24）：通用「创建工程图…」对话框只会得到空白图纸。 它（.new-drawing-dialog）有 四个视图 / 没有视图 两个视图布局按钮，但当前 browser_create_drawing 从不选择视图布局，默认落在「没有视图」→ 创建后 Sheet 为空。带自动视图的工程图必须从 Part Studio 的特定零件右键菜单创建 （右键零件 → 创建工程图），而不是通用创建对话框。跨域 Drawing iframe 里 Wt-popup.XeDialog.modal（插入视图）需先在源里选零件再点图纸放置，才算真正 生成视图；dispatchEvent 合成的鼠标事件不被 Onshape 接受，必须走 Playwright 可信点击。该缺口已记录到 docs/roadmap/BROWSER_MODELING_GAPS.md（L2 工具 browser_drawing_insert_views）。",
+         "text": "实测修正（2026-08-25）：通用「创建工程图…」路径可能得到空白图纸。自动视图应 从 Part Studio 的精确零件行右键菜单 创建 <name> 的工程图… 进入。 browser_drawing_insert_views 选择 four / single / iso 语义布局，要求恰好 一个新 drawing tab，并用 Drawing DOM 或 main-canvas PNG 墨迹分布验证视图。 当前 Drawing DOM 没有可靠 view 节点，实际四视图的 1240×694 canvas 已经视觉确认； 原图、SHA 和像素指标在 dev/button-map/scan-app-shell.json / scan-drawing-four-views.png。browser_draw_part_with_views 在此基础上再添加尺寸， 任一阶段失败即 drawn:false。",
          "depth": 0
         }
        ]
@@ -2486,15 +2966,50 @@
        "type": "list",
        "items": [
         {
-         "text": "browser_deploy_and_apply_featurescript 把“确保 FS/PS → 提交 → 可选建版本 → 应用 → 读取零件”固化为一个高级事务，输出标准化 {parts, partNames}。",
+         "text": "browser_deploy_and_apply_featurescript 把“确保 FS/PS → 提交 → 可选建版本 → 应用 → 读取零件”固化为一个 L5 工作流，输出标准化 {parts, partNames}；它本身没有具体设计 规格、最终成果验收和 manifest，因此不自动升级为 L6。",
          "depth": 0
         },
         {
-         "text": "browser_run_project 从 dev/fixtures-capture/<project>.json 串行执行，不接受任意文件 路径；每步写本地 checkpoint。失败后 resume=true 只继续 pending 步骤，避免再次建文档。",
+         "text": "browser_run_project 从 dev/fixtures-capture/<project>.json 串行执行，不接受任意文件 路径；每步写本地 checkpoint。失败后 resume=true 只继续 pending 步骤，避免再次建文档。 它属于 Project 控制平面而不是 L6；未来项目由一个或多个独立验收的 L6 成果组成。 允许工具仍是闭集，但已覆盖新增 L3-L5；每个工具绑定自己的 outcome key，未知或缺失 outcome 不再默认成功。只给实际写工具注入 confirm_mutation=true。",
          "depth": 0
         },
         {
-         "text": "module-interface-verification 固定执行 6 步：建文档、建 rail/groove 两零件、装配、 两张工程图；最终断言两侧零件数、装配状态和两个 drawing frame 状态。",
+         "text": "Project schema v2 将 setup 与 deliverables[] 分开。成果节点使用 depends_on 构成无环 DAG；每个节点必须有非空步骤、最终 assertions 和 outputs。 节点验收后 checkpoint 写入 completedDeliverables 以及独立 manifest，其中记录 semanticLevel:L6、fixture SHA、依赖、断言、media type、来源 step/key 和实际远程或 本地成果引用。旧 v1 平面 fixture 保持兼容。",
+         "depth": 0
+        },
+        {
+         "text": "module-interface-deliverables 是多 L6 fixture：两个 Part Studio 成果、一个依赖两者的 Assembly 成果和两张分别依赖零件的 Drawing 成果。",
+         "depth": 0
+        },
+        {
+         "text": "module-interface-verification 固定执行 6 步：建文档、建 rail/groove 两零件、装配、 两张工程图；两个 drawing 步骤使用 browser_draw_part_with_views，最终断言零件数、 装配状态和非空视图验收。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "12. FDM 分析边界修正",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Onshape 拔模分析 是制造角度可视化，不是 FDM 打印朝向分析。它不能单独证明床面 接触、支撑、桥接、重心稳定性、打印高度、层间强度、构建体积或 Bambu Studio profile 下的切片结果。",
+         "depth": 0
+        },
+        {
+         "text": "当前 browser_print_orientation_check 只会得到 assessable:false / risk:\"unknown\"，六级 catalog 已将其标为 semantically_invalid 并默认隐藏；依赖它的 browser_print_optimize_part 同样不能作为有效 FDM 工作流。",
+         "depth": 0
+        },
+        {
+         "text": "正确边界是：浏览器或 REST 模式各自导出规范 STEP 并构造相同 artifact contract；根级 共享 fdm_analysis 库负责显式 STEP tessellation、网格指标、Bambu Studio 切片、报告 和 manifest。共享库本身不是 MCP 语义工具。",
+         "depth": 0
+        },
+        {
+         "text": "一个明确朝向的模式包装器是 L4，多朝向排序/临时完整分析是 L5，包含 STEP、网格、 3MF、报告和 manifest 的正式成果包是 L6。",
          "depth": 0
         }
        ]
@@ -2507,7 +3022,7 @@
    "page": "verification",
    "category": "verification",
    "path": "onshape_docs/verification/README.md",
-   "sha256": "992489f32f0defb52e1a5248b0df8dc5fca90eaa5e04c83578280df801c2b603",
+   "sha256": "696958c4da9df87e1d2dfbf83fc572d3d957945aec70f2d1ad43c5ba3f702c1b",
    "title": "Documentation verification",
    "sections": [
     {
@@ -2538,6 +3053,10 @@
         [
          "report.json",
          "Latest run: every check's pass/fail + corpus statistics + known official gaps."
+        ],
+        [
+         "browser-tools-2026-08-25.md",
+         "Developer/tester/field-evaluator evidence and explicit live-validation boundaries for the 22 promoted browser tools."
         ],
         [
          "live/",
@@ -2642,6 +3161,354 @@
       {
        "type": "para",
        "text": "report.json, live manifests, and experiment files remain evidence and are not loaded as general guidance."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "browser-tools-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/browser-tools-2026-08-25.md",
+   "sha256": "5527a85578b93c783eed8b220927cf4fbf85973e3600bf79f2f3d3ff04810af0",
+   "title": "Browser planned-tool implementation verification (2026-08-25)",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Browser planned-tool implementation verification (2026-08-25)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This record covers the 22 browser tools promoted from docs/roadmap/BROWSER_PLANNED_TOOLS.md. The Developer, Tester, and Field-Evaluator responsibilities are reported separately so registration is not mistaken for live domain acceptance."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Scope and safety",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Onshape REST requests during this work: 0. LIVE_API_ENABLED remained unset. The account UI later reported 742 / 2500 used; the repository's apiQuota.alreadyConsumed baseline was synchronized to 742. That historical account usage is separate from this run's zero-call ledger.",
+         "depth": 0
+        },
+        {
+         "text": "Browser target: module-interface-verification in the persistent Windows browser session.",
+         "depth": 0
+        },
+        {
+         "text": "Cloud-mutating smoke: not executed without a separate explicit mutation authorization. Dry-run and confirmation gates were verified offline.",
+         "depth": 0
+        },
+        {
+         "text": "One FS 插入代码段 evidence click changed the editor draft. It was immediately undone; the browser source and maintained fixture both measured 10284 bytes and FNV-1a 7093403a, proving exact restoration.",
+         "depth": 0
+        },
+        {
+         "text": "Six-level/STEP/geometry/project-v2/dynamic-view/catalog/redundancy offline regression: 299/299 tests passed.",
+         "depth": 0
+        },
+        {
+         "text": "Documentation verification: 17/17 checks passed; generated tool reference and docs index are current.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Implementation verification",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Surface",
+         "Evidence",
+         "Result"
+        ],
+        [
+         "Complete MCP registry",
+         "promoted browser definitions, semantic/dynamic gateways, bounded REST/browser STEP export, browser/REST geometry wrappers, opaque-candidate configure tools, connection tool-view control, and universal catalog; total registry count 104, no duplicate names",
+         "pass"
+        ],
+        [
+         "Safety metadata",
+         "zero REST cost; write schemas expose pure dry_run and confirm_mutation; UI/read transactions omit cloud confirmation",
+         "pass"
+        ],
+        [
+         "FeatureScript editor",
+         "live Module outline, exact context-menu items, Ace fold commands/widgets, toolbar Length parameter",
+         "pass (read-only evidence)"
+        ],
+        [
+         "App shell",
+         "live document/panel/notification/share/view-cube selectors; exact share dialog",
+         "pass for observed surfaces"
+        ],
+        [
+         "Drawing views",
+         "live 1240x694 main-canvas screenshot visually contains four projected views; decoded PNG metrics exceed view thresholds",
+         "pass (read-only fixture)"
+        ],
+        [
+         "Print reports",
+         "tests prove unknown/unassessable and sampled/global distinctions; later six-level review marks draft-based FDM orientation semantically invalid",
+         "bounded legacy behavior passes offline; not a valid FDM engine"
+        ],
+        [
+         "Blend and parameter edit",
+         "exact history/persistence/error acceptance paths, unit/identifier validation, dry-run/confirmation",
+         "pass offline; live mutation not run"
+        ],
+        [
+         "Spiral ridge",
+         "bounded numeric schema; generated cylinder + helix + sweep + union FeatureScript passes local structural checks",
+         "pass offline; deploy/apply not run"
+        ],
+        [
+         "Project control",
+         "per-tool outcome keys, closed allowlist, checkpoint/resume; drawing steps require view-bearing workflow",
+         "pass offline; no longer classified as an L6 deliverable"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Six-level and FDM follow-up",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Surface",
+         "Evidence",
+         "Result"
+        ],
+        [
+         "Optional semantic catalog and gateway",
+         "all 66 browser tools classified; semantic default exposes 42 browser tools (80 total with non-browser/control tools), explicit L1 8, explicit L3 12; static mode exposes all 104; ordinary ranking L5→L4→L2→L6; dependency/cycle lint empty",
+         "pass offline"
+        ],
+        [
+         "Universal tool catalog",
+         "one immutable 104-entry index after final registration; stable SHA-256 fingerprint; modules/profiles/levels/network/mutating/current-view filters; explicit confirmation modes and local/session side effects; exact/prefix/token ranking; search 8 default/12 max, summaries ≤180 chars and no schema; exact describe only",
+         "pass offline and Windows field: buildCount=1, indexed=registry=104, visible=80, fingerprint 024126fe8d4db56aa2c493c6b3321929f5328b5a5bd929b77dbe2b3c05f4b7d0; geometry status offline/session=false; quota module=rest; deprecated name deletion hidden"
+        ],
+        [
+         "Connection-scoped dynamic display",
+         "semantic/static/profile/dynamic modes; seven deterministic profiles; optional browser levels; response-before-list_changed ordering; no duplicate notification; reset/reconnect; independent connection state; hidden known-name call succeeds",
+         "pass offline and Windows field: semantic startup visible=80/listChanged=false; dynamic field ordering previously response→notification; geometry profile=11; conventionOnly=true, authorityChanged=false"
+        ],
+        [
+         "FDM fail-closed correction",
+         "compatibility orientation and optimize handlers make no browser action, do not open draft analysis, and do not attempt blend mutation",
+         "pass offline"
+        ],
+        [
+         "Project schema v2",
+         "legacy v1 retained; single and five-deliverable DAG fixtures produce independent L6 manifests/checkpoints",
+         "pass offline"
+        ],
+        [
+         "Shared FDM contracts",
+         "browser/REST adapters produce the same canonical STEP type; mock converter/analyzer/slicer produce report and SHA manifest",
+         "pass offline"
+        ],
+        [
+         "REST STEP transport",
+         "AP242 millimeter POST body, bounded no-retry polling, resumable translation ID, exact single external-data download, module-owned staging, MCP dry-run and max cost",
+         "pass mock/replay; zero live requests"
+        ],
+        [
+         "Browser STEP transport",
+         "live-observed export dialog selectors/options; explicit URL ID match; STEP/AP242/Millimeter/direct-download configuration; non-ZIP download acceptance and browser provenance manifest",
+         "pass live: 34,084-byte STEP, SHA 2bd707bcea4666d1b7775e7c40ffc9f1d97a777f828b968905900b471711ebd3"
+        ],
+        [
+         "Browser geometry owning wrapper",
+         "persisted browser STEP manifest/SHA rechecked; adjacent CadQuery 2.8.0/OCP 7.9.3.1 selected through fixed WSL argv; Project v2 builds accepted L6 package",
+         "pass live-local: watertight 98-triangle STL and complete geometry metrics; zero REST"
+        ],
+        [
+         "Bambu/artifact protocol infrastructure",
+         "Windows-native and WSL interop adapters share command specification; Windows-local staging, WSL /mnt/<drive> mapping, UNC/local workspace delivery, allow-root, and post-copy SHA verification tested",
+         "offline protocol/replay evidence only; Windows Bambu development excluded"
+        ],
+        [
+         "Non-slicer geometry backend",
+         "dependency-free ASCII/binary STL fixtures verify water-tight edge counting, dimensions, print height, bed contact, downward-face area, volume and COM stability; wall thickness remains unknown",
+         "pass offline"
+        ],
+        [
+         "Geometry L6 recipe",
+         "canonical STEP + normalized STL + JSON/Markdown report + relative SHA manifest; unavailable/escaping converter and secret provenance fail closed",
+         "pass offline with deterministic converter fixture"
+        ],
+        [
+         "REST geometry owning wrapper",
+         "persisted STEP manifest/SHA is rechecked; disabled module config reports unavailable; configured subprocess fixture builds REST-owned L6; MCP can select only translation ID",
+         "pass offline; default production config disabled"
+        ],
+        [
+         "Generic STEP converter adapter",
+         "real subprocess fixture verifies argv/no-shell execution, paths with spaces, pinned version, timeout/exit failure, missing executable, unsupported placeholders, STL parse, triangle count, and Windows CREATE_NO_WINDOW",
+         "pass offline plus CadQ field run; human confirmed no console window on rerun"
+        ],
+        [
+         "Active production STEP backend",
+         "adjacent CadQ virtualenv: CadQuery 2.8.0 / OCP 7.9.3.1 via Windows wsl.exe --exec, 0.05 mm / 5 deg tessellation",
+         "pass live-local; committed configs remain disabled by default"
+        ],
+        [
+         "Dependency reuse and install boundary",
+         "bounded explicit→sibling venv→global Python→Windows/WSL scan; preserves venv launcher symlinks; importlib metadata probe; standalone path bootstrap; opaque candidate IDs; re-scan-on-configure; structured ask_before_install when empty",
+         "pass offline; real WSL sibling CadQ candidate found locally and from Windows REST status; automaticInstall=false"
+        ],
+        [
+         "Deferred slicer backend",
+         "Bambu Studio execution and sliced-metrics parser",
+         "excluded until explicitly resumed on an installed/pinned environment"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Redundancy and contract-integrity follow-up",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "A complete 104-tool mechanical and semantic audit found no duplicate names, missing/orphan handlers, same-callable aliases, unreachable tools, or invalid JSON Schemas. The identical no-argument schemas and the fix/group, snippet/parameter, browser/REST geometry, and domain-search pairs remain distinct contracts. L4/L5/L6 composition and project control are intentional layering."
+      },
+      {
+       "type": "para",
+       "text": "The audit did find contract overlap and metadata drift, which was corrected:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_delete_tab is now a default-hidden deprecated exact-name wrapper over the same exact data-id deletion core as browser_delete_element; partial and ambiguous names fail before mutation.",
+         "depth": 0
+        },
+        {
+         "text": "browser_draw_part is default-hidden and rejects empty dimensions before any browser action. browser_drawing_insert_views owns views-only requests, while browser_draw_part_with_views requires one or more dimensions.",
+         "depth": 0
+        },
+        {
+         "text": "Public browser_create_tab no longer accepts Drawing, whose pending dialog was nonterminal; browser_create_drawing owns the completed L4 transaction.",
+         "depth": 0
+        },
+        {
+         "text": "Browser geometry readiness/configuration/package metadata is offline and does not require a browser session; readiness is a boundary observation, not L4.",
+         "depth": 0
+        },
+        {
+         "text": "Confirmation metadata now distinguishes schema requirement, real-call requirement, conditional dry-run confirmation, and eval budget override. Six non-dry-run browser cloud mutators require confirm_mutation in JSON Schema.",
+         "depth": 0
+        },
+        {
+         "text": "Persistent local/session effects are explicit in catalog sideEffects. Screenshot dry-run no longer creates a directory, and filename traversal is rejected.",
+         "depth": 0
+        },
+        {
+         "text": "onshape_api_quota is correctly classified as a REST operation rather than a documentation/reference tool. Recorder actions are defined and documented in one final schema.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The authoritative planned-tool registry was checked again after these fixes and still contains no unimplemented rows. The audit produced refinements to existing contracts, not new tool requirements."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Persisted field evidence",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "dev/button-map/scan-fs-module-outline.json: symbol inventory and glyph kinds.",
+         "depth": 0
+        },
+        {
+         "text": "dev/button-map/scan-fs-editor.json: context menu, fold commands/widgets, Length parameter toolbar item, and source-restoration proof.",
+         "depth": 0
+        },
+        {
+         "text": "dev/button-map/scan-app-shell.json: shell selectors, share dialog, notification count, Drawing frame observations, and limitations.",
+         "depth": 0
+        },
+        {
+         "text": "dev/button-map/scan-drawing-four-views.png: raw four-view Drawing canvas.",
+         "depth": 0
+        },
+        {
+         "text": "dev/tests/test_browser_planned_tools.py: focused schema, safety, acceptance, pixel, project, and generated-FeatureScript tests.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Acceptance boundaries",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_read_selection_preview and notification-drawer selectors were not visible in the inspected state. The evidence file labels them unverified and the readers return structured absence instead of synthesizing content.",
+         "depth": 0
+        },
+        {
+         "text": "browser_view_orientation can read the cube state and verify a visual state change for standard orientation actions; it does not claim a semantic camera label unavailable from the DOM.",
+         "depth": 0
+        },
+        {
+         "text": "Wall thickness is sampled evidence, never a global minimum.",
+         "depth": 0
+        },
+        {
+         "text": "Browser STEP export: after human login restoration, PS-PartA-wall export dialog was opened and its stable selectors/options captured. One explicitly approved submission then produced field_export_20260825.step as a direct, single, non-ZIP AP242 millimeter download. The 34,084-byte artifact and persisted browser provenance manifest independently recomputed the same SHA-256.",
+         "depth": 0
+        },
+        {
+         "text": "The accepted browser L6 geometry package used CadQuery 2.8.0 / OCP 7.9.3.1, produced a 4,984-byte STL (a3486ec5…96d), 98 triangles, watertight=true, dimensions 40.0 x 4.7 x 40.0 mm, volume 6,271.107 mm³, and complete non-wall geometry metrics. pass remains null because no threshold policy is defined; wall thickness remains null because that backend is unavailable.",
+         "depth": 0
+        },
+        {
+         "text": "Print orientation remains unknown, but the stronger six-level conclusion is that the draft-analysis implementation is not an FDM orientation engine at all. It is cataloged semantically_invalid and default-hidden pending the shared STEP/converter/Bambu replacement.",
+         "depth": 0
+        },
+        {
+         "text": "Cloud-creating/editing operations still require a separately authorized Windows smoke before they can be called field-validated.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Verification commands",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "env -u LIVE_API_ENABLED PYTHONDONTWRITEBYTECODE=1 \\\n  python3 -m unittest discover -s dev/tests -v\npython3 onshape_docs/verification/verify_docs.py\npython3 onshape_docs/scripts/build_tool_reference.py --check\ngit diff --check"
       }
      ]
     }
@@ -3363,7 +4230,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "b1bfe344bf0a0e1d2fcddabdc9bc5a6c442ffa8133befa1eadb34e2e2fb7bf70",
+   "sha256": "61f3496086cfe97f110aa6ae67216dd9bbc4f8f9cd90ec758af0ac6f9c15dddc",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -3384,11 +4251,11 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 68",
+         "text": "Registered tools: 104",
          "depth": 0
         },
         {
-         "text": "Server: onshape-branch-cable-trophy 1.3.0",
+         "text": "Server: onshape-mcp 1.3.0",
          "depth": 0
         },
         {
@@ -3396,7 +4263,11 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=36, featurescript=10, project_docs=3, rest_operations=13, rest_reference=6",
+         "text": "Capability counts: browser=66, featurescript=10, other=2, project_docs=3, rest_operations=17, rest_reference=6",
+         "depth": 0
+        },
+        {
+         "text": "Browser semantic counts: L1=8, L2=6, L3=12, L4=27, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1",
          "depth": 0
         }
        ]
@@ -3429,6 +4300,10 @@
         {
          "text": "confirm=yes means the public schema exposes confirm_mutation; callers must still follow host approval.",
          "depth": 0
+        },
+        {
+         "text": "Browser semantic classification is optional discovery guidance; it is not a registration, permission, or execution gate.",
+         "depth": 0
         }
        ]
       }
@@ -3444,6 +4319,7 @@
         [
          "Tool",
          "Capability",
+         "Optional semantic classification",
          "Required arguments",
          "Registered safety/cost",
          "Intent"
@@ -3451,20 +4327,39 @@
         [
          "browser_add_drawing_dimension",
          "browser",
+         "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Run a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verify a selector-count or canvas-image change."
         ],
         [
+         "browser_apply_blend",
+         "browser",
+         "L4 onshape_transaction",
+         "targets, amount",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Apply a fillet, chamfer, or draft to semantic targets and require amount readback plus an exact new error-free history row."
+        ],
+        [
          "browser_assemble",
          "browser",
+         "L5 onshape_workflow",
          "instance_names, instance_selector",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state."
         ],
         [
+         "browser_build_geometry_package",
+         "browser",
+         "L6 deliverable_recipe",
+         "export_id",
+         "network=offline; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Build an offline L6 geometry-analysis package from one browser-owned STEP export manifest. The executable and argv come only from browser module configuration; MCP may select on..."
+        ],
+        [
          "browser_build_part",
          "browser",
+         "L5 onshape_workflow",
          "feature_name",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Ensure a Part Studio, apply a custom feature, and return normalized part count and names."
@@ -3472,6 +4367,7 @@
         [
          "browser_capture_screenshot",
          "browser",
+         "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=yes; confirm=no",
          "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; ze..."
@@ -3479,27 +4375,39 @@
         [
          "browser_click",
          "browser",
+         "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Click a visible element in the Onshape browser by CSS selector and/or visible text (optionally index to pick among matches). When both selector and text are given, the text ma..."
         ],
         [
+         "browser_configure_geometry_backend",
+         "browser",
+         "boundary_operation",
+         "candidate_id",
+         "network=offline; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Configure browser mode from one opaque candidate_id returned by browser_geometry_status. The candidate is re-discovered before writing, so callers cannot supply an executable or..."
+        ],
+        [
          "browser_create_document",
          "browser",
-         "-",
+         "L4 onshape_transaction",
+         "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
          "Create a new Onshape document through the browser UI (documents page → 创建 → 文档… → name → 创建). Zero Onshape API quota. This mutates the account by creating a document, so it requ..."
         ],
         [
          "browser_create_document_version",
          "browser",
-         "-",
+         "L4 onshape_transaction",
+         "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
          "Create a version of the current document through the browser UI so custom features become insertable (the add-custom-feature dialog shows '没有可用的特征' until a version exists). Clic..."
         ],
         [
          "browser_create_drawing",
          "browser",
+         "L4 onshape_transaction",
          "source_tab",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame."
@@ -3507,13 +4415,15 @@
         [
          "browser_create_tab",
          "browser",
-         "-",
+         "L4 onshape_transaction",
+         "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
-         "Start a Feature Studio, Part Studio, Assembly, or Drawing tab flow by clicking the matching hidden creation-menu item. Zero Onshape API quota. Adding a tab creates a document el..."
+         "Create a Feature Studio, Part Studio, or Assembly tab and verify that a new visible tab appears. Zero Onshape API quota. Adding a tab creates a document element, so confirm_muta..."
         ],
         [
          "browser_delete_element",
          "browser",
+         "L4 onshape_transaction",
          "element_id",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Delete a visible document element by its tab data-id and verify that the tab disappears."
@@ -3521,13 +4431,15 @@
         [
          "browser_delete_tab",
          "browser",
-         "-",
+         "L4 onshape_transaction",
+         "name, confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
-         "Delete a Feature Studio or Part Studio tab (and its element) from the current Onshape document by its visible name. Right-clicks the tab to open its context menu, clicks 删除, and..."
+         "Deprecated compatibility wrapper: resolve one exact unique visible tab name to its observed data-id, then execute the same exact-ID deletion core as browser_delete_element. Ambi..."
         ],
         [
          "browser_deploy_and_apply_featurescript",
          "browser",
+         "L5 onshape_workflow",
          "script, feature_name",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data."
@@ -3535,34 +4447,159 @@
         [
          "browser_deploy_featurescript",
          "browser",
+         "L4 onshape_transaction",
          "script",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document..."
         ],
         [
+         "browser_discover_tools",
+         "browser",
+         "L2 browser_transaction",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Search the optional six-level browser catalog. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact..."
+        ],
+        [
          "browser_draw_part",
          "browser",
-         "source_tab",
+         "L5 onshape_workflow",
+         "source_tab, dimensions",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
-         "Create a Drawing from a named source, add configured dimensions in its frame, and return frame/view state."
+         "Deprecated compatibility workflow: create a generic Drawing from a source tab and add one or more dimensions. It rejects empty dimensions before mutation; prefer browser_drawing..."
+        ],
+        [
+         "browser_draw_part_with_views",
+         "browser",
+         "L5 onshape_workflow",
+         "part_name, dimensions",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Create verified drawing views from a part, add one or more requested dimensions, and fail if any stage lacks acceptance evidence. Use browser_drawing_insert_views when dimension..."
+        ],
+        [
+         "browser_drawing_insert_views",
+         "browser",
+         "L5 onshape_workflow",
+         "part_name",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Create a drawing from an exact Part Studio part row, select a semantic view layout, and require drawing-view geometry evidence."
+        ],
+        [
+         "browser_duplicate_element",
+         "browser",
+         "L4 onshape_transaction",
+         "element_id",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Duplicate an id-addressed document element through its exact context-menu command and verify exactly one new tab id."
+        ],
+        [
+         "browser_edit_feature_parameters",
+         "browser",
+         "L4 onshape_transaction",
+         "feature_name, parameters",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Open a custom feature dialog, update named scalar fields, verify readback and persistence, accept, and require an error-free feature row."
+        ],
+        [
+         "browser_element_context_menu",
+         "browser",
+         "L3 onshape_interaction",
+         "element_id",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Open an id-addressed document-element tab context menu and return its visible item list."
         ],
         [
          "browser_eval",
          "browser",
+         "L1 browser_primitive",
          "expression",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Evaluate an arbitrary JavaScript expression in the current Onshape page and return its JSON-serializable result. page.evaluate cannot be guaranteed read-only, so actual executio..."
         ],
         [
+         "browser_export_step",
+         "browser",
+         "L4 onshape_transaction",
+         "source_tab, export_id, document_id, workspace_id, element_id",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP..."
+        ],
+        [
          "browser_fix_instances",
          "browser",
+         "L4 onshape_transaction",
          "instance_names, instance_selector",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Multi-select named Assembly instances and invoke the 固定 context action."
         ],
         [
+         "browser_fs_goto_definition",
+         "browser",
+         "L3 onshape_interaction",
+         "symbol",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Navigate to a named top-level FeatureScript definition through Module outline and return the verified Ace cursor target."
+        ],
+        [
+         "browser_fs_insert_parameter",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Insert the verified Length parameter template at an Ace position and verify the source delta plus Commit dirty state."
+        ],
+        [
+         "browser_fs_insert_snippet",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state."
+        ],
+        [
+         "browser_fs_toggle_fold",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Fold, unfold, or toggle a FeatureScript Ace fold and return the resulting folded ranges."
+        ],
+        [
+         "browser_fs_watch_part_studio",
+         "browser",
+         "L4 onshape_transaction",
+         "part_studio",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Select the exact watched/configured Part Studio through the Feature Studio toolbar dropdown and verify the toolbar readback."
+        ],
+        [
+         "browser_geometry_status",
+         "browser",
+         "boundary_observation",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Report browser-mode non-slicer geometry backend readiness without starting the browser or revealing executable paths. If the configured backend is unavailable, perform a bounded..."
+        ],
+        [
+         "browser_get_fs_compile_status",
+         "browser",
+         "L4 onshape_transaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read the active FeatureScript Ace annotations and report compiled status, normalized errors, and annotation count. Read-only and zero REST API quota."
+        ],
+        [
+         "browser_get_fs_symbols",
+         "browser",
+         "L4 onshape_transaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names. Read-only and zero REST API quota."
+        ],
+        [
          "browser_get_page_tabs",
          "browser",
+         "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), marking which one is active. Read-only, zero Onshape API quota. Use it to f..."
@@ -3570,6 +4607,7 @@
         [
          "browser_get_partstudio_features",
          "browser",
+         "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Read the Part Studio feature tree and part list currently on screen. Returns the feature-list header, each feature item (with isUserFeature/isDefault classification), and the pa..."
@@ -3577,6 +4615,7 @@
         [
          "browser_group_instances",
          "browser",
+         "L4 onshape_transaction",
          "instance_names, instance_selector",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Multi-select named Assembly instances and invoke the 分组 toolbar action."
@@ -3584,6 +4623,7 @@
         [
          "browser_insert_assembly_instances",
          "browser",
+         "L4 onshape_transaction",
          "instance_names, instance_selector",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Insert named Part Studio or Assembly sources through the Assembly insert dialog."
@@ -3591,20 +4631,47 @@
         [
          "browser_insert_custom_feature",
          "browser",
-         "-",
+         "L4 onshape_transaction",
+         "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
-         "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. Optionally switches to the given Part Studio tab first, opens t..."
+         "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. Optionally switches to the given Part Studio tab, opens the wor..."
         ],
         [
          "browser_inspect",
          "browser",
+         "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Read-only inventory of the visible interactive elements on the current Onshape browser page: links, buttons, inputs, menus, tabs, and anything with an aria-label / data-testid...."
         ],
         [
+         "browser_invoke_discovered",
+         "browser",
+         "L2 browser_transaction",
+         "name, arguments",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Invoke one browser tool returned by browser_discover_tools. Nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative; this gateway..."
+        ],
+        [
+         "browser_notifications_status",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read the notification badge count and optionally open and read the notification drawer."
+        ],
+        [
+         "browser_open_doc_menu",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Open the document-name menu, return its item inventory, and optionally trigger one exact command."
+        ],
+        [
          "browser_open_document",
          "browser",
+         "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Open a document from the Onshape documents list by its visible name. Read-only navigation: it goes to the documents list and clicks the matching document link, then returns the..."
@@ -3612,6 +4679,7 @@
         [
          "browser_open_insert_feature_dialog",
          "browser",
+         "L3 onshape_interaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Open the Part Studio '添加自定义特征' dialog through the browser UI so a follow-up browser_create_document_version call can click its '创建一个版本' prompt, or so the caller can inspect the..."
@@ -3619,20 +4687,47 @@
         [
          "browser_press_key",
          "browser",
+         "L1 browser_primitive",
          "key",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota."
         ],
         [
+         "browser_print_optimize_part",
+         "browser",
+         "L5 onshape_workflow",
+         "body_name, orientation, wall",
+         "network=offline; api_max=0; mutating=no; dry_run=yes; confirm=no",
+         "Deprecated compatibility workflow: validates inputs, then stops before browser/model mutation because its draft-based FDM orientation dependency is semantically invalid."
+        ],
+        [
+         "browser_print_orientation_check",
+         "browser",
+         "L4 onshape_transaction",
+         "body_name",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Deprecated compatibility result: returns semantically invalid/unassessable without a browser action because Onshape draft analysis is not an FDM orientation engine."
+        ],
+        [
          "browser_read_featurescript",
          "browser",
+         "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Read the FeatureScript source currently open in the browser's Ace editor and return it together with the document/workspace/element ids parsed from the page URL. Read-only, zero..."
         ],
         [
+         "browser_read_selection_preview",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read a visible left-panel selection or tab-preview card and return its text and labeled fields."
+        ],
+        [
          "browser_reconnect",
          "browser",
+         "L2 browser_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Detect the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') and click the reconnect link to restore the live session. Read-only session recovery — it does not creat..."
@@ -3640,6 +4735,7 @@
         [
          "browser_reload",
          "browser",
+         "L2 browser_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Attempt a bounded reload of the current browser page. Use this when an Onshape page (especially a Drawing) has been loading for too long. Zero REST API quota and no cloud-data m..."
@@ -3647,20 +4743,23 @@
         [
          "browser_rename_tab",
          "browser",
-         "-",
+         "L4 onshape_transaction",
+         "name, new_name, confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes",
          "Rename a Feature Studio or Part Studio tab in the current Onshape document by its visible name. Double-clicks the tab name to enter rename mode, fills the new name, and commits..."
         ],
         [
          "browser_run_project",
          "browser",
+         "project_control",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
-         "Execute a validated fixture-driven browser modeling project with per-step checkpoints and resume support."
+         "Execute a validated browser project with checkpoints and resume. Legacy v1 runs flat steps; v2 runs setup plus a DAG of one or more independently asserted L6 deliverables and re..."
         ],
         [
          "browser_scroll",
          "browser",
+         "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Scroll the current Onshape browser page up/down, either the whole window or a specific element matched by a CSS selector. Returns how far it actually scrolled plus the container..."
@@ -3668,37 +4767,90 @@
         [
          "browser_session",
          "browser",
+         "L2 browser_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Inspect or establish the persistent Onshape browser session used by the browser_* tools. action='status' reports whether Playwright is installed, the persistent profile director..."
         ],
         [
+         "browser_set_panel_filter",
+         "browser",
+         "L3 onshape_interaction",
+         "query",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Set the left document-panel filter and verify the trusted input value and visible tree count."
+        ],
+        [
+         "browser_share_document",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Open the document share dialog and return its visible text without changing permissions."
+        ],
+        [
+         "browser_spiral_ridge",
+         "browser",
+         "L5 onshape_workflow",
+         "base_radius_mm, pitch_mm, ridge_width_mm, ridge_height_mm, length_mm",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Generate bounded helix+sweep FeatureScript, deploy and apply it through the browser, and verify the resulting feature and part."
+        ],
+        [
          "browser_sync_rest_state",
          "browser",
+         "boundary_operation",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Explicitly cache browser-observed document/workspace/element ids in REST-owned local state. Performs local file I/O only and no REST request."
         ],
         [
+         "browser_toggle_left_panel",
+         "browser",
+         "L3 onshape_interaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Collapse, expand, or toggle the left panel through its splitter and verify the resulting width."
+        ],
+        [
          "browser_type",
          "browser",
+         "L1 browser_primitive",
          "text",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
          "Type text with trusted sequential keyboard events into a main-page or frame target. Zero REST API quota."
         ],
         [
+         "browser_view_orientation",
+         "browser",
+         "L4 onshape_transaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes."
+        ],
+        [
          "browser_wait",
          "browser",
+         "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota."
         ],
         [
+         "browser_wall_thickness_report",
+         "browser",
+         "L4 onshape_transaction",
+         "body_name, minimum_allowed_mm",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Read sampled browser measurements for a named body, report the minimum in millimeters, and never claim an unverified global minimum."
+        ],
+        [
          "browser_watch",
          "browser",
+         "L2 browser_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no",
-         "Record a human-operated Onshape browser session to learn what UI actions do, without spending Onshape API quota. action='start' opens the persistent browser and begins recording..."
+         "Record a human-operated Onshape browser session to learn what UI actions do, without spending Onshape API quota. start/status/stop/report manage and inspect the in-memory record..."
         ]
        ]
       }
@@ -3714,6 +4866,7 @@
         [
          "Tool",
          "Capability",
+         "Optional semantic classification",
          "Required arguments",
          "Registered safety/cost",
          "Intent"
@@ -3722,12 +4875,14 @@
          "fs_check_version",
          "featurescript",
          "-",
+         "-",
          "network=live; api_max=3; mutating=no; dry_run=no; confirm=no",
          "Verify the vendored FeatureScript reference version and warn when it may be behind the version you are coding against. Reports the vendored reference version (parsed from the st..."
         ],
         [
          "fs_get_function",
          "featurescript",
+         "-",
          "name",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return the full reference entry for one FeatureScript function: exact signature, every parameter with its type, requirement (Optional / Required), description and example, plus..."
@@ -3735,6 +4890,7 @@
         [
          "fs_get_type",
          "featurescript",
+         "-",
          "name",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, EntityType): its kind, description, and each allowed value with type and description..."
@@ -3742,6 +4898,7 @@
         [
          "fs_guide_section",
          "featurescript",
+         "-",
          "page",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return a section of the official FeatureScript language guide as plain text, with code blocks fenced. Omit 'section' to get the whole page plus its heading outline; pass a secti..."
@@ -3749,6 +4906,7 @@
         [
          "fs_library_source",
          "featurescript",
+         "-",
          "module",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return the actual FeatureScript standard library source for a module (for example 'geometry', 'query', 'sweep') from the vendored mirror. With 'function' set, returns only the w..."
@@ -3757,12 +4915,14 @@
          "fs_list_functions",
          "featurescript",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "List FeatureScript functions (or types/constants/predicates when kind is set), each with its module, signature, and one-line summary. Filter by module, category, kind, or a name..."
         ],
         [
          "fs_list_modules",
          "featurescript",
+         "-",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "List the FeatureScript standard library modules (geometry.fs, query.fs, sweep.fs, ...), grouped by the reference site's categories (Modeling, Math, Onshape features, Utilities,..."
@@ -3771,12 +4931,14 @@
          "fs_quick_reference",
          "featurescript",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return the curated FeatureScript quick-reference digest (onshape_docs/reference/quick-reference.md): a distilled cheat-sheet covering the language model, feature anatomy, parame..."
         ],
         [
          "fs_search",
          "featurescript",
+         "-",
          "query",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Keyword search across every FeatureScript function, type, constant, predicate, and language-guide section in the vendored reference. Results are ranked by how strongly the query..."
@@ -3784,9 +4946,45 @@
         [
          "fs_update_reference",
          "featurescript",
+         "-",
          "confirm_mutation",
          "network=offline; api_max=0; mutating=yes; dry_run=no; confirm=yes",
          "Update the vendored FeatureScript reference from FREE sources only - the official FsDoc pages and the standard-library mirror (both public HTTP/GitHub, ZERO Onshape API quota)...."
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Capability: other",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Tool",
+         "Capability",
+         "Optional semantic classification",
+         "Required arguments",
+         "Registered safety/cost",
+         "Intent"
+        ],
+        [
+         "mcp_tool_catalog",
+         "other",
+         "-",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Search and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never returns in..."
+        ],
+        [
+         "mcp_tool_view",
+         "other",
+         "-",
+         "-",
+         "network=offline; api_max=0; mutating=yes; dry_run=no; confirm=no",
+         "Inspect or change the current connection's tool-display view. This is a context-routing convention, not an authorization boundary: hidden known-name tools remain callable and al..."
         ]
        ]
       }
@@ -3802,6 +5000,7 @@
         [
          "Tool",
          "Capability",
+         "Optional semantic classification",
          "Required arguments",
          "Registered safety/cost",
          "Intent"
@@ -3810,12 +5009,14 @@
          "docs_list",
          "project_docs",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "List every page in the project's own structured documentation index (onshape_docs/index.json, built from categorized guide, experience, verification, reference, and example page..."
         ],
         [
          "docs_search",
          "project_docs",
+         "-",
          "query",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Keyword search across categorized guide, experience, verification, reference, and example sections. Results include category, page, section, score, and a bounded snippet. Use th..."
@@ -3823,6 +5024,7 @@
         [
          "docs_section",
          "project_docs",
+         "-",
          "page",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Read one exact section from the project's categorized guide, experience, verification, reference, or example documentation. Pass page=<page> and optionally section=<heading>. Ca..."
@@ -3841,6 +5043,7 @@
         [
          "Tool",
          "Capability",
+         "Optional semantic classification",
          "Required arguments",
          "Registered safety/cost",
          "Intent"
@@ -3849,12 +5052,22 @@
          "onshape_api_quota",
          "rest_operations",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Report the local API-quota budget: the annual call limit (from apiQuota in onshape_rest_api_mode/config/onshape-state.json), calls consumed so far (local ledger of 2xx/3xx respo..."
         ],
         [
+         "onshape_build_geometry_package",
+         "rest_operations",
+         "-",
+         "confirm_mutation, translation_id",
+         "network=offline; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Build a non-slicer L6 geometry-analysis package from a previously staged REST STEP translation. The executable and argv template come only from module-owned configuration; MCP a..."
+        ],
+        [
          "onshape_build_parameter_payload",
          "rest_operations",
+         "-",
          "parameters",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Convert a local parameter mapping into Onshape's explicit custom-feature parameter blocks. Booleans become BTMParameterBoolean values; strings and numbers become quantity expres..."
@@ -3863,12 +5076,22 @@
          "onshape_check_model",
          "rest_operations",
          "-",
+         "-",
          "network=live; api_max=3; mutating=no; dry_run=no; confirm=no",
          "Validate an existing Part Studio through read-only Onshape requests. The result checks custom feature status, exact part count, required part-name prefixes, and bounding limits;..."
         ],
         [
+         "onshape_configure_geometry_backend",
+         "rest_operations",
+         "-",
+         "candidate_id",
+         "network=offline; api_max=0; mutating=yes; dry_run=yes; confirm=yes",
+         "Configure REST mode from one opaque candidate_id returned by onshape_geometry_status. The bounded dependency scan is repeated before writing, so callers cannot provide an execut..."
+        ],
+        [
          "onshape_create_validation_part_studio",
          "rest_operations",
+         "-",
          "confirm_mutation",
          "network=live; api_max=1; mutating=yes; dry_run=yes; confirm=yes",
          "Create a new Part Studio in the configured Onshape document. Each call creates another cloud element; by default it also changes onshape_rest_api_mode/config/onshape-state.json..."
@@ -3876,13 +5099,31 @@
         [
          "onshape_eval_featurescript",
          "rest_operations",
+         "-",
          "script",
          "network=live; api_max=1; mutating=no; dry_run=no; confirm=yes",
          "Evaluate a FeatureScript snippet on the live Onshape server. ⚠️ Each call spends 1 API call of the annual quota. Document-first discipline: BEFORE calling this, use the free loc..."
         ],
         [
+         "onshape_export_step",
+         "rest_operations",
+         "-",
+         "confirm_mutation, document_id, wv, wvid, element_id",
+         "network=live; api_max=7; mutating=yes; dry_run=yes; confirm=yes",
+         "Asynchronously export one explicit Part Studio to a canonical millimeter AP242 STEP file. The operation creates at most one translation request, polls with a caller-bounded budg..."
+        ],
+        [
+         "onshape_geometry_status",
+         "rest_operations",
+         "-",
+         "-",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
+         "Report module-owned non-slicer geometry readiness. If the selected backend is unavailable, perform a bounded zero-network search of sibling project virtual environments, global..."
+        ],
+        [
          "onshape_get_feature_studio_status",
          "rest_operations",
+         "-",
          "-",
          "network=live; api_max=2; mutating=no; dry_run=no; confirm=no",
          "Read the configured Feature Studio metadata and compiled feature specifications. It reports whether branchCableTrophyDisplay is exposed and how many parameters its compiled spec..."
@@ -3890,6 +5131,7 @@
         [
          "onshape_get_parameter_set",
          "rest_operations",
+         "-",
          "name",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Read one maintained local parameter set for the Branch Cable Trophy FeatureScript. The default set produces the detailed 132-part model; preview produces the simplified 65-part..."
@@ -3898,12 +5140,14 @@
          "onshape_get_project_state",
          "rest_operations",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Read the project's non-secret Onshape document/workspace/element configuration and report whether a credentials file is configured. This is a local operation: it does not read o..."
         ],
         [
          "onshape_instantiate_feature",
          "rest_operations",
+         "-",
          "confirm_mutation",
          "network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes",
          "Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit parameter set and optional known-parameter overrides. Repeated calls add additiona..."
@@ -3912,12 +5156,14 @@
          "onshape_list_document_elements",
          "rest_operations",
          "-",
+         "-",
          "network=live; api_max=1; mutating=no; dry_run=no; confirm=no",
          "List elements in the configured Onshape workspace (names, element types, IDs, microversions). By default it returns the locally cached element table at ZERO API cost — that tabl..."
         ],
         [
          "onshape_render_preview",
          "rest_operations",
+         "-",
          "view",
          "network=live; api_max=1; mutating=no; dry_run=no; confirm=no",
          "Request one shaded PNG rendering of the existing configured Part Studio from Onshape. The remote operation is read-only but may consume rendering resources. By default it return..."
@@ -3925,6 +5171,7 @@
         [
          "onshape_run_validation_pipeline",
          "rest_operations",
+         "-",
          "confirm_mutation",
          "network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes",
          "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a..."
@@ -3932,6 +5179,7 @@
         [
          "onshape_upload_feature_studio",
          "rest_operations",
+         "-",
          "confirm_mutation",
          "network=live; api_max=3; mutating=yes; dry_run=yes; confirm=yes",
          "Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled branchCableTrophyDisplay specification. This overwrites cloud Feature Studio content..."
@@ -3950,6 +5198,7 @@
         [
          "Tool",
          "Capability",
+         "Optional semantic classification",
          "Required arguments",
          "Registered safety/cost",
          "Intent"
@@ -3958,12 +5207,14 @@
          "onshape_api_auth",
          "rest_reference",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Onshape authentication reference: the OAuth2 authorization-code workflow (register app, authorize, exchange code for token, use, refresh) and API-key usage (Basic auth). Without..."
         ],
         [
          "onshape_api_endpoint",
          "rest_reference",
+         "-",
          "path",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return the full definition of one Onshape REST API operation: method, path, operationId, summary, description, every parameter (name, location path/query/header, required, type,..."
@@ -3972,6 +5223,7 @@
          "onshape_api_error_codes",
          "rest_reference",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Onshape REST HTTP response codes and API call limits: every code (200-503) with its category, description and recommended next steps, plus the rate-limit / annual-limit semantic..."
         ],
@@ -3979,12 +5231,14 @@
          "onshape_api_list_tags",
          "rest_reference",
          "-",
+         "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "List every domain group (tag) in the Onshape REST API with its one-line description: Account, Assembly, Document, Element, FeatureStudio, PartStudio, ... Use it to orient before..."
         ],
         [
          "onshape_api_schema",
          "rest_reference",
+         "-",
          "name",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Return a schema definition from the Onshape REST API (a response or request type, e.g. BTDocumentElementInfo, BTMassProperties, BTObjectId): its type, description, required fiel..."
@@ -3992,6 +5246,7 @@
         [
          "onshape_api_search",
          "rest_reference",
+         "-",
          "query",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no",
          "Keyword search across every Onshape REST API endpoint (method + path + operationId + summary + description), ranked by match strength. Returns method, path, operationId, and sum..."
