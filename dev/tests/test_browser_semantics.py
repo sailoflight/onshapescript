@@ -51,6 +51,19 @@ class SixLevelSemanticsTest(unittest.TestCase):
             ["browser_open_doc_menu"],
         )
 
+    def test_featurescript_notice_and_capture_dependency_chain(self):
+        notices = semantics.semantic_metadata("browser_fs_read_notices")
+        compile_status = semantics.semantic_metadata("browser_get_fs_compile_status")
+        capture = semantics.semantic_metadata("browser_fs_capture_diagnostic")
+        deploy = semantics.semantic_metadata("browser_deploy_featurescript")
+
+        self.assertEqual(notices["semanticLevel"], "L3")
+        self.assertIn("browser_fs_read_notices", compile_status["dependencies"])
+        self.assertEqual(capture["semanticLevel"], "L4")
+        self.assertEqual(capture["maturity"], "experimental")
+        self.assertFalse(capture["defaultExposure"])
+        self.assertIn("browser_fs_capture_diagnostic", deploy["dependencies"])
+
     def test_explicit_query_can_find_invalid_tool_for_diagnostics(self):
         self.assertEqual(
             semantics.select_tool_names(

@@ -6,6 +6,7 @@ onshape_browser_mode/config/browser-state.json
 onshape_browser_mode/user_data/
 mcp_main/bridge/logs/
 onshape_rest_api_mode/outputs/
+onshape_browser_mode/outputs/
 __pycache__/
 *.pyc
 temp/
@@ -16,3 +17,12 @@ dev/spike/
 dev/fixtures-capture/*.har
 dev/fixtures-capture/*.jsonl
 .coverage
+
+# --- local hygiene (sailoflight migration) ---
+.venv/
+__pycache__/
+*.pyc
+.cache/
+.claude/
+TESTWORKTREE/
+

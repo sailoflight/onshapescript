@@ -58,11 +58,26 @@ public zero-quota sources; read its exact schema and description before calling.
 ### Browser operations
 
 Browser tools consume zero REST API quota because they drive the Windows browser.
-Read-only observation should come first. `browser_get_fs_compile_status` reads
-Ace annotations, and `browser_get_fs_symbols` reads the Module-outline inventory;
-neither requires mutation confirmation. FeatureScript deployment succeeds only
-when the Commit state transition, exact source readback, and empty compiler
-annotations all verify. The 22 transactions promoted from the planned registry
+`browser_session(action="release")` is the cooperative end-of-work cleanup: it
+closes only the browser/context owned by the current MCP process, releases that
+process's persistent-profile ownership, and is idempotent when no browser was
+started. An agent should call it in a `finally`-style cleanup after browser work
+unless continued use of the same browser is intentional. Release may require the
+login state to be refreshed later and cannot close a browser owned by another MCP
+process; profile contention across processes is an Operator/lifecycle failure,
+not authority to delete lock files or kill another owner.
+Read-only observation should come first. `browser_fs_read_notices` opens and
+restores the active FeatureScript notice pane and returns normalized notice rows;
+`browser_get_fs_compile_status` combines those rows with Ace annotations, while
+`browser_get_fs_symbols` reads the Module-outline inventory. FeatureScript
+deployment succeeds only when the Commit state transition, exact source readback,
+and combined compiler evidence verify with no blocking warning/error. Every
+committed deployment attempt also writes a local diagnostic package containing
+the full source and compile result under
+`onshape_browser_mode/outputs/fs_diagnostics/`; the experimental, default-hidden
+`browser_fs_capture_diagnostic` creates the same package on demand. These local
+artifacts can contain proprietary source code and must be protected accordingly.
+The 22 transactions promoted from the planned registry
 are in the complete browser registry; ordinary `tools/list` uses semantic
 exposure. FS insertion writes require dry-run and
 confirmation; fold/navigation and app-shell observations are zero-REST UI

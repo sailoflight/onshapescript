@@ -41,6 +41,23 @@ def _is_onshape_app_url(url: str | None) -> bool:
     return True
 
 
+def _browser_launch_error_message(
+    *, channel: str, profile_dir: Path, error: Exception | None
+) -> str:
+    return (
+        f"Could not launch browser (channel={channel!r}): {error}. "
+        f"The persistent profile is {profile_dir}. Another MCP/browser process may own "
+        "this profile. The owning connection should call "
+        "browser_session(action='release') after its browser work; this MCP process "
+        "cannot release another process's browser. A bridge registration with "
+        "multiProcessAllowed=false must reuse or serialize one business-MCP child "
+        "instead of spawning concurrent profile owners. Do not delete profile lock "
+        "files. If no other owner exists, verify channel/executable_path in "
+        "onshape_browser_mode/config/browser.local.toml and follow "
+        "docs/operations/MCP_RUNBOOK.md."
+    )
+
+
 class BrowserSession:
     """Lazy singleton-style holder for the persistent context and working page."""
 
@@ -222,10 +239,11 @@ class BrowserSession:
                     time.sleep(2.0)
         else:
             raise BrowserLaunchError(
-                f"Could not launch browser (channel={browser_cfg.channel!r}): {last_exc}. "
-                "Use the Windows host's existing Chrome/Edge (no browser download); "
-                "set channel/executable_path in onshape_browser_mode/config/browser.local.toml. See "
-                "docs/operations/MCP_RUNBOOK.md."
+                _browser_launch_error_message(
+                    channel=browser_cfg.channel,
+                    profile_dir=profile,
+                    error=last_exc,
+                )
             ) from last_exc
 
         # Residual-tab cleanup (same fix taobao-mcp landed 2026-08-20):
@@ -281,32 +299,100 @@ class BrowserSession:
         self._status = "started"
         return self._page
 
-    def close(self) -> None:
+    def release(self) -> dict[str, Any]:
+        """Release this process's browser/profile ownership without starting it."""
+        return self.close()
+
+    def close(self) -> dict[str, Any]:
+        previous_status = self._status
+        previous_page_url = None
+        if self._page is not None:
+            try:
+                previous_page_url = self._page.url
+            except Exception:
+                previous_page_url = None
+
         context = self._context
+        had_context = context is not None
+        had_playwright = self._playwright is not None
+        already_released = (
+            not had_context
+            and not had_playwright
+            and previous_status != "release_failed"
+        )
+        context_closed = not had_context
+        release_method = "none"
+        warnings: list[str] = []
         if context is not None:
             try:
                 context.close()
-            except Exception:
+                context_closed = True
+                release_method = "context.close"
+            except Exception as exc:
+                warnings.append(f"context.close failed: {type(exc).__name__}: {exc}")
                 # context.close() can fail mid-navigation; fall back to the
                 # browser handle so the profile lock is actually released.
                 try:
                     browser = getattr(context, "browser", None)
-                    if browser is not None:
+                    if browser is None:
+                        warnings.append("browser.close fallback unavailable")
+                    else:
                         browser.close()
-                except Exception:
-                    pass
-        self._stop_playwright()
-        self._context = None
-        self._page = None
-        self._status = "closed"
+                        context_closed = True
+                        release_method = "browser.close-fallback"
+                except Exception as exc:  # noqa: BLE001 - return structured evidence
+                    warnings.append(f"browser.close failed: {type(exc).__name__}: {exc}")
 
-    def _stop_playwright(self) -> None:
+        playwright_stopped = self._stop_playwright(
+            warnings, preserve_on_failure=True
+        )
+        self._context = None if context_closed else context
+        if context_closed:
+            self._page = None
+        profile_released = context_closed and playwright_stopped
+        self._status = "closed" if profile_released else "release_failed"
+        if profile_released:
+            self.login_confirmed = False
+            self.human_action_required = False
+
+        released = (had_context or had_playwright) and profile_released
+        return {
+            "released": released,
+            "alreadyReleased": already_released,
+            "profileReleased": profile_released,
+            "previousSessionStatus": previous_status,
+            "previousPageUrl": previous_page_url,
+            "sessionStatus": self._status,
+            "profileDir": str(self.profile_dir()),
+            "contextClosed": context_closed,
+            "playwrightStopped": playwright_stopped,
+            "releaseMethod": release_method,
+            "loginStateMayNeedRefresh": bool(had_context or had_playwright),
+            "warnings": warnings,
+            "message": (
+                "Browser/profile ownership released for this MCP process."
+                if profile_released
+                else "Browser/profile release could not be verified; request Operator recovery."
+            ),
+        }
+
+    def _stop_playwright(
+        self,
+        warnings: list[str] | None = None,
+        *,
+        preserve_on_failure: bool = False,
+    ) -> bool:
+        stopped = True
         try:
             if self._playwright is not None:
                 self._playwright.stop()
-        except Exception:
-            pass
-        self._playwright = None
+        except Exception as exc:
+            stopped = False
+            if warnings is not None:
+                warnings.append(f"playwright.stop failed: {type(exc).__name__}: {exc}")
+        if stopped or not preserve_on_failure:
+            self._playwright = None
+        return stopped
 
     def status(self) -> dict[str, Any]:
         # Report the most useful page, not blindly the last one we held: the

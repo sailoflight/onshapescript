@@ -49,6 +49,12 @@ FS_WATCH_CONFIG_MENU = ".watch-part-studio-menu"
 FS_WATCH_CONFIG_OPEN = ".watch-part-studio-menu .os-toolgroup-open-button"
 FS_WATCH_CONFIG_CURRENT = ".watch-part-studio-menu .os-tool-command-name"
 FS_WATCH_CONFIG_ITEM = ".watch-part-studio-menu .os-tool-dropdown-content .os-menu-tool"
+FS_NOTICE_TOGGLE = ".notice-pane-toggle-button"
+FS_NOTICE_CONTENT = ".notices-content"
+FS_NOTICE_TABLE = ".feature-script-notice-table"
+FS_NOTICE_MESSAGE = ".notice-location-message"
+FS_NOTICE_LINE = ".notice-location-line-number"
+FS_NOTICE_COLUMN = ".notice-location-column-number"
 
 # Ace editor (FeatureScript source)
 ACE_EDITOR = ".ace_editor"

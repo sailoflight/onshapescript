@@ -6,7 +6,7 @@ import hashlib
 import re
 from typing import Any
 
-from onshape_browser_mode import actions, selectors
+from onshape_browser_mode import actions, diagnostics, selectors
 from onshape_browser_mode.pages import AssemblyPage, DrawingPage
 
 _PARTS_RE = re.compile(r"零件数\s*\((\d+)\)")
@@ -329,13 +329,28 @@ def deploy_featurescript(page: Any, script: str) -> dict[str, Any]:
         and (commit.get("after") or {}).get("disabled") is True
     )
     compiled = bool(compile_status.get("compiled"))
+    try:
+        diagnostic_capture = diagnostics.save_featurescript_diagnostic(
+            source=verified_source if isinstance(verified_source, str) else script,
+            compile_status=compile_status,
+            page_url=getattr(page, "url", ""),
+            phase="semantic-deploy",
+        )
+    except Exception as exc:  # noqa: BLE001 - deployment truth remains independent
+        diagnostic_capture = {
+            "captured": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
     return {
         "deployed": committed and verified and compiled,
         "verified": verified,
         "commitAccepted": committed,
         "compiled": compiled,
         "annotationCount": compile_status.get("annotationCount", 0),
+        "noticeCount": compile_status.get("noticeCount", 0),
         "errors": compile_status.get("errors", []),
+        "notices": compile_status.get("notices", []),
+        "diagnosticCapture": diagnostic_capture,
         "beforeLength": len(before),
         "afterLength": written.get("length"),
         "commit": commit,

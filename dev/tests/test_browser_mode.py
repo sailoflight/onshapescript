@@ -21,6 +21,10 @@ if str(ROOT) not in sys.path:
 from mcp_main.win.mcp import server  # noqa: E402
 from onshape_browser_mode import actions  # noqa: E402
 from onshape_browser_mode.guard import ActionGuard, ActionRateExceeded  # noqa: E402
+from onshape_browser_mode.session import (  # noqa: E402
+    BrowserSession,
+    _browser_launch_error_message,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +148,7 @@ class FakeSession:
         self.page = page
         self.start_calls = 0
         self.enforce_calls = 0
+        self.release_calls = 0
 
     def start(self) -> FakePage:
         self.start_calls += 1
@@ -151,6 +156,15 @@ class FakeSession:
 
     def _enforce_single_working_page(self, page) -> None:
         self.enforce_calls += 1
+
+    def release(self) -> dict:
+        self.release_calls += 1
+        return {
+            "released": True,
+            "alreadyReleased": False,
+            "sessionStatus": "closed",
+            "profileReleased": True,
+        }
 
 
 class FakeGuard:
@@ -162,6 +176,135 @@ class FakeGuard:
         self.pace_calls += 1
         if self.raise_on_pace is not None:
             raise self.raise_on_pace
+
+
+# ---------------------------------------------------------------------------
+# BrowserSession lifecycle (no Playwright import or browser launch)
+# ---------------------------------------------------------------------------
+
+class BrowserSessionReleaseTest(unittest.TestCase):
+    def test_release_closes_context_stops_playwright_and_resets_state(self) -> None:
+        session = BrowserSession()
+        context = mock.Mock()
+        playwright = mock.Mock()
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d/w/w/e/e"
+        session._context = context
+        session._playwright = playwright
+        session._page = page
+        session._status = "started"
+        session.login_confirmed = True
+        session.human_action_required = True
+
+        result = session.release()
+
+        context.close.assert_called_once_with()
+        playwright.stop.assert_called_once_with()
+        self.assertTrue(result["released"])
+        self.assertTrue(result["profileReleased"])
+        self.assertFalse(result["alreadyReleased"])
+        self.assertEqual(result["previousSessionStatus"], "started")
+        self.assertEqual(result["previousPageUrl"], page.url)
+        self.assertEqual(result["sessionStatus"], "closed")
+        self.assertIsNone(session.context)
+        self.assertIsNone(session.page)
+        self.assertFalse(session.login_confirmed)
+        self.assertFalse(session.human_action_required)
+
+    def test_release_is_idempotent_before_browser_start(self) -> None:
+        session = BrowserSession()
+
+        result = session.release()
+
+        self.assertFalse(result["released"])
+        self.assertTrue(result["alreadyReleased"])
+        self.assertTrue(result["profileReleased"])
+        self.assertEqual(result["previousSessionStatus"], "uninitialized")
+        self.assertEqual(result["sessionStatus"], "closed")
+
+    def test_release_falls_back_to_browser_close(self) -> None:
+        session = BrowserSession()
+        browser = mock.Mock()
+        context = mock.Mock()
+        context.close.side_effect = RuntimeError("context close failed")
+        context.browser = browser
+        session._context = context
+        session._playwright = mock.Mock()
+        session._status = "started"
+
+        result = session.release()
+
+        browser.close.assert_called_once_with()
+        self.assertTrue(result["released"])
+        self.assertEqual(result["releaseMethod"], "browser.close-fallback")
+        self.assertIn("context close failed", result["warnings"][0])
+
+    def test_release_does_not_claim_profile_released_when_close_fails(self) -> None:
+        session = BrowserSession()
+        browser = mock.Mock()
+        browser.close.side_effect = RuntimeError("browser close failed")
+        context = mock.Mock()
+        context.close.side_effect = [RuntimeError("context close failed"), None]
+        context.browser = browser
+        session._context = context
+        session._playwright = mock.Mock()
+        session._status = "started"
+
+        first = session.release()
+
+        self.assertFalse(first["released"])
+        self.assertFalse(first["profileReleased"])
+        self.assertEqual(first["sessionStatus"], "release_failed")
+        self.assertIs(session.context, context)
+        self.assertEqual(len(first["warnings"]), 2)
+        self.assertIn("request Operator recovery", first["message"])
+
+        second = session.release()
+        self.assertTrue(second["released"])
+        self.assertTrue(second["profileReleased"])
+        self.assertFalse(second["alreadyReleased"])
+        self.assertEqual(second["sessionStatus"], "closed")
+
+    def test_launch_error_points_to_owner_release_and_bridge_enforcement(self) -> None:
+        message = _browser_launch_error_message(
+            channel="msedge",
+            profile_dir=Path(r"C:\MCP\onshapescript\onshape_browser_mode\user_data\onshape_profile"),
+            error=RuntimeError("Target page, context or browser has been closed"),
+        )
+        self.assertIn("another mcp/browser process may own", message.lower())
+        self.assertIn("browser_session(action='release')", message)
+        self.assertIn("multiProcessAllowed=false", message)
+        self.assertIn("Do not delete profile lock files", message)
+
+    def test_stdio_shutdown_still_closes_started_owner(self) -> None:
+        import onshape_browser_mode.session as session_module
+
+        owned = mock.Mock()
+        owned._status = "started"
+        with mock.patch.object(session_module, "_session", owned):
+            server._shutdown_browser_session()
+        owned.close.assert_called_once_with()
+
+    def test_stdio_shutdown_closes_partial_uninitialized_owner(self) -> None:
+        import onshape_browser_mode.session as session_module
+
+        partial = mock.Mock()
+        partial._status = "uninitialized"
+        with mock.patch.object(session_module, "_session", partial):
+            server._shutdown_browser_session()
+        partial.close.assert_called_once_with()
+
+    def test_browser_session_release_handler_does_not_start_browser(self) -> None:
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session", return_value=session):
+            result = server._browser_session({"action": "release"})
+        self.assertTrue(result["released"])
+        self.assertEqual(session.release_calls, 1)
+        self.assertEqual(session.start_calls, 0)
+
+    def test_browser_session_rejects_unknown_action_with_release_guidance(self) -> None:
+        with self.assertRaisesRegex(ValueError, "status, login, or release"):
+            server._browser_session({"action": "close"})
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +560,9 @@ class BrowserDeployTest(unittest.TestCase):
                             "after": {"disabled": True},
                         }) as commit, \
              mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
-                        return_value={"compiled": True, "annotationCount": 0, "errors": []}):
+                        return_value={"compiled": True, "annotationCount": 0, "noticeCount": 0, "errors": []}), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-ok"}) as capture:
             result = server._browser_deploy_featurescript(
                 {"script": "feature X {}", "dry_run": False, "confirm_mutation": True})
         self.assertTrue(result["deployed"])
@@ -427,6 +572,8 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertEqual(session.start_calls, 1)
         write.assert_called_once()
         commit.assert_called_once()
+        capture.assert_called_once()
+        self.assertEqual(result["diagnosticCapture"]["captureId"], "capture-ok")
         # Pacing enforced before the editor write and before the Commit click
         # (the editor is already on screen, so no navigation pacing is added).
         self.assertEqual(guard.pace_calls, 2)
@@ -451,7 +598,9 @@ class BrowserDeployTest(unittest.TestCase):
                  "after": {"disabled": True},
              }), \
              mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
-                        return_value=compile_error):
+                        return_value=compile_error), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-error"}):
             result = server._browser_deploy_featurescript({
                 "script": "new", "dry_run": False, "confirm_mutation": True,
             })
@@ -459,6 +608,7 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertTrue(result["commitAccepted"])
         self.assertTrue(result["verified"])
         self.assertEqual(result["errors"], compile_error["errors"])
+        self.assertEqual(result["diagnosticCapture"]["captureId"], "capture-error")
 
 
 class BrowserInsertCustomFeatureTest(unittest.TestCase):
@@ -803,6 +953,14 @@ class BrowserMetadataTest(unittest.TestCase):
             self.assertTrue(tool["annotations"]["readOnlyHint"], name)
             self.assertEqual(tool["cost"]["estimated_requests"], 0, name)
 
+    def test_browser_session_exposes_cooperative_release(self) -> None:
+        tool = self.by_name["browser_session"]
+        action = tool["inputSchema"]["properties"]["action"]
+        self.assertEqual(action["enum"], ["status", "login", "release"])
+        self.assertIn("release", action["description"])
+        self.assertIn("browser_process_release", tool["cost"]["side_effects"])
+        self.assertIn("another MCP process", tool["description"])
+
     def test_create_tab_mutating_and_dialog_opener_read_only(self) -> None:
         tab_tool = self.by_name["browser_create_tab"]
         self.assertTrue(tab_tool["cost"]["mutating"])
@@ -826,7 +984,7 @@ class BrowserMetadataTest(unittest.TestCase):
         self.assertTrue(self.by_name["browser_delete_tab"]["annotations"]["destructiveHint"])
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 104)
+        self.assertEqual(len(server.TOOLS), 106)
 
 
 if __name__ == "__main__":

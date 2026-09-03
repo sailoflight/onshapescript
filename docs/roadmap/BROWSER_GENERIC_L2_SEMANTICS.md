@@ -216,6 +216,27 @@ browser panel read over a live API call. Any live call still follows the
 CLAUDE.md hard budget rules (one new fact, `expected_live_requests=1`, no retry
 on 429/5xx, no "write-then-read" confirmation loop).
 
+## 9. Session/profile handoff requirement
+
+Added 2026-09-02 after concurrent agents exposed a persistent-profile ownership
+gap. The implemented MCP-side contract extends the existing `browser_session`
+tool rather than adding another tool name:
+
+- `action="release"` closes only the browser context and Playwright runtime owned
+  by the current MCP process; it never launches a browser as part of cleanup.
+- Release is idempotent and returns structured evidence for prior status/page,
+  context close, Playwright stop, profile release, fallback method, and warnings.
+  An unverified close keeps retryable handles and reports `release_failed` rather
+  than converting a failed first attempt into a false already-released result.
+- Browser-using agents perform release in finally-style cleanup when their work
+  ends, unless continued use of the same browser is explicitly intended.
+- A process cannot release another process's browser owner. Profile contention
+  therefore fails with actionable ownership guidance instead of deleting lock
+  files or terminating an unrelated process.
+- Offline acceptance covers normal release, already-released state, context-close
+  fallback, handler no-start behavior, public schema, EOF cleanup compatibility,
+  and zero REST/cloud activity.
+
 ## Provenance
 
 - Live evidence: `read_image`/`vision_glance` on screenshots + `browser_inspect`/

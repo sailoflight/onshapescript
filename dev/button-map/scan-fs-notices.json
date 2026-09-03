@@ -1,0 +1,34 @@
+{
+  "observedSurface": "Feature Studio FeatureScript notices",
+  "observationMode": "read-only browser DOM inspection",
+  "activeTabType": "Feature Studio",
+  "ace": {
+    "annotationCount": 0,
+    "legacyCompiledResult": true
+  },
+  "noticePane": {
+    "toggleSelector": ".notice-pane-toggle-button",
+    "contentSelector": ".notices-content",
+    "tableSelector": ".feature-script-notice-table",
+    "messageSelector": ".notice-location-message",
+    "lineSelector": ".notice-location-line-number",
+    "columnSelector": ".notice-location-column-number",
+    "severitySelectors": {
+      "error": ".fs-notice-error",
+      "warning": ".fs-notice-warning",
+      "info": ".fs-notice-info"
+    },
+    "observedNoticeCount": 28,
+    "sampleNotices": [
+      "Nonconforming feature function 'helicalBeamCoupling': precondition analysis failed",
+      "Variable POSITIVE_LENGTH_BOUNDS not found.",
+      "definition.outerDiameter: Expected bounds to be a map",
+      "definition.outerDiameter: Expected a range"
+    ]
+  },
+  "acceptance": {
+    "compiled": false,
+    "reason": "FeatureScript notice warnings/errors are blocking evidence even when Ace getAnnotations() is empty"
+  },
+  "sensitiveValuesIncluded": false
+}

@@ -10,7 +10,11 @@
 - 项目源码入口是 `python -m mcp_main.win.mcp`。共享桥若需要跨客户端重连保持会话，必须在其自身生命周期契约中保持同一 MCP 进程并禁止 profile 多 owner；本仓库不再实现 relay/listener。
 - 单客户端铁律 + **单工作页铁律**：`session.start()` 每次只保留一个工作页，其余标签全关
   （`_enforce_single_working_page`）。
-- 关闭方式决定登录态：**强杀进程保留登录，优雅关闭会登出**。Onshape 无“保持登录”。
+- agent 完成浏览器工作后应在 finally 风格的清理中调用
+  `browser_session(action="release")`，除非明确需要继续使用同一浏览器。该动作不启动
+  浏览器，只关闭当前 MCP 进程的 context/Playwright 并复位状态；不能释放另一进程的
+  owner，重复调用安全。
+- 关闭方式决定登录态：**强杀进程保留登录，优雅关闭可能需要重新确认登录**。Onshape 无“保持登录”。
 
 ## 2. 登录态恢复经验
 
@@ -27,7 +31,7 @@
 
 | 工具 | 用途 | 关键参数 |
 |---|---|---|
-| `browser_session` | 登录态/页面状态 | `action=status|login` |
+| `browser_session` | 登录态/页面状态/释放当前进程 owner | `action=status|login|release` |
 | `browser_watch` | 录制人工操作（URL/网络/对话框） | `action=start|stop|report` |
 | `browser_inspect` | 可见可交互元素清单 | `max_elements` |
 | `browser_scroll` | 滚动窗口或指定容器 | `direction`, `amount`, `selector` |
@@ -130,9 +134,17 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - FeatureScript 工具栏（容器 `.os-feature-studio-main-menu-bar`，按钮 `.tool.is-activatable.is-button`）：
   - 撤消（disabled）、新特征、`Length parameter`、导入、**提交**（`.os-primary`，无改动时 disabled）、
     `Module outline`（`.top-level-symbols-button`，标签在 `.top-level-symbols-label`）、ref 前进/后退（disabled）
-  - 编译状态由 Ace `editor.session.getAnnotations()` 读取；`browser_get_fs_compile_status`
-    归一化为 `compiled/errors/annotationCount`。部署只有在提交按钮从 enabled 变为
-    disabled、源码精确回读且注解为空时才返回 `deployed:true`。
+  - Ace `editor.session.getAnnotations()` 不是完整编译证据：实测当前 Feature Studio
+    返回 `annotationCount:0`，但黄色 `.notice-pane-toggle-button` 同时显示 28 条
+    FeatureScript 通知，包括 `precondition analysis failed`、变量未找到和 bounds
+    类型错误。通知根为 `.notices-content`，每条表为
+    `.feature-script-notice-table`，正文/行/列分别在 `.notice-location-message`、
+    `.notice-location-line-number`、`.notice-location-column-number`，严重度为
+    `.fs-notice-error|warning|info`。证据见 `dev/button-map/scan-fs-notices.json`。
+  - L3 `browser_fs_read_notices` 在需要时展开通知面板、解析当前标签消息并恢复原状态；
+    L4 `browser_get_fs_compile_status` 将通知与 Ace annotations 合并。通知指示器存在但
+    无法读取时保守返回 `compiled:false`。部署只有在提交按钮从 enabled 变为 disabled、
+    源码精确回读且综合编译证据无 blocking warning/error 时才返回 `deployed:true`。
   - Module outline 展开后使用 `.top-level-symbols-dropdown` / `.top-level-symbol-list` /
     `.top-level-symbol-item`；名称和图标分别是 `.top-level-symbol-name` 与
     `.top-level-symbol-icon`。实测 `C`、`ƒ`、`Φ` 分别表示 const、function、feature。
@@ -193,7 +205,12 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 3. 写入后「提交」按钮从 disabled → enabled（`actions.commit_button_state()` 可读状态）；
 4. `actions.click_commit()` 点击提交，3 秒后按钮回到 disabled = 提交成功；
 5. 提交后读回编辑器并比对，返回 `verified: true` 仅当页面源码与提交内容完全一致；
-6. 实测：dry_run 纯本地预览（不启动浏览器）→ 部署修改（23907 字符，`verified:true`）→
+6. `browser_fs_read_notices` 与 Ace annotations 共同构成编译证据；任一 blocking
+   warning/error 或通知面板不可读都会使 `compiled:false`；
+7. 每次已提交尝试把完整源码、`compile-result.json` 和 manifest 原子写入
+   `onshape_browser_mode/outputs/fs_diagnostics/<capture-id>/`，结果返回
+   `diagnosticCapture`；实验性 `browser_fs_capture_diagnostic` 可随时补采当前状态；
+8. 实测：dry_run 纯本地预览（不启动浏览器）→ 部署修改（23907 字符，`verified:true`）→
    恢复原内容（23875 字符，`verified:true`）。
 
 关键 JS（`actions.py`）：
@@ -208,6 +225,9 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   会遍历 `context.pages` 优先选已登录应用页，并关闭其余标签。
 - Playwright sync API 绑定创建线程；桥接必须**主线程串行**处理客户端，否则报
   `Target page, context or browser has been closed`。
+- 同一 profile 已由其他进程持有时，新的 `launch_persistent_context` 也可能以同一错误
+  退出。当前进程只能通过 `browser_session(action="release")` 释放自己的 owner；
+  不能删除锁文件或强杀另一 owner，跨进程冲突转交 Operator 处理。
 - `launch_persistent_context` 命令行末尾固定带 `about:blank`，这是正常启动页；
   是否恢复上次标签取决于上次是否强杀（崩溃恢复）。
 - 中文 Windows 下 Python stdout 默认 GBK；MCP 协议读写必须走 UTF-8 字节流。

@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **104**
+- Registered tools: **106**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=66, `featurescript`=10, `other`=2, `project_docs`=3, `rest_operations`=17, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=12, `L4`=27, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
+- Capability counts: `browser`=68, `featurescript`=10, `other`=2, `project_docs`=3, `rest_operations`=17, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
 
 ## Safety interpretation
 
@@ -51,13 +51,15 @@
 | `browser_eval` | `browser` | `L1 browser_primitive` | `expression` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Evaluate an arbitrary JavaScript expression in the current Onshape page and return its JSON-serializable result. page.evaluate cannot be guaranteed read-only, so actual executio... |
 | `browser_export_step` | `browser` | `L4 onshape_transaction` | `source_tab`, `export_id`, `document_id`, `workspace_id`, `element_id` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP... |
 | `browser_fix_instances` | `browser` | `L4 onshape_transaction` | `instance_names`, `instance_selector` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Multi-select named Assembly instances and invoke the 固定 context action. |
+| `browser_fs_capture_diagnostic` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Persist the active full FeatureScript source and its combined Ace/FeatureScript-notice compile result as a local diagnostic package under onshape_browser_mode/outputs/fs_diagnos... |
 | `browser_fs_goto_definition` | `browser` | `L3 onshape_interaction` | `symbol` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Navigate to a named top-level FeatureScript definition through Module outline and return the verified Ace cursor target. |
 | `browser_fs_insert_parameter` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Insert the verified Length parameter template at an Ace position and verify the source delta plus Commit dirty state. |
 | `browser_fs_insert_snippet` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state. |
+| `browser_fs_read_notices` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows, and restore the prior pane state. Read-only UI observation and... |
 | `browser_fs_toggle_fold` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Fold, unfold, or toggle a FeatureScript Ace fold and return the resulting folded ranges. |
 | `browser_fs_watch_part_studio` | `browser` | `L4 onshape_transaction` | `part_studio` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes | Select the exact watched/configured Part Studio through the Feature Studio toolbar dropdown and verify the toolbar readback. |
 | `browser_geometry_status` | `browser` | `boundary_observation` | - | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no | Report browser-mode non-slicer geometry backend readiness without starting the browser or revealing executable paths. If the configured backend is unavailable, perform a bounded... |
-| `browser_get_fs_compile_status` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Read the active FeatureScript Ace annotations and report compiled status, normalized errors, and annotation count. Read-only and zero REST API quota. |
+| `browser_get_fs_compile_status` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Read the active FeatureScript Ace annotations plus the FeatureScript notice pane and report compiled status, normalized errors, and counts. Read-only and zero REST API quota. |
 | `browser_get_fs_symbols` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names. Read-only and zero REST API quota. |
 | `browser_get_page_tabs` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), marking which one is active. Read-only, zero Onshape API quota. Use it to f... |
 | `browser_get_partstudio_features` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no | Read the Part Studio feature tree and part list currently on screen. Returns the feature-list header, each feature item (with isUserFeature/isDefault classification), and the pa... |

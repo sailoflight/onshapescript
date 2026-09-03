@@ -422,7 +422,9 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
         return session.open_login_page()
     if action == "status":
         return session.status()
-    raise ValueError("action must be 'status' or 'login'")
+    if action == "release":
+        return session.release()
+    raise ValueError("action must be status, login, or release")
 
 
 def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -821,7 +823,7 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     # imports below, which a refused call must not even load.
     _confirm(arguments)
 
-    from onshape_browser_mode import actions
+    from onshape_browser_mode import actions, diagnostics
     from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
 
@@ -889,6 +891,18 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         and (commit.get("after") or {}).get("disabled") is True
     )
     compiled = bool(compile_status.get("compiled"))
+    try:
+        diagnostic_capture = diagnostics.save_featurescript_diagnostic(
+            source=verified_source if isinstance(verified_source, str) else script,
+            compile_status=compile_status,
+            page_url=page.url,
+            phase="browser-deploy-featurescript",
+        )
+    except Exception as exc:  # noqa: BLE001 - report capture failure separately
+        diagnostic_capture = {
+            "captured": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
 
     return {
         "deployed": committed and verified and compiled,
@@ -902,7 +916,10 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         "verifiedLength": len(verified_source) if verified_source is not None else None,
         "compiled": compiled,
         "annotationCount": compile_status.get("annotationCount", 0),
+        "noticeCount": compile_status.get("noticeCount", 0),
         "errors": compile_status.get("errors", []),
+        "notices": compile_status.get("notices", []),
+        "diagnosticCapture": diagnostic_capture,
     }
 
 
@@ -1157,7 +1174,9 @@ def _shutdown_browser_session() -> None:
         import onshape_browser_mode.session as browser_session
 
         session = getattr(browser_session, "_session", None)
-        if session is not None and session._status not in ("closed", "uninitialized"):
+        if session is not None:
+            # close() is idempotent and must also clean up a partially launched
+            # context whose status never advanced beyond "uninitialized".
             session.close()
     except Exception:
         pass
@@ -1953,7 +1972,11 @@ TOOLS: list[dict[str, Any]] = [
             "the browser session state, and the current page URL — zero Onshape API quota. "
             "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
             "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
-            "browser_* calls. The browser runs on the host that owns the ordinary stdio MCP process; "
+            "browser_* calls. action='release' closes only the browser/context owned by the current MCP "
+            "process and releases its persistent-profile ownership; it is idempotent, may require login "
+            "state to be refreshed later, and cannot close a browser owned by another MCP process. Use "
+            "release when the owning agent has finished browser work unless continuation is intentional. "
+            "The browser runs on the host that owns the ordinary stdio MCP process; "
             "cross-host transport, when needed, is supplied by an independently installed bridge. If "
             "Playwright is not installed on that host, this tool returns a clear setup error instead of "
             "failing the MCP server."
@@ -1961,9 +1984,12 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({
             "action": {
                 "type": "string",
-                "enum": ["status", "login"],
+                "enum": ["status", "login", "release"],
                 "default": "status",
-                "description": "status = read-only session report; login = open Onshape sign-in for the human.",
+                "description": (
+                    "status = read-only session report; login = open Onshape sign-in for the human; "
+                    "release = close only this MCP process's browser/context and release profile ownership."
+                ),
             },
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
@@ -2197,8 +2223,10 @@ TOOLS: list[dict[str, Any]] = [
             "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. "
             "An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document "
             "if needed, writes the Ace editor content, clicks the FeatureScript Commit button, then reads "
-            "the editor and compiler annotations back. It reports `deployed=true` only when the Commit "
-            "button transitions from enabled to disabled, the source matches exactly, and annotations are empty. "
+            "the editor, Ace annotations, and FeatureScript notice pane back. It reports `deployed=true` only "
+            "when the Commit button transitions from enabled to disabled, the source matches exactly, and "
+            "no blocking compiler notice remains. Every committed attempt also writes a local diagnostic "
+            "package containing the full source and compile result under the browser module's outputs. "
             "Every real navigation/write/commit is paced through the browser action guard. "
             "With `dry_run=true` (no confirmation needed) it is a pure local preview: it starts no browser "
             "session and performs no navigation, editor read/write, or click — it only reports the "
@@ -2757,9 +2785,16 @@ def _complete_cost_metadata(tools: list[dict[str, Any]]) -> None:
 def _annotate_conditional_side_effects(tools: list[dict[str, Any]]) -> None:
     """Expose persistent local/session effects separately from cloud mutation."""
     effects = {
-        "browser_session": ["browser_session", "persistent_profile_when_login"],
+        "browser_session": [
+            "browser_session",
+            "persistent_profile_when_login",
+            "browser_process_release",
+        ],
         "browser_watch": ["recorder_state", "local_file_when_save"],
         "browser_capture_screenshot": ["local_file"],
+        "browser_fs_capture_diagnostic": ["local_file"],
+        "browser_deploy_featurescript": ["remote_or_cloud_state", "local_file"],
+        "browser_deploy_and_apply_featurescript": ["remote_or_cloud_state", "local_file"],
         "onshape_render_preview": ["local_file_when_save"],
         "onshape_list_document_elements": ["local_cache_when_refresh"],
         "onshape_get_feature_studio_status": ["local_cache"],

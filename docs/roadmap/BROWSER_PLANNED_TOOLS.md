@@ -1,8 +1,10 @@
 # Browser planned-tool registry (roadmap, deduped)
 
-Status: implemented registry is current; no planned rows remain. The 104-tool
+Status: implemented registry is current. Two new planned rows were filed on
+2026-09-02 (whole-document inventory/delete, see §1a) after a real dual-environment
+test incident exposed the gap; they are not yet implemented. The 104-tool
 registry was re-audited for aliases and contract overlap after implementation;
-that audit introduced no new planned tool names.
+that audit introduced no other new planned tool names.
 
 This is the **single authoritative list** of browser tools that are planned but
 not yet implemented. It consolidates the per-document tool proposals in
@@ -16,12 +18,9 @@ already-implemented `browser_*` tools are **not** in this list. Optional six-lev
 `DYNAMIC_TOOL_DISCOVERY.md` range from L1 browser primitives through L6
 deliverable recipes; project control is outside L1-L6.
 
-## 1. Planned tools (single source of truth)
+## 1. Implemented rows that moved to the static registry (history)
 
-There are currently **no unimplemented browser-tool rows** in this registry.
-
-The 22 rows previously listed here moved to the static MCP registry on
-2026-08-25:
+The rows previously listed here moved to the static MCP registry on 2026-08-25:
 
 - FS/script and coupling: `browser_fs_goto_definition`,
   `browser_fs_insert_snippet`, `browser_fs_insert_parameter`,
@@ -68,6 +67,38 @@ deletion contract. The name-addressed `browser_delete_tab` remains a
 default-hidden deprecated compatibility wrapper that requires one exact unique
 name and delegates to the same ID core. Neither compatibility name is a new plan
 item.
+
+## 1a. Planned rows filed 2026-09-02 (document inventory / whole-document delete)
+
+**Trigger incident (2026-09-02, real dual-environment run):** DSH and CODEX both
+drove the same Onshape account through the browser MCP (one migrated browser
+profile). CODEX created a working document and then crashed while its
+FeatureScript still had 28 compile errors; the operator needed to (a) inventory
+which documents the account actually contained, and (b) delete the broken whole
+document to restore the pre-test state. Neither capability exists yet in the
+browser toolset: `browser_open_document` opens by exact visible name,
+`browser_delete_element` deletes a document *element* (tab), and no tool lists
+"owned by me" documents or deletes a whole document. Delete had to be done by
+hand in the web UI.
+
+Planned rows (names reserved; none implemented yet):
+
+| Tool | Level | Intent | Contract boundary | Confirmation |
+|---|---|---|---|---|
+| `browser_list_documents` | L3 interaction (read) | Inventory the "owned by me" documents page (visible name, document id, modification time) so an agent can pick/reconcile/clean up documents. | Read-only DOM read of the documents grid (`.os-document-list-*`, `#search-box` per `browser-automation.md` §4.1); zero REST; returns a bounded list with ids. | none (read-only) |
+| `browser_delete_document` | L4 transaction | Delete a whole document by document id from the documents list, after an explicit id-addressed confirmation. | Destructive and irreversible; requires one exact document id; performs the web-UI delete flow and verifies the document row disappears; never deletes by fuzzy name. | `confirm_mutation=true` + `dry_run` supported |
+
+Notes:
+
+- They pair with the existing `browser_create_document` /
+  `browser_duplicate_element` / `browser_share_document`; no alias overlaps were
+  found in the 104-tool registry audit.
+- Implementation must keep zero-REST (network=browser); delete is a cloud
+  mutation through the UI, so it follows the same confirmation/pacing guards as
+  other browser mutations.
+- Not implemented: these rows are a requirement filing only. The offline
+  acceptance tests keep them out of `PLANNED_NAMES`/`server.TOOLS` until a
+  Developer implements them.
 
 ## 2. Naming / de-dup notes
 

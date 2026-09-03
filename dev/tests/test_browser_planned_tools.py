@@ -115,16 +115,21 @@ class PlannedRegistryTest(unittest.TestCase):
 
     def test_all_planned_names_are_registered_once(self):
         names = [tool["name"] for tool in server.TOOLS]
-        self.assertEqual(len(server.TOOLS), 104)
+        self.assertEqual(len(server.TOOLS), 106)
         self.assertEqual(len(names), len(set(names)))
         self.assertTrue(PLANNED_NAMES.issubset(names))
         self.assertTrue(PLANNED_NAMES.issubset(server.HANDLERS))
 
-    def test_planned_only_registry_has_no_tool_rows(self):
+    def test_planned_only_registry_lists_filed_rows_but_not_implemented(self):
         root = Path(__file__).resolve().parents[2]
         roadmap = (root / "docs/roadmap/BROWSER_PLANNED_TOOLS.md").read_text(encoding="utf-8")
-        self.assertIn("no unimplemented browser-tool rows", roadmap)
-        self.assertFalse(any(line.startswith("| `browser_") for line in roadmap.splitlines()))
+        # Document inventory / whole-document delete were filed 2026-09-02 after
+        # a real dual-environment incident; they are planned, not implemented.
+        self.assertIn("## 1a. Planned rows filed 2026-09-02", roadmap)
+        self.assertIn("browser_list_documents", roadmap)
+        self.assertIn("browser_delete_document", roadmap)
+        self.assertNotIn("browser_list_documents", [t["name"] for t in server.TOOLS])
+        self.assertNotIn("browser_delete_document", [t["name"] for t in server.TOOLS])
 
     def test_cost_and_confirmation_metadata_match_behavior(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}

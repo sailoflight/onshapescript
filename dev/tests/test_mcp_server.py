@@ -110,6 +110,8 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("browser_click", names)
         self.assertNotIn("browser_fs_goto_definition", names)
         self.assertNotIn("browser_open_doc_menu", names)
+        self.assertNotIn("browser_fs_read_notices", names)
+        self.assertNotIn("browser_fs_capture_diagnostic", names)
         self.assertNotIn("browser_print_orientation_check", names)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
@@ -253,8 +255,10 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         result = responses[0]["result"]
         self.assertEqual(result["exposureMode"], "static")
-        self.assertEqual(len(result["tools"]), 104)
+        self.assertEqual(len(result["tools"]), 106)
         self.assertIn("browser_inspect", {tool["name"] for tool in result["tools"]})
+        self.assertIn("browser_fs_read_notices", {tool["name"] for tool in result["tools"]})
+        self.assertIn("browser_fs_capture_diagnostic", {tool["name"] for tool in result["tools"]})
 
     def test_browser_step_export_dry_run_is_local(self) -> None:
         responses, stderr = invoke([
@@ -335,7 +339,28 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("playwrightInstalled", status)
         self.assertIsInstance(status["playwrightInstalled"], bool)
         self.assertEqual(status["configured"], True)
-        self.assertIn(status["sessionStatus"], {"uninitialized", "started", "closed", "awaiting_login"})
+        self.assertIn(
+            status["sessionStatus"],
+            {"uninitialized", "started", "closed", "release_failed", "awaiting_login"},
+        )
+
+    def test_browser_session_release_is_offline_idempotent_and_safe(self) -> None:
+        responses, stderr = invoke([
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "browser_session", "arguments": {"action": "release"}},
+            },
+        ])
+        self.assertEqual(stderr, "")
+        result = responses[0]["result"]
+        self.assertFalse(result.get("isError"))
+        released = result["structuredContent"]
+        self.assertFalse(released["released"])
+        self.assertTrue(released["alreadyReleased"])
+        self.assertTrue(released["profileReleased"])
+        self.assertEqual(released["sessionStatus"], "closed")
 
     def test_browser_watch_status_and_report_are_offline(self) -> None:
         responses, stderr = invoke([

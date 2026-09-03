@@ -126,6 +126,7 @@ _classify(
         "browser_fs_insert_snippet",
         "browser_fs_insert_parameter",
         "browser_fs_toggle_fold",
+        "browser_fs_read_notices",
         "browser_open_doc_menu",
         "browser_set_panel_filter",
         "browser_toggle_left_panel",
@@ -152,6 +153,7 @@ _classify(
         "browser_insert_custom_feature",
         "browser_create_document_version",
         "browser_get_fs_compile_status",
+        "browser_fs_capture_diagnostic",
         "browser_get_fs_symbols",
         "browser_edit_feature_parameters",
         "browser_fs_watch_part_studio",
@@ -184,6 +186,23 @@ _classify(
 )
 
 TOOL_SEMANTICS.update({
+    "browser_get_fs_compile_status": _semantic(
+        "L4",
+        dependencies=("browser_fs_read_notices",),
+        note="Combines Ace annotations with the active FeatureScript notice pane and fails closed when notice evidence is unreadable.",
+    ),
+    "browser_fs_capture_diagnostic": _semantic(
+        "L4",
+        default_exposure=False,
+        dependencies=("browser_get_fs_compile_status",),
+        maturity="experimental",
+        note="Persists full browser-visible FeatureScript source and compile evidence to a module-owned local diagnostic package.",
+    ),
+    "browser_deploy_featurescript": _semantic(
+        "L4",
+        dependencies=("browser_fs_read_notices", "browser_fs_capture_diagnostic"),
+        note="Requires commit transition, exact source readback, combined compile evidence, and records a local diagnostic package.",
+    ),
     "browser_delete_tab": _semantic(
         "L4",
         default_exposure=False,

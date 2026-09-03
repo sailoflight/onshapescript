@@ -7,6 +7,7 @@ Status: verified
 - Browser defaults/local state, persistent Windows browser profile, session lifecycle, and single-working-page enforcement.
 - Page objects, selector/frame resolution, trusted browser inputs, waits, observations, and browser workflows.
 - Browser project checkpoints and browser-observed state.
+- Local FeatureScript source/compile diagnostic packages captured by browser tools.
 - Zero-REST-quota UI transactions and their browser-level verification evidence.
 
 ## Does not own
@@ -50,9 +51,12 @@ Project control plane (one or more L6 nodes)
 - `ONSHAPE_MCP_TOOL_EXPOSURE=profile|dynamic` adds fixed or per-connection views. Dynamic `mcp_tool_view` changes only `tools/list`, emits `notifications/tools/list_changed`, and never blocks a known-name handler call; it is a context convention, not authority.
 - Selectors and frame/locator resolution do not appear as duplicated literals in high-level tools.
 - The Windows process owns Playwright, Edge, the persistent profile, and logged-in session.
+- `browser_session(action="release")` is idempotent cooperative cleanup for the current process only; it never starts a browser, never releases another process's owner, and may require login state to be refreshed later.
 - A persistent browser profile has one process owner; client reconnect does not own session teardown.
 - Generic observation does not claim business success. High-level operations verify the relevant state, part count, feature history, DOM increment, or canvas change.
 - New write tools perform a pure-local dry run where supported and require explicit mutation confirmation for real UI actions.
+- FeatureScript compile acceptance combines Ace annotations with active-tab rows from the FeatureScript notice pane; a visible notice indicator that cannot be read fails closed.
+- Every committed FeatureScript deployment writes a module-owned local diagnostic package containing the full browser-visible source and compile result; these ignored artifacts may contain proprietary code.
 - Browser tools consume zero REST quota, but real UI actions can still mutate cloud data.
 - `browser_export_step` owns the UI/download half of canonical STEP acquisition:
   it uses live-observed export-dialog selectors, matches the active Part Studio URL
@@ -84,6 +88,7 @@ Project control plane (one or more L6 nodes)
 | Browser defaults | `onshape_browser_mode/config/browser.toml` | Committed defaults | Settings loader |
 | Geometry backend | `onshape_browser_mode/config/geometry-backend.json` | Disabled-by-default pinned executable/argv/tolerances | Browser mode owner |
 | STEP and geometry staging | `onshape_browser_mode/outputs/{step_exports,geometry_packages}/` | Runtime artifacts with verified manifests | Browser export/geometry transactions |
+| FeatureScript diagnostics | `onshape_browser_mode/outputs/fs_diagnostics/` | Ignored full-source, compile-result, and manifest packages | FeatureScript deploy/capture tools |
 | Local config/state | `onshape_browser_mode/config/` | Ignored local/runtime writes where applicable | Browser settings/session |
 | Persistent profile | `onshape_browser_mode/user_data/onshape_profile/` | Windows persistent runtime | Browser session |
 | Project checkpoints | `onshape_browser_mode/user_data/project-runs/` | Atomic runtime writes | Project runner |

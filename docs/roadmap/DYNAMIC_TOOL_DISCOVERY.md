@@ -155,6 +155,13 @@ selectors, recordings, and checkpoints. Re-evaluate it as a separate module only
 if it gains an independent runtime, state/safety boundary, deployment lifecycle,
 or implementation that no longer primarily depends on the browser layer.
 
+For the proposed FS-first compiler line, native modeling remains implemented by
+the browser owner but is consumed through compiler-facing backend ports and a
+versioned Transaction IR/driver boundary. Compiler orchestration, Feature IR,
+partitioning, model bindings, and fallback policy belong to the proposed compiler
+core, not `browser.native_modeling`. The sequencing and safety gates are defined
+in `FS_HYBRID_COMPILER_INTEGRATION.md`.
+
 ## Phases
 
 ### Phase A: catalog metadata and baseline — implemented

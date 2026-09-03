@@ -129,13 +129,22 @@ FS items here, the drawing/print items that also appear in
 `BROWSER_GENERIC_L2_SEMANTICS.md` — is the single-source registry
 `BROWSER_PLANNED_TOOLS.md`. Each item below keeps its FS-mode rationale.
 
-### 3.1 `browser_get_fs_compile_status` (L4, read) — implemented 2026-08-25
+### 3.1 FeatureScript notice/compile diagnostics — implemented 2026-09-02
 
-Reads the Ace editor annotations (`editor.session.getAnnotations()`) and reports
-`{compiled, errors: [{row, col, text, type}], annotationCount}`. Both
-`browser_deploy_featurescript` and `browser_deploy_and_apply_featurescript` now
-require the Commit button's enabled-to-disabled transition, exact source
-readback, and empty annotations before returning `deployed: true`.
+`browser_fs_read_notices` is the L3 interaction that opens the active FeatureScript
+notice pane when necessary, reads `.feature-script-notice-table` rows, and restores
+the prior pane state. `browser_get_fs_compile_status` is the L4 observation that
+combines those rows with Ace `editor.session.getAnnotations()` and fails closed
+when a visible notice indicator cannot be read. Live evidence proved that Ace can
+return zero annotations while the notice pane contains blocking precondition,
+missing-variable, and bounds errors; see `dev/button-map/scan-fs-notices.json`.
+
+Both `browser_deploy_featurescript` and
+`browser_deploy_and_apply_featurescript` require the Commit button's
+enabled-to-disabled transition, exact source readback, and no blocking combined
+compiler evidence before returning `deployed:true`. Every committed attempt also
+writes a local full-source diagnostic package. The experimental, default-hidden
+`browser_fs_capture_diagnostic` creates the same package on demand.
 
 ### 3.2 `browser_get_fs_symbols` (L4, read) — implemented 2026-08-25
 
@@ -247,9 +256,9 @@ REST mode and calls the shared, non-tool `fdm_analysis` library described in
 
 ### 6.1 `browser_deploy_featurescript` / `browser_deploy_and_apply_featurescript`
 
-- Read Ace annotations after commit and require `annotationCount == 0` for
-  `deployed: true` (see §3.1). A commit that leaves compiler annotations must
-  be reported as failed with the error list.
+- Implemented: combine Ace annotations with normalized FeatureScript notice-pane
+  rows after commit and reject blocking warning/error evidence. Each committed
+  attempt also records a local full-source diagnostic package for later analysis.
 - `semantic.build_part`'s `feature_name` match is a loose case-insensitive
   substring; suggest exact-name match with an `ambiguousCandidates` report when
   more than one user feature row matches.
@@ -291,7 +300,7 @@ REST mode and calls the shared, non-tool `fdm_analysis` library described in
 | Phase | Work | Status / gate |
 |---|---|---|
 | A | Selector evidence for FS editor, Module outline, app shell, and Drawing canvas | Completed for observed surfaces; absent candidates remain labeled unverified |
-| B | Compile-status + symbol transactions and deploy annotation gate | Implemented; offline tests + live read-only smoke |
+| B | Combined Ace + notice-pane compile status, deploy gate, and local diagnostic capture | Implemented; offline tests + live read-only notice evidence |
 | C | FS editor navigation/snippet/parameter/fold transactions | Implemented; offline tests + live selector/command evidence |
 | D | Apply/parameter + FS↔PS coupling | Implemented; offline tested, cloud-mutating Windows smoke still requires explicit authorization |
 | E | Drawing + print correction + L6/project + spiral ridge | Drawing implemented; invalid FDM proxy now documented/default-hidden; other cloud mutations require explicit authorization |
@@ -317,9 +326,12 @@ explicit validation authorization.
 ## Out of scope (current)
 
 - Native feature-mode transactions (sketch/extrude/revolve/fillet via the Part
-  Studio toolbar) are NOT part of this plan. They remain the Phase D work of
-  `DYNAMIC_TOOL_DISCOVERY.md`. The only native action retained is `apply_blend`
-  on an FS-produced part (§5), and it may be deferred.
+  Studio toolbar) are NOT part of this plan. The browser-side implementations
+  remain the Phase D work of `DYNAMIC_TOOL_DISCOVERY.md`; their use as an FS-first
+  compiler backend, including Feature/Transaction IR, Custom fallback isolation,
+  selection, recovery, and fork sequencing, is owned by
+  `FS_HYBRID_COMPILER_INTEGRATION.md`. The only native action retained here is
+  `apply_blend` on an FS-produced part (§5), and it may be deferred.
 
 ## Provenance
 

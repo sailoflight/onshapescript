@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mcp_main.win.mcp import browser_tools, server  # noqa: E402
-from onshape_browser_mode import actions, interaction, listener, project, semantic  # noqa: E402
+from onshape_browser_mode import actions, diagnostics, interaction, listener, project, semantic  # noqa: E402
 from onshape_browser_mode.pages import (  # noqa: E402
     AmbiguousFrameError,
     AssemblyPage,
@@ -145,6 +145,18 @@ class PageObjectAndFrameTest(unittest.TestCase):
         self.assertEqual(selectors.FS_MODULE_OUTLINE_NAME, evidence["nameSelector"])
         self.assertIn("Φ", evidence["observedIcons"])
 
+    def test_fs_notice_selectors_match_live_evidence(self):
+        from onshape_browser_mode import selectors
+        evidence = json.loads(
+            (ROOT / "dev/button-map/scan-fs-notices.json").read_text(encoding="utf-8")
+        )["noticePane"]
+        self.assertEqual(selectors.FS_NOTICE_TOGGLE, evidence["toggleSelector"])
+        self.assertEqual(selectors.FS_NOTICE_CONTENT, evidence["contentSelector"])
+        self.assertEqual(selectors.FS_NOTICE_TABLE, evidence["tableSelector"])
+        self.assertEqual(selectors.FS_NOTICE_MESSAGE, evidence["messageSelector"])
+        self.assertEqual(selectors.FS_NOTICE_LINE, evidence["lineSelector"])
+        self.assertEqual(selectors.FS_NOTICE_COLUMN, evidence["columnSelector"])
+
     def test_all_planned_page_objects_exist(self):
         for cls in (DocumentsPage, FeatureStudioPage, PartStudioPage, AssemblyPage):
             self.assertIsNotNone(cls(FakePage()).scope)
@@ -234,6 +246,159 @@ class GenericInteractionTest(unittest.TestCase):
         self.assertEqual(status["elementId"], "e1")
         self.assertEqual(symbols["symbolCount"], 2)
         self.assertEqual(symbols["symbols"][1]["name"], "build")
+
+    def test_fs_notice_reader_opens_parses_and_restores_notice_pane(self):
+        toggle = mock.Mock()
+        toggle.first = toggle
+        toggle.count.return_value = 1
+        content = mock.Mock()
+        content.first = content
+        page = mock.Mock()
+        page.locator.side_effect = lambda selector: (
+            toggle if selector == ".notice-pane-toggle-button" else content
+        )
+        notice = {
+            "severity": "warning",
+            "text": "Variable POSITIVE_LENGTH_BOUNDS not found.",
+            "line": 9,
+            "column": 44,
+            "row": 8,
+            "col": 43,
+            "tabName": "Feature Studio 1",
+        }
+        page.evaluate.side_effect = [
+            {
+                "found": True,
+                "indicatorPresent": True,
+                "paneOpen": False,
+                "noticeCount": 0,
+                "notices": [],
+            },
+            {
+                "found": True,
+                "indicatorPresent": True,
+                "paneOpen": True,
+                "noticeCount": 1,
+                "notices": [notice],
+            },
+        ]
+
+        result = actions.read_featurescript_notices(page)
+
+        self.assertTrue(result["complete"])
+        self.assertTrue(result["openedForRead"])
+        self.assertTrue(result["restored"])
+        self.assertEqual(result["notices"], [notice])
+        self.assertEqual(toggle.click.call_count, 2)
+        content.wait_for.assert_called_once_with(state="visible", timeout=5_000)
+
+    def test_compile_status_rejects_feature_script_notices_when_ace_is_clear(self):
+        page = mock.Mock()
+        page.evaluate.return_value = {
+            "found": True,
+            "annotationCount": 0,
+            "errors": [],
+        }
+        notice = {
+            "severity": "warning",
+            "text": "Nonconforming feature function: precondition analysis failed",
+            "line": 5,
+            "column": 14,
+            "row": 4,
+            "col": 13,
+            "tabName": "Feature Studio 1",
+        }
+        with mock.patch.object(actions, "read_featurescript_notices", return_value={
+            "found": True,
+            "complete": True,
+            "noticeCount": 1,
+            "notices": [notice],
+        }):
+            result = actions.read_featurescript_compile_status(page)
+
+        self.assertFalse(result["compiled"])
+        self.assertEqual(result["annotationCount"], 0)
+        self.assertEqual(result["noticeCount"], 1)
+        self.assertEqual(result["errors"][0]["source"], "featureScriptNotice")
+        self.assertEqual(result["errors"][0]["text"], notice["text"])
+
+    def test_compile_status_fails_closed_when_notice_pane_cannot_be_read(self):
+        page = mock.Mock()
+        page.evaluate.return_value = {
+            "found": True,
+            "annotationCount": 0,
+            "errors": [],
+        }
+        with mock.patch.object(actions, "read_featurescript_notices", return_value={
+            "found": True,
+            "complete": False,
+            "indicatorPresent": True,
+            "noticeCount": 0,
+            "notices": [],
+            "reason": "notice pane unavailable",
+        }):
+            result = actions.read_featurescript_compile_status(page)
+
+        self.assertFalse(result["compiled"])
+        self.assertFalse(result["noticeReadComplete"])
+        self.assertIn("notice pane unavailable", result["reason"])
+
+    def test_compile_observation_exceptions_are_structured_and_fail_closed(self):
+        page = mock.Mock()
+        page.evaluate.side_effect = RuntimeError("page closed")
+
+        notices = actions.read_featurescript_notices(page)
+        compile_status = actions.read_featurescript_compile_status(page)
+
+        self.assertFalse(notices["complete"])
+        self.assertIn("page closed", notices["reason"])
+        self.assertFalse(compile_status["compiled"])
+        self.assertEqual(compile_status["errors"][0]["source"], "compileObservation")
+        self.assertIn("page closed", compile_status["reason"])
+
+    def test_fs_notice_and_capture_handlers_return_page_identity(self):
+        page = FakePage()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        with mock.patch.object(browser_tools, "_page", return_value=(page, mock.Mock())), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_notices", return_value={
+                 "found": True, "complete": True, "noticeCount": 1, "notices": [{"text": "bad"}],
+             }):
+            notices = browser_tools.browser_fs_read_notices({})
+        self.assertEqual(notices["elementId"], "e1")
+        self.assertEqual(notices["noticeCount"], 1)
+
+        with mock.patch.object(browser_tools, "_page", return_value=(page, mock.Mock())), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor", return_value="FeatureScript 1;"), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status", return_value={
+                 "compiled": False, "annotationCount": 0, "noticeCount": 1, "errors": [{"text": "bad"}],
+             }), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic", return_value={
+                 "captured": True, "captureId": "capture-1",
+             }):
+            captured = browser_tools.browser_fs_capture_diagnostic({})
+        self.assertTrue(captured["captured"])
+        self.assertEqual(captured["captureId"], "capture-1")
+
+    def test_diagnostic_package_persists_source_result_and_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = diagnostics.save_featurescript_diagnostic(
+                source="FeatureScript 3029;\n",
+                compile_status={"compiled": False, "errors": [{"text": "bad"}]},
+                page_url="https://cad.onshape.com/documents/d1/w/w1/e/e1",
+                phase="manual-capture",
+                output_root=Path(tmp),
+                captured_at="2026-09-02T12:34:56.123456Z",
+            )
+            capture_dir = Path(result["captureDirectory"])
+            source = (capture_dir / "featurescript.fs").read_text(encoding="utf-8")
+            compile_result = json.loads((capture_dir / "compile-result.json").read_text(encoding="utf-8"))
+            manifest = json.loads((capture_dir / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(source, "FeatureScript 3029;\n")
+        self.assertFalse(compile_result["compiled"])
+        self.assertEqual(manifest["captureId"], result["captureId"])
+        self.assertEqual(manifest["sourceSha256"], result["sourceSha256"])
+        self.assertEqual(manifest["phase"], "manual-capture")
 
     def test_fs_symbol_reader_preserves_feature_kind(self):
         dropdown = mock.Mock()
@@ -414,12 +579,17 @@ class SemanticOperationTest(unittest.TestCase):
                  "clicked": True, "before": {"disabled": False}, "after": {"disabled": True},
              }), \
              mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status", return_value={
-                 "compiled": True, "annotationCount": 0, "errors": [],
-             }):
+                 "compiled": True, "annotationCount": 0, "noticeCount": 0, "errors": [],
+             }), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic", return_value={
+                 "captured": True, "captureId": "semantic-capture",
+             }) as capture:
             result = semantic.deploy_featurescript(mock.Mock(), "new")
         self.assertTrue(result["deployed"])
         self.assertTrue(result["commitAccepted"])
         self.assertTrue(result["compiled"])
+        capture.assert_called_once()
+        self.assertEqual(result["diagnosticCapture"]["captureId"], "semantic-capture")
 
     def test_deploy_rejects_compiler_annotations(self):
         compile_error = {
@@ -719,7 +889,7 @@ class HandlerCompositionTest(unittest.TestCase):
 class PlannedMetadataTest(unittest.TestCase):
     def test_registry_and_cost_contract(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
-        self.assertEqual(len(by_name), 104)
+        self.assertEqual(len(by_name), 106)
         before = len(server.TOOLS)
         browser_tools.install(server.TOOLS, server.HANDLERS)
         self.assertEqual(len(server.TOOLS), before)
@@ -733,7 +903,8 @@ class PlannedMetadataTest(unittest.TestCase):
         # read-only; all other browser handlers are mutating and must gate on it.
         for name in browser_tools.BROWSER_HANDLERS:
             if name in {
-                "browser_get_fs_compile_status", "browser_get_fs_symbols",
+                "browser_get_fs_compile_status", "browser_fs_read_notices",
+                "browser_fs_capture_diagnostic", "browser_get_fs_symbols",
                 "browser_fs_goto_definition", "browser_fs_toggle_fold",
                 "browser_set_panel_filter", "browser_toggle_left_panel",
                 "browser_read_selection_preview", "browser_element_context_menu",
@@ -761,6 +932,14 @@ class PlannedMetadataTest(unittest.TestCase):
         self.assertFalse(capture["annotations"]["destructiveHint"])
         self.assertIn("dry_run", capture["inputSchema"]["properties"])
         self.assertIn("output_dir", capture["inputSchema"]["properties"])
+
+        fs_capture = by_name["browser_fs_capture_diagnostic"]
+        self.assertEqual(fs_capture["cost"]["side_effects"], ["local_file"])
+        self.assertTrue(fs_capture["annotations"]["readOnlyHint"])
+        self.assertEqual(
+            by_name["browser_deploy_featurescript"]["cost"]["side_effects"],
+            ["remote_or_cloud_state", "local_file"],
+        )
 
 
 class ScreenshotToolTest(unittest.TestCase):

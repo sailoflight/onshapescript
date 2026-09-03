@@ -218,6 +218,13 @@ class ProjectLayoutTest(unittest.TestCase):
         )
         self.assertIn("apiQuota.alreadyConsumed + api-usage.json consumed", runbook)
         self.assertIn("UI year-to-date total - ledgerConsumed", runbook)
+        browser_plan = (
+            ROOT / "docs" / "roadmap" / "BROWSER_GENERIC_L2_SEMANTICS.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("`browser_session`", browser_plan)
+        self.assertIn('`action="release"`', browser_plan)
+        self.assertIn("finally-style cleanup", browser_plan)
+        self.assertIn("cannot release another process", browser_plan)
         operations_source = (
             ROOT / "onshape_rest_api_mode" / "operations.py"
         ).read_text(encoding="utf-8")

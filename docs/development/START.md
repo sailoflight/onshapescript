@@ -58,6 +58,7 @@ files, and current module contracts are executable sources of truth.
 
 - `LAB.md` maps `dev/`.
 - `../architecture/OVERVIEW.md` records current architecture.
+- `../roadmap/FS_HYBRID_COMPILER_INTEGRATION.md` owns the proposed FS-first compiler-fork integration, safety corrections, phases, and acceptance gates.
 - `../roadmap/` owns future and completed-design records without overriding code.
 - `../history/TRACEABILITY.md` maps preserved history to current authority.
 - `../../onshape_docs/experience/` and `verification/` own reusable behavior and evidence.

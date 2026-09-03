@@ -24,6 +24,12 @@ from onshape_browser_mode.selectors import (
     FS_MODULE_OUTLINE_ITEM,
     FS_MODULE_OUTLINE_LIST,
     FS_MODULE_OUTLINE_NAME,
+    FS_NOTICE_COLUMN,
+    FS_NOTICE_CONTENT,
+    FS_NOTICE_LINE,
+    FS_NOTICE_MESSAGE,
+    FS_NOTICE_TABLE,
+    FS_NOTICE_TOGGLE,
     TIMEOUT_RECONNECT_LINK,
 )
 
@@ -51,8 +57,8 @@ def read_featurescript_editor(page: Any) -> str | None:
     )
 
 
-def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
-    """Read and normalize the active Ace session's compiler annotations."""
+def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
+    """Read and normalize the active Ace session's annotations."""
     return page.evaluate(
         """
         () => {
@@ -60,7 +66,6 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
           if (!el) {
             return {
               found: false,
-              compiled: false,
               annotationCount: 0,
               errors: [],
               reason: 'FeatureScript editor not found',
@@ -70,7 +75,6 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
           if (!ed || !ed.session || typeof ed.session.getAnnotations !== 'function') {
             return {
               found: false,
-              compiled: false,
               annotationCount: 0,
               errors: [],
               reason: 'Ace annotation API unavailable',
@@ -79,7 +83,6 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
           const annotations = ed.session.getAnnotations() || [];
           return {
             found: true,
-            compiled: annotations.length === 0,
             annotationCount: annotations.length,
             errors: annotations.map((item) => ({
               row: Number.isInteger(item.row) ? item.row : 0,
@@ -88,11 +91,227 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
                 : (Number.isInteger(item.col) ? item.col : 0),
               text: String(item.text || ''),
               type: String(item.type || 'error'),
+              source: 'aceAnnotation',
             })),
           };
         }
         """ % ACE_EDITOR
     )
+
+
+def _read_featurescript_notice_snapshot(page: Any) -> dict[str, Any]:
+    return page.evaluate(
+        """
+        (selectors) => {
+          const visible = (el) => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden' &&
+              rect.width > 0 && rect.height > 0;
+          };
+          const text = (el) => (el ? (el.innerText || el.textContent || '').trim() : '');
+          const integer = (el) => {
+            const value = Number.parseInt(text(el), 10);
+            return Number.isInteger(value) ? value : null;
+          };
+          const toggle = document.querySelector(selectors.toggle);
+          const content = document.querySelector(selectors.content);
+          const activeTab = Array.from(document.querySelectorAll('.os-tab-bar-tab'))
+            .find((tab) => (tab.className || '').includes('active'));
+          const activeTabName = text(activeTab && activeTab.querySelector('.os-tab-name'));
+          const containers = content
+            ? Array.from(content.querySelectorAll('.element-notice-set-container'))
+            : [];
+          const notices = [];
+          for (const container of containers) {
+            if (container.querySelector('.notices-out-of-date')) continue;
+            const tabName = text(container.querySelector('.element-notice-title'));
+            if (activeTabName && tabName && tabName !== activeTabName) continue;
+            for (const table of container.querySelectorAll(selectors.table)) {
+              const messages = Array.from(table.querySelectorAll(selectors.message))
+                .map(text).filter(Boolean);
+              if (!messages.length) continue;
+              const line = integer(table.querySelector(selectors.line));
+              const column = integer(table.querySelector(selectors.column));
+              let severity = 'warning';
+              if (table.querySelector('.fs-notice-error')) severity = 'error';
+              else if (table.querySelector('.fs-notice-info')) severity = 'info';
+              notices.push({
+                severity,
+                text: messages[0],
+                line,
+                column,
+                row: line === null ? 0 : Math.max(0, line - 1),
+                col: column === null ? 0 : Math.max(0, column - 1),
+                tabName,
+              });
+            }
+          }
+          return {
+            found: !!toggle || !!content,
+            indicatorPresent: visible(toggle),
+            paneOpen: !!(toggle && toggle.querySelector('.flyout-toggle-button.os-expanded')),
+            activeTabName,
+            noticeCount: notices.length,
+            notices,
+          };
+        }
+        """,
+        {
+            "toggle": FS_NOTICE_TOGGLE,
+            "content": FS_NOTICE_CONTENT,
+            "table": FS_NOTICE_TABLE,
+            "message": FS_NOTICE_MESSAGE,
+            "line": FS_NOTICE_LINE,
+            "column": FS_NOTICE_COLUMN,
+        },
+    )
+
+
+def read_featurescript_notices(page: Any) -> dict[str, Any]:
+    """Read active-tab FeatureScript notices and restore the notice pane state."""
+    try:
+        snapshot = _read_featurescript_notice_snapshot(page)
+    except Exception as exc:  # noqa: BLE001 - fail closed with structured evidence
+        return {
+            "found": False,
+            "complete": False,
+            "indicatorPresent": False,
+            "noticeCount": 0,
+            "notices": [],
+            "openedForRead": False,
+            "restored": True,
+            "reason": f"FeatureScript notice snapshot failed: {type(exc).__name__}: {exc}",
+        }
+    if not isinstance(snapshot, dict):
+        return {
+            "found": False,
+            "complete": False,
+            "noticeCount": 0,
+            "notices": [],
+            "reason": "FeatureScript notice snapshot was not an object",
+        }
+
+    opened_for_read = False
+    restored = True
+    reason = ""
+    if (
+        snapshot.get("indicatorPresent")
+        and not snapshot.get("paneOpen")
+        and not snapshot.get("notices")
+    ):
+        toggle = page.locator(FS_NOTICE_TOGGLE).first
+        try:
+            if toggle.count() != 1:
+                raise RuntimeError("FeatureScript notice toggle was not found uniquely")
+            toggle.click()
+            opened_for_read = True
+            page.locator(FS_NOTICE_CONTENT).first.wait_for(
+                state="visible", timeout=5_000
+            )
+            refreshed = _read_featurescript_notice_snapshot(page)
+            if isinstance(refreshed, dict):
+                snapshot = refreshed
+            else:
+                reason = "FeatureScript notice snapshot was not an object after opening"
+        except Exception as exc:  # noqa: BLE001 - return bounded browser evidence
+            reason = f"FeatureScript notice pane unavailable: {type(exc).__name__}: {exc}"
+        finally:
+            if opened_for_read:
+                try:
+                    toggle.click()
+                except Exception as exc:  # noqa: BLE001 - status evidence remains usable
+                    restored = False
+                    if not reason:
+                        reason = f"FeatureScript notice pane could not be restored: {type(exc).__name__}: {exc}"
+
+    complete = bool(
+        not snapshot.get("indicatorPresent")
+        or snapshot.get("paneOpen")
+        or snapshot.get("notices")
+    ) and not (reason and not snapshot.get("notices"))
+    return {
+        **snapshot,
+        "complete": complete,
+        "openedForRead": opened_for_read,
+        "restored": restored,
+        **({"reason": reason} if reason else {}),
+    }
+
+
+def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
+    """Combine Ace annotations with the active FeatureScript notice pane."""
+    try:
+        ace = _read_featurescript_ace_annotations(page)
+    except Exception as exc:  # noqa: BLE001 - deployment must retain failure evidence
+        return {
+            "found": False,
+            "compiled": False,
+            "annotationCount": 0,
+            "noticeCount": 0,
+            "errors": [{
+                "row": 0,
+                "col": 0,
+                "text": f"Ace annotation read failed: {type(exc).__name__}: {exc}",
+                "type": "error",
+                "source": "compileObservation",
+            }],
+            "notices": [],
+            "noticeReadComplete": False,
+            "reason": f"Ace annotation read failed: {type(exc).__name__}: {exc}",
+        }
+    if not isinstance(ace, dict) or not ace.get("found"):
+        return {
+            "found": False,
+            "compiled": False,
+            "annotationCount": int((ace or {}).get("annotationCount", 0)),
+            "noticeCount": 0,
+            "errors": list((ace or {}).get("errors", [])),
+            "notices": [],
+            "noticeReadComplete": False,
+            "reason": (ace or {}).get("reason", "FeatureScript annotations unavailable"),
+        }
+
+    notice_status = read_featurescript_notices(page)
+    notices = [item for item in notice_status.get("notices", []) if isinstance(item, dict)]
+    blocking_notices = [
+        item for item in notices if str(item.get("severity", "warning")).lower() != "info"
+    ]
+    notice_errors = [
+        {
+            "row": int(item.get("row", 0)),
+            "col": int(item.get("col", 0)),
+            "line": item.get("line"),
+            "column": item.get("column"),
+            "text": str(item.get("text", "")),
+            "type": str(item.get("severity", "warning")),
+            "source": "featureScriptNotice",
+            "tabName": str(item.get("tabName", "")),
+        }
+        for item in blocking_notices
+    ]
+    ace_errors = [item for item in ace.get("errors", []) if isinstance(item, dict)]
+    notice_complete = bool(notice_status.get("complete"))
+    errors = [*ace_errors, *notice_errors]
+    result = {
+        "found": True,
+        "compiled": not errors and notice_complete,
+        "annotationCount": int(ace.get("annotationCount", len(ace_errors))),
+        "noticeCount": len(notices),
+        "errorCount": sum(1 for item in errors if str(item.get("type", "")).lower() == "error"),
+        "warningCount": sum(1 for item in errors if str(item.get("type", "")).lower() == "warning"),
+        "errors": errors,
+        "notices": notices,
+        "noticeReadComplete": notice_complete,
+        "noticePaneOpenedForRead": bool(notice_status.get("openedForRead")),
+        "noticePaneRestored": bool(notice_status.get("restored", True)),
+    }
+    if not notice_complete:
+        result["reason"] = str(
+            notice_status.get("reason", "FeatureScript notice indicator present but notices were not readable")
+        )
+    return result
 
 
 def _featurescript_symbol_kind(icon: str) -> str:

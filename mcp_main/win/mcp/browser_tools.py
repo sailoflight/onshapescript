@@ -172,7 +172,7 @@ def _mutation_plan(name: str, arguments: dict[str, Any], steps: list[str]) -> di
 
 
 def browser_get_fs_compile_status(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Read normalized compiler annotations from the active Feature Studio."""
+    """Read compiler evidence from Ace and the FeatureScript notice pane."""
     page, _ = _page(pace=False)
     from onshape_browser_mode import actions
 
@@ -180,6 +180,49 @@ def browser_get_fs_compile_status(arguments: dict[str, Any]) -> dict[str, Any]:
         "pageUrl": page.url,
         **actions.parse_document_url(page.url),
         **actions.read_featurescript_compile_status(page),
+    }
+
+
+def browser_fs_read_notices(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Read active-tab FeatureScript notices and restore the pane state."""
+    page, _ = _page(pace=False)
+    from onshape_browser_mode import actions
+
+    return {
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+        **actions.read_featurescript_notices(page),
+    }
+
+
+def browser_fs_capture_diagnostic(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Persist the active FeatureScript source and current compile evidence."""
+    page, _ = _page(pace=False)
+    from onshape_browser_mode import actions, diagnostics
+
+    source = actions.read_featurescript_editor(page)
+    if source is None:
+        return {
+            "captured": False,
+            "reason": "FeatureScript editor not found on the current page",
+            "pageUrl": page.url,
+            **actions.parse_document_url(page.url),
+        }
+    compile_status = actions.read_featurescript_compile_status(page)
+    captured = diagnostics.save_featurescript_diagnostic(
+        source=source,
+        compile_status=compile_status,
+        page_url=page.url,
+        phase="manual-capture",
+    )
+    return {
+        **captured,
+        "pageUrl": page.url,
+        **actions.parse_document_url(page.url),
+        "compiled": bool(compile_status.get("compiled")),
+        "annotationCount": compile_status.get("annotationCount", 0),
+        "noticeCount": compile_status.get("noticeCount", 0),
+        "errors": compile_status.get("errors", []),
     }
 
 
@@ -1079,7 +1122,9 @@ BROWSER_TOOLS = [
     _tool("browser_geometry_status", "Report browser-mode non-slicer geometry backend readiness without starting the browser or revealing executable paths. If the configured backend is unavailable, perform a bounded search of sibling project virtual environments, global Python environments, and the Windows/WSL counterpart. Reusable versioned candidates are returned by opaque ID; when none exist, agents are instructed to ask before installation. Never installs automatically.", {}, mutating=False, seconds=90, network="offline"),
     _tool("browser_configure_geometry_backend", "Configure browser mode from one opaque candidate_id returned by browser_geometry_status. The candidate is re-discovered before writing, so callers cannot supply an executable or argv. dry_run previews the selection; actual local configuration requires confirm_mutation=true. Never installs dependencies.", {"candidate_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["candidate_id"], network="offline"),
     _tool("browser_build_geometry_package", "Build an offline L6 geometry-analysis package from one browser-owned STEP export manifest. The executable and argv come only from browser module configuration; MCP may select only export_id. Re-verifies STEP provenance/SHA and writes STEP/STL/reports/manifest without browser, REST, or Bambu calls.", {"export_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=360, required=["export_id"], network="offline"),
-    _tool("browser_get_fs_compile_status", "Read the active FeatureScript Ace annotations and report compiled status, normalized errors, and annotation count. Read-only and zero REST API quota.", {}, mutating=False, seconds=5),
+    _tool("browser_get_fs_compile_status", "Read the active FeatureScript Ace annotations plus the FeatureScript notice pane and report compiled status, normalized errors, and counts. Read-only and zero REST API quota.", {}, mutating=False, seconds=10),
+    _tool("browser_fs_read_notices", "Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows, and restore the prior pane state. Read-only UI observation and zero REST API quota.", {}, mutating=False, seconds=10),
+    _tool("browser_fs_capture_diagnostic", "Persist the active full FeatureScript source and its combined Ace/FeatureScript-notice compile result as a local diagnostic package under onshape_browser_mode/outputs/fs_diagnostics. Experimental, zero REST API quota, and no cloud mutation; the local artifact may contain proprietary source code.", {}, mutating=False, seconds=10),
     _tool("browser_get_fs_symbols", "Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names. Read-only and zero REST API quota.", {}, mutating=False, seconds=10),
     _tool("browser_fs_goto_definition", "Navigate to a named top-level FeatureScript definition through Module outline and return the verified Ace cursor target.", {"symbol": {"type": "string"}}, mutating=False, seconds=10, required=["symbol"]),
     _tool("browser_fs_insert_snippet", "Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
@@ -1129,6 +1174,8 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_configure_geometry_backend": browser_configure_geometry_backend,
     "browser_build_geometry_package": browser_build_geometry_package,
     "browser_get_fs_compile_status": browser_get_fs_compile_status,
+    "browser_fs_read_notices": browser_fs_read_notices,
+    "browser_fs_capture_diagnostic": browser_fs_capture_diagnostic,
     "browser_get_fs_symbols": browser_get_fs_symbols,
     "browser_fs_goto_definition": browser_fs_goto_definition,
     "browser_fs_insert_snippet": browser_fs_insert_snippet,
