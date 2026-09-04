@@ -190,7 +190,7 @@ Configure an MCP client with the module name and repository working directory:
     "onshape-featurescript": {
       "command": "python3",
       "args": ["-m", "mcp_main"],
-      "cwd": "/home/lijq/code/onshapescript"
+      "cwd": "/home/user/code/onshapescript"
     }
   }
 }

@@ -196,8 +196,8 @@ class FdmAnalysisTest(unittest.TestCase):
 
     def test_windows_delivery_maps_wsl_workspace_to_unc(self):
         target = WorkspaceDeliveryTarget(
-            workspace_path=Path("/home/lijq/code/onshapescript"),
-            allowed_workspace_root=Path("/home/lijq/code"),
+            workspace_path=Path("/home/user/code/onshapescript"),
+            allowed_workspace_root=Path("/home/user/code"),
             relative_dir=Path("outputs/fdm/job-1"),
             wsl_distribution="Ubuntu-24.04",
         )
@@ -209,7 +209,7 @@ class FdmAnalysisTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "outside the configured allowed root"):
             WorkspaceDeliveryTarget(
                 workspace_path=Path("/tmp/escape"),
-                allowed_workspace_root=Path("/home/lijq/code"),
+                allowed_workspace_root=Path("/home/user/code"),
                 relative_dir=Path("outputs"),
                 wsl_distribution="Ubuntu",
             )
