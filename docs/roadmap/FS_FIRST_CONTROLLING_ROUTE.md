@@ -57,6 +57,11 @@ iterations are quota-free.
 **D4 — FeatureScript gains real local validation.** The structural checker is not
 sufficient. Local validation must catch more classes of error offline so that
 browser iterations are not spent on defects a local pass could have found.
+`architecture/FS_VALIDATION_STRATEGY.md` owns that boundary: what is offline
+decidable, what only the browser compiler can answer, and the measured
+false-positive gate a new rule must pass. Existing external checkers were
+surveyed there and none is reusable offline; reuse happens by detection, never by
+installation.
 
 **D5 — Direct GUI button-driving is abandoned as the modeling method.** Driving
 Part Studio toolbars, dialogs, and context menus to model geometry is not the
@@ -117,7 +122,7 @@ queries the *target* body; bodies that merely share a face can already be merged
 |---|---|---|---|
 | G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI — **handlers delivered offline in P3; server confirmation still open** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; see `onshape_rest_api_mode/feature_list.py` and `test_rest_feature_list` | quota (D2) for the live half |
 | G2 | Browser leg stability under heavy iteration | D3; `browser-modeling.md` records the `not-computed` / part-count-0 failure mode and selector fragility | none (quota-free) |
-| G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof" | none |
+| G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof". The reuse survey and the offline/machine split now live in `architecture/FS_VALIDATION_STRATEGY.md`: no offline reusable FS analyzer was found, so the structural checker stays and an external one would be a detected candidate, never an installed dependency | none |
 | G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | **Browser half delivered in P4**: `onshape_browser_mode/capabilities.py` (cards + bounded search) behind `browser_discover_tools`; the cross-backend contract is still open | G1–G3 |
 | G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | **Offline character benchmark delivered in P4** (`test_capability_retrieval`); no model-in-the-loop token measurement | G4 |
 | G6 | 108-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |

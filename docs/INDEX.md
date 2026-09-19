@@ -39,6 +39,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Inspect the generated tool surface | `generated/TOOL_REFERENCE.md` | Authoritative schema and handler in `mcp_main` |
 | Decide what a tool is for, or whether it should still exist | `architecture/TOOL_SURFACE_AUDIT.md` | The tool's schema in `mcp_main`, then its semantics record |
 | Add or find a whole-feature capability (`custom.fillet`, `custom.extrude`) | `../onshape_docs/experience/browser-modeling.md` §13 | `onshape_browser_mode/capabilities.py`, then `test_capabilities` |
+| Decide how a FeatureScript source is validated before upload | `architecture/FS_VALIDATION_STRATEGY.md` | `../onshape_docs/experience/featurescript.md`, then `onshape_docs/query/fs_check.py` |
 
 ## Project-level ownership
 
