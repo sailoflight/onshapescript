@@ -274,6 +274,9 @@ class BuildPartAcceptanceTest(unittest.TestCase):
         )
         self.assertTrue(result["built"])
         self.assertTrue(result["featurePresent"])
+        self.assertTrue(result["featureComputed"])
+        self.assertFalse(result["featureError"])
+        self.assertEqual(result["reason"], "")
         self.assertEqual(result["parts"], 2)
 
     def test_zero_parts_is_not_built(self) -> None:
@@ -285,6 +288,28 @@ class BuildPartAcceptanceTest(unittest.TestCase):
         self.assertFalse(result["built"])
         self.assertTrue(result["featurePresent"])
         self.assertEqual(result["parts"], 0)
+        self.assertEqual(result["reason"], "the Part Studio reports no computed parts")
+
+    def test_a_not_computed_row_is_not_built_even_with_parts(self) -> None:
+        """The recorded failure mode: a `not-computed` row is still a row, so
+        presence alone would report success once other features supply geometry."""
+        result = self.build(
+            {"inserted": True, "features": {"features": [
+                {"name": "Bc Branch cable trophy display 1", "isUserFeature": True,
+                 "hasError": True, "className": "os-list-item ns-user-feature not-computed"},
+            ], "partsText": "零件数 (132) base  plaqueInsert_blank"}},
+            {},
+        )
+        self.assertFalse(result["built"])
+        self.assertTrue(result["featurePresent"])
+        self.assertFalse(result["featureComputed"])
+        self.assertTrue(result["featureError"])
+        self.assertEqual(
+            result["featureRows"],
+            [{"name": "Bc Branch cable trophy display 1", "hasError": True}],
+        )
+        self.assertIn("unresolved error", result["reason"])
+        self.assertEqual(result["parts"], 132)
 
     def test_a_failed_insert_is_not_built_even_when_parts_exist(self) -> None:
         result = self.build(
@@ -294,6 +319,7 @@ class BuildPartAcceptanceTest(unittest.TestCase):
         )
         self.assertFalse(result["built"])
         self.assertFalse(result["featurePresent"])
+        self.assertIn("did not open", result["reason"])
         self.assertIn("did not open", result["insert"]["reason"])
 
     def test_a_missing_feature_row_is_not_built(self) -> None:
@@ -304,6 +330,7 @@ class BuildPartAcceptanceTest(unittest.TestCase):
         )
         self.assertFalse(result["built"])
         self.assertFalse(result["featurePresent"])
+        self.assertIn("is not present in the Feature List", result["reason"])
 
     def test_a_feature_row_without_a_part_count_is_not_built(self) -> None:
         result = self.build(
@@ -313,6 +340,61 @@ class BuildPartAcceptanceTest(unittest.TestCase):
         )
         self.assertFalse(result["built"])
         self.assertTrue(result["featurePresent"])
+        self.assertEqual(result["reason"], "the Part Studio reports no computed parts")
+
+
+class FeatureStateTest(unittest.TestCase):
+    """Presence and computedness come from one matching rule."""
+
+    def test_presence_and_error_are_separate_signals(self) -> None:
+        features = {"features": [
+            {"name": "Other", "isUserFeature": True},
+            {"name": "Bc 1", "isUserFeature": True},
+            {"name": "Bc 2", "isUserFeature": True, "hasError": True},
+        ]}
+        state = actions.feature_state(features, "Bc")
+        self.assertTrue(state["listed"])
+        self.assertTrue(state["errored"])
+        self.assertEqual(state["names"], ["Bc 1", "Bc 2"])
+        self.assertEqual(state["rows"], [
+            {"name": "Bc 1", "hasError": False},
+            {"name": "Bc 2", "hasError": True},
+        ])
+        self.assertTrue(actions.feature_listed(features, "Bc"))
+
+    def test_a_clean_row_is_listed_and_not_errored(self) -> None:
+        self.assertEqual(
+            actions.feature_state(
+                {"features": [{"name": "Bc 1", "isUserFeature": True, "hasError": False}]}, "Bc",
+            ),
+            {
+                "listed": True, "errored": False, "names": ["Bc 1"],
+                "rows": [{"name": "Bc 1", "hasError": False}],
+            },
+        )
+
+    def test_default_features_are_not_matches(self) -> None:
+        state = actions.feature_state(
+            {"features": [{"name": "Bc origin", "isUserFeature": False, "hasError": True}]}, "Bc",
+        )
+        self.assertFalse(state["listed"])
+        self.assertFalse(state["errored"])
+
+    def test_empty_names_and_malformed_lists_are_never_matches(self) -> None:
+        for features, name in (
+            ({"features": [{"name": "Bc", "isUserFeature": True}]}, ""),
+            ({"features": [{"name": "Bc", "isUserFeature": True}]}, "   "),
+            ({"features": "Bc"}, "Bc"),
+            ({}, "Bc"),
+            (None, "Bc"),
+            ([{"name": "Bc"}], "Bc"),
+            ({"features": [None, "Bc"]}, "Bc"),
+        ):
+            with self.subTest(features=features, name=name):
+                state = actions.feature_state(features, name)
+                self.assertFalse(state["listed"])
+                self.assertFalse(state["errored"])
+                self.assertFalse(actions.feature_listed(features, name))
 
 
 class WaitConditionTextFilterTest(unittest.TestCase):

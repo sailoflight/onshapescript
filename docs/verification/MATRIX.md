@@ -29,7 +29,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | Ordinary stdio entry | MCP + project-layout + probe-policy tests; target-host probe | one profile owner |
 | DSH companion/example | generator `--check`, runtime tests, static external-adapter guard | model-visible policy smoke |
 | External bridge registration | this repo's example only | bridge project's protocol/registry/lifecycle suite |
-| Browser schema/workflow | browser plan + MCP tests | authorized target-host scenario after dry-run |
+| Browser schema/workflow | browser plan + MCP tests; `test_browser_apply_path` for the apply waits and the `featurePresent`/`featureComputed`/`parts` acceptance rule | authorized target-host scenario after dry-run |
 | Browser session/selectors | browser-mode tests | read-only inspect/watch first |
 | FS diagnostic loop (notice read, code normalization, capture) | `test_fs_diagnostics` + `test_fs_notice_collector` (node stub-DOM probe) | read-only notice-pane probe on the target host |
 | REST/budget/operations | quota guards | explicitly budgeted live fact only |

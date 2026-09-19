@@ -856,24 +856,54 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     )
 
 
+def feature_state(features: Any, feature_name: str) -> dict[str, Any]:
+    """Presence AND computedness of a named user feature in a read feature list.
+
+    Presence and computedness are different facts. The recorded experience is
+    explicit that a `not-computed` row still appears in the Feature List, and
+    that a picker entry, a bare `feature-id`, or a row without computed geometry
+    is not proof of success. Presence alone would therefore accept a feature that
+    never computed, so both signals are returned from one matching rule.
+
+    ``errored`` is a UI signal, not a domain verdict: an error class can be
+    visible while the workbench is still regenerating, which is why callers
+    report it instead of retrying anything.
+    """
+    empty = {"listed": False, "errored": False, "names": [], "rows": []}
+    if not isinstance(features, dict) or not isinstance(feature_name, str):
+        return empty
+    wanted = feature_name.strip().lower()
+    if not wanted:
+        return empty
+    items = features.get("features")
+    if not isinstance(items, list):
+        return empty
+    rows = [
+        {
+            "name": str(item.get("name", "")),
+            "hasError": bool(item.get("hasError")),
+        }
+        for item in items
+        if isinstance(item, dict)
+        and item.get("isUserFeature")
+        and wanted in str(item.get("name", "")).lower()
+    ]
+    return {
+        "listed": bool(rows),
+        "errored": any(row["hasError"] for row in rows),
+        "names": [row["name"] for row in rows],
+        "rows": rows,
+    }
+
+
 def feature_listed(features: Any, feature_name: str) -> bool:
     """Whether a read Part Studio feature list contains the named user feature.
 
     This is the single presence rule used by both the apply path and
-    ``semantic.build_part``; an empty name is never a match.
+    ``semantic.build_part``; an empty name is never a match. Callers that need to
+    know whether the row actually computed use :func:`feature_state`.
     """
-    if not isinstance(features, dict) or not isinstance(feature_name, str):
-        return False
-    wanted = feature_name.strip().lower()
-    if not wanted:
-        return False
-    items = features.get("features")
-    if not isinstance(items, list):
-        return False
-    return any(
-        isinstance(item, dict) and item.get("isUserFeature") and wanted in str(item.get("name", "")).lower()
-        for item in items
-    )
+    return feature_state(features, feature_name)["listed"]
 
 
 def list_document_tabs(page: Any) -> dict[str, Any]:
@@ -1137,15 +1167,26 @@ def insert_custom_feature(
     )
 
     features = read_partstudio_features(page)
-    listed = feature_listed(features, feature_name)
-    return {
-        "inserted": bool(accepted.get("clicked")) and listed,
+    state = feature_state(features, feature_name)
+    result = {
+        "inserted": bool(accepted.get("clicked")) and state["listed"],
         "accepted": accepted,
-        "listed": listed,
+        "listed": state["listed"],
+        "errored": state["errored"],
+        "featureRows": state["rows"],
         "waits": {"menu": opened, "dialog": dialog, "regeneration": regenerated},
         "features": features,
         "pageUrl": page.url,
     }
+    if state["errored"]:
+        # Reported, never retried: an error row may still be regenerating, and a
+        # second accept click would add a second feature instead of fixing this
+        # one. semantic.build_part turns this into an explicit non-acceptance.
+        result["reason"] = (
+            "the Feature List row for the feature reports an unresolved error "
+            "(not computed); re-read the Part Studio before assuming failure"
+        )
+    return result
 
 
 def create_document_version(page: Any, name: str = "") -> dict[str, Any]:

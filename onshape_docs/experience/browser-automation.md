@@ -183,8 +183,16 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - 特征树：`.features-title`（「特征 (5)」）、`.os-list-item`；
   自定义特征 `.os-list-item.ns-user-feature`（如 `Bc Branch cable trophy display`），
   默认几何图元 `.os-list-item.ns-default-feature`。
-- 零件列表：`.part-list-container`（`零件数 (132) base ...`）——自定义特征出现且
-  零件数>0 即 0 配额的「编译+建模」验证。
+- 零件列表：`.part-list-container`（`零件数 (132) base ...`）。
+- **验收需要三个信号同时成立**，缺一不可：特征树出现该自定义特征的
+  `.os-list-item.ns-user-feature` 行；该行的 class 与文本不含
+  `not-computed` / `error` / `未计算` / `错误`；`零件数 > 0`。
+  `browser-modeling.md` §6 明确记录「`not-computed` 行仍然是一行」，所以只凭行存在，
+  会在其他特征已提供几何时报出假成功。`browser_build_part` /
+  `browser_deploy_and_apply_featurescript` 把三者分开报告（`featurePresent`、
+  `featureComputed`、`featureError`），未通过时给出 `reason`；`errored` 是 UI 信号
+  而不是领域结论，重新生成期间也可能短暂出现，因此只报告、不重试接受按钮
+  （第二次点击会再加一个特征，而不是修好这一个）。
 - 工具栏：`.toolbar-item`，按钮 `.tool.is-activatable.is-button`；文字标签
   `.tool-label.hide-in-toolbar` 是**隐藏的**，`browser_click(text=...)` 点不到，
   要按 `.toolbar-item` 的 textContent 找到后点内部按钮。

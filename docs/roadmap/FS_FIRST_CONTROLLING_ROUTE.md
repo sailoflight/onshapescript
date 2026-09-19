@@ -277,6 +277,16 @@ Delivered so far, all offline:
   notice table, and the capture path adds a normalized, source-annotated
   diagnostics summary plus a bounded corpus entry for the local analyzer. The
   notice collector string is exercised offline against a stub DOM with node.
+- **P1d** — the apply path no longer ends in three blind sleeps: it waits on the
+  dropdown, the parameter dialog, and this feature appearing in the tree, each
+  with a timeout at least as long as the sleep it replaced. `inserted` now means
+  the feature is listed rather than that a click landed.
+- **P1e** — acceptance separates the two facts a Feature List row carries.
+  `browser_build_part` and `browser_deploy_and_apply_featurescript` require
+  `featurePresent`, `featureComputed` (no `not-computed`/error row) **and**
+  `零件数 > 0`, and return a `reason` when any of the three fails; a
+  `not-computed` row can no longer be reported as a successful build just because
+  other features supplied geometry.
 
 Still open for the P1 gate: the real-machine apply/verify loop over pathological
 inputs. That needs the operator present and is not claimed as done.

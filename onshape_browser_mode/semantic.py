@@ -358,14 +358,39 @@ def deploy_featurescript(page: Any, script: str) -> dict[str, Any]:
 
 
 def build_part(page: Any, feature_name: str, part_studio_tab: str = "") -> dict[str, Any]:
-    """Apply a custom feature and return normalized Part Studio acceptance data."""
+    """Apply a custom feature and return normalized Part Studio acceptance data.
+
+    Acceptance needs BOTH the feature tree and the part list, and the feature
+    tree itself carries two facts: the row exists, and the row computed. The
+    recorded experience says a `not-computed` row is still a row, so presence
+    alone would report success for a feature that produced nothing.
+    """
     inserted = actions.insert_custom_feature(page, feature_name, part_studio_tab or None)
     features = inserted.get("features") or actions.read_partstudio_features(page)
     summary = parse_part_summary(str(features.get("partsText", "")))
-    feature_present = actions.feature_listed(features, feature_name)
+    state = actions.feature_state(features, feature_name)
+    computed = state["listed"] and not state["errored"]
+    built = bool(inserted.get("inserted")) and computed and summary["parts"] > 0
+    if built:
+        reason = ""
+    elif not inserted.get("inserted"):
+        reason = str(inserted.get("reason") or "the custom feature was not inserted")
+    elif not state["listed"]:
+        reason = f"the feature {feature_name!r} is not present in the Feature List"
+    elif state["errored"]:
+        reason = (
+            "the Feature List shows the feature with an unresolved error "
+            "(not computed); re-read the Part Studio before assuming failure"
+        )
+    else:
+        reason = "the Part Studio reports no computed parts"
     return {
-        "built": bool(inserted.get("inserted")) and feature_present and summary["parts"] > 0,
-        "featurePresent": feature_present,
+        "built": built,
+        "featurePresent": state["listed"],
+        "featureComputed": computed,
+        "featureError": state["errored"],
+        "featureRows": state["rows"],
+        "reason": reason,
         "insert": inserted,
         "features": features,
         **summary,

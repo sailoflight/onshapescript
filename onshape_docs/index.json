@@ -1913,7 +1913,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "dc9a3d8a82fbff75e8ea44362deb3fe907025bce5a9e1936f3111e863a9386f9",
+   "sha256": "1f7b9c138589288a2a186d654d3fd786d180548528f1aae31e235b396fcc856f",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2321,7 +2321,11 @@
          "depth": 0
         },
         {
-         "text": "零件列表：.part-list-container（零件数 (132) base ...）——自定义特征出现且 零件数>0 即 0 配额的「编译+建模」验证。",
+         "text": "零件列表：.part-list-container（零件数 (132) base ...）。",
+         "depth": 0
+        },
+        {
+         "text": "验收需要三个信号同时成立，缺一不可：特征树出现该自定义特征的 .os-list-item.ns-user-feature 行；该行的 class 与文本不含 not-computed / error / 未计算 / 错误；零件数 > 0。 browser-modeling.md §6 明确记录「not-computed 行仍然是一行」，所以只凭行存在， 会在其他特征已提供几何时报出假成功。browser_build_part / browser_deploy_and_apply_featurescript 把三者分开报告（featurePresent、 featureComputed、featureError），未通过时给出 reason；errored 是 UI 信号 而不是领域结论，重新生成期间也可能短暂出现，因此只报告、不重试接受按钮 （第二次点击会再加一个特征，而不是修好这一个）。",
          "depth": 0
         },
         {
