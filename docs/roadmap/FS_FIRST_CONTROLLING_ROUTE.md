@@ -314,12 +314,19 @@ checked three ways offline — the local structural checker, a gate that every
 referenced function/enum/constant exists in the vendored reference, and the
 value contract itself (`test_capabilities`).
 
-Still open for the P2 gate: the fillet and extrude sources are
+`custom.hole` was added later in the same phase. The earlier reason to reject it
+— "`holeDefinition` cannot be confirmed offline" — did not survive the lookup:
+`opHole`'s fields and example are in `geomOperations.fs`, `holeDefinition(profiles)`,
+`holeProfile(positionReference, position, radius)` and the "final profile radius 0"
+rule are in `holeUtils.fs`, `AXIS_POINT`/`LAST_TARGET_END` are enum members of
+`holepositionreference.gen.fs`, and the axis is `line(evVertexPoint(...),
+-evPlane(...).normal)`. The shape is therefore a symbol-gated constructor call,
+not a guessed map literal; through holes use the `LAST_TARGET_END` reference rather
+than a large depth.
+
+Still open for the P2 gate: the fillet, extrude and hole sources are
 `structural-only`. They have never been compiled or applied, so nothing here
-claims they produce geometry; that is the machine half of the gate. `custom.hole`
-was **not** added — `opHole` needs a `holeDefinition` whose construction is not
-verifiable offline from the vendored material, and shipping a guessed one would
-trade a real capability for the appearance of one.
+claims they produce geometry; that is the machine half of the gate.
 
 **P3 — REST Feature-List CRUD (G1).** Update / delete / rollback / batch update
 plus suppression, dry-run first, fixture-backed.
@@ -367,9 +374,11 @@ A single incidental prose word ("feature", "part") is not a match; one weak word
 never qualifies a card on its own.
 
 `test_capability_retrieval` is the gate. It measures the two routes over the same
-indexes the server reads: for the three named queries the resolved card costs
+indexes the server reads: for the four named queries the resolved card costs
 668–1422 characters, while the reference route costs 1862–8930 characters even
-before the caller reads the function body that defines the contract. It also
+before the caller reads the function body that defines the contract. A Chinese
+query ("打孔") resolves `custom.hole` while the FeatureScript search returns
+nothing at all. It also
 asserts that a prose query ("round the edges of this part") resolves to
 `custom.fillet` while the FeatureScript search ranks only query helpers and
 filters, that the card payload contains no source, and that resolving a card

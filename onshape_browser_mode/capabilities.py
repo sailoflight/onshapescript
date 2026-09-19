@@ -259,6 +259,63 @@ def _build_extrude(values: Mapping[str, Any]) -> str:
     return _header("Bounded extrude", "boundedExtrude") + body
 
 
+def _build_hole(values: Mapping[str, Any]) -> str:
+    """`opHole` with a `HoleDefinition` built from the documented constructors.
+
+    Every name here is read from the vendored standard library rather than
+    recalled: `opHole`'s `holeDefinition` / `axes` / `targets` fields and its
+    example (`geomOperations.fs`), the single-argument
+    `holeDefinition(profiles)` overload along with the `holeProfile(positionReference,
+    position, radius)` constructor and the "final profile must have a radius of 0"
+    rule (`holeUtils.fs`), the `AXIS_POINT` and `LAST_TARGET_END` references
+    (`holepositionreference.gen.fs`), `line(origin, direction)`
+    (`curveGeometry.fs`), and `evVertexPoint` / `evPlane` (`evaluate.fs`).
+
+    The axis is the human's pick, not the caller's: a start vertex and a planar
+    face whose inverted normal is the drill direction. A through hole is the same
+    profile list with the cap measured from `LAST_TARGET_END`, so "through" is a
+    reference the operation understands rather than a very large depth.
+    """
+    body = """    precondition
+    {
+        annotation { "Name" : "Start vertex",
+                    "Filter" : EntityType.VERTEX && ConstructionObject.NO && SketchObject.NO,
+                    "MaxNumberOfPicks" : 1 }
+        definition.vertex is Query;
+
+        annotation { "Name" : "Planar face (drill direction)",
+                    "Filter" : EntityType.FACE && GeometryType.PLANE && ConstructionObject.NO && SketchObject.NO && ModifiableEntityOnly.YES,
+                    "MaxNumberOfPicks" : 1 }
+        definition.face is Query;
+
+        annotation { "Name" : "Diameter" }
+        isLength(definition.diameter, LENGTH_BOUNDS);
+
+        annotation { "Name" : "Depth" }
+        isLength(definition.depth, LENGTH_BOUNDS);
+
+        annotation { "Name" : "Through all", "Default" : false }
+        definition.through is boolean;
+    }
+    {
+        const drillDirection = -evPlane(context, { "face" : definition.face }).normal;
+        const profiles = [
+                holeProfile(HolePositionReference.AXIS_POINT, 0 * millimeter, definition.diameter * 0.5),
+                definition.through
+                    ? holeProfile(HolePositionReference.LAST_TARGET_END, 0 * millimeter, 0 * millimeter)
+                    : holeProfile(HolePositionReference.AXIS_POINT, definition.depth, 0 * millimeter)
+        ];
+        const holeInput = {
+                "holeDefinition" : holeDefinition(profiles),
+                "axes" : [line(evVertexPoint(context, { "vertex" : definition.vertex }), drillDirection)],
+                "targets" : qAllModifiableSolidBodies()
+        };
+        opHole(context, id + "hole", holeInput);
+    });
+"""
+    return _header("Bounded hole", "boundedHole") + body
+
+
 CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         id="custom.spiral_ridge",
@@ -315,6 +372,28 @@ CAPABILITIES: tuple[Capability, ...] = (
         notes=(
             "Add and remove are two operations in FeatureScript (opExtrude, then "
             "opBoolean SUBTRACTION); the capability hides that split behind one boolean."
+        ),
+    ),
+    Capability(
+        id="custom.hole",
+        feature_type="Bounded hole",
+        export_name="boundedHole",
+        aliases=("hole", "drill", "bore", "孔", "打孔"),
+        use_when=(
+            "a cylindrical hole is needed at a picked vertex, drilled along a picked "
+            "planar face's normal"
+        ),
+        parameters=(
+            Parameter("diameter", "length", "hole diameter", 6.0, 0.1, 500.0),
+            Parameter("depth", "length", "blind depth from the axis origin; ignored by a through hole", 20.0, 0.1, 2000.0),
+            Parameter("through", "boolean", "drill through every target instead of stopping at depth", False),
+        ),
+        build_source=_build_hole,
+        notes=(
+            "opHole takes a HoleDefinition built by holeDefinition([holeProfile(...)]) plus "
+            "an array of axes; the axis is line(vertex point, inverted face normal), so two "
+            "human picks decide the geometry. A through hole uses the LAST_TARGET_END "
+            "reference, not a large depth. structural-only: never compiled or applied."
         ),
     ),
 )

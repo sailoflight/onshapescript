@@ -29,6 +29,7 @@ from onshape_docs.query import fs_reference, project_docs
 _QUERIES = {
     "extrude": "extrude this face into a boss",
     "fillet": "round the edges of this part",
+    "hole": "drill a hole at this vertex",
     "long-tail": "spiral ridge thread",
 }
 
@@ -83,6 +84,7 @@ class SearchBehaviourTest(unittest.TestCase):
                 self.assertEqual(matches[0]["card"]["id"], {
                     "extrude": "custom.extrude",
                     "fillet": "custom.fillet",
+                    "hole": "custom.hole",
                     "long-tail": "custom.spiral_ridge",
                 }[name])
 
@@ -119,6 +121,11 @@ class RetrievalCostTest(unittest.TestCase):
                     card_route, reference_route,
                     f"{name}: card route {card_route} chars is not cheaper than {reference_route}",
                 )
+
+    def test_a_chinese_query_resolves_a_card_the_reference_cannot_find(self) -> None:
+        """The card layer carries the owner's own vocabulary; the FS index does not."""
+        self.assertEqual(capabilities.search("打孔", limit=1)[0]["card"]["id"], "custom.hole")
+        self.assertEqual(fs_reference.search("打孔", limit=5), [])
 
     def test_the_reference_search_does_not_resolve_a_prose_query(self) -> None:
         """The card layer earns its keep on intent, not just on size.

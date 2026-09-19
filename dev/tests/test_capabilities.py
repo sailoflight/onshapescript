@@ -153,14 +153,20 @@ class SymbolGateTest(unittest.TestCase):
             ("custom.fillet", {"radius": 0.25, "tangent_propagation": False}),
             ("custom.extrude", None),
             ("custom.extrude", {"depth": 40, "remove": True}),
+            ("custom.hole", None),
+            ("custom.hole", {"diameter": 8, "depth": 12, "through": True}),
         ]
         return [(name, capabilities.plan(name, values)["source"]) for name, values in cases]
+
+    def _code(self, source: str) -> str:
+        """Code only: an annotation string is prose, not a symbol reference."""
+        return fs_check.strip_strings_and_comments(source)
 
     def test_every_called_function_exists_in_the_reference(self) -> None:
         names = _index_names()
         for capability, source in self._sources():
             with self.subTest(capability=capability):
-                called = set(_CALL.findall(source))
+                called = set(_CALL.findall(self._code(source)))
                 unknown = sorted(
                     name for name in called
                     if name not in names and name not in _LANGUAGE_NAMES
@@ -171,7 +177,7 @@ class SymbolGateTest(unittest.TestCase):
         names = _index_names()
         for capability, source in self._sources():
             with self.subTest(capability=capability):
-                pairs = set(_ENUM_MEMBER.findall(source))
+                pairs = set(_ENUM_MEMBER.findall(self._code(source)))
                 self.assertTrue(pairs, "the templates are expected to use enums")
                 for type_name, member in sorted(pairs):
                     # EntityType is a built-in enum in the language, not an index entry.
@@ -185,12 +191,12 @@ class SymbolGateTest(unittest.TestCase):
     def test_every_referenced_constant_exists_in_the_reference(self) -> None:
         names = _index_names()
         members = {member for _type, member in _ENUM_MEMBER.findall(" ".join(
-            source for _name, source in self._sources()
+            self._code(source) for _name, source in self._sources()
         ))}
         for capability, source in self._sources():
             with self.subTest(capability=capability):
                 constants = {
-                    name for name in _CONSTANT.findall(source)
+                    name for name in _CONSTANT.findall(self._code(source))
                     if name not in members and name not in {"NO", "YES", "BLIND"}
                 }
                 unknown = sorted(name for name in constants if name not in names)
@@ -199,8 +205,26 @@ class SymbolGateTest(unittest.TestCase):
     def test_the_bounds_constants_are_the_standard_library_ones(self) -> None:
         fillet = capabilities.plan("custom.fillet")["source"]
         extrude = capabilities.plan("custom.extrude")["source"]
+        hole = capabilities.plan("custom.hole")["source"]
         self.assertIn("isLength(definition.radius, BLEND_BOUNDS)", fillet)
         self.assertIn("isLength(definition.depth, LENGTH_BOUNDS)", extrude)
+        self.assertIn("isLength(definition.diameter, LENGTH_BOUNDS)", hole)
+
+    def test_the_hole_is_built_from_the_documented_constructors(self) -> None:
+        """The hole was rejected once for a guessed `holeDefinition`; the
+        vendored constructors make it checkable instead, so the shape is pinned
+        here: profiles from `holeProfile`, axes from the human's two picks."""
+        source = capabilities.plan("custom.hole")["source"]
+        self.assertIn("holeDefinition(profiles)", source)
+        self.assertIn("HolePositionReference.AXIS_POINT", source)
+        self.assertIn('"axes" : [line(evVertexPoint(', source)
+        self.assertIn("definition.vertex is Query", source)
+        self.assertIn("definition.face is Query", source)
+        self.assertIn("definition.through", source)
+        self.assertIn(
+            "holeProfile(HolePositionReference.LAST_TARGET_END, 0 * millimeter, 0 * millimeter)",
+            source,
+        )
 
     def test_sources_pass_the_local_structural_checker(self) -> None:
         for capability, source in self._sources():
@@ -317,7 +341,7 @@ class DeployToolCapabilityTest(unittest.TestCase):
 
         names = [tool["name"] for tool in server.TOOLS]
         self.assertEqual(len(names), 108)
-        self.assertEqual(len(capabilities.CAPABILITIES), 3)
+        self.assertEqual(len(capabilities.CAPABILITIES), 4)
         # The capability route lives on the existing deploy tool.
         deploy = next(tool for tool in server.TOOLS if tool["name"] == "browser_deploy_and_apply_featurescript")
         self.assertIn("capability", deploy["inputSchema"]["properties"])

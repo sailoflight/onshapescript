@@ -195,8 +195,8 @@
   `enum`。没有自由字符串、没有代码、没有 selector。
 - **Query 不是能力参数**：选面/选边留在生成特征的 `precondition` 里，由人在
   Onshape 对话框里、看得见几何的情况下选。所以能力无法被要求去倒一个不存在的边。
-- **能力数量与工具数量解耦**：新增能力不新增工具。当前三个能力
-  （`custom.spiral_ridge` / `custom.fillet` / `custom.extrude`）都通过既有的
+- **能力数量与工具数量解耦**：新增能力不新增工具。当前四个能力
+  （`custom.spiral_ridge` / `custom.fillet` / `custom.extrude` / `custom.hole`）都通过既有的
   `browser_deploy_and_apply_featurescript` 调用，schema 用
   `anyOf: [script+feature_name, capability]` 表达两条互斥路线，handler 再做一次校验。
 - 卡片（`capabilities.cards()`）只含身份、`useWhen`、参数与验证状态，**不含实现**；
@@ -231,14 +231,26 @@
 `LENGTH_BOUNDS` 常量，都取自 vendored 标准库源码（`geomOperations.fs`、
 `valueBounds.fs`），而不是模型记忆。
 
+**孔（`custom.hole`）：一次基于证据的推翻。** 早期结论是「不加 `custom.hole`，
+因为 `holeDefinition` 的构造无法离线确认」。查过 vendored 源码后这个理由不成立：
+`opHole` 的字段（`holeDefinition` / `axes` / `targets`）与示例写在
+`geomOperations.fs`，`holeDefinition(profiles)` 单参重载、`holeProfile(
+positionReference, position, radius)` 构造器、以及「最后一个 profile 的半径必须是
+0」的规则写在 `holeUtils.fs`，`AXIS_POINT` / `LAST_TARGET_END` 是
+`holepositionreference.gen.fs` 里的枚举成员，`line(origin, direction)` 来自
+`curveGeometry.fs`，`evVertexPoint` / `evPlane` 来自 `evaluate.fs`。所以孔的形状是
+**可被符号门检查的构造调用**，不是猜出来的 map 字面量。轴由人的两次选择决定
+（起点顶点 + 平面面，钻孔方向取面法线的反向），通孔用 `LAST_TARGET_END` 引用而不是
+一个很大的深度值。状态仍是 `structural-only`。
+
 **验证状态要说清楚**
 
 - `custom.spiral_ridge` — `live-verified`：源码与被应用的特征都经真机验证过，且
   `test_capabilities` 断言它渲染出的源码与 `generate_spiral_ridge_script` 逐字相同，
   证明「抽契约」没有走样。
-- `custom.fillet` / `custom.extrude` — `structural-only`：只通过本地结构检查器
-  （`fs_check`，0 调用）与符号门。**没有编译过、没有应用过、没有产生过几何。**
-  这两条真机验证属于 P2 gate 的未完成部分，不得写成已验证。
+- `custom.fillet` / `custom.extrude` / `custom.hole` — `structural-only`：只通过本地
+  结构检查器（`fs_check`，0 调用）与符号门。**没有编译过、没有应用过、没有产生过几何。**
+  这三条真机验证属于 P2 gate 的未完成部分，不得写成已验证。
 
 **加一个能力的顺序**：在 `CAPABILITIES` 里加一条（id、`feature_type`、别名、
 `use_when`、参数、`build_source`）→ 让 `test_capabilities` 的符号门与本地检查器通过
