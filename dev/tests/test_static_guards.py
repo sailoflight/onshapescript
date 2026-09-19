@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the zero-cost static/guard checks.
 
-Covers the local FeatureScript checker (onshape_docs/scripts/fs_local_check.py)
+Covers the local FeatureScript checker (onshape_docs/query/fs_check.py)
 — specifically that a dangling `Feature Type Name` annotation is detected even
 though string masking hides its marker, that an unreplaced {{PLACEHOLDER}} is a
 structural error, that a definition-map call with a non-map third argument and
@@ -28,7 +28,7 @@ for path in (str(ROOT), str(SCRIPTS_DIR)):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-import fs_local_check  # noqa: E402  (onshape_docs/scripts/ is not a package)
+from onshape_docs.query import fs_check  # noqa: E402
 import live_gap_probe  # noqa: E402
 import live_is_probe  # noqa: E402
 
@@ -51,11 +51,80 @@ _VALID_FEATURE = _HEADER + (
 )
 
 
-def check_text(text: str) -> fs_local_check.FsFile:
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "check.fs"
-        path.write_text(text, encoding="utf-8")
-        return fs_local_check.check_file(path)
+#: A structurally broken script: a dangling Feature Type Name annotation with no
+#: defineFeature after it. Used by tests that only need "the checker fails".
+_BROKEN = _HEADER + 'annotation { "Feature Type Name" : "Orphan" }\n'
+
+
+def check_text(text: str) -> fs_check.FsFile:
+    """Check in-memory source through the in-process API, not the CLI."""
+    return fs_check.check_source(fs_check.FsFile.from_text(text, "check.fs"))
+
+
+class CheckerApiTest(unittest.TestCase):
+    """The checker is importable from the runtime, so its API is part of the surface."""
+
+    def test_in_memory_source_matches_the_file_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "same.fs"
+            path.write_text(_VALID_FEATURE, encoding="utf-8")
+            from_file = fs_check.check_file(path)
+        from_text = check_text(_VALID_FEATURE)
+        self.assertEqual(from_text.errors, from_file.errors)
+        self.assertEqual(from_text.warnings, from_file.warnings)
+
+    def test_as_result_is_json_friendly_and_advisory(self) -> None:
+        clear = check_text(_VALID_FEATURE).as_result()
+        self.assertTrue(clear["clear"])
+        self.assertEqual(clear["errorCount"], 0)
+        self.assertEqual(clear["errors"], [])
+        broken = check_text(_BROKEN).as_result()
+        self.assertFalse(broken["clear"])
+        self.assertEqual(broken["errorCount"], len(broken["errors"]))
+        self.assertGreaterEqual(broken["errorCount"], 1)
+
+    def test_from_text_rejects_a_non_string(self) -> None:
+        with self.assertRaises(TypeError):
+            fs_check.FsFile.from_text(None)  # type: ignore[arg-type]
+
+    def test_check_source_does_not_reread_the_source_it_is_given(self) -> None:
+        fs = fs_check.FsFile.from_text(_VALID_FEATURE, "memory.fs")
+        fs.text = _VALID_FEATURE + "\n// mutated after load\n"
+        fs_check.check_source(fs)
+        self.assertEqual(fs.as_result()["name"], "memory.fs")
+
+
+class CheckerCliTest(unittest.TestCase):
+    """The documented CLI keeps working after the analysis moved to the query layer."""
+
+    def test_cli_passes_a_valid_file_and_fails_a_broken_one(self) -> None:
+        cli = ROOT / "onshape_docs" / "scripts" / "fs_local_check.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "good.fs"
+            good.write_text(_VALID_FEATURE, encoding="utf-8")
+            bad = Path(tmp) / "bad.fs"
+            bad.write_text(_BROKEN, encoding="utf-8")
+            passed = subprocess.run([sys.executable, str(cli), str(good)],
+                                    capture_output=True, text=True, cwd=str(ROOT))
+            failed = subprocess.run([sys.executable, str(cli), str(bad)],
+                                    capture_output=True, text=True, cwd=str(ROOT))
+        self.assertEqual(passed.returncode, 0, passed.stdout + passed.stderr)
+        self.assertIn("[PASS]", passed.stdout)
+        self.assertEqual(failed.returncode, 1, failed.stdout + failed.stderr)
+        self.assertIn("[FAIL]", failed.stdout)
+
+    def test_cli_re_exports_the_analysis_api(self) -> None:
+        cli = ROOT / "onshape_docs" / "scripts" / "fs_local_check.py"
+        probe = (
+            "import sys; sys.path.insert(0, sys.argv[1]);"
+            "import fs_local_check as m;"
+            "print(m.check_file.__module__, m.FsFile.__module__, m.check_source.__module__)"
+        )
+        result = subprocess.run([sys.executable, "-c", probe, str(cli.parent)],
+                                capture_output=True, text=True, cwd=str(ROOT))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.split(),
+                         ["onshape_docs.query.fs_check"] * 3)
 
 
 class DanglingAnnotationTest(unittest.TestCase):
@@ -135,7 +204,7 @@ def _gap_env(guard, render):
 class MaintainedFixtureTest(unittest.TestCase):
     def test_module_rail_fixture_has_no_structural_errors(self) -> None:
         fixture = ROOT / "dev" / "fixtures-capture" / "module-rail-fixed-wall.fs"
-        checked = fs_local_check.check_file(fixture)
+        checked = fs_check.check_file(fixture)
         self.assertEqual(checked.errors, [], checked.errors)
 
 

@@ -28,6 +28,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Deploy, restart, or recover the ordinary MCP or its external adapter | `operations/MCP_RUNBOOK.md` | MCP host state, then the adapter's own runbook |
 | Trace the retired project relay/shared-bridge migration | `history/TRACEABILITY.md` | Archived records under `history/legacy/` only |
 | Query FeatureScript, REST, or browser knowledge | `../onshape_docs/README.md` | One indexed section, symbol, endpoint, schema, or evidence record |
+| Check FeatureScript before an upload, or read the local-check verdict | `../onshape_docs/experience/featurescript.md` | The `fs_check_script` tool schema or `onshape_docs/query/fs_check.py` |
 | Trace an old development decision or log | `history/TRACEABILITY.md` | Current owning architecture, module, experience, verification, operations, or roadmap section |
 | Work in the development lab | `development/LAB.md` | One test, probe, capture fixture, or tool under `dev/` |
 | Plan the FS-custom-feature route (controlling) | `roadmap/FS_FIRST_CONTROLLING_ROUTE.md` | One phase's exact detail, then `roadmap/FS_HYBRID_COMPILER_INTEGRATION.md` |

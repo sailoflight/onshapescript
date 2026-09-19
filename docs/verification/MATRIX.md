@@ -33,7 +33,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | Browser session/selectors | browser-mode tests | read-only inspect/watch first |
 | FS diagnostic loop (notice read, code normalization, capture) | `test_fs_diagnostics` + `test_fs_notice_collector` (node stub-DOM probe) | read-only notice-pane probe on the target host |
 | REST/budget/operations | quota guards | explicitly budgeted live fact only |
-| FeatureScript source | `fs_local_check.py` + matching static tests | authorized upload/live compile only |
+| FeatureScript source | `onshape_docs/query/fs_check.py` + `test_static_guards`, the `fs_check_script` protocol test, and the corpus gate | authorized upload/live compile only |
 | Generated references/indexes | builder and verifier `--check` | none by default |
 | Secret/redaction/fixtures | static scan + fixture inspection | never validate using real secret output |
 

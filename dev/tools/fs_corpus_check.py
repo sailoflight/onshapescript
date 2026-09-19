@@ -10,7 +10,7 @@ What it does, entirely offline and at zero REST quota:
    substituting its ``{{MAJOR}}`` / ``{{VERSION}}`` placeholders (the live runner
    did the same at upload time -- an unrendered template fails the local checker
    with a spurious "unreplaced {{PLACEHOLDER}}" error);
-2. runs ``onshape_docs/scripts/fs_local_check.py`` on the rendered copy;
+2. runs ``onshape_docs/query/fs_check.py`` on the rendered copy;
 3. compares the local verdict with the recorded live outcome in
    ``onshape_docs/verification/live/results.json`` and prints a confusion matrix.
 
@@ -53,12 +53,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "onshape_docs" / "scripts"
 EXPERIMENTS = ROOT / "onshape_docs" / "verification" / "live" / "experiments"
 RESULTS = ROOT / "onshape_docs" / "verification" / "live" / "results.json"
 
-sys.path.insert(0, str(SCRIPTS))
-import fs_local_check  # noqa: E402  (onshape_docs/scripts is not a package)
+sys.path.insert(0, str(ROOT))
+from onshape_docs.query import fs_check  # noqa: E402
 
 
 def render(template: str, version: str) -> str:
@@ -115,7 +114,7 @@ def main(argv: list[str]) -> int:
             rendered.write_text(
                 render(source.read_text(encoding="utf-8"), version), encoding="utf-8"
             )
-            checked = fs_local_check.check_file(rendered)
+            checked = fs_check.check_file(rendered)
             flagged = bool(checked.errors or checked.warnings)
             rows.append(
                 {

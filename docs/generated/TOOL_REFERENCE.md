@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Registered tools: **106**
+- Registered tools: **107**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=68, `featurescript`=10, `other`=2, `project_docs`=3, `rest_operations`=17, `rest_reference`=6
+- Capability counts: `browser`=68, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=17, `rest_reference`=6
 - Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
 
 ## Safety interpretation
@@ -98,6 +98,7 @@
 
 | Tool | Capability | Optional semantic classification | Required arguments | Registered safety/cost | Intent |
 |---|---|---|---|---|---|
+| `fs_check_script` | `featurescript` | - | `source` | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none | Statically check FeatureScript source locally before uploading it: 0 Onshape API calls, no browser, no cloud mutation. Reports the failure classes that only show up as an opaque... |
 | `fs_check_version` | `featurescript` | - | - | network=live; api_max=3; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration_target_state | Verify the vendored FeatureScript reference version and warn when it may be behind the version you are coding against. Reports the vendored reference version (parsed from the st... |
 | `fs_get_function` | `featurescript` | - | `name` | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration | Return the full reference entry for one FeatureScript function: exact signature, every parameter with its type, requirement (Optional / Required), description and example, plus... |
 | `fs_get_type` | `featurescript` | - | `name` | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration | Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, EntityType): its kind, description, and each allowed value with type and description... |

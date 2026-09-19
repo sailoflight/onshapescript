@@ -90,7 +90,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(tool_result["exposureMode"], "semantic")
         tools = tool_result["tools"]
         names = {tool["name"] for tool in tools}
-        self.assertEqual(len(tools), 80)
+        self.assertEqual(len(tools), 81)
         self.assertIn("mcp_tool_view", names)
         self.assertIn("mcp_tool_catalog", names)
         view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")
@@ -255,7 +255,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         result = responses[0]["result"]
         self.assertEqual(result["exposureMode"], "static")
-        self.assertEqual(len(result["tools"]), 106)
+        self.assertEqual(len(result["tools"]), 107)
         self.assertIn("browser_inspect", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_read_notices", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_capture_diagnostic", {tool["name"] for tool in result["tools"]})
@@ -894,6 +894,75 @@ class McpServerTest(unittest.TestCase):
             self.assertTrue(response["result"]["isError"])
             self.assertIn("confirm_mutation", response["result"]["content"][0]["text"])
         self.assertIn("ValueError", stderr)
+
+
+class OfflineCheckToolTest(unittest.TestCase):
+    """`fs_check_script` is the free pre-flight for any FeatureScript upload."""
+
+    VALID = (
+        'FeatureScript 3044;\n'
+        'import(path : "onshape/std/geometry.fs", version : "3044.0");\n'
+        'export const f = defineFeature(function(context is Context, id is Id, definition is map)\n'
+        '    precondition { annotation { "Name" : "F" } }\n'
+        '    {\n'
+        '        opExtrude(context, id + "e", {"entities" : qCreatedBy(id, EntityType.BODY)});\n'
+        '    });\n'
+    )
+
+    def test_it_checks_source_without_network_browser_or_quota(self) -> None:
+        responses, stderr = invoke([{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "fs_check_script", "arguments": {"source": self.VALID}},
+        }])
+        self.assertEqual(stderr, "")
+        payload = json.loads(responses[0]["result"]["content"][0]["text"])
+        self.assertTrue(payload["checked"])
+        self.assertTrue(payload["clear"])
+        self.assertTrue(payload["advisory"])
+        self.assertEqual(payload["errorCount"], 0)
+
+    def test_a_structural_defect_is_reported_without_blocking(self) -> None:
+        responses, _ = invoke([{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "fs_check_script",
+                "arguments": {"source": 'FeatureScript 3044;\n'
+                                       'annotation { "Feature Type Name" : "Orphan" }\n'},
+            },
+        }])
+        payload = json.loads(responses[0]["result"]["content"][0]["text"])
+        self.assertFalse(payload["clear"])
+        self.assertGreaterEqual(payload["errorCount"], 1)
+
+    def test_empty_source_is_rejected(self) -> None:
+        responses, _ = invoke([{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "fs_check_script", "arguments": {"source": "  "}},
+        }])
+        self.assertTrue(responses[0]["result"]["isError"])
+
+    def test_the_schema_declares_an_offline_read_only_tool(self) -> None:
+        responses, _ = invoke([{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {},
+        }])
+        tools = {tool["name"]: tool for tool in responses[0]["result"]["tools"]}
+        tool = tools["fs_check_script"]
+        cost = tool["cost"]
+        self.assertEqual(cost["network"], "offline")
+        self.assertEqual(cost["estimated_requests"], 0)
+        self.assertEqual(cost["max_requests"], 0)
+        self.assertFalse(cost["mutating"])
+        self.assertTrue(tool["annotations"]["readOnlyHint"])
+        self.assertFalse(tool["annotations"]["openWorldHint"])
 
 
 if __name__ == "__main__":

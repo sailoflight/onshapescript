@@ -1387,7 +1387,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "d21ab2cbd5eef8d4964b2283417d721a82a06d080db8260881f5df5dd62e15d4",
+   "sha256": "9356f305c53fe0a657e282bec681e47fdbf18926b2d0ae58a8b87adb7934977e",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1653,9 +1653,14 @@
          "What it proves"
         ],
         [
-         "onshape_docs/scripts/fs_local_check.py",
+         "fs_check_script tool / onshape_docs/query/fs_check.py",
          "0",
-         "Structure (hard) + body symbols absent from the vendored index (warning)"
+         "Structure (reported as errors) + deferred-failure rules and unknown symbols (warnings). Importable in-process, so it runs before any upload; the CLI in onshape_docs/scripts/fs_local_check.py is the same analysis"
+        ],
+        [
+         "Browser notice read (0 REST, needs a login and an open Feature Studio)",
+         "0",
+         "The compile result the UI already shows, incl. every message paragraph and a normalized code; browser_deploy_featurescript also runs the local check for free"
         ],
         [
          "featurespecs (via upload / onshape_get_feature_studio_status)",
@@ -1673,6 +1678,10 @@
          "The only layer that executes the body — but ERROR is opaque (no message)"
         ]
        ]
+      },
+      {
+       "type": "para",
+       "text": "All local findings are advisory: they never block an upload, because the vendored reference can lag the live server. Measured against the real standard library, an argument-count check produced 30 false positives and a field-name check 73, so neither shipped; the two rules that did (non-map third argument to a definition-map call, dimensioned arithmetic mixed with a plain number) had zero. The gate that keeps them honest is dev/tools/fs_corpus_check.py, which scores the checker against the live-labeled instance corpus."
       },
       {
        "type": "para",
@@ -4357,7 +4366,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "2b004d97b5e4baaeb05bef814942cd3f8c703ada67069ba312c88266dc4ed6cf",
+   "sha256": "54aaf10b1ca27f1e4f8f01b140aa9bd3b929b22b16ac07745cd2dd9eda0eb677",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -4378,7 +4387,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 106",
+         "text": "Registered tools: 107",
          "depth": 0
         },
         {
@@ -4390,7 +4399,7 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=68, featurescript=10, other=2, project_docs=3, rest_operations=17, rest_reference=6",
+         "text": "Capability counts: browser=68, featurescript=11, other=2, project_docs=3, rest_operations=17, rest_reference=6",
          "depth": 0
         },
         {
@@ -5013,6 +5022,14 @@
          "Required arguments",
          "Registered safety/cost",
          "Intent"
+        ],
+        [
+         "fs_check_script",
+         "featurescript",
+         "-",
+         "source",
+         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
+         "Statically check FeatureScript source locally before uploading it: 0 Onshape API calls, no browser, no cloud mutation. Reports the failure classes that only show up as an opaque..."
         ],
         [
          "fs_check_version",

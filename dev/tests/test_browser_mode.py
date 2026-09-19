@@ -544,8 +544,37 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertEqual(result["sourceLength"], len(source))
         self.assertEqual(result["lineCount"], 2)
         self.assertIn("no browser session", result["note"])
+        # The local check is free and side-effect-free, so it runs even in a
+        # pure preview and never touches the browser.
+        self.assertTrue(result["localCheck"]["checked"])
+        self.assertTrue(result["localCheck"]["advisory"])
         get_session.assert_not_called()          # no session import/start/actions
         self.assertEqual(session.start_calls, 0)
+
+    def test_deploy_preview_surfaces_local_check_findings(self) -> None:
+        # The preview reports a defect the live server accepts at save time (a
+        # non-map third argument to an op* call), so it is visible before any
+        # commit is spent. The finding is advisory, so the preview still runs.
+        script = (
+            'FeatureScript 3044;\n'
+            'import(path : "onshape/std/geometry.fs", version : "3044.0");\n'
+            'export const f = defineFeature(function(context is Context, id is Id, definition is map)\n'
+            '    precondition { annotation { "Name" : "F" } }\n'
+            '    {\n'
+            '        opExtrude(context, id + "e", 5);\n'
+            '    });\n'
+        )
+        seen = server._browser_deploy_featurescript({"script": script, "dry_run": True})
+        self.assertTrue(seen["dryRun"])
+        self.assertEqual(seen["localCheck"]["errorCount"], 0)   # advisory, not a gate
+        self.assertGreaterEqual(seen["localCheck"]["warningCount"], 1)
+        self.assertIn("opExtrude", " ".join(seen["localCheck"]["warnings"]))
+
+    def test_deploy_preview_still_reports_structural_local_errors(self) -> None:
+        result = server._browser_deploy_featurescript(
+            {"script": "FeatureScript 3044;\nvar x = 1;", "dry_run": True})
+        self.assertFalse(result["localCheck"]["clear"])
+        self.assertGreaterEqual(result["localCheck"]["errorCount"], 1)
 
     def test_deploy_commits_with_confirmation_and_paces(self) -> None:
         session = FakeSession(FakePage())
@@ -578,6 +607,8 @@ class BrowserDeployTest(unittest.TestCase):
         commit.assert_called_once()
         capture.assert_called_once()
         self.assertEqual(result["diagnosticCapture"]["captureId"], "capture-ok")
+        # The free local check is attached to the real path too.
+        self.assertTrue(result["localCheck"]["checked"])
         # Pacing enforced before the editor write and before the Commit click
         # (the editor is already on screen, so no navigation pacing is added).
         self.assertEqual(guard.pace_calls, 2)
@@ -988,7 +1019,7 @@ class BrowserMetadataTest(unittest.TestCase):
         self.assertTrue(self.by_name["browser_delete_tab"]["annotations"]["destructiveHint"])
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 106)
+        self.assertEqual(len(server.TOOLS), 107)
 
 
 if __name__ == "__main__":

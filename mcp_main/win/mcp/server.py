@@ -33,7 +33,7 @@ from onshape_rest_api_mode.geometry import (
     geometry_backend_status,
 )
 from onshape_rest_api_mode.step_export import export_step
-from onshape_docs.query import fs_reference, onshape_api_reference, onshape_api_docs, project_docs
+from onshape_docs.query import fs_check, fs_reference, onshape_api_reference, onshape_api_docs, project_docs
 from onshape_rest_api_mode.budget import live_blocker
 from onshape_rest_api_mode.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
 from onshape_rest_api_mode.operations import (
@@ -104,6 +104,34 @@ GUIDE_PAGE_SCHEMA = {
     "enum": fs_reference.PAGES,
     "description": "One of the vendored FsDoc guide pages (intro, feature-types, modeling, ...).",
 }
+
+
+def _local_check(source: str) -> dict[str, Any]:
+    """Run the offline FeatureScript checker on a deploy candidate.
+
+    Advisory by design: it never blocks a deploy, because the vendored reference
+    can lag the live server. It exists so a structural defect is visible before a
+    browser write, instead of only as an opaque remote failure that still costs a
+    commit.
+
+    Whether the caller may use this as a hard local gate is recorded in
+    docs/roadmap/FS_FIRST_CONTROLLING_ROUTE.md; nothing here enforces it.
+    """
+    try:
+        result = fs_check.check_source(
+            fs_check.FsFile.from_text(source, "<deploy-candidate>")
+        ).as_result()
+    except Exception as exc:  # noqa: BLE001 - a free check must never break a deploy
+        return {"checked": False, "reason": f"{type(exc).__name__}: {exc}"}
+    return {**result, "advisory": True}
+
+
+def _check_script(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Check FeatureScript source locally: 0 REST calls, no browser, no cloud."""
+    source = arguments.get("source")
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError("Provide a non-empty `source` string")
+    return _local_check(source)
 
 
 def _check_version(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -812,6 +840,7 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
             "documentName": document_name,
             "sourceLength": source_length,
             "lineCount": line_count,
+            "localCheck": _local_check(script),
             "note": (
                 "dry_run: pure local preview — no browser session, navigation, "
                 "editor read/write, pacing, or Commit click was performed. Set "
@@ -823,6 +852,9 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     # confirmation before any browser side effect — including the lazy browser
     # imports below, which a refused call must not even load.
     _confirm(arguments)
+
+    # Free and side-effect-free, so it runs before the browser is touched.
+    local_check = _local_check(script)
 
     from onshape_browser_mode import actions, diagnostics
     from onshape_browser_mode.guard import get_guard
@@ -865,6 +897,7 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
             "deployed": False,
             "dryRun": False,
             "reason": "FeatureScript editor not found on the current page",
+            "localCheck": local_check,
             "pageUrl": page.url,
         }
 
@@ -875,6 +908,7 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
             "deployed": False,
             "dryRun": False,
             "reason": written.get("error", "could not write editor"),
+            "localCheck": local_check,
             "pageUrl": page.url,
         }
 
@@ -908,6 +942,7 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     return {
         "deployed": committed and verified and compiled,
         "dryRun": False,
+        "localCheck": local_check,
         "pageUrl": page.url,
         "beforeLength": len(before),
         "afterLength": written.get("length"),
@@ -1494,6 +1529,24 @@ TOOLS: list[dict[str, Any]] = [
             "module": {"type": "string"},
             "function": {"type": "string", "description": "Optional; extract the definition window for this function."},
         }, ["module"]),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "fs_check_script",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": True},
+        "description": (
+            "Statically check FeatureScript source locally before uploading it: 0 Onshape API calls, no "
+            "browser, no cloud mutation. Reports the failure classes that only show up as an opaque remote "
+            "failure (a defineFeature closed early so the body sits outside it, unbalanced brackets, "
+            "unreplaced {{PLACEHOLDER}}s, an op* call whose third argument cannot be a definition map, and "
+            "dimensioned arithmetic mixed with a plain number) plus warnings for symbols absent from the "
+            "vendored reference. Findings are advisory and never block a deploy, because the vendored "
+            "reference can lag the live server. Run it before onshape_upload_feature_studio or "
+            "browser_deploy_featurescript; both spend quota or a commit on a bad script."
+        ),
+        "inputSchema": object_schema({
+            "source": {"type": "string", "description": "The complete FeatureScript source to check."},
+        }, ["source"]),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     # --- Project docs tools (local, offline; the project's own LLM docs) ---
@@ -2678,6 +2731,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_run_validation_pipeline": _pipeline,
     # FeatureScript reference tools (local, offline)
     "fs_check_version": _check_version,
+    "fs_check_script": _check_script,
     "fs_update_reference": _update_reference,
     "fs_quick_reference": lambda _: fs_reference.quick_reference(),
     "fs_list_modules": lambda arguments: {

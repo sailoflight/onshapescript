@@ -199,10 +199,19 @@ Confirmed by ~310 live calls. Cost-per-step below is real API calls:
 
 | Step | Cost | What it proves |
 |---|---|---|
-| `onshape_docs/scripts/fs_local_check.py` | 0 | Structure (hard) + body symbols absent from the vendored index (warning) |
+| `fs_check_script` tool / `onshape_docs/query/fs_check.py` | 0 | Structure (reported as errors) + deferred-failure rules and unknown symbols (warnings). Importable in-process, so it runs before any upload; the CLI in `onshape_docs/scripts/fs_local_check.py` is the same analysis |
+| Browser notice read (0 REST, needs a login and an open Feature Studio) | 0 | The compile result the UI already shows, incl. every message paragraph and a normalized code; `browser_deploy_featurescript` also runs the local check for free |
 | `featurespecs` (via upload / `onshape_get_feature_studio_status`) | ~3 / 2 | **Signature + precondition only.** Body is not compiled at save |
 | `onshape_eval_featurescript` | 1 | Any semantics the 2960 docs lack, with detailed compile errors in `notices`. Cheapest way to learn *why* a body fails |
 | Instantiate (`POST .../features`) | 1 (cached) / 2 (cold) | The only layer that executes the body — but ERROR is opaque (no message) |
+
+All local findings are **advisory**: they never block an upload, because the
+vendored reference can lag the live server. Measured against the real standard
+library, an argument-count check produced 30 false positives and a field-name
+check 73, so neither shipped; the two rules that did (non-map third argument to a
+definition-map call, dimensioned arithmetic mixed with a plain number) had zero.
+The gate that keeps them honest is `dev/tools/fs_corpus_check.py`, which scores
+the checker against the live-labeled instance corpus.
 
 Rules that save quota:
 
