@@ -1,7 +1,7 @@
 <!-- agent-project-guides:v3:start -->
 ## Project governance routing
 
-Project ID: `onshapescript`; variant: `shared-runtime.pinned`; pinned release: `3.0.3` / `sha256:f3dc0ca9cd50d27deac2b4e9c063d243dd3ce20127edc88d9f8b4c3aac4bd603`; manifest: `sha256:4b914007376e07b632e0de56e122cc009c3b72e51aec57a6709b7fcc97f45e22`.
+Project ID: `onshapescript`; variant: `shared-runtime.pinned`; pinned release: `3.0.7` / `sha256:50852ae93ac3a935a00d4e3d0f6c8b76857f53b9228f0d47c75dfb3a8a8e5e24`; manifest: `sha256:81ae8e3bd787c8aa65c460ce6f54ea8a8c3d698bfa55e31591969461c7df44db`.
 
 Before work, run `apg context --target . --task <current-task> --format context` and use only the returned governance content. Resolve any ambiguity before protected work. The shared CLI and exact packed digest are runtime dependencies; missing content fails explicitly and never falls back to `latest`. Returned sources are intended context and do not prove model-effective context.
 <!-- agent-project-guides:v3:end -->
