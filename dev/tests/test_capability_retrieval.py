@@ -93,7 +93,7 @@ class SearchBehaviourTest(unittest.TestCase):
         scores = [match["score"] for match in matches]
         self.assertEqual(scores, sorted(scores, reverse=True))
         for match in matches:
-            self.assertEqual(set(match), {"card", "score", "matchedOn"})
+            self.assertEqual(set(match), {"card", "score", "matchedOn", "invocation"})
             self.assertGreater(match["score"], 0)
             self.assertTrue(match["matchedOn"])
 
@@ -196,8 +196,8 @@ class DiscoveryWiringTest(unittest.TestCase):
         self.assertEqual(
             match["invocation"]["tool"], result["capabilityInvocationTool"],
         )
-        self.assertEqual(match["invocation"]["arguments"]["capability"], "custom.fillet")
-        defaults = match["invocation"]["arguments"]["values"]
+        self.assertEqual(match["invocation"]["capability"], "custom.fillet")
+        defaults = match["invocation"]["values"]
         self.assertEqual(
             defaults,
             {parameter["name"]: parameter["default"] for parameter in match["card"]["parameters"]},
@@ -212,7 +212,7 @@ class DiscoveryWiringTest(unittest.TestCase):
         from onshape_browser_mode import capabilities
 
         result = browser_tools.browser_discover_tools({"query": "hole"})
-        call = result["capabilities"][0]["invocation"]["arguments"]
+        call = result["capabilities"][0]["invocation"]
         plan = capabilities.plan(call["capability"], call["values"])
         self.assertEqual(plan["capability"]["id"], "custom.hole")
         self.assertTrue(plan["source"])
@@ -234,6 +234,50 @@ class DiscoveryWiringTest(unittest.TestCase):
         """Appending cards must not widen the default six-level exposure."""
         result = browser_tools.browser_discover_tools({"query": "screenshot"})
         self.assertEqual(result["candidates"], [])
+
+
+class CatalogRouteTest(unittest.TestCase):
+    """The catalog is the documented lookup-first entry, so it carries the cards too."""
+
+    def setUp(self) -> None:
+        from mcp_main.win.mcp import server
+
+        self.catalog = server.TOOL_CATALOG
+
+    def _search(self, query: str, limit: int = 3) -> dict:
+        return self.catalog.search({"query": query, "limit": limit}, visible_names=set())
+
+    def test_the_catalog_finds_a_capability_it_has_no_tool_for(self) -> None:
+        result = self._search("drill a hole at this vertex")
+        self.assertEqual([match["card"]["id"] for match in result["capabilities"]], ["custom.hole"])
+        self.assertEqual(result["capabilityInvocationTool"], "browser_deploy_and_apply_featurescript")
+        self.assertEqual(result["results"], [], "no registered tool should be claimed for a hole")
+
+    def test_the_catalog_card_names_the_same_call_as_discovery(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        catalog_match = self._search("fillet")["capabilities"][0]
+        discovery_match = browser_tools.browser_discover_tools({"query": "fillet"})["capabilities"][0]
+        self.assertEqual(catalog_match["invocation"], discovery_match["invocation"])
+
+    def test_a_query_the_tokenizer_cannot_read_claims_no_tool(self) -> None:
+        """Chinese used to match all 108 tools because the query tokenized to
+        nothing; that is a routing failure wearing the costume of a broad search."""
+        result = self._search("打孔")
+        self.assertEqual(result["totalMatches"], 0)
+        self.assertEqual(result["results"], [])
+        self.assertEqual(result["capabilities"][0]["card"]["id"], "custom.hole")
+
+    def test_an_empty_query_still_browses_the_registry(self) -> None:
+        result = self._search("", limit=12)
+        self.assertEqual(result["returnedCount"], 12)
+        self.assertNotIn("capabilities", result)
+
+    def test_the_catalog_result_stays_bounded_with_cards(self) -> None:
+        result = self._search("extrude", limit=12)
+        serialized = json.dumps(result, separators=(",", ":"))
+        self.assertLess(len(serialized), 16000)
+        self.assertNotIn("inputSchema", serialized)
 
 
 class DocsRouteComparisonTest(unittest.TestCase):

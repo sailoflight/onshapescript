@@ -367,9 +367,14 @@ one complex long-tail feature.
 dependency expansion, and no FS docs search.
 
 Delivered offline: `capabilities.search(query, limit)` returns at most five cards
-ranked by identity -> alias/feature type -> `use_when` prose, and
-`browser_discover_tools` appends matching cards to its existing result when the
-query names a feature — no new tool, and the tool exposure levels are unchanged.
+ranked by identity -> alias/feature type -> `use_when` prose, and both discovery
+entries — `mcp_tool_catalog` (the documented lookup-first entry) and
+`browser_discover_tools` — append matching cards through one shared
+`capability_section`, so a card cannot describe one invocation in one place and
+another elsewhere. No new tool was added and no exposure level moved. The same
+change fixed a routing failure: a non-empty query the catalog tokenizer cannot
+read (Chinese) used to match all 108 tools; it now matches no tool summary and
+can still resolve a card.
 A single incidental prose word ("feature", "part") is not a match; one weak word
 never qualifies a card on its own. Each match carries the deploy call that uses
 it — `browser_deploy_and_apply_featurescript` with `capability` and the card's own

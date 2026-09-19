@@ -1334,6 +1334,8 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Search and describe the complete authoritative MCP tool registry without expanding tools/list. "
             "The index is built once after registration. search is bounded and never returns input schemas; "
+            "a query that names a CAD feature also returns matching whole-feature capability cards with the "
+            "browser_deploy_and_apply_featurescript call that uses one; "
             "describe requires one exact tool name and returns its full current schema, cost, annotations, profiles, "
             "semantic metadata, conservative concurrency contract, and current-view visibility. status reports that "
             "classification does not provide multi-call workflow isolation. Catalog visibility and concurrency "

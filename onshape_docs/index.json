@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "4f20d6ae7aab2c9882553c97fb1c061fe700b06d6d2bc5244ed864da1e07e242",
+   "sha256": "f41ff2764fcd09dc14cf2222705f3cbe56fc3f4a6596a071c601361d55923715",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -757,6 +757,27 @@
       {
        "type": "para",
        "text": "Search always covers the complete registry, including tools absent from the current tools/list; visibleInCurrentView is informational. Exact-name and name prefix matches rank before description matches. Profile names are structured filters rather than free-text tokens, preventing ubiquitous control tools from polluting capability searches. Cache search/describe results against the returned SHA-256 fingerprint; refresh the cache when it changes."
+      },
+      {
+       "type": "para",
+       "text": "Three result-shape rules matter when routing a modeling request:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "A query that names a CAD feature also returns capabilities: bounded whole-feature capability cards, each with an invocation naming browser_deploy_and_apply_featurescript plus the capability and the card's own default values. A capability is not a registered tool, so it never appears in results, and it is not invoked through browser_invoke_discovered.",
+         "depth": 0
+        },
+        {
+         "text": "A non-empty query the tokenizer cannot read (Chinese, for example) matches no tool summary. It used to match the whole registry, which looked like a broad search and was a routing failure; such a query can still resolve a card.",
+         "depth": 0
+        },
+        {
+         "text": "An empty query still browses the registry in ranking order.",
+         "depth": 0
+        }
+       ]
       }
      ]
     },
@@ -2742,7 +2763,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "33f0115b627446127a743de0430d35eed925e8414f7ccff2e6dc9eb95dc7ff24",
+   "sha256": "f882c1eedcd0955581f521e06d0ba01bdbc93a65459e7527326033678e271f0f",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3212,6 +3233,10 @@
       {
        "type": "para",
        "text": "browser_discover_tools(query=...) 在返回工具候选的同时，会把匹配的能力卡片 附在 capabilities 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。 每张卡还带 invocation：能力不走 browser_invoke_discovered，而是作为 browser_deploy_and_apply_featurescript 的 capability + values 参数， 所以卡自己给出准确的调用（values 是卡片默认值，只做起点）。 capabilities.search(query, limit) 最多返回 5 张卡，排序为 身份（id / 别名）→ 特征类型 → use_when 散文；单个偶然的散文词（\"feature\"、 \"part\"）不足以命中，只有一个弱词也不算匹配。"
+      },
+      {
+       "type": "para",
+       "text": "同一条能力卡片也出现在 mcp_tool_catalog 的搜索结果里（capabilities 字段）， 因为那才是文档认可的 lookup-first 入口：查 \"hole\" 时工具结果为 0（没有这个工具）， 但卡片给出 custom.hole 与可执行的部署调用。顺带修掉一个路由错误：tokenizer 读不出 非空查询（例如中文）时，以前会「匹配全部 108 个工具」——那不是宽搜索，而是路由失败； 现在返回 0 个工具摘要，卡片仍然能解析。"
       },
       {
        "type": "para",

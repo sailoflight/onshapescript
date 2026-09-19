@@ -25,6 +25,9 @@ VALID_MODULES = (
     "documentation",
 )
 VALID_NETWORKS = ("offline", "browser", "live")
+# The one tool that takes a `capability` plus bounded `values`. A capability is
+# not a registered tool, so it is never returned as a tool summary.
+CAPABILITY_DEPLOY_TOOL = "browser_deploy_and_apply_featurescript"
 MAX_SEARCH_RESULTS = 12
 DEFAULT_SEARCH_RESULTS = 8
 _TOKEN = re.compile(r"[a-z0-9]+")
@@ -57,6 +60,22 @@ def tool_module(name: str) -> str:
 
 def _tokens(value: str) -> tuple[str, ...]:
     return tuple(_TOKEN.findall(value.lower().replace("_", " ").replace("-", " ")))
+
+
+def capability_section(query: str, limit: int = 3) -> dict[str, Any]:
+    """Matching whole-feature capability cards, with the call that uses one.
+
+    Shared by every discovery entry (the catalog and `browser_discover_tools`)
+    so a card cannot describe one invocation in one place and another elsewhere.
+    """
+    from onshape_browser_mode import capabilities
+
+    matches = capabilities.search(query, limit=limit)
+    if not matches:
+        return {}
+    for match in matches:
+        match["invocation"]["tool"] = CAPABILITY_DEPLOY_TOOL
+    return {"capabilities": matches, "capabilityInvocationTool": CAPABILITY_DEPLOY_TOOL}
 
 
 def _compact(value: str, limit: int = 180) -> str:
@@ -379,7 +398,17 @@ class ToolCatalogIndex:
 
         query_tokens = _tokens(query)
         matches: list[tuple[int, CatalogEntry]] = []
-        for entry in self._query_candidates(query_tokens):
+        # An empty query browses the registry. A non-empty query the tokenizer
+        # cannot read (Chinese, for example) matches no tool summary at all --
+        # claiming every tool is a routing failure, not a broad search. Such a
+        # query can still resolve a capability card below.
+        if not query:
+            candidates: Iterable[CatalogEntry] = self._entries
+        elif not query_tokens:
+            candidates = ()
+        else:
+            candidates = self._query_candidates(query_tokens)
+        for entry in candidates:
             if modules and entry.module not in modules:
                 continue
             if profiles and not any(profile in entry.profiles for profile in profiles):
@@ -399,7 +428,7 @@ class ToolCatalogIndex:
             item[1].name,
         ))
         returned = matches[:limit]
-        return {
+        result = {
             "query": query,
             "totalMatches": len(matches),
             "returnedCount": len(returned),
@@ -414,6 +443,10 @@ class ToolCatalogIndex:
             "conventionOnly": True,
             "authorityChanged": False,
         }
+        # A capability is a whole-feature contract, not a tool: it rides beside
+        # the summaries and names the deploy call that uses it.
+        result.update(capability_section(query, limit=min(3, limit)))
+        return result
 
     def describe(self, arguments: dict[str, Any], *, visible_names: set[str]) -> dict[str, Any]:
         name = arguments.get("name")

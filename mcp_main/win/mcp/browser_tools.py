@@ -1083,7 +1083,7 @@ def browser_discover_tools(arguments: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(include_schema, bool):
         raise ValueError("include_schema must be a boolean")
     from mcp_main.win.mcp import server
-    from onshape_browser_mode import capabilities
+    from mcp_main.win.mcp.tool_catalog import capability_section
     from onshape_browser_mode.semantics import discover_tools
 
     result = discover_tools(
@@ -1094,26 +1094,11 @@ def browser_discover_tools(arguments: dict[str, Any]) -> dict[str, Any]:
         include_schema=include_schema,
     )
     # A whole-feature job is one capability card, not a tool name the caller has
-    # to assemble from an implementation they never wanted to read. Each match
+    # to assemble from an implementation they never wanted to read. The card
     # carries its own invocation, because a capability is NOT invoked through
     # `browser_invoke_discovered`: it is an argument to the deploy tool.
     if query:
-        matches = capabilities.search(query, limit=3)
-        for match in matches:
-            match["invocation"] = {
-                "tool": "browser_deploy_and_apply_featurescript",
-                "arguments": {
-                    "capability": match["card"]["id"],
-                    "values": {
-                        parameter["name"]: parameter["default"]
-                        for parameter in match["card"]["parameters"]
-                    },
-                },
-                "note": "values are the card defaults; override them, do not add parameters",
-            }
-        if matches:
-            result["capabilities"] = matches
-            result["capabilityInvocationTool"] = "browser_deploy_and_apply_featurescript"
+        result.update(capability_section(query, limit=3))
     return result
 
 

@@ -488,7 +488,19 @@ def search(query: str, limit: int = 3) -> list[dict[str, Any]]:
         # capability, an alias, or its feature type is.
         if not matched or not (strong_hits or middle_hits or weak_hits >= 2):
             continue
-        matches.append({"card": capability.card(), "score": score, "matchedOn": matched})
+        card = capability.card()
+        matches.append({
+            "card": card,
+            "score": score,
+            "matchedOn": matched,
+            # The call shape travels with the card: a caller that finds a feature
+            # should not have to guess how one is invoked. The tool name is added
+            # by the MCP layer that owns it.
+            "invocation": {
+                "capability": card["id"],
+                "values": {parameter["name"]: parameter["default"] for parameter in card["parameters"]},
+            },
+        })
     matches.sort(key=lambda item: (-item["score"], item["card"]["id"]))
     return matches[:limit]
 

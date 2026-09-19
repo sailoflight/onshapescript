@@ -193,6 +193,18 @@ filters rather than free-text tokens, preventing ubiquitous control tools from
 polluting capability searches. Cache search/describe results against the returned
 SHA-256 `fingerprint`; refresh the cache when it changes.
 
+Three result-shape rules matter when routing a modeling request:
+
+- A query that names a CAD feature also returns `capabilities`: bounded
+  whole-feature capability cards, each with an `invocation` naming
+  `browser_deploy_and_apply_featurescript` plus the `capability` and the card's own
+  default `values`. A capability is **not** a registered tool, so it never appears
+  in `results`, and it is not invoked through `browser_invoke_discovered`.
+- A non-empty query the tokenizer cannot read (Chinese, for example) matches no
+  tool summary. It used to match the whole registry, which looked like a broad
+  search and was a routing failure; such a query can still resolve a card.
+- An empty query still browses the registry in ranking order.
+
 #### Dynamic tool display
 
 Tool display is a connection-scoped context and routing convention, never an
