@@ -165,11 +165,20 @@ Classification only: nothing was renamed, merged, hidden or deleted to produce
 the table above. The verdicts point at five follow-up jobs, in the order they
 should be attempted.
 
-1. **Removals (4).** `browser_delete_tab`, `browser_draw_part`,
-   `browser_print_orientation_check` and `browser_print_optimize_part` are
-   deprecated or semantically invalid, and all four are already default-hidden.
-   Delete them once no caller remains; `browser_delete_element` and the verified
-   draw-part path cover their jobs.
+1. **Removals (4). — Blocked on a decision, not on callers.** The four are
+   deprecated or semantically invalid and already default-hidden, and the caller
+   inventory was measured: no project fixture under `dev/fixtures-capture/` or
+   `examples/` routes to any of them, so their only remaining references are the
+   registry itself, the permissive `ALLOWED_PROJECT_TOOLS` / `TOOL_OUTCOME_KEYS`
+   tables in `onshape_browser_mode/project.py`, this page, and tests.
+   `browser_delete_tab` also still has its own handler in `mcp_main/win/mcp/server.py`
+   while the other three live in `browser_tools`.
+   Deleting `browser_print_orientation_check` and `browser_print_optimize_part`
+   contradicts a recorded decision: `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`
+   says, while the Bambu exclusion is active, to **keep** them fail-closed and
+   default-hidden rather than restoring draft analysis, with their replacement
+   belonging to the shared STEP/converter/Bambu plan. That conflict is the
+   blocker — resolving it is an owner decision, not a cleanup.
 2. **Hidden-by-default gaps (2). — Done.** `browser_fix_instances` and
    `browser_group_instances` were classified `Internal-only` but were still
    default-exposed (L4, `default_exposure=True`), unlike every other

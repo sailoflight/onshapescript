@@ -213,6 +213,11 @@ definition-map call, dimensioned arithmetic mixed with a plain number) had zero.
 The gate that keeps them honest is `dev/tools/fs_corpus_check.py`, which scores
 the checker against the live-labeled instance corpus.
 
+Measured and rejected: a duplicate-`export` check. 34 of the 271 vendored files
+declare the same export name twice, which is legal because FeatureScript overloads
+by parameter types (`vector(x, y)` and `vector(x, y, z)`), so the rule would be
+noise on correct code.
+
 Import paths are checked too: an `onshape/std/...` module the vendored library
 does not contain is a warning, measured at **zero** false positives over the 1717
 import statements in that library plus this repository's own FeatureScript. The

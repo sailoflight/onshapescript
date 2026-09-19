@@ -107,7 +107,8 @@ Each item names the gate it must pass before it may be reported.
 |---|---|---|---|
 | 1 | More labeled corpus samples, including the version-drift cases excluded in P1c | **No** — needs real-machine apply runs | `dev/tools/fs_corpus_check.py` stays at 4/4 target and 6/6 valid |
 | 2 | Unresolved `import(path : ...)` module check against the vendored library | **Delivered**: measured zero false positives over 1717 imports in 271 files, then the corpus gate | Keep the rate at zero; the version half stays unimplemented because the mirror ships a placeholder version |
-| 3 | Import-graph and duplicate-export checks | Yes | Same as 2 |
+| 3 | Duplicate-export check | **Rejected by measurement**: 34 of the 271 vendored files declare the same `export` name twice, because FeatureScript overloads by parameter types (`vector(x, y)` and `vector(x, y, z)`). Not a rule | n/a |
+| 3b | Import-graph checks (unused imports, cycles) | Yes, but no measurable gate exists yet | Needs a corpus of labeled unused-import samples before it may report |
 | 4 | Scope, type, unit, query, and effect analysis | **No** — this is the browser compiler's job | Would require the browser loop, not the scanner |
 | 5 | Wire a detected external analyzer as candidate reports | Yes, but no candidate exists | Zero false positives on the corpus before it may report errors |
 
