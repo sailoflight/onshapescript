@@ -19,6 +19,7 @@ from onshape_browser_mode.selectors import (
     ACE_EDITOR,
     CONTEXT_MENU_LAYER,
     CUSTOM_FEATURE_MENU_ITEM,
+    CUSTOM_FEATURE_MENU_LABEL,
     FEATURE_DIALOG_OK,
     FS_COMMIT_BUTTON,
     FS_MODULE_OUTLINE,
@@ -1065,6 +1066,28 @@ def read_insert_dialog(page: Any) -> dict[str, Any]:
     )
 
 
+def feature_label(item: Any) -> str:
+    """The feature NAME of one workspace custom-feature dropdown row.
+
+    A row renders as
+    ``<div class="tool-icon"><div class="tool-initials-icon">Bf</div></div>``
+    ``<span class="tool-label">Bounded fillet</span>``, so the row's own text is
+    ``"Bf\\nBounded fillet"``. The name is the ``.tool-label`` element; a row
+    with no label element falls back to its last non-empty text line so that an
+    older row shape still resolves instead of silently matching nothing.
+    """
+    try:
+        label = item.locator(CUSTOM_FEATURE_MENU_LABEL)
+        if label.count():
+            text = label.first.inner_text().strip()
+            if text:
+                return text
+    except Exception:  # noqa: BLE001 - the text fallback is the designed path
+        pass
+    lines = [line.strip() for line in str(item.inner_text()).splitlines() if line.strip()]
+    return lines[-1] if lines else ""
+
+
 def insert_custom_feature(
     page: Any,
     feature_name: str,
@@ -1126,16 +1149,32 @@ def insert_custom_feature(
     # 2. Click the specific feature ITEM inside the dropdown (the dropdown may
     #    hold several workspace features; clicking the container hits whichever
     #    item sits at its centre, so scope the text match to the item rows).
+    #    Match the row's NAME element, not its innerText: a workspace row also
+    #    renders a two-letter Feature Studio badge, so the row text is
+    #    "Bf\nBounded fillet" and exact text equality never holds. Measured live
+    #    2026-09-19; see onshape_docs/verification/capability-live-run-2026-09-19.md.
     try:
         items = page.locator(CUSTOM_FEATURE_MENU_ITEM)
-        matches = [
-            items.nth(index)
-            for index in range(items.count())
-            if items.nth(index).is_visible() and items.nth(index).inner_text().strip() == feature_name
-        ]
-        if len(matches) != 1:
-            return {"inserted": False, "reason": f"feature {feature_name!r} must match exactly one workspace dropdown item"}
-        matches[0].click()
+        rows = []
+        available = []
+        for index in range(items.count()):
+            item = items.nth(index)
+            if not item.is_visible():
+                continue
+            label = feature_label(item)
+            available.append(label)
+            if label == feature_name:
+                rows.append(item)
+        if len(rows) != 1:
+            return {
+                "inserted": False,
+                "reason": (
+                    f"feature {feature_name!r} must match exactly one workspace "
+                    "dropdown item"
+                ),
+                "available": available,
+            }
+        rows[0].click()
     except Exception as exc:  # noqa: BLE001 - surface as structured result
         return {"inserted": False, "reason": f"feature dropdown click failed: {exc}"}
     dialog = interaction.wait_for_condition(

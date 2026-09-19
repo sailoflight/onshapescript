@@ -59,6 +59,12 @@ FS_NOTICE_COLUMN = ".notice-location-column-number"
 # Part Studio custom-feature apply path (zero quota; steps and evidence in
 # onshape_docs/experience/browser-automation.md)
 CUSTOM_FEATURE_MENU_ITEM = ".os-tool-dropdown-content .tool"
+# The NAME element of a workspace custom-feature row. The row also renders a
+# two-letter Feature Studio badge (`<div class="tool-initials-icon">Bf</div>`),
+# so the row's own innerText is "Bf\nBounded fillet" and can never equal a bare
+# feature name. Measured live 2026-09-19; see
+# onshape_docs/verification/capability-live-run-2026-09-19.md.
+CUSTOM_FEATURE_MENU_LABEL = ".os-tool-dropdown-content .tool .tool-label"
 FEATURE_DIALOG_OK = ".ns-dialog-button-ok.button-ok"
 PARTSTUDIO_FEATURE_ITEM = ".os-list-item"
 

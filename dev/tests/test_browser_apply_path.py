@@ -29,11 +29,16 @@ class FakeItem:
     """One element: a menu row, a dialog button, or a feature-list row."""
 
     def __init__(self, text: str = "", *, visible: bool = True, page: "FakePage | None" = None,
-                 selector: str = "") -> None:
+                 selector: str = "", label: str = "") -> None:
         self.text = text
         self.visible = visible
         self.page = page
         self.selector = selector
+        # A workspace row renders a two-letter Feature Studio badge before the
+        # label, so its innerText is "Bf\nBounded fillet" while the NAME lives
+        # in the `.tool-label` child. `label` models that child; "" models a row
+        # with no label element, which is what the text fallback must handle.
+        self.label = label
         self.click_calls: list[dict] = []
         self.wait_calls: list[dict] = []
 
@@ -42,6 +47,15 @@ class FakeItem:
 
     def inner_text(self) -> str:
         return self.text
+
+    def locator(self, selector: str) -> "FakeLocator":
+        if selector == selectors.CUSTOM_FEATURE_MENU_LABEL and self.label:
+            return FakeLocator(
+                [FakeItem(self.label, page=self.page, selector=selector)],
+                page=self.page,
+                selector=selector,
+            )
+        return FakeLocator([], page=self.page, selector=selector)
 
     def click(self, **kwargs) -> None:
         self.click_calls.append(kwargs)
@@ -84,11 +98,15 @@ class FakeLocator:
 class FakePage:
     """A page that answers `evaluate` by intent and records bounded waits."""
 
-    def __init__(self, *, menu_items=("Bc",), features=None, accept=True,
+    def __init__(self, *, menu_items=("Bc",), menu_labels=None, features=None, accept=True,
                  tabs=("Feature Studio 1", "Part Studio 1"), menu_opens=True) -> None:
         self.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
-        self.menu_items = [FakeItem(text, page=self, selector=selectors.CUSTOM_FEATURE_MENU_ITEM)
-                           for text in menu_items]
+        labels = list(menu_labels) if menu_labels is not None else [""] * len(menu_items)
+        self.menu_items = [
+            FakeItem(text, page=self, selector=selectors.CUSTOM_FEATURE_MENU_ITEM,
+                     label=labels[index])
+            for index, text in enumerate(menu_items)
+        ]
         self.features = features if features is not None else {
             "headerText": "特征",
             "features": [{"name": "Bc", "isUserFeature": True}],
@@ -213,6 +231,62 @@ class InsertCustomFeatureTest(unittest.TestCase):
         self.assertFalse(result["inserted"])
         self.assertFalse(result["accepted"]["clicked"])
         self.assertTrue(result["listed"])
+
+    def test_row_badge_does_not_hide_the_feature_name(self) -> None:
+        """A live row's innerText is "Bf\\nBounded fillet", not the name.
+
+        Measured 2026-09-19: `<div class="tool-initials-icon">Bf</div>` precedes
+        `<span class="tool-label">Bounded fillet</span>`, so exact equality
+        against the row text never matched a real workspace feature.
+        """
+        page = FakePage(
+            menu_items=("Bf\nBounded fillet",),
+            menu_labels=("Bounded fillet",),
+            features={
+                "headerText": "特征",
+                "features": [{"name": "Bf Bounded fillet 1", "isUserFeature": True, "hasError": False}],
+                "partsText": "零件数 (1) Spiral ridge cylinder",
+            },
+        )
+        result = actions.insert_custom_feature(page, "Bounded fillet")
+        self.assertTrue(result["inserted"])
+        self.assertEqual(len(page.menu_items[0].click_calls), 1)
+        self.assertEqual(page.accept_clicks, [{}])
+
+    def test_a_row_without_a_label_element_falls_back_to_its_last_line(self) -> None:
+        page = FakePage(
+            menu_items=("Sr\nSpiral ridge",),
+            features={
+                "headerText": "特征",
+                "features": [{"name": "Sr Spiral ridge 1", "isUserFeature": True, "hasError": False}],
+                "partsText": "零件数 (1) Spiral ridge cylinder",
+            },
+        )
+        result = actions.insert_custom_feature(page, "Spiral ridge")
+        self.assertTrue(result["inserted"])
+        self.assertEqual(len(page.menu_items[0].click_calls), 1)
+
+    def test_a_non_match_reports_the_labels_that_were_available(self) -> None:
+        page = FakePage(
+            menu_items=("Bf\nBounded fillet", "Bh\nBounded hole"),
+            menu_labels=("Bounded fillet", "Bounded hole"),
+        )
+        result = self.apply(page, feature_name="Bounded chamfer")
+        self.assertFalse(result["inserted"])
+        self.assertIn("exactly one", result["reason"])
+        self.assertEqual(result["available"], ["Bounded fillet", "Bounded hole"])
+        self.assertEqual(page.accept_clicks, [])
+
+    def test_two_rows_sharing_a_label_are_never_guessed(self) -> None:
+        page = FakePage(
+            menu_items=("Bf\nBounded fillet", "Bf\nBounded fillet"),
+            menu_labels=("Bounded fillet", "Bounded fillet"),
+        )
+        result = actions.insert_custom_feature(page, "Bounded fillet")
+        self.assertFalse(result["inserted"])
+        self.assertIn("exactly one", result["reason"])
+        self.assertEqual([item.click_calls for item in page.menu_items], [[], []])
+        self.assertEqual(page.accept_clicks, [])
 
     def test_a_feature_that_never_regenerates_is_reported_as_not_listed(self) -> None:
         page = FakePage(features={"headerText": "", "features": [], "partsText": ""})
