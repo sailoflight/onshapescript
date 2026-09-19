@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from mcp_main.win.mcp.concurrency import CONCURRENCY_CONTRACT_VERSION
 from mcp_main.win.mcp.tool_views import (
     REST_REFERENCE_TOOL_NAMES,
     VALID_PROFILES,
@@ -122,6 +123,7 @@ class CatalogEntry:
     confirmation_schema_required: bool
     confirmation_mode: str
     side_effects: tuple[str, ...]
+    concurrency: dict[str, Any]
     required: tuple[str, ...]
     name_tokens: tuple[str, ...]
     search_tokens: frozenset[str]
@@ -146,6 +148,26 @@ class CatalogEntry:
             "confirmationSchemaRequired": self.confirmation_schema_required,
             "confirmationMode": self.confirmation_mode,
             "sideEffects": list(self.side_effects),
+            "concurrency": {
+                "workflowIsolation": self.concurrency["workflowIsolation"],
+                "classificationOnly": True,
+                "access": self.concurrency["access"],
+                "scope": self.concurrency["scope"],
+                "sharedTargetState": self.concurrency["sharedTargetState"],
+                "sharedLocalState": self.concurrency["sharedLocalState"],
+                "safeDuringMutationWorkflow": self.concurrency[
+                    "safeDuringMutationWorkflow"
+                ],
+                "safeDuringMutationWorkflowWhenExplicitTarget": self.concurrency[
+                    "safeDuringMutationWorkflowWhenExplicitTarget"
+                ],
+                "requiresExplicitTargetForConcurrentUse": self.concurrency[
+                    "requiresExplicitTargetForConcurrentUse"
+                ],
+                "callerMustVerifyScopeKeyPresence": self.concurrency[
+                    "callerMustVerifyScopeKeyPresence"
+                ],
+            },
             "required": list(self.required),
             "visibleInCurrentView": visible,
             "matchScore": score,
@@ -163,6 +185,7 @@ class CatalogEntry:
             "annotations": self.tool.get("annotations") or {},
             "cost": self.tool.get("cost") or {},
             "sideEffects": list(self.side_effects),
+            "concurrency": self.concurrency,
             "confirmation": {
                 "exposed": self.confirmation_exposed,
                 "requiredForRealCall": self.confirmation_required,
@@ -205,6 +228,9 @@ class ToolCatalogIndex:
             properties = schema.get("properties") or {}
             annotations = tool.get("annotations") or {}
             cost = tool.get("cost") or {}
+            concurrency = cost.get("concurrency")
+            if not isinstance(concurrency, dict):
+                raise ValueError(f"tool {name} is missing concurrency metadata")
             network = str(cost.get("network", "offline"))
             if network not in VALID_NETWORKS:
                 raise ValueError(f"tool {name} has unsupported network value: {network}")
@@ -230,6 +256,7 @@ class ToolCatalogIndex:
                 confirmation_schema_required="confirm_mutation" in required,
                 confirmation_mode=confirmation_mode,
                 side_effects=tuple(str(value) for value in cost.get("side_effects") or ()),
+                concurrency=dict(concurrency),
                 required=required,
                 name_tokens=name_tokens,
                 search_tokens=search_tokens,
@@ -250,6 +277,7 @@ class ToolCatalogIndex:
                 "semanticLevel": entry.semantic_level,
                 "network": entry.network,
                 "mutating": entry.mutating,
+                "concurrency": entry.concurrency,
                 "inputSchema": entry.tool.get("inputSchema"),
             }
             for entry in entries
@@ -268,6 +296,13 @@ class ToolCatalogIndex:
             "maxSearchResults": MAX_SEARCH_RESULTS,
             "defaultSearchResults": DEFAULT_SEARCH_RESULTS,
             "schemaPolicy": "exact-describe-only",
+            "concurrencyPolicy": {
+                "contractVersion": CONCURRENCY_CONTRACT_VERSION,
+                "workflowIsolation": "none",
+                "productionMutationMode": "single_modifying_agent",
+                "classificationOnly": True,
+                "authorityChanged": False,
+            },
             "modules": dict(sorted(Counter(entry.module for entry in self._entries).items())),
             "profiles": {
                 profile: sum(profile in entry.profiles for entry in self._entries)

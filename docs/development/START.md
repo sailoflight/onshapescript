@@ -32,6 +32,13 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 There is no root packaging manifest. Python modules, domain-owned dependency
 files, and current module contracts are executable sources of truth.
 
+Browser resource tests use the bundled pure Python wheel (Python >=3.11).
+Install it into the development environment with `python3 -m pip install
+--no-index --no-deps onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl`
+before running the full suite. This offline fake-test setup does not install
+Playwright or a browser. Package provenance, isolated test commands, compatibility
+changes and rollback are in `BROWSER_COMMON_INTEGRATION.md`.
+
 ## Workflow
 
 1. Start at `../INDEX.md` and select one task route.

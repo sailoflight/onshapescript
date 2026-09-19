@@ -57,6 +57,7 @@ class ToolReferenceTest(unittest.TestCase):
         self.assertIn(f"Registered tools: **{len(server.TOOLS)}**", text)
         for tool in server.TOOLS:
             self.assertEqual(text.count(f"| `{tool['name']}` |"), 1, tool["name"])
+        self.assertEqual(text.count("concurrency="), len(server.TOOLS))
 
     def test_generated_reference_records_optional_browser_semantics(self) -> None:
         text = (ROOT / "docs" / "generated" / "TOOL_REFERENCE.md").read_text(

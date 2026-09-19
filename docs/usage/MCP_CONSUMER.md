@@ -55,6 +55,41 @@ payload construction, dry-run, mocks, fixtures, and quota-ledger inspection do
 not contact Onshape. An explicitly requested reference-update tool may fetch
 public zero-quota sources; read its exact schema and description before calling.
 
+### Concurrency and workflow isolation
+
+One backend, one browser/profile owner, and serialized `tools/call` requests do
+not make a sequence of calls atomic. The current production contract supports
+multiple clients only for reads whose catalog
+`concurrency.safeDuringMutationWorkflow` is `true`, or whose
+`safeDuringMutationWorkflowWhenExplicitTarget` is `true` with every applicable
+`scopeKeyPaths` argument supplied. The contract is schema-derived and
+`conditionEvaluatedAtRuntime=false`; the caller must verify actual argument
+presence, and a configured default target is never allowed for concurrent use.
+Explicit-target reads may still observe a document mid-mutation and must not be
+used as final acceptance evidence. This read allowance exists alongside one
+modifying agent at a time. Multiple modifying agents are unsupported until
+scoped document leases have end-to-end acceptance evidence.
+
+The modifying agent owns one exclusive workflow from its first target selection
+through navigation, mutation, shared-state synchronization, final acceptance,
+and browser release. Do not split operations that depend on the current page,
+current Part Studio, or cached REST target across agents. REST operations used
+concurrently must carry explicit target IDs; a tool marked
+`requiresExplicitTargetForConcurrentUse=true` cannot use its configured default.
+On `client_lease_busy`, wait or exit without starting another MCP or browser.
+
+`mcp_tool_catalog` exposes a conservative `cost.concurrency` contract for every
+tool. `access` is `shared_read`, `connection_local`, or `exclusive_workflow`;
+`scope` is the governing scope, while `coordinationScopes` records additional
+browser-profile plus document/target coordination needed by future leases.
+`scopeKeyPaths` lists schema-visible opaque target arguments but does not prove
+they were supplied. `sharedTargetState` and `sharedLocalState` identify state
+that another exclusive tool may update; those readers are not safe during that
+mutation. `workflowIsolation="none"` is deliberate: this metadata supports
+scheduling and future scoped leases but does not itself acquire a lock or grant
+mutation authority. `registered=true` and request serialization are not health
+evidence for document-level mutation isolation.
+
 ### Browser operations
 
 Browser tools consume zero REST API quota because they drive the Windows browser.
@@ -136,7 +171,9 @@ Use the bounded sequence:
    `inputSchema`.
 3. `action=describe` with one exact result name to load the full current
    `inputSchema`, cost, annotations, profiles, browser semantics, view visibility,
-   confirmation mode, and explicit local/session `sideEffects`.
+   confirmation mode, explicit local/session `sideEffects`, and conservative
+   concurrency contract. `action=status` reports that workflow isolation is
+   currently `none` and production mutation mode is `single_modifying_agent`.
 4. Treat `confirmation.mode=always` as unconditional, `non_dry_run` as required
    only for real execution, and `budget_override` as a session-budget override
    rather than mutation approval. `confirmation.schemaRequired` reports the JSON

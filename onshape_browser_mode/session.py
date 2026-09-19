@@ -1,14 +1,14 @@
-"""Persistent Playwright browser session for Onshape.
+"""Onshape business facade over a lazily imported browser_common resource owner.
 
-The session owns a persistent Chrome profile so a human can log in once and
-later browser_* calls reuse the cookies. Playwright is imported lazily: the MCP
-server and every offline tool must run without it installed.
+The shared library owns native Playwright resources; login, recovery selection,
+configuration and MCP response contracts remain here. Offline tools need neither
+Playwright nor browser_common installed.
 """
-
 from __future__ import annotations
 
 import json
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -17,28 +17,17 @@ from onshape_browser_mode.errors import BrowserLaunchError, PlaywrightNotInstall
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_ROOT.parent
-
 _SIGNIN_URL = "https://cad.onshape.com/signin"
 
 
 def _is_onshape_app_url(url: str | None) -> bool:
-    """True when ``url`` is an authenticated Onshape application page.
-
-    ``launch_persistent_context`` restores the previous session's tabs. A
-    restored tab such as ``https://cad.onshape.com/documents?...nodeId=...``
-    already carries the login session, so it must be treated as logged in
-    instead of being thrown away and replaced with the /signin page.
-    """
+    """Preserve the existing business heuristic for restored application URLs."""
     if not url:
         return False
     lowered = url.lower()
-    if "about:blank" in lowered:
+    if "about:blank" in lowered or "cad.onshape.com" not in lowered:
         return False
-    if "cad.onshape.com" not in lowered:
-        return False
-    if "/signin" in lowered or "login.onshape.com" in lowered:
-        return False
-    return True
+    return "/signin" not in lowered and "login.onshape.com" not in lowered
 
 
 def _browser_launch_error_message(
@@ -59,34 +48,89 @@ def _browser_launch_error_message(
 
 
 class BrowserSession:
-    """Lazy singleton-style holder for the persistent context and working page."""
+    """Business session composed with one SyncSession, with no native handle copies."""
 
-    def __init__(self, config: BrowserConfig | None = None) -> None:
+    def __init__(self, config: BrowserConfig | None = None, *, playwright_factory: Any = None) -> None:
         self.config = config or load_browser_config()
-        self._playwright: Any = None
-        self._context: Any = None
-        self._page: Any = None
+        self._resources: Any = None
+        self._playwright_factory = playwright_factory
+        # Business recovery is suspended during a temporary-page workflow.
+        # Page registrations and all resource handles remain solely in the owner.
+        self._temporary_depth = 0
         self._status = "uninitialized"
         self.human_action_required = False
         self.login_confirmed = False
 
+    def _resource(self, name: str):
+        if self._resources is None:
+            return None
+        from browser_common import ResourceUnavailableError
+        try:
+            return getattr(self._resources, name)
+        except ResourceUnavailableError:
+            return None
+
     @property
     def context(self):
-        """The persistent Playwright context, or None before start()."""
-        return self._context
+        """The owner's native context, or None when unavailable."""
+        return self._resource("context")
 
     @property
     def page(self):
-        """The working page, or None before start()."""
-        return self._page
+        """The owner's native working page, or None when unavailable."""
+        return self._resource("page")
+
+    def adopt_page(self, page: Any):
+        """Explicitly transfer the working page to the shared resource owner."""
+        if self._resources is None:
+            raise BrowserLaunchError("Start the browser before adopting a page.")
+        return self._resources.adopt_page(page)
+
+    @contextmanager
+    def temporary_pages(self, *, budget_ms: float | None = None):
+        """Track native pages and suspend implicit business page recovery."""
+        if self._resources is None:
+            raise BrowserLaunchError("Start the browser before tracking temporary pages.")
+        with self._resources.temporary_pages(budget_ms=budget_ms) as scope:
+            self._temporary_depth += 1
+            try:
+                yield scope
+            finally:
+                self._temporary_depth -= 1
+
+    def _make_resources(self):
+        try:
+            from browser_common import SessionConfig, SyncSession
+        except ImportError as exc:
+            raise BrowserLaunchError(
+                "lijq-browser-common 0.1.0.dev2 is required on the MCP browser host. "
+                "Install onshape_browser_mode/requirements-windows.txt with its bundled wheels."
+            ) from exc
+        browser_cfg = self.config.browser
+        options: dict[str, Any] = {
+            "headless": browser_cfg.headless,
+            "locale": browser_cfg.locale,
+            "timezone_id": browser_cfg.timezone,
+            "viewport": {"width": 1280, "height": 800},
+        }
+        if browser_cfg.executable_path:
+            options["executable_path"] = browser_cfg.executable_path
+        elif browser_cfg.channel:
+            options["channel"] = browser_cfg.channel
+        if browser_cfg.proxy_server:
+            options["proxy"] = {"server": browser_cfg.proxy_server}
+        return SyncSession(
+            SessionConfig(
+                self.profile_dir(), launch_options=options,
+                # Onshape's legacy app predicate stays in the business facade.
+                cleanup_restored=False, browser_close_fallback=True,
+            ),
+            playwright_factory=self._playwright_factory,
+        )
 
     @staticmethod
     def playwright_available() -> bool:
-        """True when the Playwright package can be imported.
-
-        The import check does NOT launch a browser or verify a browser binary;
-        that happens in start() and failures surface as BrowserLaunchError.
-        """
+        """Check import availability without launching a browser."""
         try:
             import playwright.sync_api  # noqa: F401
             return True
@@ -115,189 +159,140 @@ class BrowserSession:
         try:
             path = self._state_path()
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(
-                json.dumps({"lastAppUrl": url}, indent=2), encoding="utf-8"
-            )
+            path.write_text(json.dumps({"lastAppUrl": url}, indent=2), encoding="utf-8")
         except Exception:
             pass
 
     def _enforce_single_working_page(self, keep_page: Any) -> None:
-        """Close every page in the context except ``keep_page``.
-
-        Deterministic tab management (the "single working page" rule, same as
-        taobao-mcp): the automation never relies on Chromium's session-restore
-        or the human's tab layout. Popups, restored tabs, and tabs the human
-        opened while logging in are all closed so the active page cannot drift
-        into a stale tab.
-        """
-        if self._context is None:
+        """Reconcile the explicit tool-boundary snapshot, protecting active scopes."""
+        context = self.context
+        if context is None:
             return
-        for page in list(self._context.pages or []):
-            if page is keep_page:
-                continue
-            try:
-                if not page.is_closed():
-                    page.close()
-            except Exception:
-                pass
+        from browser_common import PageCleanupError
+        if keep_page is not self.page:
+            self.adopt_page(keep_page)
+        report = self._resources.reconcile_pages(list(context.pages or []))
+        if not report.complete:
+            raise PageCleanupError(report)
+
+    def _prepare_page(self, page: Any):
+        self.adopt_page(page)
+        self._enforce_single_working_page(page)
+        try:
+            page.bring_to_front()
+        except Exception:
+            pass
+        if _is_onshape_app_url(page.url):
+            self.login_confirmed = True
+            self.human_action_required = False
+        self._status = "started"
+        return page
 
     def start(self):
-        """Launch (or reuse) the persistent browser context and return its page.
+        """Explicit business recovery followed by native resource startup/reuse."""
+        if self._resources is not None:
+            state = self._resources.snapshot().state
+            if self._temporary_depth:
+                current = self.page
+                if current is None:
+                    raise BrowserLaunchError(
+                        "Working page unavailable during a temporary workflow; "
+                        "explicitly adopt a live page or exit the scope before recovery."
+                    )
+                return self._prepare_page(current)
+            if state == "release_failed":
+                raise BrowserLaunchError(
+                    "Browser release is incomplete; call browser_session(action='release') "
+                    "before starting again."
+                )
+            if state == "invalidated":
+                if not self.close()["profileReleased"]:
+                    raise BrowserLaunchError("Invalidated browser resources could not be released.")
 
-        Never treats a transient ``evaluate`` failure as "browser dead": a page
-        that is mid-navigation throws "Execution context was destroyed" for a
-        moment, and reacting with a full relaunch would kill a human's
-        logged-in browser session. A fresh launch only happens when the context
-        is truly gone or unreachable.
-        """
-        # 1. Reuse an existing responsive page from the live context, preferring
-        #    an already-logged-in Onshape app page (the human may have logged in
-        #    a different tab than the one we last held).
-        if self._context is not None:
-            pages = list(self._context.pages or [])
-
-            for page in pages:
-                try:
-                    if not page.is_closed() and _is_onshape_app_url(page.url):
-                        page.evaluate("1 + 1")
-                        self._page = page
-                        self.login_confirmed = True
-                        self.human_action_required = False
-                        page.bring_to_front()
-                        self._enforce_single_working_page(page)
-                        return page
-                except Exception:
-                    continue
-
-            candidates: list[Any] = []
-            if self._page is not None:
-                candidates.append(self._page)
-            for page in pages:
-                if page is not self._page:
-                    candidates.append(page)
-            for page in candidates:
+        context = self.context
+        if context is not None:
+            pages = list(context.pages or [])
+            current = self.page
+            # Reuse the current app page first. Do not replace it with a temporary
+            # app popup merely because that popup occurs earlier in context.pages.
+            ordered = ([current] if current is not None else []) + [p for p in pages if p is not current]
+            live_pages = []
+            for page in ordered:
                 try:
                     if not page.is_closed():
-                        page.evaluate("1 + 1")
-                        self._page = page
-                        page.bring_to_front()
-                        self._enforce_single_working_page(page)
-                        return page
+                        live_pages.append(page)
                 except Exception:
                     continue
-
-            # Context exists but no page is responsive: open a fresh page on it.
+            preferred = []
+            for candidate in live_pages:
+                try:
+                    if _is_onshape_app_url(candidate.url):
+                        preferred.append(candidate)
+                except Exception:
+                    continue
+            candidates = preferred + [
+                p for p in live_pages if all(p is not preferred_page for preferred_page in preferred)
+            ]
+            for page in candidates:
+                try:
+                    page.evaluate("1 + 1")
+                except Exception:
+                    continue
+                return self._prepare_page(page)
+            # A navigation-time evaluate error does not establish resource death.
+            if candidates:
+                return self._prepare_page(candidates[0])
             try:
-                self._page = self._context.new_page()
-                self._page.bring_to_front()
-                self._enforce_single_working_page(self._page)
-                self._status = "started"
-                return self._page
+                page = context.new_page()
             except Exception:
-                # The context itself is dead; fall through to a full relaunch.
-                self.close()
+                if not self.close()["profileReleased"]:
+                    raise BrowserLaunchError("Unreachable browser resources could not be released.")
+            else:
+                return self._prepare_page(page)
 
-        if not self.playwright_available():
+        if self._playwright_factory is None and not self.playwright_available():
             raise PlaywrightNotInstalled(
                 "Playwright is not installed on the MCP browser host. Run: "
                 "C:\\path\\to\\onshapescript\\.venv\\Scripts\\python.exe -m pip install "
                 "-r onshape_browser_mode\\requirements-windows.txt"
             )
-
-        from playwright.sync_api import sync_playwright
-
-        browser_cfg = self.config.browser
+        if self._resources is None:
+            self._resources = self._make_resources()
         profile = self.profile_dir()
         profile.mkdir(parents=True, exist_ok=True)
-
-        launch_kwargs: dict[str, Any] = {
-            "user_data_dir": str(profile),
-            "headless": browser_cfg.headless,
-            "locale": browser_cfg.locale,
-            "timezone_id": browser_cfg.timezone,
-            "viewport": {"width": 1280, "height": 800},
-        }
-        if browser_cfg.executable_path:
-            launch_kwargs["executable_path"] = browser_cfg.executable_path
-        elif browser_cfg.channel:
-            launch_kwargs["channel"] = browser_cfg.channel
-        if browser_cfg.proxy_server:
-            launch_kwargs["proxy"] = {"server": browser_cfg.proxy_server}
-
-        # A previous Edge may still be releasing the profile lock; retry briefly
-        # instead of failing on the first "browser has been closed" race.
         last_exc: Exception | None = None
         for attempt in range(3):
-            self._playwright = sync_playwright().start()
             try:
-                self._context = self._playwright.chromium.launch_persistent_context(**launch_kwargs)
+                page = self._resources.start()
                 break
             except Exception as exc:
                 last_exc = exc
-                self._stop_playwright()
+                report = self._resources.last_release_report
+                if report is None or not report.complete:
+                    self._status = "release_failed"
+                    break
+                self._status = "start_failed"
                 if attempt < 2:
                     time.sleep(2.0)
         else:
+            page = None
+        if self._resources.snapshot().state != "ready":
             raise BrowserLaunchError(
                 _browser_launch_error_message(
-                    channel=browser_cfg.channel,
-                    profile_dir=profile,
-                    error=last_exc,
+                    channel=self.config.browser.channel, profile_dir=profile,
+                    error=RuntimeError(type(last_exc).__name__),
                 )
             ) from last_exc
-
-        # Residual-tab cleanup (same fix taobao-mcp landed 2026-08-20):
-        # launch_persistent_context restores every tab left over from the last
-        # session. Those stale pages make the active page drift during popup /
-        # navigation flows and can trigger risk checks, so on every fresh
-        # launch keep exactly ONE working page and close the rest.
-        #
-        # IMPORTANT Onshape nuance: prefer a restored tab that is already an
-        # authenticated app page (e.g. /documents?...nodeId=...) — it carries
-        # the login session. Only fall back to a blank/signin page when no
-        # logged-in tab was restored.
-        restored = list(self._context.pages or [])
-        self._page = None
-
-        # 1. Prefer a restored, already-logged-in app page.
-        for page in restored:
+        # Keep legacy business preference; shared selection only supplies a live
+        # fallback, and never embeds site-specific matching in the common library.
+        for restored in list(self.context.pages or []):
             try:
-                if _is_onshape_app_url(page.url):
-                    self._page = page
+                if not restored.is_closed() and _is_onshape_app_url(restored.url):
+                    page = restored
                     break
             except Exception:
                 continue
-
-        # 2. Otherwise keep the first live page.
-        if self._page is None:
-            for page in restored:
-                try:
-                    if not page.is_closed():
-                        self._page = page
-                        break
-                except Exception:
-                    continue
-
-        if self._page is None or self._page.is_closed():
-            try:
-                self._page = self._context.new_page()
-            except Exception:
-                self._page = self._context.pages[0] if self._context.pages else None
-
-        # 3. Deterministic single-page rule: close every other tab.
-        if self._page is not None:
-            self._enforce_single_working_page(self._page)
-        if self._page is not None:
-            try:
-                self._page.bring_to_front()
-            except Exception:
-                pass
-
-        if _is_onshape_app_url(self._page.url if self._page is not None else None):
-            self.login_confirmed = True
-            self.human_action_required = False
-        self._status = "started"
-        return self._page
+        return self._prepare_page(page)
 
     def release(self) -> dict[str, Any]:
         """Release this process's browser/profile ownership without starting it."""
@@ -305,60 +300,31 @@ class BrowserSession:
 
     def close(self) -> dict[str, Any]:
         previous_status = self._status
-        previous_page_url = None
-        if self._page is not None:
-            try:
-                previous_page_url = self._page.url
-            except Exception:
-                previous_page_url = None
-
-        context = self._context
-        had_context = context is not None
-        had_playwright = self._playwright is not None
-        already_released = (
-            not had_context
-            and not had_playwright
-            and previous_status != "release_failed"
-        )
-        context_closed = not had_context
-        release_method = "none"
-        warnings: list[str] = []
-        if context is not None:
-            try:
-                context.close()
-                context_closed = True
-                release_method = "context.close"
-            except Exception as exc:
-                warnings.append(f"context.close failed: {type(exc).__name__}: {exc}")
-                # context.close() can fail mid-navigation; fall back to the
-                # browser handle so the profile lock is actually released.
-                try:
-                    browser = getattr(context, "browser", None)
-                    if browser is None:
-                        warnings.append("browser.close fallback unavailable")
-                    else:
-                        browser.close()
-                        context_closed = True
-                        release_method = "browser.close-fallback"
-                except Exception as exc:  # noqa: BLE001 - return structured evidence
-                    warnings.append(f"browser.close failed: {type(exc).__name__}: {exc}")
-
-        playwright_stopped = self._stop_playwright(
-            warnings, preserve_on_failure=True
-        )
-        self._context = None if context_closed else context
-        if context_closed:
-            self._page = None
-        profile_released = context_closed and playwright_stopped
+        try:
+            page = self.page
+            previous_page_url = page.url if page is not None else None
+        except Exception:
+            # Diagnostic page inspection must not prevent resource release.
+            # The owner's release() still enforces the execution-thread guard.
+            previous_page_url = None
+        report = self._resources.release() if self._resources is not None else None
+        context_status = report.context_status if report else "absent"
+        driver_status = report.driver_status if report else "absent"
+        had_resources = context_status != "absent" or driver_status != "absent"
+        context_closed = context_status in ("absent", "closed")
+        playwright_stopped = driver_status in ("absent", "stopped")
+        profile_released = report.complete if report else True
         self._status = "closed" if profile_released else "release_failed"
         if profile_released:
             self.login_confirmed = False
             self.human_action_required = False
-
-        released = (had_context or had_playwright) and profile_released
+        release_method = "none"
+        if context_status == "closed":
+            release_method = "browser.close-fallback" if report.browser_fallback_used else "context.close"
+        warnings = [f"{f.operation} failed: {f.error_type}" for f in report.failures] if report else []
         return {
-            "released": released,
-            "alreadyReleased": already_released,
+            "released": had_resources and profile_released,
+            "alreadyReleased": not had_resources and previous_status != "release_failed",
             "profileReleased": profile_released,
             "previousSessionStatus": previous_status,
             "previousPageUrl": previous_page_url,
@@ -367,7 +333,7 @@ class BrowserSession:
             "contextClosed": context_closed,
             "playwrightStopped": playwright_stopped,
             "releaseMethod": release_method,
-            "loginStateMayNeedRefresh": bool(had_context or had_playwright),
+            "loginStateMayNeedRefresh": had_resources,
             "warnings": warnings,
             "message": (
                 "Browser/profile ownership released for this MCP process."
@@ -376,31 +342,35 @@ class BrowserSession:
             ),
         }
 
-    def _stop_playwright(
-        self,
-        warnings: list[str] | None = None,
-        *,
-        preserve_on_failure: bool = False,
-    ) -> bool:
-        stopped = True
-        try:
-            if self._playwright is not None:
-                self._playwright.stop()
-        except Exception as exc:
-            stopped = False
-            if warnings is not None:
-                warnings.append(f"playwright.stop failed: {type(exc).__name__}: {exc}")
-        if stopped or not preserve_on_failure:
-            self._playwright = None
-        return stopped
-
     def status(self) -> dict[str, Any]:
-        # Report the most useful page, not blindly the last one we held: the
-        # human may have logged in another tab while we were idle.
+        # Observe useful business state without transferring a temporary page's
+        # ownership as a side effect of a status request.
         page_url = None
         pages_seen: list[dict[str, Any]] = []
-        if self._context is not None:
-            for page in list(self._context.pages or []):
+        context = self.context
+        current = self.page
+        refreshed = False
+        if context is not None:
+            from browser_common import ExecutionContextError
+            try:
+                probe = current
+                if probe is None:
+                    probe = next((p for p in context.pages if not p.is_closed()), None)
+                if probe is not None:
+                    # Sync Playwright URL/pages/closed properties only read caches.
+                    # One native read pumps pending manual-navigation events.
+                    probe.title()
+                    refreshed = True
+            except ExecutionContextError:
+                raise
+            except Exception:
+                # Navigation may destroy the execution context mid-read. This
+                # establishes neither logout nor resource death; never recover here.
+                pass
+            context = self.context
+            current = self.page
+        if context is not None:
+            for page in list(context.pages or []):
                 try:
                     if page.is_closed():
                         pages_seen.append({"closed": True})
@@ -412,29 +382,28 @@ class BrowserSession:
                 pages_seen.append({"url": url})
                 if _is_onshape_app_url(url):
                     page_url = url
-                    self._page = page
                     break
-                if page_url is None and page is self._page:
+                if page_url is None and page is current:
                     page_url = url
-            if page_url is None and self._page is not None:
-                try:
-                    if not self._page.is_closed():
-                        page_url = self._page.url
-                except Exception:
-                    page_url = None
-        elif self._page is not None:
+        if page_url is None and current is not None:
             try:
-                if not self._page.is_closed():
-                    page_url = self._page.url
+                page_url = current.url
             except Exception:
-                page_url = None
-
-        login_confirmed = bool(self.login_confirmed or _is_onshape_app_url(page_url))
-        if login_confirmed:
-            self.login_confirmed = True
-            self.human_action_required = False
-            if page_url:
+                pass
+        if refreshed:
+            if _is_onshape_app_url(page_url):
+                self.login_confirmed = True
+                self.human_action_required = False
+                if self._status == "awaiting_login":
+                    self._status = "started"
                 self._save_app_url(page_url)
+            elif (page_url or "").split("?", 1)[0].split("#", 1)[0].rstrip("/") == _SIGNIN_URL:
+                # A successfully refreshed sign-in page supersedes sticky login
+                # history. Unknown URLs and failed reads do not prove logout.
+                self.login_confirmed = False
+                self.human_action_required = True
+                if self._status == "started":
+                    self._status = "awaiting_login"
         return {
             "playwrightInstalled": self.playwright_available(),
             "configured": True,
@@ -444,24 +413,17 @@ class BrowserSession:
             "pages": pages_seen,
             "headless": self.config.browser.headless,
             "humanActionRequired": self.human_action_required,
-            "loginConfirmed": login_confirmed,
+            "loginConfirmed": self.login_confirmed,
         }
 
     def open_login_page(self) -> dict[str, Any]:
-        """Open Onshape sign-in in the persistent, headed browser.
-
-        Login itself is always a human action: SSO, 2FA, and risk checks are
-        deliberately never automated. If the persistent profile restored an
-        already-logged-in Onshape page, do NOT navigate to /signin — that
-        would discard the working session.
-        """
+        """Open sign-in only when restored/saved app entry cannot reuse login."""
         page = self.start()
         self._enforce_single_working_page(page)
         try:
             current_url = page.url
         except Exception:
             current_url = None
-
         if _is_onshape_app_url(current_url):
             self._status = "started"
             self.human_action_required = False
@@ -474,19 +436,10 @@ class BrowserSession:
                     "page was kept). No sign-in navigation was needed."
                 ),
             }
-
-        # The profile may hold valid cookies but launch_persistent_context does
-        # not reliably auto-restore the previous tabs. Try the last known
-        # logged-in Onshape URL first: cookies + entry URL restore the session
-        # without a human re-login.
         saved_url = self._load_saved_app_url()
         if saved_url:
             try:
                 page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)
-                # Onshape is a SPA: the requested documents URL can flash before
-                # the client router redirects an unauthenticated session to
-                # /signin. Wait for the router to settle, then judge by the
-                # FINAL url — never by the URL right after domcontentloaded.
                 try:
                     page.wait_for_timeout(4000)
                 except Exception:
@@ -498,14 +451,10 @@ class BrowserSession:
                     self._save_app_url(page.url)
                     return {
                         "sessionStatus": self._status,
-                        "message": (
-                            "Logged in via saved Onshape entry URL "
-                            f"({page.url})."
-                        ),
+                        "message": f"Logged in via saved Onshape entry URL ({page.url}).",
                     }
             except Exception:
                 pass
-
         page.goto(_SIGNIN_URL, wait_until="domcontentloaded", timeout=60_000)
         self._status = "awaiting_login"
         self.human_action_required = True

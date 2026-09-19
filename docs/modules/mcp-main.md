@@ -5,7 +5,8 @@ Status: verified
 ## Owns
 
 - MCP identity, initialization, canonical runtime prompt, JSON-RPC dispatch,
-  tool schemas/handlers, browser-tool installation, and result formatting.
+  tool schemas/handlers, conservative concurrency/risk metadata, browser-tool
+  installation, and result formatting.
 - The complete ordinary stdio entry `python -m mcp_main.win.mcp`.
 - Generated DSH runtime-policy companion and external-adapter configuration example.
 - Protocol-clean stdout and bounded diagnostics on stderr.
@@ -37,6 +38,11 @@ Status: verified
 
 - Tool names are unique and each externally callable schema has a handler.
 - Known-name dispatch authority and safety gates do not change with tool views.
+- Every tool exposes a machine-readable `cost.concurrency` contract. It is a
+  conservative scheduling/risk classification and explicitly provides no
+  multi-call workflow isolation or permission.
+- Production permits multiple clients only for statically safe reads and one
+  modifying agent until scoped document leases have end-to-end evidence.
 - Runtime prompt, server identity, schema, handler, and DSH companion deploy as one revisioned generation.
 - Native clients consume `initialize.instructions`; DSH 0.1.0-rc.8 requires the generated companion.
 - Tool results never expose REST credential values.
@@ -52,7 +58,8 @@ Run with `LIVE_API_ENABLED` unset:
 
 ```bash
 python3 -m unittest dev.tests.test_mcp_server dev.tests.test_runtime_prompt \
-  dev.tests.test_project_layout dev.tests.test_mcp_probe_policy -v
+  dev.tests.test_tool_catalog dev.tests.test_project_layout \
+  dev.tests.test_mcp_probe_policy -v
 python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
 python3 dev/tools/mcp_probe.py
 ```

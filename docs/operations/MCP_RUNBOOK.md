@@ -25,7 +25,7 @@ service, relay, or launcher.
 ## Preconditions
 
 - Deployment copy on the browser/REST host, conventionally `C:\MCP\onshapescript`.
-- Python and installed Chrome/Edge.
+- Python >=3.11 and installed Chrome/Edge.
 - Interactive desktop access for initial Onshape SSO/2FA.
 - Credentials only in module-owned ignored configuration.
 - Recovery point for browser profile, local config, REST state/credentials,
@@ -38,6 +38,20 @@ cd C:\MCP\onshapescript
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r onshape_browser_mode\requirements-windows.txt
 ```
+
+Ship `onshape_browser_mode/wheels/` with the deployment. The requirements file
+resolves its bundled `lijq-browser-common==0.1.0.dev2` wheel using a path relative
+to that requirements file; it does not require the sibling `pythonpubliclib`
+checkout. Verify its SHA-256 against
+`../development/BROWSER_COMMON_INTEGRATION.md` before installation. The package
+requires Python >=3.11. Source integration and offline tests do not install into
+or restart the Windows deployment.
+
+On release failure, inspect `contextClosed`, `playwrightStopped` and `warnings`.
+If context and browser fallback closure fail, the shared owner keeps the driver
+for a subsequent cooperative release; warnings contain operation/error types.
+`profileReleased` reports owned-handle cleanup, not an independent OS lock probe.
+Rollback source and its dependency manifest together; keep profile/config/state.
 
 Use the machine's existing Chrome/Edge; do not download another browser merely
 for this MCP. Install any REST/module dependencies required by the selected
@@ -91,6 +105,16 @@ Healthy means:
 - browser status is sane and credentials are not exposed;
 - REST quota/state guards remain intact;
 - any external bridge reports its own registry/nodes/link healthy.
+
+`registered=true`, one backend, one profile owner, and serialized calls are
+necessary but do not prove document/workflow isolation. Until a scoped document
+lease passes end-to-end acceptance, production mode is multiple clients for
+registry-classified safe reads plus one modifying agent. That agent remains the
+exclusive owner from target selection through mutation, shared target-state
+synchronization, acceptance, rollback/recovery if needed, and browser release.
+On `client_lease_busy`, clients wait or exit; they never bypass the adapter or
+start another MCP/browser. Operators stop on concurrent modifying agents,
+missing explicit target IDs, or a current-page/shared-state ownership ambiguity.
 
 Run the ordinary target-host probe without `LIVE_API_ENABLED`:
 

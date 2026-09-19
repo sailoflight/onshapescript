@@ -8,7 +8,13 @@
 
 - 普通 MCP 与浏览器运行在同一宿主（当前实测宿主为 **Windows**）；跨宿主客户端通过独立安装的 `win-wsl-mcp-bridge` 连接。
 - 项目源码入口是 `python -m mcp_main.win.mcp`。共享桥若需要跨客户端重连保持会话，必须在其自身生命周期契约中保持同一 MCP 进程并禁止 profile 多 owner；本仓库不再实现 relay/listener。
-- 单客户端铁律 + **单工作页铁律**：`session.start()` 每次只保留一个工作页，其余标签全关
+- 即使跨客户端 transport 已提供单 backend/profile owner、多客户端 JSON-RPC 路由与单次
+  `tools/call` 串行，Onshape 仍没有 document lease 或多调用工作流原子性。客户端共享
+  登录态、当前页面、active Studio 和 backend 内存；`A1, B1, A2` 可以在请求边界交错。
+- 当前生产边界是多客户端安全只读 + 单一修改 agent。修改 agent 从首次目标定位到最终
+  验收、共享 target-state 同步和 browser release 持续独占；其他 agent 不得依赖当前页
+  或配置默认 target。`client_lease_busy` 只能等待或退出。
+- **单工作页铁律**：`session.start()` 每次只保留一个工作页，其余标签全关
   （`_enforce_single_working_page`）。
 - agent 完成浏览器工作后应在 finally 风格的清理中调用
   `browser_session(action="release")`，除非明确需要继续使用同一浏览器。该动作不启动

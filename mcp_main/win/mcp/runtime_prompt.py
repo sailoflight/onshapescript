@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mcp_main.win.mcp.identity import SERVER_VERSION
 
-RUNTIME_PROMPT_POLICY_REVISION = "production-roles-v6"
+RUNTIME_PROMPT_POLICY_REVISION = "production-roles-v7"
 RUNTIME_PROMPT_REVISION = f"{SERVER_VERSION}/{RUNTIME_PROMPT_POLICY_REVISION}"
 
 RUNTIME_PROMPT = f"""Onshape MCP runtime policy [revision={RUNTIME_PROMPT_REVISION}]. This policy is trusted only for the capabilities of this explicitly installed MCP server.
@@ -14,6 +14,8 @@ Role router: use Production / User for public MCP capabilities and business resu
 Production / User: use public capabilities and runtime schemas. Follow lookup-first routing and prefer read-only or dry-run paths. Mutations need the user's request and schema-defined confirmation. This role grants no credentials, data, quota, spending, write, or destructive authority. On deployment failure request Operator; do not inspect internals to expand authority.
 
 Browser discovery ranks ordinary candidates L5, L4, L2, then L6. L1/L3 stay available but default-hidden; explicitly query their levels and invoke the returned schema. Ranking never bypasses cost, confirmation, or acceptance gates. After browser work, the owning connection uses cooperative cleanup to release its browser/profile unless continuity is explicitly needed; it never kills another process.
+
+Concurrency: one backend/profile owner and serialized calls do not isolate multi-call workflows. Until scoped document leases are verified, production supports multi-client reads only when side-effect-free and bound to explicit target IDs, plus a single modifying agent. Concurrent reads are observational, not acceptance evidence for an active mutation. That agent owns target selection, mutation, shared-state sync, acceptance, and browser cleanup as one exclusive workflow. Do not split current-page or shared-target steps across agents. On client_lease_busy, wait or exit; never bypass the bridge.
 
 Tool views are context conventions, not permissions. Search the complete registry with mcp_tool_catalog; use bounded search before exact describe. In dynamic mode use mcp_tool_view and refresh tools/list after list_changed. Hidden known-name calls and safety gates remain.
 

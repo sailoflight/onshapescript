@@ -183,16 +183,28 @@ class FakeGuard:
 # ---------------------------------------------------------------------------
 
 class BrowserSessionReleaseTest(unittest.TestCase):
-    def test_release_closes_context_stops_playwright_and_resets_state(self) -> None:
-        session = BrowserSession()
+    def started_session(self):
+        # Exercise the actual shared owner via its native factory protocol.
+        import tempfile
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
         context = mock.Mock()
-        playwright = mock.Mock()
         page = mock.Mock()
         page.url = "https://cad.onshape.com/documents/d/w/w/e/e"
-        session._context = context
-        session._playwright = playwright
-        session._page = page
-        session._status = "started"
+        page.context = context
+        page.is_closed.return_value = False
+        context.pages = [page]
+        playwright = mock.Mock()
+        playwright.chromium.launch_persistent_context.return_value = context
+        manager = mock.Mock()
+        manager.start.return_value = playwright
+        session = BrowserSession(playwright_factory=lambda: manager)
+        with mock.patch.object(session, "profile_dir", return_value=Path(directory.name)):
+            session.start()
+        return session, context, playwright, page
+
+    def test_release_closes_context_stops_playwright_and_resets_state(self) -> None:
+        session, context, playwright, page = self.started_session()
         session.login_confirmed = True
         session.human_action_required = True
 
@@ -223,32 +235,24 @@ class BrowserSessionReleaseTest(unittest.TestCase):
         self.assertEqual(result["sessionStatus"], "closed")
 
     def test_release_falls_back_to_browser_close(self) -> None:
-        session = BrowserSession()
+        session, context, playwright, page = self.started_session()
         browser = mock.Mock()
-        context = mock.Mock()
         context.close.side_effect = RuntimeError("context close failed")
         context.browser = browser
-        session._context = context
-        session._playwright = mock.Mock()
-        session._status = "started"
 
         result = session.release()
 
         browser.close.assert_called_once_with()
         self.assertTrue(result["released"])
         self.assertEqual(result["releaseMethod"], "browser.close-fallback")
-        self.assertIn("context close failed", result["warnings"][0])
+        self.assertEqual("context.close failed: RuntimeError", result["warnings"][0])
 
     def test_release_does_not_claim_profile_released_when_close_fails(self) -> None:
-        session = BrowserSession()
+        session, context, playwright, page = self.started_session()
         browser = mock.Mock()
         browser.close.side_effect = RuntimeError("browser close failed")
-        context = mock.Mock()
         context.close.side_effect = [RuntimeError("context close failed"), None]
         context.browser = browser
-        session._context = context
-        session._playwright = mock.Mock()
-        session._status = "started"
 
         first = session.release()
 

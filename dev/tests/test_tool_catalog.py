@@ -121,6 +121,157 @@ class ToolCatalogIndexTest(unittest.TestCase):
         self.assertFalse(status["requiresBrowserSession"])
         self.assertIsNone(status["semanticLevel"])
 
+    def test_every_tool_exposes_conservative_concurrency_contract(self):
+        for tool in server.TOOLS:
+            contract = tool["cost"]["concurrency"]
+            self.assertEqual(contract["contractVersion"], "1", tool["name"])
+            self.assertEqual(contract["workflowIsolation"], "none", tool["name"])
+            self.assertIn(
+                contract["access"],
+                {"shared_read", "connection_local", "exclusive_workflow"},
+                tool["name"],
+            )
+            self.assertIn(
+                contract["scope"],
+                {
+                    "none",
+                    "connection",
+                    "browser_profile",
+                    "explicit_document",
+                    "explicit_target",
+                    "registration",
+                    "registration_target_state",
+                },
+                tool["name"],
+            )
+            self.assertIsInstance(contract["scopeKeyPaths"], list, tool["name"])
+            self.assertIsInstance(contract["coordinationScopes"], list, tool["name"])
+            self.assertIn(
+                contract["scopeKeyCoverage"],
+                {"none", "optional", "non_document_target_required", "document_id_required"},
+                tool["name"],
+            )
+            self.assertIsInstance(contract["dependsOnCurrentBrowserPage"], bool, tool["name"])
+            self.assertIsInstance(contract["sharedTargetState"], str, tool["name"])
+            self.assertIsInstance(contract["sharedLocalState"], str, tool["name"])
+            self.assertIsInstance(
+                contract["requiresExplicitTargetForConcurrentUse"], bool, tool["name"]
+            )
+            self.assertIsInstance(contract["safeDuringMutationWorkflow"], bool, tool["name"])
+            self.assertIsInstance(
+                contract["safeDuringMutationWorkflowWhenExplicitTarget"],
+                bool,
+                tool["name"],
+            )
+            self.assertFalse(contract["conditionEvaluatedAtRuntime"], tool["name"])
+            self.assertIsInstance(
+                contract["callerMustVerifyScopeKeyPresence"], bool, tool["name"]
+            )
+            self.assertFalse(
+                contract["configuredDefaultTargetAllowedDuringConcurrentUse"],
+                tool["name"],
+            )
+            if tool["cost"]["mutating"]:
+                self.assertFalse(contract["safeDuringMutationWorkflow"], tool["name"])
+                self.assertFalse(
+                    contract["safeDuringMutationWorkflowWhenExplicitTarget"],
+                    tool["name"],
+                )
+            if (
+                contract["dependsOnCurrentBrowserPage"]
+                or contract["sharedTargetState"] != "none"
+                or contract["sharedLocalState"] != "none"
+            ):
+                self.assertFalse(contract["safeDuringMutationWorkflow"], tool["name"])
+
+    def test_concurrency_contract_classifies_shared_state_and_page_dependencies(self):
+        describe = lambda name: self.index.describe(
+            {"name": name}, visible_names=self.all_names
+        )["tool"]["concurrency"]
+
+        docs = describe("docs_search")
+        self.assertEqual(docs["access"], "shared_read")
+        self.assertEqual(docs["scope"], "none")
+        self.assertTrue(docs["safeDuringMutationWorkflow"])
+
+        conditional_live = describe("fs_check_version")
+        self.assertEqual(conditional_live["scope"], "registration_target_state")
+        self.assertEqual(conditional_live["sharedTargetState"], "read")
+        self.assertEqual(conditional_live["sharedLocalState"], "read")
+        self.assertFalse(conditional_live["safeDuringMutationWorkflow"])
+
+        reference_read = describe("fs_get_function")
+        self.assertEqual(reference_read["scope"], "registration")
+        self.assertEqual(reference_read["sharedLocalState"], "read")
+        self.assertFalse(reference_read["safeDuringMutationWorkflow"])
+
+        quota_read = describe("onshape_api_quota")
+        self.assertEqual(quota_read["sharedLocalState"], "read")
+        self.assertFalse(quota_read["safeDuringMutationWorkflow"])
+
+        reference_write = describe("fs_update_reference")
+        self.assertEqual(reference_write["access"], "exclusive_workflow")
+        self.assertEqual(reference_write["sharedLocalState"], "write")
+
+        page_read = describe("browser_get_fs_compile_status")
+        self.assertEqual(page_read["access"], "exclusive_workflow")
+        self.assertEqual(page_read["scope"], "browser_profile")
+        self.assertTrue(page_read["dependsOnCurrentBrowserPage"])
+        self.assertFalse(page_read["safeDuringMutationWorkflow"])
+
+        browser_export = describe("browser_export_step")
+        self.assertEqual(browser_export["scope"], "browser_profile")
+        self.assertIn(
+            "params.arguments.document_id", browser_export["scopeKeyPaths"]
+        )
+        self.assertEqual(
+            browser_export["coordinationScopes"],
+            ["browser_profile", "explicit_document"],
+        )
+
+        rest_export = describe("onshape_export_step")
+        self.assertEqual(rest_export["access"], "exclusive_workflow")
+        self.assertEqual(rest_export["scope"], "explicit_document")
+        self.assertFalse(rest_export["requiresExplicitTargetForConcurrentUse"])
+
+        optional_target = describe("onshape_check_model")
+        self.assertEqual(optional_target["scope"], "explicit_target")
+        self.assertTrue(optional_target["requiresExplicitTargetForConcurrentUse"])
+        self.assertFalse(optional_target["safeDuringMutationWorkflow"])
+        self.assertTrue(
+            optional_target["safeDuringMutationWorkflowWhenExplicitTarget"]
+        )
+        self.assertTrue(optional_target["callerMustVerifyScopeKeyPresence"])
+        self.assertFalse(optional_target["conditionEvaluatedAtRuntime"])
+        self.assertFalse(
+            optional_target["configuredDefaultTargetAllowedDuringConcurrentUse"]
+        )
+
+        shared_state = describe("browser_sync_rest_state")
+        self.assertEqual(shared_state["access"], "exclusive_workflow")
+        self.assertEqual(shared_state["scope"], "registration_target_state")
+        self.assertEqual(shared_state["sharedTargetState"], "write")
+
+        connection = describe("mcp_tool_view")
+        self.assertEqual(connection["access"], "connection_local")
+        self.assertEqual(connection["scope"], "connection")
+
+    def test_catalog_status_declares_no_workflow_isolation(self):
+        status = self.index.status(visible_names=self.all_names)
+        self.assertEqual(status["concurrencyPolicy"]["workflowIsolation"], "none")
+        self.assertEqual(
+            status["concurrencyPolicy"]["productionMutationMode"],
+            "single_modifying_agent",
+        )
+        summary = self.index.search(
+            {"query": "browser_get_fs_compile_status"},
+            visible_names=self.all_names,
+        )["results"][0]
+        self.assertEqual(summary["concurrency"]["access"], "exclusive_workflow")
+        self.assertEqual(summary["concurrency"]["scope"], "browser_profile")
+        self.assertEqual(summary["concurrency"]["workflowIsolation"], "none")
+        self.assertTrue(summary["concurrency"]["classificationOnly"])
+
     def test_watch_action_schema_and_description_are_defined_together(self):
         watch = self.index.describe({"name": "browser_watch"}, visible_names=self.all_names)["tool"]
         actions = watch["inputSchema"]["properties"]["action"]["enum"]

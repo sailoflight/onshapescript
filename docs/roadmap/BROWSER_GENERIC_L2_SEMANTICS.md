@@ -237,6 +237,38 @@ tool rather than adding another tool name:
   fallback, handler no-start behavior, public schema, EOF cleanup compatibility,
   and zero REST/cloud activity.
 
+## 10. Scoped document isolation integration
+
+Current status: risk metadata implemented; document/workflow lease enforcement
+not implemented. `cost.concurrency` classifies every registered tool with
+`workflowIsolation="none"`, access mode, scope, extractable opaque key paths,
+current-page dependency, shared target-state behavior, and concurrent explicit-
+target requirements. This supports conservative scheduling now without claiming
+a lock exists.
+
+Before multiple modifying agents can be supported, the Onshape integration must:
+
+- give every document-scoped mutation an explicit document/workspace/element
+  identity, or conservatively retain registration-level exclusive scope;
+- reject concurrent use of optional-target tools when their target arguments are
+  absent rather than falling back to configured project state;
+- keep browser current-page operations inside one profile-plus-document workflow
+  from navigation through acceptance and release; a document key supplements
+  but never reduces the governing browser-profile scope, as exposed by
+  `coordinationScopes`;
+- treat `browser_sync_rest_state`, target creation/status refresh, and any cached
+  target update as shared-state writes inside the exclusive workflow;
+- bind scheduler tasks and retries to the same explicit target, preserve the
+  mutation lease through acceptance/recovery, and re-read actual document state
+  after crash, cancellation, timeout, or ambiguous mutation outcome;
+- verify same-document busy, different-document target integrity, missing-key
+  rejection, shared-state noninterference, generation rollover, cancellation,
+  timeout, late response, and deadlock-free multi-scope ordering end to end.
+
+Only those acceptance results may change `workflowIsolation` from `none` or the
+production policy from one modifying agent. Request serialization, profile
+ownership, or registry health alone is insufficient evidence.
+
 ## Provenance
 
 - Live evidence: `read_image`/`vision_glance` on screenshots + `browser_inspect`/

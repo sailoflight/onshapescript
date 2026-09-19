@@ -9,6 +9,7 @@ import sys
 import traceback
 from typing import Any, Callable
 
+from mcp_main.win.mcp.concurrency import annotate_concurrency_contracts
 from mcp_main.win.mcp.identity import PROTOCOL_VERSION, SERVER_NAME, SERVER_VERSION
 from mcp_main.win.mcp.runtime_prompt import RUNTIME_PROMPT
 from mcp_main.win.mcp.tool_catalog import (
@@ -1273,8 +1274,9 @@ TOOLS: list[dict[str, Any]] = [
             "Search and describe the complete authoritative MCP tool registry without expanding tools/list. "
             "The index is built once after registration. search is bounded and never returns input schemas; "
             "describe requires one exact tool name and returns its full current schema, cost, annotations, profiles, "
-            "semantic metadata, and current-view visibility. Catalog visibility is a discovery convention only and "
-            "does not grant or restrict execution authority."
+            "semantic metadata, conservative concurrency contract, and current-view visibility. status reports that "
+            "classification does not provide multi-call workflow isolation. Catalog visibility and concurrency "
+            "classification are discovery conventions only and do not grant or restrict execution authority."
         ),
         "inputSchema": object_schema({
             "action": {"type": "string", "enum": ["status", "search", "describe"], "default": "status"},
@@ -2807,6 +2809,7 @@ def _annotate_conditional_side_effects(tools: list[dict[str, Any]]) -> None:
 _install_browser_tools(TOOLS, HANDLERS)
 _annotate_conditional_side_effects(TOOLS)
 _complete_cost_metadata(TOOLS)
+annotate_concurrency_contracts(TOOLS)
 TOOL_CATALOG = ToolCatalogIndex(TOOLS)
 
 

@@ -4,7 +4,7 @@ Status: verified
 
 ## Owns
 
-- Browser defaults/local state, persistent Windows browser profile, session lifecycle, and single-working-page enforcement.
+- Browser defaults/local state, persistent Windows browser profile, and the Onshape session facade. `browser_common.SyncSession` owns native driver/context/current-page lifecycle and scoped page cleanup; the facade owns login, recovery selection and tool-boundary single-working-page enforcement.
 - Page objects, selector/frame resolution, trusted browser inputs, waits, observations, and browser workflows.
 - Browser project checkpoints and browser-observed state.
 - Local FeatureScript source/compile diagnostic packages captured by browser tools.
@@ -53,6 +53,8 @@ Project control plane (one or more L6 nodes)
 - The Windows process owns Playwright, Edge, the persistent profile, and logged-in session.
 - `browser_session(action="release")` is idempotent cooperative cleanup for the current process only; it never starts a browser, never releases another process's owner, and may require login state to be refreshed later.
 - A persistent browser profile has one process owner; client reconnect does not own session teardown.
+- Clients sharing that backend also share its login state, current page, active Studio, dialogs, and in-memory browser state. Request serialization does not isolate a multi-call workflow, so every tool requiring the browser session is classified `exclusive_workflow/browser_profile`.
+- Until scoped document leases are accepted end to end, only one agent may perform a modifying Onshape workflow; other clients are limited to registry-classified safe reads.
 - Generic observation does not claim business success. High-level operations verify the relevant state, part count, feature history, DOM increment, or canvas change.
 - New write tools perform a pure-local dry run where supported and require explicit mutation confirmation for real UI actions.
 - FeatureScript compile acceptance combines Ace annotations with active-tab rows from the FeatureScript notice pane; a visible notice indicator that cannot be read fails closed.
@@ -78,7 +80,10 @@ Project control plane (one or more L6 nodes)
 
 ## Dependencies
 
-- Allowed: Windows Playwright/Edge runtime, module-owned page objects/selectors/settings, explicit REST state synchronization boundary, and development fixtures.
+- Allowed: Python >=3.11, pinned `lijq-browser-common==0.1.0.dev2` from the module's bundled wheel, Windows Playwright/Edge runtime, module-owned page objects/selectors/settings, explicit REST state synchronization boundary, and development fixtures.
+- `BrowserSession` lazily composes a single shared owner and delegates native page/context access; imports, offline status and unstarted release work without browser dependencies. It never adds sibling source paths to `sys.path`.
+- Single-page reconciliation runs at explicit preparation boundaries, protects active temporary scopes, and raises on incomplete cleanup. Status observes an app page without adopting it. Release preserves existing response fields, records operation/type-only warnings, and retains the driver when context/browser closure fails so another release can retry.
+- The adapter preserves business app-URL preference, launch options and three-attempt launch retry only after complete cleanup. See `../development/BROWSER_COMMON_INTEGRATION.md` for package provenance, offline checks and rollback.
 - Forbidden: installing browser dependencies on a client-only host; silently issuing REST calls; storing credentials in selectors, captures, checkpoints, or tool results; claiming success from click completion alone.
 
 ## Data, configuration, and generated files
@@ -99,7 +104,7 @@ Project control plane (one or more L6 nodes)
 
 | Change | Required verification |
 |---|---|
-| Session, page object, selector, settings | `python3 -m unittest dev.tests.test_browser_mode -v` |
+| Session, page object, selector, settings | `python3 -m unittest dev.tests.test_browser_mode dev.tests.test_browser_common_integration -v` (install the bundled wheel first; no Playwright/browser needed for fakes) |
 | Tool schema, dry-run, semantic workflow, project/checkpoint | `python3 -m unittest dev.tests.test_browser_plan_completion dev.tests.test_mcp_server -v` |
 | Configuration/path ownership | `python3 -m unittest dev.tests.test_project_layout -v` |
 | Host/external-adapter integration | Ordinary stdio tests first; use the Operator runbook and the adapter's own acceptance suite for an authorized smoke test |

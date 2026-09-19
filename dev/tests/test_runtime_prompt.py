@@ -27,7 +27,7 @@ class RuntimePromptTest(unittest.TestCase):
             RUNTIME_PROMPT_REVISION,
             f"{SERVER_VERSION}/{RUNTIME_PROMPT_POLICY_REVISION}",
         )
-        self.assertLess(len(RUNTIME_PROMPT), 2600)
+        self.assertLess(len(RUNTIME_PROMPT), 3200)
         for required in (
             "Role router:",
             "Production / User:",
@@ -39,6 +39,11 @@ class RuntimePromptTest(unittest.TestCase):
             "permissions never merge",
             "owning connection",
             "cooperative cleanup",
+            "single modifying agent",
+            "multi-call workflows",
+            "client_lease_busy",
+            "explicit target IDs",
+            "observational, not acceptance evidence",
         ):
             self.assertIn(required, RUNTIME_PROMPT)
         self.assertNotIn("fs_search", RUNTIME_PROMPT)

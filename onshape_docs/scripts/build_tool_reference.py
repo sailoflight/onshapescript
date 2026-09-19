@@ -75,10 +75,15 @@ def tool_row(tool: dict[str, Any]) -> str:
     confirmation = "confirm_mutation" in properties
     network = str(cost.get("network", "unspecified"))
     api_max = cost.get("max_api_requests", cost.get("max_requests", 0))
+    concurrency = cost.get("concurrency") or {}
+    concurrency_text = (
+        f"{concurrency.get('access', 'unknown')}/{concurrency.get('scope', 'unknown')}"
+    )
     required_text = ", ".join(f"`{item}`" for item in required) or "-"
     safety = (
         f"network={network}; api_max={api_max}; mutating={bool_text(mutating)}; "
-        f"dry_run={bool_text(dry_run)}; confirm={bool_text(confirmation)}"
+        f"dry_run={bool_text(dry_run)}; confirm={bool_text(confirmation)}; "
+        f"concurrency={concurrency_text}"
     )
     return (
         f"| `{name}` | `{capability(name)}` | {semantic_label(name)} | {required_text} | {safety} | "

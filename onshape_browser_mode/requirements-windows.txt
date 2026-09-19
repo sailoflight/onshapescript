@@ -1,4 +1,6 @@
-# Windows-side dependency for the ordinary Onshape MCP browser module.
+# Python >=3.11. Run pip -r against this file; wheels resolves beside it.
 # The browser binary is not installed here; use the machine's existing Chrome
 # or Edge configured through browser.toml/browser.local.toml.
+--find-links ./wheels
+lijq-browser-common==0.1.0.dev2
 playwright>=1.40,<2

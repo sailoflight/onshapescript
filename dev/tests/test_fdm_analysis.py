@@ -204,7 +204,7 @@ class FdmAnalysisTest(unittest.TestCase):
         unc = WindowsToWslDelivery.unc_path(target.destination, target.wsl_distribution)
         self.assertEqual(
             str(unc),
-            r"\\wsl.localhost\Ubuntu-24.04\home\lijq\code\onshapescript\outputs\fdm\job-1",
+            r"\\wsl.localhost\Ubuntu-24.04\home\user\code\onshapescript\outputs\fdm\job-1",
         )
         with self.assertRaisesRegex(ValueError, "outside the configured allowed root"):
             WorkspaceDeliveryTarget(

@@ -34,6 +34,13 @@ MCP client or independently installed adapter
        -> onshape_browser_mode (host Playwright/Edge boundary)
 ```
 
+The browser facade composes the pinned `lijq-browser-common` Python wheel in
+process: `SyncSession` alone owns native Playwright driver/context/current-page
+resources. Onshape configuration, login, recovery decisions, page operations and
+MCP response mappings remain in `onshape_browser_mode`; there is no extra service
+or source-path dependency. The wheel is bundled under that module for host
+installation. See `../development/BROWSER_COMMON_INTEGRATION.md`.
+
 The MCP process owns its browser resources, configured profile, local REST
 state, and canonical runtime prompt at `mcp_main/win/mcp/runtime_prompt.py`. A
 deployment that needs WSL-to-Windows transport registers this ordinary command
@@ -117,6 +124,8 @@ Rules:
 - Tool/schema/handler and runtime-prompt revisions cannot silently diverge across deploy, reconnect, or rollback.
 - A persistent browser profile has one ordinary MCP process owner.
 - Reconnect persistence, when required, is an external supervisor contract and must not create a second profile owner.
+- A single backend/profile owner and serialized requests do not isolate multi-call workflows. Until scoped document leases are verified end to end, production supports statically safe multi-client reads and one modifying agent only.
+- Every registered tool carries a conservative machine-readable concurrency contract; it informs scheduling but implements no lock and grants no authority.
 - Current code and offline tests take precedence over prose when behavior conflicts.
 - Generated indexes and the tool reference must be rebuilt from their authoritative sources.
 
