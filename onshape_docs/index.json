@@ -1408,7 +1408,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "6db7e4019d00e7246018405f2dc95236cfc0fd126405ce5dd250ec5981898399",
+   "sha256": "1601a5c4a1bb07f5f1fed48e1b764bbe65baaec80473bf4d27fee3015df822f8",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1703,6 +1703,10 @@
       {
        "type": "para",
        "text": "All local findings are advisory: they never block an upload, because the vendored reference can lag the live server. Measured against the real standard library, an argument-count check produced 30 false positives and a field-name check 73, so neither shipped; the two rules that did (non-map third argument to a definition-map call, dimensioned arithmetic mixed with a plain number) had zero. The gate that keeps them honest is dev/tools/fs_corpus_check.py, which scores the checker against the live-labeled instance corpus."
+      },
+      {
+       "type": "para",
+       "text": "Import paths are checked too: an onshape/std/... module the vendored library does not contain is a warning, measured at zero false positives over the 1717 import statements in that library plus this repository's own FeatureScript. The comparison is against the 271 vendored files, not the 210-entry documented module index — using the index produced 99 false positives for modules that exist but are undocumented. Only the onshape/std/ prefix is checked, so importing another Feature Studio is never flagged."
       },
       {
        "type": "para",

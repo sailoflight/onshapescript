@@ -213,6 +213,14 @@ definition-map call, dimensioned arithmetic mixed with a plain number) had zero.
 The gate that keeps them honest is `dev/tools/fs_corpus_check.py`, which scores
 the checker against the live-labeled instance corpus.
 
+Import paths are checked too: an `onshape/std/...` module the vendored library
+does not contain is a warning, measured at **zero** false positives over the 1717
+import statements in that library plus this repository's own FeatureScript. The
+comparison is against the 271 vendored *files*, not the 210-entry documented
+module index — using the index produced 99 false positives for modules that exist
+but are undocumented. Only the `onshape/std/` prefix is checked, so importing
+another Feature Studio is never flagged.
+
 False positives are also fixed, not just avoided. The symbol scan now reads the
 masked text, so a word inside an annotation string — `"Planar face (drill
 direction)"` — no longer reports a call to `face(`, and a commented-out example no

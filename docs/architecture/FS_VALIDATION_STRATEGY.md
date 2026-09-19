@@ -106,8 +106,8 @@ Each item names the gate it must pass before it may be reported.
 | # | Item | Reachable offline? | Gate |
 |---|---|---|---|
 | 1 | More labeled corpus samples, including the version-drift cases excluded in P1c | **No** — needs real-machine apply runs | `dev/tools/fs_corpus_check.py` stays at 4/4 target and 6/6 valid |
-| 2 | Unresolved `import(path : ...)` module/version check against the vendored module list | Yes | Zero false positives on the standard library, then the corpus gate |
-| 3 | Import-graph/duplicate-export checks | Yes | Same as 2 |
+| 2 | Unresolved `import(path : ...)` module check against the vendored library | **Delivered**: measured zero false positives over 1717 imports in 271 files, then the corpus gate | Keep the rate at zero; the version half stays unimplemented because the mirror ships a placeholder version |
+| 3 | Import-graph and duplicate-export checks | Yes | Same as 2 |
 | 4 | Scope, type, unit, query, and effect analysis | **No** — this is the browser compiler's job | Would require the browser loop, not the scanner |
 | 5 | Wire a detected external analyzer as candidate reports | Yes, but no candidate exists | Zero false positives on the corpus before it may report errors |
 

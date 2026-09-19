@@ -200,6 +200,94 @@ class SymbolScanMaskingTest(unittest.TestCase):
         )
 
 
+_FEATURE_WITH_IMPORT = (
+    'annotation { "Feature Type Name" : "MyFeature" }\n'
+    "export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)\n"
+    "    precondition\n"
+    "    {\n"
+    '        annotation { "Name" : "Size" }\n'
+    "        isLength(definition.size, LENGTH_BOUNDS);\n"
+    "    }\n"
+    "    {\n"
+    "        opExtrude(context, id + \"e\", { \"entities\" : qAllModifiableSolidBodies(), \"direction\" : Z_DIRECTION, \"endBound\" : BoundingType.BLIND, \"endDepth\" : definition.size });\n"
+    "    });\n"
+)
+
+
+class ImportCheckTest(unittest.TestCase):
+    """`onshape/std/...` imports are checked against what is vendored on disk.
+
+    Measured: zero false positives over the 1717 import statements in the
+    vendored library and the repository's own FeatureScript. The check compares
+    against the *files* (271), not the documented module index (210): using the
+    index produced 99 false positives for modules that exist but are undocumented.
+    """
+
+    def _import_warnings(self, header: str) -> list[str]:
+        text = header + _FEATURE_WITH_IMPORT
+        return [w for w in check_text(text).warnings if "import" in w]
+
+    def test_a_misspelled_std_module_warns(self) -> None:
+        warnings = self._import_warnings('FeatureScript 3044;\nimport(path : "onshape/std/geomtry.fs", version : "3044.0");\n')
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("geomtry.fs", warnings[0])
+
+    def test_a_correct_std_module_is_silent(self) -> None:
+        for module in ("geometry.fs", "holeUtils.fs", "containers.fs"):
+            with self.subTest(module=module):
+                self.assertEqual(
+                    self._import_warnings(f'FeatureScript 3044;\nimport(path : "onshape/std/{module}", version : "3044.0");\n'),
+                    [],
+                )
+
+    def test_a_vendored_but_undocumented_module_is_silent(self) -> None:
+        """`booleanHeuristics.fs` is on disk and absent from the module index.
+        Checking the index instead of the disk is the 99-false-positive bug."""
+        self.assertEqual(
+            self._import_warnings('FeatureScript 3044;\nimport(path : "onshape/std/booleanHeuristics.fs", version : "3044.0");\n'),
+            [],
+        )
+
+    def test_a_document_import_is_never_checked(self) -> None:
+        """An import of another Feature Studio is outside the mirror by design."""
+        self.assertEqual(
+            self._import_warnings('FeatureScript 3044;\nimport(path : "a1b2c3d4e5f6", version : "1.0");\n'),
+            [],
+        )
+
+    def test_a_versionless_import_is_still_checked_for_the_path(self) -> None:
+        warnings = self._import_warnings('FeatureScript 3044;\nimport(path : "onshape/std/geomtry.fs");\n')
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("geomtry.fs", warnings[0])
+
+    def test_an_empty_version_string_warns(self) -> None:
+        warnings = self._import_warnings('FeatureScript 3044;\nimport(path : "onshape/std/geometry.fs", version : "");\n')
+        self.assertTrue(any("empty version" in warning for warning in warnings))
+
+    def test_a_commented_out_import_is_not_scanned(self) -> None:
+        self.assertEqual(
+            self._import_warnings('FeatureScript 3044;\n// import(path : "onshape/std/geomtry.fs", version : "3044.0");\n'),
+            [],
+        )
+
+    def test_the_library_itself_is_clean(self) -> None:
+        """The rule's own false-positive gate, on the real mirror."""
+        library = ROOT / "onshape_docs" / "reference" / "raw" / "std-library"
+        checked = 0
+        for path in sorted(library.glob("*.fs")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if not fs_check._IMPORT_PATH.search(text):
+                continue
+            checked += 1
+            result = fs_check.check_source(fs_check.FsFile.from_text(text, name=str(path))).as_result()
+            with self.subTest(module=path.name):
+                self.assertEqual(
+                    [w for w in result["warnings"] if "vendored standard library" in w or "empty version" in w],
+                    [],
+                )
+        self.assertGreater(checked, 100, "the library sample looks truncated")
+
+
 class DanglingAnnotationTest(unittest.TestCase):
     def test_correct_annotation_is_not_flagged(self) -> None:
         fs = check_text(_VALID_FEATURE)

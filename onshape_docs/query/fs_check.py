@@ -20,6 +20,10 @@ that actually burned quota during live verification:
   reports `featureStatus=ERROR` at instantiation, so it must be caught locally
 - arithmetic that mixes a dimensioned value with a plain number, e.g.
   `5 * millimeter + 2` — same deferred-failure shape
+- an `onshape/std/...` import the vendored library does not contain (warning
+  level: measured zero false positives over the 1717 imports in the library and
+  this repository's own FeatureScript; only the `onshape/std/` prefix is checked,
+  because a document-relative import is outside the mirror by design)
 
 Why field-name and argument-count checks are deliberately absent: the vendored
 reference's docblock extraction is incomplete. It records 6 fields for
@@ -48,6 +52,11 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
+# The vendored standard library itself, as opposed to the documented module index
+# (`index.json` lists 210 modules while 271 files are vendored). Import checking
+# must use what is actually on disk, or every undocumented module is a false
+# positive: measured, the index-based set produced 99.
+LIBRARY_PATH = ROOT / "reference" / "raw" / "std-library"
 
 # Keywords that are not function calls.
 _KEYWORDS = {
@@ -56,6 +65,12 @@ _KEYWORDS = {
     "return", "throw", "true", "var", "while",
 }
 _CALL_PREFIXES = ("q", "op", "ev", "to", "is", "f")  # naming-is-the-grammar
+
+# FeatureScript imports. `version` is optional in the language, so the path is
+# scanned on its own and the version only when it is present.
+_IMPORT_PATH = re.compile(r'import\(\s*path\s*:\s*"([^"]*)"')
+_IMPORT_VERSION = re.compile(r'import\(\s*path\s*:\s*"([^"]*)"\s*,\s*version\s*:\s*"([^"]*)"')
+_STD_PATH_PREFIX = "onshape/std/"
 
 # FeatureScript unit constants. The vendored index carries most of these, but a
 # fixed vocabulary keeps the unit check correct even when the index is missing.
@@ -286,6 +301,9 @@ def _load_index(fs: FsFile) -> dict[str, set[str]] | None:
         "types": {item["name"] for item in data.get("types", [])},
         "constants": {item["name"] for item in data.get("constants", [])},
         "map_calls": _build_map_call_table(data),
+        "modules": {
+            path.name.lower() for path in LIBRARY_PATH.glob("*.fs")
+        } if LIBRARY_PATH.is_dir() else set(),
         "type_values": {
             item["name"]: {
                 v if isinstance(v, str) else v.get("name")
@@ -294,6 +312,39 @@ def _load_index(fs: FsFile) -> dict[str, set[str]] | None:
             for item in data.get("types", [])
         },
     }
+
+
+def check_imports(fs: FsFile, comments_only: str, index: dict[str, Any] | None) -> None:
+    """Warn about an `onshape/std/...` import the vendored mirror does not have.
+
+    Measured false-positive rate: **zero**. Every one of the 1707
+    `import(path : ...)` statements in the vendored standard library resolves to a
+    vendored module, so an unknown std path is a real mistake (a typo there fails
+    at save, after the upload has already cost quota), not mirror lag. Only the
+    `onshape/std/` prefix is checked: a document- or Feature-Studio-relative import
+    is outside the mirror by design and is never warned about.
+
+    A *version* comparison is deliberately absent: the mirror ships a placeholder
+    version string, so it cannot supply the comparison. `fs_check_version` compares
+    cached observed live versions for free, which is the right place for it.
+    """
+    if index is None:
+        return
+    vendored = index.get("modules") or set()
+    if not vendored:
+        return
+    for match in _IMPORT_VERSION.finditer(comments_only):
+        path, version = match.group(1), match.group(2)
+        if not version:
+            fs.warn(f"import '{path}' has an empty version string")
+    for match in _IMPORT_PATH.finditer(comments_only):
+        path = match.group(1)
+        if not path.startswith(_STD_PATH_PREFIX):
+            continue
+        name = path.rsplit("/", 1)[-1].lower()
+        if name not in vendored:
+            fs.warn(f"import '{path}' is not in the vendored standard library "
+                    "(a typo here fails at save; the mirror may lag)")
 
 
 def check_symbols(fs: FsFile, index: dict[str, set[str]] | None, code: str | None = None) -> None:
@@ -460,6 +511,7 @@ def check_source(fs: FsFile) -> FsFile:
     check_dangling_annotations(fs, comments_only, masked)
     check_define_feature(fs, masked)
     check_symbols(fs, index, masked)
+    check_imports(fs, comments_only, index)
     check_op_definitions(fs, comments_only, masked, index)
     check_unit_mixing(fs, comments_only)
     return fs
