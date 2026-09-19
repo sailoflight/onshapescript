@@ -2,6 +2,12 @@
 
 Status: proposed development direction; no compiler implementation is claimed by this document.
 
+> Sequencing and leg direction for this line are controlled by
+> `FS_FIRST_CONTROLLING_ROUTE.md` (2026-09). Under its decision D5, **Phase 4
+> (native Extrude proof), Phase 8 (sketch compiler), and Phase 9 (custom island
+> extraction) are deferred**; **Phase 3 (whole-feature Custom MVP) is the
+> mainline**. This page retains ownership of compiler internals and contracts.
+
 ## Purpose and authority
 
 This roadmap integrates `Onshape_MCP_FS_Hybrid_Compiler_Agent_Execution_Spec_v2.md`

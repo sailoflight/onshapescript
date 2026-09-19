@@ -30,6 +30,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Query FeatureScript, REST, or browser knowledge | `../onshape_docs/README.md` | One indexed section, symbol, endpoint, schema, or evidence record |
 | Trace an old development decision or log | `history/TRACEABILITY.md` | Current owning architecture, module, experience, verification, operations, or roadmap section |
 | Work in the development lab | `development/LAB.md` | One test, probe, capture fixture, or tool under `dev/` |
+| Plan the FS-custom-feature route (controlling) | `roadmap/FS_FIRST_CONTROLLING_ROUTE.md` | One phase's exact detail, then `roadmap/FS_HYBRID_COMPILER_INTEGRATION.md` |
 | Plan the FS-first hybrid compiler fork | `roadmap/FS_HYBRID_COMPILER_INTEGRATION.md` | `../Onshape_MCP_FS_Hybrid_Compiler_Agent_Execution_Spec_v2.md`, then current module contracts and matching browser roadmaps |
 | Plan FS-mode or native-modeling browser tools | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` | `roadmap/FS_HYBRID_COMPILER_INTEGRATION.md`, `roadmap/DYNAMIC_TOOL_DISCOVERY.md`, `roadmap/BROWSER_MODELING_GAPS.md` |
 | Plan app-generic (cross-studio) browser L2 semantics | `roadmap/BROWSER_GENERIC_L2_SEMANTICS.md` | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md`, `roadmap/DYNAMIC_TOOL_DISCOVERY.md` |

@@ -1,0 +1,335 @@
+# FS-first controlling route (roadmap)
+
+Status: merged controlling route for the FS-custom-feature line; filed 2026-09.
+Supersedes no implemented behavior. Owns sequencing and direction only.
+
+## 1. Purpose and authority
+
+This page is the **single controlling route** for the FS-custom-feature line. It
+merges an externally supplied research plan ("Onshape Group research plan", 16
+sections, self-declared approximate numbers) with the repository's existing
+roadmaps, and records the owner's binding corrections to that plan.
+
+It reconciles and sequences. It does **not** override:
+
+- current behavior defined by code, registered schemas, handlers, and offline
+  tests;
+- module ownership in `../architecture/OVERVIEW.md` and `../modules/`;
+- REST quota, confirmation, retry, credential, and live-request constraints;
+- browser profile ownership, pacing, mutation, and acceptance constraints.
+
+Conflict rule:
+
+- On **sequencing or direction**, this page wins over a subordinate roadmap.
+- On **implemented behavior**, current code and offline tests win; a conflict
+  with this page is reported, not silently resolved.
+
+The review that produced this merge — real tool baseline, already-implemented
+items, the `op*` coverage matrix, and the true gap list — is recorded as the
+Mnemon project document *Onshape FS 自定义特征方案评审与仓库现状核对*. Its evidence
+sources are `docs/generated/TOOL_REFERENCE.md`, `onshape_rest_api_mode/operations.py`,
+`onshape_docs/reference/raw/onshape-api/openapi.json`,
+`onshape_docs/reference/index/fsdoc/index.json`, and
+`onshape_docs/experience/browser-modeling.md`.
+
+Reconciliation of every existing document is in §10.
+
+## 2. Owner decisions (binding)
+
+These six decisions govern every phase below. They are not open for
+reinterpretation by an implementation.
+
+**D1 — The browser leg is primary.** Browser automation spends **zero** Onshape
+REST quota, so it is the default execution leg and may be iterated freely. The
+quota ledger, not convenience, decides which leg performs a mutation.
+
+**D2 — The REST leg is thin and quota-limited.** REST is not a default execution
+path. REST wrapping exists to **reduce token cost**, not because direct calls are
+forbidden: with the offline reference index an Agent can construct the POST
+itself. A wrapper is justified only when the indexed prepared description is
+cheaper to read than the raw endpoint plus schema.
+
+**D3 — Both legs must be independently stable.** Neither leg may be abandoned to
+make the other look adequate. Browser stability is explicitly expected to
+require **substantial test investment**; that cost is accepted, because browser
+iterations are quota-free.
+
+**D4 — FeatureScript gains real local validation.** The structural checker is not
+sufficient. Local validation must catch more classes of error offline so that
+browser iterations are not spent on defects a local pass could have found.
+
+**D5 — Direct GUI button-driving is abandoned as the modeling method.** Driving
+Part Studio toolbars, dialogs, and context menus to model geometry is not the
+route. The browser leg narrows to: land FS source, compile and read notices,
+create the version, apply the custom feature, and verify the result. Geometry
+semantics belong to FeatureScript.
+
+**D6 — This page is the completed merge.** The plan route is controlled here.
+No parallel plan document may be introduced; new work is filed as phases (§11)
+or as planned rows in `BROWSER_PLANNED_TOOLS.md`.
+
+## 3. Strategy
+
+Custom FeatureScript features act as quasi-native features. The Agent never
+drives modeling UI; it produces geometry semantics as code, validates them
+locally, lands them, and verifies the applied result. The human then takes over
+in the native GUI, Feature List, and parametric workflow.
+
+```text
+Agent intent
+  -> capability resolution (existing bounded catalog; capability cards later)
+  -> FeatureScript generation / adaptation (op* based custom feature)
+  -> LOCAL validation            <-- D4, offline, zero quota, zero browser
+  -> land source -> compile -> read notices        (browser leg, D1, D5)
+  -> create version -> apply custom feature
+  -> verify: feature row + featureStatus + part count
+  -> Human takes over in the native GUI
+
+REST leg (D2): state / metadata / operations the browser cannot do reliably,
+               always quota-guarded, dry-run first, one unresolved fact per call.
+```
+
+The value preserved is Onshape's: modern GUI, full parametric workflow, Feature
+List, human takeover at any point, cloud collaboration.
+
+## 4. What is already true (do not re-research)
+
+| Claim from the research plan | Actual state | Evidence |
+|---|---|---|
+| "~80 MCP tools" | **106** — `browser`=68, `rest_operations`=17, `featurescript`=10, `rest_reference`=6, `project_docs`=3, `other`=2 | `docs/generated/TOOL_REFERENCE.md` summary block |
+| Capability Registry + bounded capability search (plan H3/H4) | **Implemented** | `mcp_tool_catalog` (bounded search, exact describe only, never returns every schema), `mcp_tool_view`, `browser_discover_tools`, `browser_invoke_discovered` |
+| Target chain `small fixed entry -> module -> capability -> level -> bounded candidates -> exact schema` | **Implemented and documented** | `DYNAMIC_TOOL_DISCOVERY.md` (Status: implemented) |
+| Six-level browser semantics | **Implemented** | `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`; `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1 |
+| REST inserts a Custom Feature instance | **Implemented and live-verified** | `onshape_rest_api_mode/operations.py` `instantiate_feature` -> POST `/api/v9/partstudios/d/{did}/w/{wid}/e/{eid}/features` + `BTFeatureDefinitionCall-1406`; refuses non-`OK` `featureStatus` |
+| "Browser only as Feature Studio fallback" | **Already decided, and now strengthened by D5** | `BROWSER_FS_SEMANTIC_TOOLS.md`: native feature-mode "explicitly out of current scope" |
+| "Boolean-only is not a complete CAD primitive" | Direction correct; the repository holds a more precise construction-level record | `onshape_docs/experience/browser-modeling.md` §8/§9 |
+| `op*` coverage needs dedicated research | **Answerable offline in one query** (see §8) | `onshape_docs/reference/index/fsdoc/index.json` |
+
+Construction-level Boolean facts already verified (`browser-modeling.md` §8/§9):
+UNION takes **only** `tools` (`targets` is for SUBTRACTION / SUBTRACT_COMPLEMENT /
+grouping); after UNION `qCreatedBy(unionId, BODY)` is **empty** — the result body
+stays owned by the earliest contributing tool feature; SUBTRACTION likewise
+queries the *target* body; bodies that merely share a face can already be merged.
+
+## 5. True gaps
+
+| # | Gap | Evidence | Blocked by |
+|---|---|---|---|
+| G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI and have **no handler** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; only `addPartStudioFeature` is used; whole-repo grep finds it only in `dev/tests/test_mcp_server.py` | quota (D2) |
+| G2 | Browser leg stability under heavy iteration | D3; `browser-modeling.md` records the `not-computed` / part-count-0 failure mode and selector fragility | none (quota-free) |
+| G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof" | none |
+| G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | Existing catalog is **tool**-level; no capability-card layer exists | G1–G3 |
+| G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | Does not exist | G4 |
+| G6 | 106-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | Does not exist; candidates already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |
+| G7 | Thread geometry is the **only** real FS coverage hole | §8 | none |
+| G8 | Route consolidation | `FS_HYBRID_COMPILER_INTEGRATION.md` and the external plan were parallel | closed by this page |
+
+`browser_wall_thickness_report` is superseded by the L6 FDM package but remains a
+valid L4 sampled observation and **must not** be removed in G6.
+
+## 6. Legs
+
+### 6.1 Browser leg (primary, D1/D3/D5)
+
+**In scope:** Feature Studio source landing; `提交` and compile/notice acceptance;
+symbol outline read; document version creation; applying a custom feature from
+`此工作区中的自定义特征`; parameter dialog readback; feature-tree and part-count
+verification; session recovery; document/tab lifecycle.
+
+**Out of scope (D5):** driving modeling toolbars and dialogs to create geometry —
+sketch/extrude/fillet/pattern by clicking — and the `DYNAMIC_TOOL_DISCOVERY.md`
+Phase D native-modeling transactions built on that premise.
+
+**Hard-won boundaries to keep** (`browser-modeling.md`): the `添加自定义特征`
+dialog double-click path yields `not-computed` rows and part count 0; the working
+path is `此工作区中的自定义特征` + parameter dialog + accept, and a document
+version must exist first. Deploy acceptance is the Ace `setValue()` write, the
+Commit button returning to disabled, and an exact source read-back — not "the
+button was clicked".
+
+### 6.2 REST leg (thin, D2)
+
+Keeps: request building/transport, the live gate, quota ledger, stable target
+state, dry-run, replay, export, and the offline REST reference index.
+
+Adds (G1), each quota-guarded with dry-run first: feature update, feature delete,
+rollback, and batch feature update. `BTMFeature.suppressed` is already written as
+`false` in `_instantiate_body`, so suppression is an update rather than new
+geometry work.
+
+REST is not a second source of truth for the Feature List. When the browser leg
+can perform the same mutation, the browser leg does it (D1).
+
+### 6.3 Local validation leg (D4)
+
+`fs_local_check.py` stays the mandatory pre-upload gate for every real upload and
+is extended toward real parse/type checking. This is the cheapest place to buy
+back browser iterations: it costs no quota and no browser session. It must remain
+conservative — a false "valid" is worse than an honest "unknown".
+
+## 7. Capability model
+
+Two layers, deliberately separate:
+
+1. **Tool catalog (exists).** Bounded `mcp_tool_catalog` search, exact describe,
+   per-connection views. This is the context-routing layer.
+2. **Capability cards (G4, new).** Business-level identities such as
+   `cad.thread`, `cad.hole`, `cad.fillet`, below the tool layer, with
+   identity / contract / routing, and an implementation pointer that stays
+   **out of Agent context** during normal use.
+
+Rules:
+
+- Tool count and CAD capability count are decoupled. Adding a capability must not
+  add an MCP tool.
+- A stable capability is a closed closure: `cad.thread` may internally depend on
+  helix, sweep, and boolean, but normal Agent use sees only
+  `thread(target, diameter, pitch, length, mode)`. Implementation is opened only
+  for debugging, modification, an unsatisfied requirement, or a backend change.
+- Source reuse may be layered; Agent reasoning must not recurse.
+- `cad.*` is the cross-backend semantic layer; `onshape.*` and (future)
+  `freecad.*` are platform layers. Sharing covers name, intent, aliases, I/O
+  semantics, `use_when`, and behavioral tests — never FS source, Python,
+  Feature-Tree expansion, query representation, or document model.
+
+**Existing precedent to generalize.** `browser_spiral_ridge` already implements
+the target shape: bounded numeric inputs, no raw script or CSS exposed, dry-run
+and confirmation, generated `opHelix` + `opSweep` source that passes the local
+checker, compile-gated deploy, and applied-feature acceptance. The capability
+contract should be extracted from this precedent rather than designed from zero.
+
+## 8. FS modeling coverage (G7)
+
+Method (reproducible offline): `onshape_docs/reference/index/fsdoc/index.json`
+holds **929** indexed functions; `onshape_docs/reference/raw/std-library/*.fs`
+holds **78** unique `op*` symbols.
+
+| CAD feature | FS implementation | Covered |
+|---|---|---|
+| Extrude | `opExtrude` (`geomOperations.fs`) | yes |
+| Pocket | `opExtrude` + `opBoolean` | yes (composition) |
+| Hole | `opHole`, `qOpHoleProfile`, `qOpHoleFace`, `qHoleFaces` | yes (first-class) |
+| Boolean | `opBoolean` | yes |
+| Fillet | `opFillet`, `opFullRoundFillet`, `opModifyFillet` | yes |
+| Chamfer | `opChamfer` | yes |
+| Pattern | `opPattern`, `applyPattern` | yes |
+| Mirror | `mirror` (`mirror.fs`, feature-level, not `op*`) | yes |
+| Sweep | `opSweep` | yes |
+| Loft | `opLoft`, `opTessellatedLoft` | yes |
+| Shell | `opShell` | yes |
+| Draft | `opDraft`, `opBodyDraft` | yes |
+| **Thread** | only `externalThread` + `cosmeticThreadUtils` | **no** |
+
+**12 of 13 covered.** Thread is the only real hole, and its nature is already
+recorded in `BROWSER_MODELING_GAPS.md` §1: `externalThread` handles standard
+ANSI/ISO sizes and cosmetic attributes only, not a custom coarse pitch. The
+accepted workaround is the `browser_spiral_ridge` generation path.
+
+## 9. Quota and mutation discipline
+
+- `LIVE_API_ENABLED` stays unset by default; regression verification never
+  enables it.
+- Browser work costs zero REST quota but a real UI write **does** mutate cloud
+  data. Quota-free is not read-only: `confirm_mutation` and dry-run rules are
+  unchanged, and heavy browser *testing* still stops on ambiguity.
+- A live REST request still requires one unresolved fact, an explicit budget
+  (`expected_live_requests = max_live_requests = 1` by default), a redacted
+  fixture destination, and a stop condition; 429 is never retried, and
+  POST/PATCH/DELETE are never retried on 5xx or timeout.
+- New REST operations under G1 are designed, dry-run-verified, and fixture-backed
+  offline first. Only a genuinely unavailable fact justifies a live call.
+
+## 10. Reconciliation with existing documents
+
+| Document | Disposition |
+|---|---|
+| `FS_HYBRID_COMPILER_INTEGRATION.md` | **Subordinate.** Keeps ownership of compiler internals (frontend, Feature IR, model bindings, partitioning, Transaction IR, ports, fork isolation). Its **Phase 3 (whole-feature Custom MVP) becomes the mainline**; **Phase 4 native Extrude proof, Phase 8 sketch compiler, and Phase 9 island extraction are deferred** under D5. Its §"Capability registry and partitioning" maturity ladder is retained. |
+| `DYNAMIC_TOOL_DISCOVERY.md` | **Phases A–C stay implemented.** **Phase D (browser native modeling) is deferred** under D5; do not collect toolbar-driving evidence or implement native-modeling L4 transactions. |
+| `BROWSER_FS_SEMANTIC_TOOLS.md` | **Subordinate and retained.** Its "native feature-mode explicitly out of scope" note is promoted from a scope note to binding decision D5. Its FS script-mode transactions remain the browser surface. |
+| `BROWSER_MODELING_GAPS.md` | **Retained.** Its §1 `browser_spiral_ridge` resolution is promoted to the capability-contract precedent (§7). |
+| `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md` | **Retained, largely orthogonal.** Owns six-level semantics, L6 FDM packages, and source adapters. No change required by this route. |
+| `BROWSER_PLANNED_TOOLS.md` | **Retained as the planned-tool registry.** Any new planned row from this route is filed there. |
+| `BROWSER_GENERIC_L2_SEMANTICS.md` | **Historical.** No new work unless a shell gap demonstrably blocks the FS route. |
+| `../../Onshape_MCP_FS_Hybrid_Compiler_Agent_Execution_Spec_v2.md` | **Design input.** Remains a source proposal; not an implemented contract. |
+| External "Onshape Group research plan" | **Absorbed.** No repository file; its still-new items are G1, G4, G5, G6, and G7. |
+
+## 11. Phases and gates
+
+**P1 — Browser leg stability + local validation (G2, G3).** Highest value: quota-free
+and it unblocks everything else.
+*Gate:* the FS apply/verify loop passes repeatedly against pathological inputs
+(local-checker rejects, compile errors, `not-computed` rows, stale sessions), with
+recorded evidence and no silent success.
+
+**P2 — Whole-feature Custom capability template.** Generalize the
+`browser_spiral_ridge` precedent into a data-driven contract; land the first
+capabilities (extrude/cut, hole, fillet) as whole-feature custom features.
+*Gate:* each capability runs dry-run -> local check -> deploy -> apply -> verify,
+and reports an explicit non-success on any failed stage.
+
+**P3 — REST Feature-List CRUD (G1).** Update / delete / rollback / batch update
+plus suppression, dry-run first, fixture-backed.
+*Gate:* offline tests prove request construction and parsing; any live fact is
+separately authorized and budgeted.
+
+**P4 — Capability card layer + retrieval benchmark (G4, G5).** Above the fixed
+catalog; benchmark card hit vs docs search vs full docs on Extrude, Thread, and
+one complex long-tail feature.
+*Gate:* a normal capability call needs no implementation source, no recursive
+dependency expansion, and no FS docs search.
+
+**P5 — Tool surface audit (G6).** Produce `Keep` / `Merge` / `Internal-only` /
+`Capability` / `Remove` for all **106** tools. Classification only; no mass
+refactor in this phase.
+*Gate:* every tool has a classification with a reason; generated reference and
+runtime prompt stay consistent.
+
+**P6 — Thread capability (G7).** First true capability-card proof, on the only
+real coverage hole.
+*Gate:* custom coarse pitch produces real geometry; cosmetic-only behavior is
+rejected rather than silently substituted.
+
+**Deferred (D5):** native lowering of FS features to toolbar transactions, sketch
+compiler, custom-island extraction, cross-backend FreeCAD implementation,
+capability auto-promotion, new CAD DSL.
+
+## 12. Verification mapping
+
+Compose checks from `../verification/MATRIX.md`; do not invent new gates.
+
+| Work | Required offline evidence |
+|---|---|
+| This roadmap and routing | project-layout tests; docs verification |
+| Browser leg (P1, P2) | browser-mode tests, browser plan completion tests; real browser work only after mock/fixture/dry-run, read-only selector verification, stated cloud mutation, confirmation, domain-state verification |
+| FeatureScript source (P2, P6) | `fs_local_check.py` plus matching static tests; authorized upload/live compile only |
+| REST operations (P3) | quota guards; explicitly budgeted live fact only |
+| Capability cards (P4) | offline tests for card resolution and closed-closure behavior |
+| Tool surface (P5) | MCP, runtime-prompt, and generated-reference `--check` |
+
+Never claim an unexecuted check passed.
+
+## 13. Open decisions
+
+1. Whether the capability card layer is data files under an existing module or a
+   new module. (Phase 0-style decision; must not become a second registry.)
+2. Whether `cad.*` cards are static data or generated from capability contracts.
+3. How much of the `BROWSER_PLANNED_TOOLS.md` planned surface survives P5.
+4. Whether the deferred native-lowering phases are permanently retired or
+   revisited if a FS-only ceiling is demonstrated.
+
+None of these block P1.
+
+## Provenance
+
+- External input: "Onshape Group research plan" (16 sections, approximate numbers),
+  supplied by the owner 2026-09 with the note that the thinking, not the numbers,
+  is sound.
+- Owner decisions D1–D6: recorded 2026-09 in direct reply to the review.
+- Repository review and evidence: Mnemon project document
+  *Onshape FS 自定义特征方案评审与仓库现状核对*; sources listed in §1.
+- Subordinate documents: `FS_HYBRID_COMPILER_INTEGRATION.md`,
+  `DYNAMIC_TOOL_DISCOVERY.md`, `BROWSER_FS_SEMANTIC_TOOLS.md`,
+  `BROWSER_MODELING_GAPS.md`, `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`,
+  `BROWSER_PLANNED_TOOLS.md`, `BROWSER_GENERIC_L2_SEMANTICS.md`.
+- All numbers in §4 and §8 are derived from generated indexes or vendored
+  references and are reproducible offline.

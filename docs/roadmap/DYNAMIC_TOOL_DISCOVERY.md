@@ -2,6 +2,10 @@
 
 Status: semantic/static/profile/dynamic exposure and connection-scoped replacement implemented
 
+> **Phase D (browser native modeling) is deferred** under decision D5 in
+> `FS_FIRST_CONTROLLING_ROUTE.md`: driving Part Studio modeling UI is not the
+> modeling route. Phases A–C remain implemented and unchanged.
+
 The optional six-level catalog, bounded browser discovery, hidden-tool invocation
 gateway, semantic default exposure, static compatibility mode, fixed startup
 profiles, and connection-scoped `listChanged` replacement are implemented.
