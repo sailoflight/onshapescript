@@ -833,12 +833,39 @@ class HandlerCompositionTest(unittest.TestCase):
             result = browser_tools.browser_deploy_and_apply_featurescript({
                 "script": "FeatureScript 1;", "feature_name": "F",
                 "confirm_mutation": True, "create_version": True,
+                "acknowledge_local_findings": True,
             })
         self.assertTrue(result["deployed"])
         self.assertTrue(result["built"])
         self.assertEqual(result["parts"], 1)
         version.assert_called_once()
         self.assertGreaterEqual(guard.pace.call_count, 4)
+
+    def test_deploy_apply_asks_once_before_writing_local_findings(self):
+        """The capability/script deploy path shares the acknowledgement rule.
+
+        A finding warns and asks once; the browser is not touched until the
+        caller re-issues with `acknowledge_local_findings=true`.
+        """
+        with mock.patch.object(browser_tools, "_page",
+                               side_effect=AssertionError("session started")):
+            gated = browser_tools.browser_deploy_and_apply_featurescript({
+                "script": "FeatureScript 1;", "feature_name": "F",
+                "confirm_mutation": True,
+            })
+        self.assertTrue(gated["acknowledgementRequired"])
+        self.assertEqual(gated["tool"], "browser_deploy_and_apply_featurescript")
+        self.assertTrue(gated["localFindings"])
+        self.assertTrue(gated["nextCall"]["arguments"]["acknowledge_local_findings"])
+        self.assertEqual(gated["nextCall"]["arguments"]["feature_name"], "F")
+        # A clean script is never gated, so the flag is not a blanket extra step.
+        clean = browser_tools._resolve_deploy_source({
+            "capability": "custom.fillet", "values": {},
+        })
+        self.assertEqual(clean[3]["errorCount"], 0)
+        self.assertFalse(
+            browser_tools.fs_check.acknowledgement_missing(clean[3], {})
+        )
 
     def test_assemble_and_draw_delegate_to_semantic_layer(self):
         page = mock.Mock()

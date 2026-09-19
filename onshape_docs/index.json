@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "a5677fe6e6330e0045a0ce727c6655c4ebe91d611643f7ba408d1da2d67a04bb",
+   "sha256": "0f2bdce0487e9cf01148dc9e95a05eb52edf7343a5ec329c077134d67462c8ae",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -873,7 +873,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Upload, create, instantiate, and validation-pipeline operations mutate Onshape, consume quota, and require literal confirm_mutation=true. Use the matching dry-run/local check first. Do not repeat an ambiguous mutation after timeout or 5xx merely to see whether it worked."
+       "text": "Upload, create, instantiate, and validation-pipeline operations mutate Onshape, consume quota, and require literal confirm_mutation=true. Use the matching dry-run/local check first. A live upload whose source has error-level local findings does not fail and does not send: it returns an acknowledgementRequired result with the findings, and you re-issue the same call with acknowledge_local_findings=true. Do not repeat an ambiguous mutation after timeout or 5xx merely to see whether it worked."
       }
      ]
     },
@@ -1408,7 +1408,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "be0b0b180b3f950937e9f5c7e2808b32c1d606b952a240226016b60c6c289084",
+   "sha256": "ebb170acf341c84dfad5c9ab551ad299696fd3dba0282030472d53c166f0cc74",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1702,7 +1702,7 @@
       },
       {
        "type": "para",
-       "text": "All local findings are advisory: they never block an upload, because the vendored reference can lag the live server. Measured against the real standard library, an argument-count check produced 30 false positives and a field-name check 73, so neither shipped; the two rules that did (non-map third argument to a definition-map call, dimensioned arithmetic mixed with a plain number) had zero. The gate that keeps them honest is dev/tools/fs_corpus_check.py, which scores the checker against the live-labeled instance corpus."
+       "text": "All local findings are advisory: they never block an upload, because the vendored reference can lag the live server. Error-level findings still cost one deliberate second confirmation — the first call returns acknowledgementRequired with the findings, having written nothing, and the caller re-issues with acknowledge_local_findings: true; warnings never ask. The rule lives once in onshape_docs/query/fs_check.py and covers the browser deploy legs, the REST upload and the validation pipeline's upload step. Measured against the real standard library, an argument-count check produced 30 false positives and a field-name check 73, so neither shipped; the two rules that did (non-map third argument to a definition-map call, dimensioned arithmetic mixed with a plain number) had zero. The gate that keeps them honest is dev/tools/fs_corpus_check.py, which scores the checker against the live-labeled instance corpus."
       },
       {
        "type": "para",

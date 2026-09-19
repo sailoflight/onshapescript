@@ -21,8 +21,10 @@ from onshape_rest_api_mode.client import (
     save_state,
 )
 # Zero-cost static checker: a syntactically bad upload still costs quota with
-# no diagnostics, so every real upload runs this first and refuses on
-# structural errors. Dry runs surface the same errors/warnings with no network.
+# no diagnostics, so every real upload runs this first. Findings never block the
+# upload — a source with structural errors returns fs_check.acknowledgement_request
+# instead, and the caller re-issues with `acknowledge_local_findings=true`.
+# Dry runs surface the same errors/warnings with no network.
 # The checker is an offline analysis API under onshape_docs/query/ (the module
 # at onshape_docs/scripts/fs_local_check.py is only a command-line shim).
 from onshape_docs.query import fs_check
@@ -393,6 +395,7 @@ def _local_check_result(source: Any) -> dict[str, Any]:
 def upload_feature_studio(
     client: OnshapeClient | None = None,
     dry_run: bool = False,
+    acknowledge_local_findings: bool = False,
 ) -> dict[str, Any]:
     if client is None:
         # Dry runs must work with no credentials: they build an unauthenticated
@@ -408,8 +411,10 @@ def upload_feature_studio(
         f"/w/{state['workspaceId']}/e/{state['featureStudioId']}"
     )
     # A syntactically bad upload still costs quota with no diagnostics, so run
-    # the zero-cost local checker before anything else. Structural errors are a
-    # hard stop for a real upload; dry runs surface them without network.
+    # the zero-cost local checker before anything else. Error-level findings are
+    # not a hard stop — the vendored reference can lag the live server — but they
+    # do require one explicit second confirmation before the three calls are
+    # spent; dry runs surface them without network.
     local_check = _local_check_result(source)
     # The POST body needs the current element's serialization/source microversion
     # and libraryVersion to reject microversion skew, so a live upload is
@@ -439,22 +444,36 @@ def upload_feature_studio(
             ],
             note=(
                 "3 API calls (GET + POST + GET featurespecs). The zero-cost "
-                "fs_local_check runs first; a live upload refuses on its "
-                "structural errors (a syntactically bad upload still costs quota)."
+                "fs_local_check runs first; a live upload that has error-level "
+                "findings returns an acknowledgement request instead of sending, "
+                "until it is re-issued with acknowledge_local_findings=true."
             ),
         )
         result["localCheck"] = local_check
         if not local_check["ok"]:
+            result["acknowledgementRequired"] = not acknowledge_local_findings
             result["note"] += (
-                " LOCAL CHECK FAILED: the live upload would refuse to send until "
-                "these structural errors are fixed."
+                " LOCAL CHECK FOUND ERRORS: the live upload will ask for one "
+                "explicit second confirmation (acknowledge_local_findings=true) "
+                "rather than sending these calls."
             )
         return result
-    if local_check["errors"]:
-        raise RuntimeError(
-            "refusing upload: fs_local_check found structural errors:\n  "
-            + "\n  ".join(local_check["errors"])
-        )
+    if local_check["errors"] and not acknowledge_local_findings:
+        return {
+            **fs_check.acknowledgement_request(
+                tool="onshape_upload_feature_studio",
+                local_check=local_check,
+                next_call={
+                    "tool": "onshape_upload_feature_studio",
+                    "arguments": {
+                        "confirm_mutation": True,
+                        fs_check.ACKNOWLEDGEMENT_ARGUMENT: True,
+                    },
+                },
+            ),
+            "uploaded": False,
+            "requests": 0,
+        }
     current = client.request("GET", path)
     updated = client.request(
         "POST",
@@ -1060,6 +1079,7 @@ def run_validation_pipeline(
     render: bool = True,
     client: OnshapeClient | None = None,
     dry_run: bool = False,
+    acknowledge_local_findings: bool = False,
 ) -> dict[str, Any]:
     """Run the mutating upload/create/instantiate/check/render pipeline."""
     if parameter_set not in PARAMETER_PATHS:
@@ -1088,7 +1108,20 @@ def run_validation_pipeline(
             },
         }
     result: dict[str, Any] = {}
-    result["upload"] = upload_feature_studio(client)
+    result["upload"] = upload_feature_studio(
+        client, acknowledge_local_findings=acknowledge_local_findings
+    )
+    if result["upload"].get("acknowledgementRequired"):
+        # Step one is gated on a local finding, so nothing was sent and no quota
+        # was spent; the caller decides whether to re-run with the acknowledgement.
+        result["abortedAt"] = "upload"
+        result["requests"] = 0
+        result["reason"] = (
+            "the upload step returned a local-finding acknowledgement request "
+            "before its first call; fix the source, or re-issue the pipeline with "
+            f"{fs_check.ACKNOWLEDGEMENT_ARGUMENT}=true"
+        )
+        return result
     result["partStudio"] = create_validation_part_studio(client=client)
     new_id = result["partStudio"]["partStudioId"]
     result["feature"] = instantiate_feature(

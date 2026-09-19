@@ -40,7 +40,9 @@ as warnings so a caller can weight them without re-deriving severity.
 
 Called in-process by the MCP server (`fs_check_script`) and on files by
 ``onshape_docs/scripts/fs_local_check.py``, whose exit code is 0 when no
-structural error is found.
+structural error is found. It also owns the one rule every deploy path shares
+about acting on a finding: `acknowledgement_request`, which asks for one
+explicit second confirmation instead of blocking the write.
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
@@ -515,6 +517,66 @@ def check_source(fs: FsFile) -> FsFile:
     check_op_definitions(fs, comments_only, masked, index)
     check_unit_mixing(fs, comments_only)
     return fs
+
+
+# --- deploy acknowledgement ------------------------------------------------
+# One rule, shared by every path that writes a checked source to the cloud. A
+# finding never blocks the write: the vendored reference can lag the live server
+# and the caller stays the authority. What an error-level finding buys is one
+# deliberate second confirmation, because a structural error is exactly the case
+# that fails remotely *after* a commit or a quota call has already been spent.
+ACKNOWLEDGEMENT_ARGUMENT = "acknowledge_local_findings"
+
+
+def findings_requiring_acknowledgement(result: Mapping[str, Any]) -> list[str]:
+    """Error-level findings a deploy should ask about before writing.
+
+    Warnings stay pure advice: the shipped warning rules are heuristics over a
+    reference that can lag, so demanding a confirmation for them would train
+    callers to pass the flag without reading it.
+    """
+    return [str(item) for item in (result.get("errors") or [])]
+
+
+def acknowledgement_missing(
+    result: Mapping[str, Any], arguments: Mapping[str, Any]
+) -> bool:
+    """True when the deploy must ask again instead of writing to the cloud."""
+    return bool(findings_requiring_acknowledgement(result)) and not bool(
+        arguments.get(ACKNOWLEDGEMENT_ARGUMENT)
+    )
+
+
+def acknowledgement_request(
+    *,
+    tool: str,
+    local_check: Mapping[str, Any],
+    next_call: Mapping[str, Any],
+) -> dict[str, Any]:
+    """The canonical "warn, then ask once more" result for a gated deploy.
+
+    Tool names, so every gated path returns the same keys and a caller can
+    branch on it without special-casing the backend.
+    """
+    findings = findings_requiring_acknowledgement(local_check)
+    return {
+        "acknowledgementRequired": True,
+        "tool": tool,
+        "localCheck": dict(local_check),
+        "localFindings": findings,
+        "nextCall": dict(next_call),
+        "reason": (
+            f"{tool} found {len(findings)} local structural finding(s) in the "
+            "source it was about to write; nothing local blocks the write, so "
+            "one explicit second confirmation is required."
+        ),
+        "note": (
+            "Findings are advisory: the vendored reference can lag the live "
+            f"server. Re-issue the same call with `{ACKNOWLEDGEMENT_ARGUMENT}: "
+            "true` to proceed, or fix the source first. No browser action and no "
+            "network request was performed for this result."
+        ),
+    }
 
 
 def main(argv: list[str]) -> int:

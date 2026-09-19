@@ -588,8 +588,9 @@ class BudgetGuardAttemptCapTest(unittest.TestCase):
 
 
 class LocalCheckRefusalTest(unittest.TestCase):
-    """The local checker is mandatory before a real upload; dry runs surface its
-    errors/warnings with zero network."""
+    """The local checker runs before a real upload and is advisory: error-level
+    findings return a second-confirmation request with zero network instead of
+    blocking or sending. Dry runs surface the same findings."""
 
     def setUp(self) -> None:
         self.cl = pipeline_client()
@@ -602,20 +603,41 @@ class LocalCheckRefusalTest(unittest.TestCase):
         self.assertEqual(dry["localCheck"]["errors"], [])
         self.cl.request.assert_not_called()
 
-    def test_live_upload_refuses_on_structural_errors(self) -> None:
+    def test_live_upload_asks_once_on_structural_errors(self) -> None:
         bad = mock.Mock()
         bad.errors = ["defineFeature closed early", "unbalanced '{'"]
         bad.warnings = ["unreplaced {{PLACEHOLDER}}"]
         with mock.patch.object(operations.fs_check, "check_file", return_value=bad):
-            with self.assertRaises(RuntimeError) as ctx:
-                operations.upload_feature_studio(client=self.cl, dry_run=False)
-            self.assertIn("structural errors", str(ctx.exception))
+            gated = operations.upload_feature_studio(client=self.cl, dry_run=False)
+            self.assertTrue(gated["acknowledgementRequired"])
+            self.assertEqual(gated["tool"], "onshape_upload_feature_studio")
+            self.assertFalse(gated["uploaded"])
+            self.assertEqual(gated["requests"], 0)
+            self.assertEqual(gated["localFindings"], bad.errors)
+            self.assertTrue(
+                gated["nextCall"]["arguments"][operations.fs_check.ACKNOWLEDGEMENT_ARGUMENT]
+            )
             # The dry run still surfaces the same errors, zero network.
             dry = operations.upload_feature_studio(client=self.cl, dry_run=True)
             self.assertFalse(dry["localCheck"]["ok"])
+            self.assertTrue(dry["acknowledgementRequired"])
             self.assertEqual(dry["localCheck"]["errors"], bad.errors)
             self.assertEqual(dry["localCheck"]["warnings"], bad.warnings)
+        # Nothing was sent for either gated call.
         self.cl.request.assert_not_called()
+
+    def test_acknowledged_upload_proceeds_to_its_first_request(self) -> None:
+        """The second confirmation is what the gate actually buys: with it the
+        operation reaches its first request, and without it nothing is sent."""
+        bad = mock.Mock()
+        bad.errors = ["defineFeature closed early"]
+        bad.warnings = []
+        with mock.patch.object(operations.fs_check, "check_file", return_value=bad):
+            with self.assertRaises(AssertionError):
+                operations.upload_feature_studio(
+                    client=self.cl, dry_run=False,
+                    acknowledge_local_findings=True,
+                )
 
 
 class CanAffordTest(unittest.TestCase):

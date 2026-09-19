@@ -9,6 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+# The offline FeatureScript analyzer and the one acknowledgement rule every
+# deploy path shares. Module level on purpose: it is a pure local import with no
+# browser or network side effect, so a gated call must not have to load the
+# browser module to find out that it needs a second confirmation.
+from onshape_docs.query import fs_check
+
 
 def _confirm(arguments: dict[str, Any]) -> None:
     if arguments.get("confirm_mutation") is not True:
@@ -668,7 +674,6 @@ def _capability_request(arguments: dict[str, Any]) -> dict[str, Any]:
     script that would be committed.
     """
     from onshape_browser_mode import capabilities
-    from onshape_docs.query import fs_check
 
     plan = capabilities.plan(arguments["capability"], arguments.get("values"))
     checked = fs_check.check_source(
@@ -680,8 +685,6 @@ def _capability_request(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _local_check_text(script: str) -> dict[str, Any]:
     """The zero-cost checker verdict for a caller-supplied script, advisory only."""
-    from onshape_docs.query import fs_check
-
     checked = fs_check.check_source(fs_check.FsFile.from_text(script, name="<script>"))
     return {**checked.as_result(), "advisory": True}
 
@@ -717,7 +720,27 @@ def browser_deploy_and_apply_featurescript(arguments: dict[str, Any]) -> dict[st
     extra = {"capability": capability_plan} if capability_plan else {}
     preview = _mutation_plan("browser_deploy_and_apply_featurescript", arguments, ["ensure Feature Studio", "write and commit source", "ensure Part Studio", "create version if prompted", "apply feature", "read parts"])
     if preview:
-        return {**preview, **extra, "localCheck": local_check}
+        return {
+            **preview,
+            **extra,
+            "localCheck": local_check,
+            "acknowledgementRequired": fs_check.acknowledgement_missing(local_check, arguments),
+        }
+    # A local finding is advisory but not silent: the caller gets the findings
+    # back and has to re-issue with the acknowledgement before the cloud write.
+    if fs_check.acknowledgement_missing(local_check, arguments):
+        return fs_check.acknowledgement_request(
+            tool="browser_deploy_and_apply_featurescript",
+            local_check=local_check,
+            next_call={
+                "tool": "browser_deploy_and_apply_featurescript",
+                "arguments": {
+                    **arguments,
+                    "confirm_mutation": True,
+                    fs_check.ACKNOWLEDGEMENT_ARGUMENT: True,
+                },
+            },
+        )
     page, guard = _page()
     from onshape_browser_mode import actions
     from onshape_browser_mode.semantic import build_part, deploy_featurescript
@@ -1087,6 +1110,18 @@ def _schema(
 
 _CONFIRM = {"type": "boolean", "description": "Required true for a real cloud-mutating browser action."}
 _DRY = {"type": "boolean", "default": False}
+# The second confirmation a local FeatureScript finding asks for. The rule and the
+# argument name live in onshape_docs.query.fs_check.
+_ACKNOWLEDGE = {
+    "type": "boolean",
+    "default": False,
+    "description": (
+        "Set true to proceed when the local FeatureScript check reports error-level "
+        "findings. Findings never block the write (the vendored reference can lag the "
+        "live server), but the first call returns an `acknowledgementRequired` result "
+        "with the findings instead of writing anything."
+    ),
+}
 _FRAME = {"type": "string", "default": "", "description": "Substring of the target Playwright frame URL; empty means the main page."}
 _STRING_ARRAY = {"type": "array", "items": {"type": "string"}, "minItems": 1}
 
@@ -1162,7 +1197,7 @@ BROWSER_TOOLS = [
     _tool("browser_create_drawing", "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["source_tab"]),
     _tool("browser_add_drawing_dimension", "Run a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verify a selector-count or canvas-image change.", {**_DIMENSION_PROPERTIES, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20),
     _tool("browser_delete_element", "Delete a visible document element by its tab data-id and verify that the tab disappears.", {"element_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["element_id"], destructive=True),
-    _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with bounded `values` and no script; a capability generates its own source, name, and local check.", {"script": {"type": "string"}, "capability": {"type": "string", "description": "Capability id or alias, e.g. custom.fillet or 圆角. Mutually exclusive with script."}, "values": {"type": "object", "description": "Bounded capability values; unknown names and out-of-range numbers are refused."}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=[], destructive=True, schema_extra={"anyOf": [{"required": ["script", "feature_name"]}, {"required": ["capability"]}]}),
+    _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with bounded `values` and no script; a capability generates its own source, name, and local check.", {"script": {"type": "string"}, "capability": {"type": "string", "description": "Capability id or alias, e.g. custom.fillet or 圆角. Mutually exclusive with script."}, "values": {"type": "object", "description": "Bounded capability values; unknown names and out-of-range numbers are refused."}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM, fs_check.ACKNOWLEDGEMENT_ARGUMENT: _ACKNOWLEDGE}, mutating=True, seconds=90, required=[], destructive=True, schema_extra={"anyOf": [{"required": ["script", "feature_name"]}, {"required": ["capability"]}]}),
     _tool("browser_build_part", "Ensure a Part Studio, apply a custom feature, and return normalized part count and names.", {"feature_name": {"type": "string"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"]),
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),
     _tool("browser_draw_part", "Deprecated compatibility workflow: create a generic Drawing from a source tab and add one or more dimensions. It rejects empty dimensions before mutation; prefer browser_drawing_insert_views or browser_draw_part_with_views for verified part views.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab", "dimensions"]),

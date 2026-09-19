@@ -576,6 +576,75 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertFalse(result["localCheck"]["clear"])
         self.assertGreaterEqual(result["localCheck"]["errorCount"], 1)
 
+    def test_deploy_asks_once_for_structural_local_findings(self) -> None:
+        """A local finding warns and asks again; it never blocks the write."""
+        session = FakeSession(FakePage())
+        script = "FeatureScript 3044;\nvar x = 1;"
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session) as get_session, \
+             mock.patch("onshape_browser_mode.guard.get_guard",
+                        side_effect=AssertionError("must not touch the guard")), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        side_effect=AssertionError("must not write before acknowledgement")):
+            result = server._browser_deploy_featurescript(
+                {"script": script, "dry_run": False, "confirm_mutation": True})
+        self.assertTrue(result["acknowledgementRequired"])
+        self.assertEqual(result["tool"], "browser_deploy_featurescript")
+        self.assertGreaterEqual(len(result["localFindings"]), 1)
+        self.assertEqual(result["nextCall"]["arguments"]["acknowledge_local_findings"], True)
+        self.assertTrue(result["nextCall"]["arguments"]["confirm_mutation"])
+        self.assertEqual(result["nextCall"]["arguments"]["script"], script)
+        self.assertIn("advisory", result["note"])
+        get_session.assert_not_called()
+        self.assertEqual(session.start_calls, 0)
+
+    def test_deploy_warnings_alone_do_not_ask_for_confirmation(self) -> None:
+        """Only error-level findings buy the second confirmation."""
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        # opExtrude(context, id, 5) is warning-level: the real server accepts it
+        # at save time, so demanding a confirmation would be noise.
+        warning_script = (
+            'FeatureScript 3044;\n'
+            'import(path : "onshape/std/geometry.fs", version : "3044.0");\n'
+            'export const f = defineFeature(function(context is Context, id is Id, definition is map)\n'
+            '    precondition { annotation { "Name" : "F" } }\n'
+            '    {\n'
+            '        opExtrude(context, id + "e", 5);\n'
+            '    });\n'
+        )
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        side_effect=["old source", warning_script]), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": True, "length": len(warning_script), "lineCount": 7}), \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        return_value={"clicked": True,
+                                      "before": {"disabled": False},
+                                      "after": {"disabled": True}}), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value={"compiled": True, "annotationCount": 0,
+                                      "noticeCount": 0, "errors": []}), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-warn"}):
+            result = server._browser_deploy_featurescript(
+                {"script": warning_script, "dry_run": False, "confirm_mutation": True})
+        self.assertEqual(result["localCheck"]["errorCount"], 0)
+        self.assertGreaterEqual(result["localCheck"]["warningCount"], 1)
+        self.assertNotIn("acknowledgementRequired", result)
+        self.assertTrue(result["deployed"])
+
+    def test_deploy_preview_reports_the_acknowledgement_it_would_need(self) -> None:
+        bad = server._browser_deploy_featurescript(
+            {"script": "FeatureScript 3044;\nvar x = 1;", "dry_run": True})
+        self.assertTrue(bad["acknowledgementRequired"])
+        acknowledged = server._browser_deploy_featurescript(
+            {"script": "FeatureScript 3044;\nvar x = 1;", "dry_run": True,
+             "acknowledge_local_findings": True})
+        self.assertFalse(acknowledged["acknowledgementRequired"])
+
     def test_deploy_commits_with_confirmation_and_paces(self) -> None:
         session = FakeSession(FakePage())
         guard = FakeGuard()
@@ -597,7 +666,8 @@ class BrowserDeployTest(unittest.TestCase):
              mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
                         return_value={"captured": True, "captureId": "capture-ok"}) as capture:
             result = server._browser_deploy_featurescript(
-                {"script": "feature X {}", "dry_run": False, "confirm_mutation": True})
+                {"script": "feature X {}", "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True})
         self.assertTrue(result["deployed"])
         self.assertTrue(result["verified"])
         self.assertTrue(result["compiled"])
@@ -638,6 +708,7 @@ class BrowserDeployTest(unittest.TestCase):
                         return_value={"captured": True, "captureId": "capture-error"}):
             result = server._browser_deploy_featurescript({
                 "script": "new", "dry_run": False, "confirm_mutation": True,
+                "acknowledge_local_findings": True,
             })
         self.assertFalse(result["deployed"])
         self.assertTrue(result["commitAccepted"])

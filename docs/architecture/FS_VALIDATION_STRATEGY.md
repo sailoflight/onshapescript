@@ -26,7 +26,17 @@ source is *correct*, and they are the only ones that cost anything.
 Two rules follow, and both are current behaviour:
 
 - **All local findings are advisory.** Nothing local blocks an upload, because
-  the vendored reference can lag the live server.
+  the vendored reference can lag the live server. An error-level finding does buy
+  one deliberate second confirmation: the first call returns an
+  `acknowledgementRequired` result listing the findings and writes nothing, and
+  the caller re-issues the same call with `acknowledge_local_findings: true`.
+  Warning-level findings never ask. The rule and the argument name are defined
+  once in `onshape_docs/query/fs_check.py` (`acknowledgement_request`,
+  `acknowledgement_missing`) and used by every path that writes a checked source:
+  `browser_deploy_featurescript`, `browser_deploy_and_apply_featurescript`,
+  `onshape_upload_feature_studio`, and the upload step of
+  `onshape_run_validation_pipeline` (which aborts at that step having spent zero
+  calls). `dev/tests/test_local_check_gate.py` pins the shared contract.
 - **The browser compiler is the authority for body semantics.** It is free in
   REST quota, so the loop is: check locally, deploy, read the notice pane,
   normalize, summarize, retain. `onshape_browser_mode/diagnostics.py` implements
@@ -117,7 +127,7 @@ Each item names the gate it must pass before it may be reported.
 | Claim | Evidence |
 |---|---|
 | The offline checker still catches the recorded failure classes | `test_static_guards.py`, `dev/tools/fs_corpus_check.py` |
-| Deploy runs the local check and reports it as advisory, never as a gate | `test_capabilities.py`, `test_browser_apply_path.py` |
+| Deploy runs the local check, reports it as advisory, and asks once before writing error-level findings (never a gate, never silent) | `test_local_check_gate.py`, `test_quota_guards.py` (`LocalCheckRefusalTest`), `test_browser_mode.py` (`BrowserDeployTest`) |
 | The browser loop normalizes codes, source lines, and groups, and retains a corpus | `test_fs_diagnostics.py`, `test_fs_notice_collector.py` |
 | The scanner and normalizer stay local (no network, no process, no vendored runtime) | `test_fs_validation_strategy.py` |
 | This page's survey claims carry links and stay labelled as unexecuted | `test_fs_validation_strategy.py` |

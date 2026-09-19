@@ -206,7 +206,12 @@ Confirmed by ~310 live calls. Cost-per-step below is real API calls:
 | Instantiate (`POST .../features`) | 1 (cached) / 2 (cold) | The only layer that executes the body — but ERROR is opaque (no message) |
 
 All local findings are **advisory**: they never block an upload, because the
-vendored reference can lag the live server. Measured against the real standard
+vendored reference can lag the live server. Error-level findings still cost one
+deliberate second confirmation — the first call returns `acknowledgementRequired`
+with the findings, having written nothing, and the caller re-issues with
+`acknowledge_local_findings: true`; warnings never ask. The rule lives once in
+`onshape_docs/query/fs_check.py` and covers the browser deploy legs, the REST
+upload and the validation pipeline's upload step. Measured against the real standard
 library, an argument-count check produced 30 false positives and a field-name
 check 73, so neither shipped; the two rules that did (non-map third argument to a
 definition-map call, dimensioned arithmetic mixed with a plain number) had zero.

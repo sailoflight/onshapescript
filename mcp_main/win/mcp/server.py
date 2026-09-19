@@ -74,6 +74,25 @@ def mutating_confirmation() -> dict[str, Any]:
     }
 
 
+def local_findings_acknowledgement() -> dict[str, Any]:
+    """The second confirmation a local FeatureScript finding asks for.
+
+    The rule and the argument name live in `onshape_docs.query.fs_check`; this is
+    only the schema surface for it.
+    """
+    return {
+        "type": "boolean",
+        "default": False,
+        "description": (
+            "Set true to proceed when the local FeatureScript check reports "
+            "error-level findings. Findings never block the write (the vendored "
+            "reference can lag the live server), but the first call returns an "
+            "`acknowledgementRequired` result with the findings instead of "
+            "writing anything."
+        ),
+    }
+
+
 PARAMETER_VALUE_SCHEMA = {
     "description": "A FeatureScript expression string, number, or boolean.",
     "oneOf": [
@@ -116,8 +135,12 @@ def _local_check(source: str) -> dict[str, Any]:
     browser write, instead of only as an opaque remote failure that still costs a
     commit.
 
-    Whether the caller may use this as a hard local gate is recorded in
-    docs/roadmap/FS_FIRST_CONTROLLING_ROUTE.md; nothing here enforces it.
+    Acting on a finding is a two-call decision, not a veto: a deploy that would
+    write a source with error-level findings returns
+    `fs_check.acknowledgement_request` instead of proceeding, and the caller
+    re-issues the same call with `acknowledge_local_findings: true`. Warnings
+    never require that step. The rule lives in
+    `onshape_docs/query/fs_check.py` so the browser and REST paths cannot drift.
     """
     try:
         result = fs_check.check_source(
@@ -293,10 +316,16 @@ def _list_document_elements(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _upload(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
+    acknowledged = bool(arguments.get(fs_check.ACKNOWLEDGEMENT_ARGUMENT))
     if arguments.get("dry_run"):
-        return upload_feature_studio(dry_run=True)
+        return upload_feature_studio(
+            dry_run=True, acknowledge_local_findings=acknowledged
+        )
     _preflight_or_raise(3, "upload_feature_studio")
-    return upload_feature_studio()
+    # The operation runs the zero-cost local check itself and returns the
+    # acknowledgement request before its first request, so a local finding never
+    # costs quota and never hard-fails the call.
+    return upload_feature_studio(acknowledge_local_findings=acknowledged)
 
 
 def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -414,15 +443,22 @@ def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
     parameter_set = arguments.get("parameter_set", "default")
     render = bool(arguments.get("render_previews", True))
+    acknowledged = bool(arguments.get(fs_check.ACKNOWLEDGEMENT_ARGUMENT))
     if arguments.get("dry_run"):
         return run_validation_pipeline(
             parameter_set=parameter_set, render=render, dry_run=True,
+            acknowledge_local_findings=acknowledged,
         )
     _require_live(
         PIPELINE_ESTIMATE[render],
         f"validation pipeline (render={'on' if render else 'off'})",
     )
-    return run_validation_pipeline(parameter_set=parameter_set, render=render)
+    # The upload step inside the pipeline applies the same acknowledgement rule,
+    # so a local finding aborts the run at step one having spent zero calls.
+    return run_validation_pipeline(
+        parameter_set=parameter_set, render=render,
+        acknowledge_local_findings=acknowledged,
+    )
 
 
 def _browser_watch(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -860,13 +896,17 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
 
     # Pure local preview, returned before any browser import/session/action.
     if dry_run:
+        preview_check = _local_check(script)
         return {
             "dryRun": True,
             "deployed": False,
             "documentName": document_name,
             "sourceLength": source_length,
             "lineCount": line_count,
-            "localCheck": _local_check(script),
+            "localCheck": preview_check,
+            "acknowledgementRequired": fs_check.acknowledgement_missing(
+                preview_check, arguments
+            ),
             "note": (
                 "dry_run: pure local preview — no browser session, navigation, "
                 "editor read/write, pacing, or Commit click was performed. Set "
@@ -881,6 +921,22 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
 
     # Free and side-effect-free, so it runs before the browser is touched.
     local_check = _local_check(script)
+
+    # A local finding is advisory, but it is not silent: the caller has to look
+    # once more and say so explicitly before the cloud write.
+    if fs_check.acknowledgement_missing(local_check, arguments):
+        return fs_check.acknowledgement_request(
+            tool="browser_deploy_featurescript",
+            local_check=local_check,
+            next_call={
+                "tool": "browser_deploy_featurescript",
+                "arguments": {
+                    **arguments,
+                    "confirm_mutation": True,
+                    fs_check.ACKNOWLEDGEMENT_ARGUMENT: True,
+                },
+            },
+        )
 
     from onshape_browser_mode import actions, diagnostics
     from onshape_browser_mode.guard import get_guard
@@ -1881,7 +1937,9 @@ TOOLS: list[dict[str, Any]] = [
             "Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled "
             "branchCableTrophyDisplay specification. This overwrites cloud Feature Studio contents and may "
             "fail on microversion skew; call only when the user intends that remote mutation. Costs 3 API "
-            "calls (GET + POST + GET featurespecs); run onshape_docs/scripts/fs_local_check.py on the source first. "
+            "calls (GET + POST + GET featurespecs); the zero-cost local check runs first, and error-level "
+            "findings return an `acknowledgementRequired` result instead of spending calls until you re-issue "
+            "the call with `acknowledge_local_findings=true`. "
             "Pass dry_run=true to see the exact requests without sending them."
         ),
         "inputSchema": object_schema({
@@ -1891,6 +1949,7 @@ TOOLS: list[dict[str, Any]] = [
                 "default": False,
                 "description": "Construct and return the exact requests (method/URL/body) without sending them.",
             },
+            fs_check.ACKNOWLEDGEMENT_ARGUMENT: local_findings_acknowledgement(),
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True},
     },
@@ -2080,6 +2139,7 @@ TOOLS: list[dict[str, Any]] = [
                 "default": False,
                 "description": "Describe the full pipeline's requests (method/URL/body) without sending them.",
             },
+            fs_check.ACKNOWLEDGEMENT_ARGUMENT: local_findings_acknowledgement(),
         }, ["confirm_mutation"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
@@ -2384,6 +2444,7 @@ TOOLS: list[dict[str, Any]] = [
                     "confirm_mutation."
                 ),
             },
+            fs_check.ACKNOWLEDGEMENT_ARGUMENT: local_findings_acknowledgement(),
         }, ["script"]),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },

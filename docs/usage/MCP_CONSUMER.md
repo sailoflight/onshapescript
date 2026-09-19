@@ -272,8 +272,11 @@ an offline L6 recipe accepting only its staged export/translation ID.
 
 Upload, create, instantiate, and validation-pipeline operations mutate Onshape,
 consume quota, and require literal `confirm_mutation=true`. Use the matching
-dry-run/local check first. Do not repeat an ambiguous mutation after timeout or
-5xx merely to see whether it worked.
+dry-run/local check first. A live upload whose source has error-level local
+findings does not fail and does not send: it returns an `acknowledgementRequired`
+result with the findings, and you re-issue the same call with
+`acknowledge_local_findings=true`. Do not repeat an ambiguous mutation after
+timeout or 5xx merely to see whether it worked.
 
 ## Global safety contract
 

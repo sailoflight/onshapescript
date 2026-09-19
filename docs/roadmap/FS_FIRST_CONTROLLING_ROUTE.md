@@ -167,10 +167,22 @@ can perform the same mutation, the browser leg does it (D1).
 
 ### 6.3 Local validation leg (D4)
 
-`fs_local_check.py` stays the mandatory pre-upload gate for every real upload and
-is extended toward real parse/type checking. This is the cheapest place to buy
-back browser iterations: it costs no quota and no browser session. It must remain
-conservative — a false "valid" is worse than an honest "unknown".
+`fs_local_check.py` runs before every real upload and is extended toward real
+parse/type checking. This is the cheapest place to buy back browser iterations: it
+costs no quota and no browser session. It must remain conservative — a false
+"valid" is worse than an honest "unknown".
+
+It is a **warn-then-confirm** leg, not a veto (owner decision 2026-09-19): a
+finding never blocks the write, because the vendored reference can lag the live
+server. An error-level finding makes the first call return
+`acknowledgementRequired` with the findings and write nothing; the caller
+re-issues with `acknowledge_local_findings: true`. Warning-level rules never ask,
+so the shipped heuristic rules cannot train callers to pass the flag blindly. The
+rule lives once in `onshape_docs/query/fs_check.py` and is applied by
+`browser_deploy_featurescript`, `browser_deploy_and_apply_featurescript`,
+`onshape_upload_feature_studio`, and the upload step of
+`onshape_run_validation_pipeline`; `dev/tests/test_local_check_gate.py` pins the
+shared contract across the four.
 
 ## 7. Capability model
 
@@ -464,7 +476,7 @@ Compose checks from `../verification/MATRIX.md`; do not invent new gates.
 |---|---|
 | This roadmap and routing | project-layout tests; docs verification |
 | Browser leg (P1, P2) | browser-mode tests, browser plan completion tests; real browser work only after mock/fixture/dry-run, read-only selector verification, stated cloud mutation, confirmation, domain-state verification |
-| FeatureScript source (P2, P6) | `fs_local_check.py` plus `test_static_guards` (including the measured-zero-FP import rule and the masked symbol scan); authorized upload/live compile only |
+| FeatureScript source (P2, P6) | `fs_local_check.py` plus `test_static_guards` (including the measured-zero-FP import rule and the masked symbol scan); `test_local_check_gate` for the warn-then-confirm rule; authorized upload/live compile only |
 | REST operations (P3) | quota guards; explicitly budgeted live fact only |
 | Capability cards (P4) | `test_capabilities` (contract, symbols, precedent), `test_capability_retrieval` (card-vs-reference cost, no expansion, both discovery entries, invocation shape) |
 | Capability apply path | `test_browser_apply_path` (badged row, label fallback, non-match inventory, ambiguous label never guessed; waits are bounded conditions) |
