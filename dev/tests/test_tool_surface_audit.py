@@ -1,0 +1,187 @@
+"""Gate for `docs/architecture/TOOL_SURFACE_AUDIT.md` (roadmap P5).
+
+The audit is authored judgment, so it cannot be generated and checked against
+itself. What CAN be checked is that it is complete and self-consistent:
+
+* every registered tool has exactly one verdict, and no verdict names a tool that
+  is not registered;
+* every verdict is one of the five, every `Merge` names a different registered
+  tool as its survivor, and every other verdict leaves the column empty;
+* every row carries a real reason, and the summary counts match the table;
+* the two verdicts that make claims about recorded metadata -- `Remove` and
+  `Internal-only` -- are compared against the semantics records, and the known
+  gaps are required to be acknowledged in the follow-up section rather than left
+  implicit.
+
+An audit that silently drops a tool fails here, which is the whole point: the
+hidden and deprecated entries are exactly the ones a completeness check must
+cover.
+"""
+
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+from mcp_main.win.mcp import server
+from onshape_browser_mode.semantics import TOOL_SEMANTICS
+
+ROOT = Path(__file__).resolve().parents[2]
+AUDIT = ROOT / "docs" / "architecture" / "TOOL_SURFACE_AUDIT.md"
+VERDICTS = ("Keep", "Capability", "Merge", "Internal-only", "Remove")
+MIN_REASON_LENGTH = 40
+
+_ROW = re.compile(
+    r"^\| `(?P<name>[a-z_0-9]+)` \| `(?P<verdict>[A-Za-z-]+)` \| "
+    r"(?:`(?P<target>[a-z_0-9]+)`|(?P<empty>-)) \| (?P<reason>.+) \|$",
+    re.MULTILINE,
+)
+_SUMMARY_ROW = re.compile(
+    r"^\| `(?P<verdict>[A-Za-z-]+)` \| (?P<count>\d+) \|$", re.MULTILINE
+)
+_TOTAL = re.compile(r"^\| \*\*total\*\* \| \*\*(?P<count>\d+)\*\* \|$", re.MULTILINE)
+
+
+def _document() -> str:
+    return AUDIT.read_text(encoding="utf-8")
+
+
+def _rows() -> list[dict[str, str]]:
+    return [match.groupdict() for match in _ROW.finditer(_document())]
+
+
+def _follow_ups() -> str:
+    text = _document()
+    marker = "## What this audit changes next"
+    assert marker in text, "the follow-up section was renamed or removed"
+    return text.split(marker, 1)[1]
+
+
+class AuditDocumentTest(unittest.TestCase):
+    def test_follow_up_section_exists_and_is_not_a_stub(self) -> None:
+        self.assertGreater(len(_follow_ups().strip()), 400)
+
+    def test_no_tool_is_dropped_or_invented(self) -> None:
+        registered = {tool["name"] for tool in server.TOOLS}
+        rows = _rows()
+        names = [row["name"] for row in rows]
+        self.assertEqual(len(names), len(set(names)), "a tool is listed more than once")
+        self.assertEqual(set(names) - registered, set(), "verdict names an unregistered tool")
+        self.assertEqual(registered - set(names), set(), "a registered tool is unclassified")
+
+    def test_every_verdict_is_known_and_every_reason_is_real(self) -> None:
+        for row in _rows():
+            with self.subTest(tool=row["name"]):
+                self.assertIn(row["verdict"], VERDICTS)
+                reason = row["reason"].strip()
+                self.assertGreaterEqual(
+                    len(reason), MIN_REASON_LENGTH,
+                    "the reason must say why, not restate the verdict",
+                )
+                self.assertNotIn("TODO", reason)
+                self.assertNotIn("???", reason)
+
+    def test_merge_targets_are_registered_and_everything_else_has_none(self) -> None:
+        registered = {tool["name"] for tool in server.TOOLS}
+        targets: dict[str, str] = {}
+        for row in _rows():
+            if row["verdict"] == "Merge":
+                with self.subTest(tool=row["name"]):
+                    self.assertIsNone(row["empty"])
+                    self.assertIn(row["target"], registered)
+                    self.assertNotEqual(row["target"], row["name"])
+                    targets[row["name"]] = row["target"]
+            else:
+                with self.subTest(tool=row["name"]):
+                    self.assertIsNone(row["target"])
+                    self.assertEqual(row["empty"], "-")
+        # The follow-up sentence lists exactly the merges the table declares.
+        follow_ups = _follow_ups()
+        for name, target in targets.items():
+            self.assertIn(f"`{name}`", follow_ups)
+            self.assertIn(f"`{target}`", follow_ups)
+        self.assertEqual(len(targets), 8)
+
+    def test_summary_counts_match_the_table(self) -> None:
+        counts = {verdict: 0 for verdict in VERDICTS}
+        for row in _rows():
+            counts[row["verdict"]] += 1
+        summarised = {
+            match.group("verdict"): int(match.group("count"))
+            for match in _SUMMARY_ROW.finditer(_document())
+        }
+        self.assertEqual(summarised, counts)
+        total = _TOTAL.search(_document())
+        self.assertIsNotNone(total)
+        self.assertEqual(int(total.group("count")), len(server.TOOLS))
+        self.assertEqual(sum(counts.values()), len(server.TOOLS))
+
+    def test_remove_verdicts_agree_with_the_recorded_maturity(self) -> None:
+        """A `Remove` verdict must be backed by the metadata, not by taste."""
+        removed = [row["name"] for row in _rows() if row["verdict"] == "Remove"]
+        self.assertEqual(
+            removed,
+            [
+                "browser_delete_tab",
+                "browser_draw_part",
+                "browser_print_optimize_part",
+                "browser_print_orientation_check",
+            ],
+        )
+        for name in removed:
+            with self.subTest(tool=name):
+                record = TOOL_SEMANTICS.get(name)
+                self.assertIsNotNone(record, f"{name} is not backed by a semantics record")
+                self.assertNotEqual(record.maturity, "implemented")
+                self.assertFalse(
+                    record.default_exposure,
+                    f"{name} is already hidden; a Remove verdict implies it should not be reachable by default",
+                )
+
+    def test_internal_only_claim_is_measured_not_assumed(self) -> None:
+        """The doc says most `Internal-only` tools are already default-hidden. That
+        is a measurable claim: count it, and require the exceptions to be named in
+        the follow-up section instead of quietly tolerated."""
+        internal = [row["name"] for row in _rows() if row["verdict"] == "Internal-only"]
+        recorded = {
+            name: TOOL_SEMANTICS[name]
+            for name in internal
+            if name in TOOL_SEMANTICS
+        }
+        self.assertGreaterEqual(len(recorded), 20)
+        hidden = {name for name, record in recorded.items() if not record.default_exposure}
+        self.assertGreaterEqual(
+            len(hidden), int(len(recorded) * 0.8),
+            "the 'already hidden' justification no longer holds for the majority",
+        )
+        exposed = sorted(set(recorded) - hidden)
+        self.assertEqual(exposed, ["browser_fix_instances", "browser_group_instances"])
+        for name in exposed:
+            with self.subTest(tool=name):
+                self.assertIn(name, _follow_ups())
+
+    def test_capability_verdicts_are_whole_jobs(self) -> None:
+        """A `Capability` verdict must describe a job, not a primitive: an L1-L3
+        primitive cannot be one, an L4 transaction may be one when the reason says
+        so (a fillet is one UI transaction and still a whole-feature job), and the
+        REST-side jobs without a semantics record must say "job"/"capability"."""
+        for row in _rows():
+            if row["verdict"] != "Capability":
+                continue
+            with self.subTest(tool=row["name"]):
+                record = TOOL_SEMANTICS.get(row["name"])
+                if record is not None and record.level is not None:
+                    self.assertIn(
+                        record.level, {"L4", "L5", "L6"},
+                        f"{row['name']} is level {record.level}, a primitive cannot be a capability",
+                    )
+                self.assertIn(
+                    "capability",
+                    row["reason"].lower(),
+                    f"{row['name']} must name the capability layer it belongs to",
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

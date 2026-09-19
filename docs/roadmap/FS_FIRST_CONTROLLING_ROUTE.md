@@ -331,6 +331,22 @@ refactor in this phase.
 *Gate:* every tool has a classification with a reason; generated reference and
 runtime prompt stay consistent.
 
+Delivered: [`architecture/TOOL_SURFACE_AUDIT.md`](../architecture/TOOL_SURFACE_AUDIT.md)
+classifies all 108 registered tools — 59 `Keep`, 26 `Internal-only`, 11
+`Capability`, 8 `Merge`, 4 `Remove` — with a reason per row and a follow-up list
+in the order the work should be attempted. `test_tool_surface_audit` is the gate:
+it re-parses the page and fails on an unclassified or invented tool, an unknown
+verdict, a `Merge` that does not name a registered survivor, a thin or
+placeholder reason, counts that disagree with the table, or a `Remove` verdict
+that is not backed by the tool's recorded maturity. The two `Internal-only` tools
+that are still default-exposed (`browser_fix_instances`,
+`browser_group_instances`) are named in the follow-ups rather than quietly
+tolerated.
+
+Classification only: no tool was renamed, merged, hidden or removed, so the
+generated reference and the runtime prompt are unchanged by P5 apart from the new
+`onshape_update_feature_list` entry that P3 added.
+
 **P6 — Thread capability (G7).** First true capability-card proof, on the only
 real coverage hole.
 *Gate:* custom coarse pitch produces real geometry; cosmetic-only behavior is
