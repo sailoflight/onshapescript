@@ -206,6 +206,9 @@
 
 `browser_discover_tools(query=...)` 在返回工具候选的同时，会把匹配的**能力卡片**
 附在 `capabilities` 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。
+每张卡还带 `invocation`：能力**不**走 `browser_invoke_discovered`，而是作为
+`browser_deploy_and_apply_featurescript` 的 `capability` + `values` 参数，
+所以卡自己给出准确的调用（`values` 是卡片默认值，只做起点）。
 `capabilities.search(query, limit)` 最多返回 5 张卡，排序为
 身份（id / 别名）→ 特征类型 → `use_when` 散文；单个偶然的散文词（"feature"、
 "part"）不足以命中，只有一个弱词也不算匹配。

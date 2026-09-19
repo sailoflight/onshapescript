@@ -371,7 +371,10 @@ ranked by identity -> alias/feature type -> `use_when` prose, and
 `browser_discover_tools` appends matching cards to its existing result when the
 query names a feature — no new tool, and the tool exposure levels are unchanged.
 A single incidental prose word ("feature", "part") is not a match; one weak word
-never qualifies a card on its own.
+never qualifies a card on its own. Each match carries the deploy call that uses
+it — `browser_deploy_and_apply_featurescript` with `capability` and the card's own
+defaults as `values` — because the gateway route in the same result
+(`browser_invoke_discovered`) is not how a capability is invoked.
 
 `test_capability_retrieval` is the gate. It measures the two routes over the same
 indexes the server reads: for the four named queries the resolved card costs

@@ -2742,7 +2742,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "4687a3c9ee0e157a4fa20221a454bbdde7f2bfb0ba57df6b1aed2d463f88e883",
+   "sha256": "33f0115b627446127a743de0430d35eed925e8414f7ccff2e6dc9eb95dc7ff24",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3211,7 +3211,7 @@
       },
       {
        "type": "para",
-       "text": "browser_discover_tools(query=...) 在返回工具候选的同时，会把匹配的能力卡片 附在 capabilities 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。 capabilities.search(query, limit) 最多返回 5 张卡，排序为 身份（id / 别名）→ 特征类型 → use_when 散文；单个偶然的散文词（\"feature\"、 \"part\"）不足以命中，只有一个弱词也不算匹配。"
+       "text": "browser_discover_tools(query=...) 在返回工具候选的同时，会把匹配的能力卡片 附在 capabilities 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。 每张卡还带 invocation：能力不走 browser_invoke_discovered，而是作为 browser_deploy_and_apply_featurescript 的 capability + values 参数， 所以卡自己给出准确的调用（values 是卡片默认值，只做起点）。 capabilities.search(query, limit) 最多返回 5 张卡，排序为 身份（id / 别名）→ 特征类型 → use_when 散文；单个偶然的散文词（\"feature\"、 \"part\"）不足以命中，只有一个弱词也不算匹配。"
       },
       {
        "type": "para",
@@ -4487,7 +4487,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "8fac1b54c1b2481c8b1863e28654d11c5a60d3d99890cfc1bb2889486274353b",
+   "sha256": "6e60534d3e210e66a3d58ce73b32cbf28837b7f8e9a6a4488ae826cc3b42ebd2",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -4715,7 +4715,7 @@
          "L2 browser_transaction",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. Ordinary queries omit L1/L3 and semantically invalid tools..."
+         "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. A matching card also carries the exact deploy call that us..."
         ],
         [
          "browser_draw_part",

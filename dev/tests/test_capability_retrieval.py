@@ -186,6 +186,37 @@ class DiscoveryWiringTest(unittest.TestCase):
         self.assertEqual(result["capabilities"][0]["card"]["id"], "custom.extrude")
         self.assertIn("candidates", result)
 
+    def test_a_card_carries_the_call_that_uses_it(self) -> None:
+        """The gateway route in the same result is `browser_invoke_discovered`,
+        which is wrong for a capability: a capability is an argument to the deploy
+        tool, so the card must say so itself."""
+        result = browser_tools.browser_discover_tools({"query": "fillet"})
+        match = result["capabilities"][0]
+        self.assertEqual(match["invocation"]["tool"], "browser_deploy_and_apply_featurescript")
+        self.assertEqual(
+            match["invocation"]["tool"], result["capabilityInvocationTool"],
+        )
+        self.assertEqual(match["invocation"]["arguments"]["capability"], "custom.fillet")
+        defaults = match["invocation"]["arguments"]["values"]
+        self.assertEqual(
+            defaults,
+            {parameter["name"]: parameter["default"] for parameter in match["card"]["parameters"]},
+        )
+        # The start values are exactly the card's own contract: no query, no code.
+        self.assertNotIn("entities", defaults)
+        self.assertNotIn("face", defaults)
+        self.assertNotIn("vertex", defaults)
+
+    def test_the_suggested_call_validates_as_written(self) -> None:
+        """A suggestion that the handler would reject is worse than none."""
+        from onshape_browser_mode import capabilities
+
+        result = browser_tools.browser_discover_tools({"query": "hole"})
+        call = result["capabilities"][0]["invocation"]["arguments"]
+        plan = capabilities.plan(call["capability"], call["values"])
+        self.assertEqual(plan["capability"]["id"], "custom.hole")
+        self.assertTrue(plan["source"])
+
     def test_a_query_without_a_capability_match_omits_the_key(self) -> None:
         result = browser_tools.browser_discover_tools({"query": "zzzz-no-such-feature"})
         self.assertNotIn("capabilities", result)
