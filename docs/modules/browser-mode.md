@@ -48,6 +48,7 @@ Project control plane (one or more L6 nodes)
 - A lower layer never calls a higher layer; same-level composition is allowed when it remains inside the same public contract and is acyclic.
 - Semantic levels are optional discovery metadata, not registration, execution, or permission gates.
 - Default semantic exposure omits L1/L3; `browser_discover_tools` with an explicit `semantic_levels` filter reveals exact schemas and `browser_invoke_discovered` routes them through the original handler gates. `ONSHAPE_MCP_TOOL_EXPOSURE=static` retains complete-list compatibility. Ordinary ranking is L5 workflow, L4 verified transaction/observation, L2 generic browser transaction, then L6 deliverable recipe.
+- A query that names a CAD feature also carries the matching whole-feature capability cards in the same result (`capabilities`), built by `onshape_browser_mode/capabilities.py`. Cards are contracts, not implementations: adding one adds no tool and widens no exposure level.
 - `ONSHAPE_MCP_TOOL_EXPOSURE=profile|dynamic` adds fixed or per-connection views. Dynamic `mcp_tool_view` changes only `tools/list`, emits `notifications/tools/list_changed`, and never blocks a known-name handler call; it is a context convention, not authority.
 - Selectors and frame/locator resolution do not appear as duplicated literals in high-level tools.
 - The Windows process owns Playwright, Edge, the persistent profile, and logged-in session.

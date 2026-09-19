@@ -2738,7 +2738,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "2427734bf9a8bb0c4987812b4e845ed1b66f3d5f95b937ef86afc8ffd9c4215e",
+   "sha256": "6f48c43db7a0e8a23a5e3e6c6ace5847408e87533c7bd9178d4d93e801859d8b",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3197,6 +3197,39 @@
         },
         {
          "text": "卡片（capabilities.cards()）只含身份、useWhen、参数与验证状态，不含实现； 实现只在 dry-run 预览里为人工审阅而出现。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "怎么找到能力（发现路线）"
+      },
+      {
+       "type": "para",
+       "text": "browser_discover_tools(query=...) 在返回工具候选的同时，会把匹配的能力卡片 附在 capabilities 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。 capabilities.search(query, limit) 最多返回 5 张卡，排序为 身份（id / 别名）→ 特征类型 → use_when 散文；单个偶然的散文词（\"feature\"、 \"part\"）不足以命中，只有一个弱词也不算匹配。"
+      },
+      {
+       "type": "para",
+       "text": "dev/tests/test_capability_retrieval.py 是这条路的门："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "卡片路线的载荷是 668–1422 字符；同一条查询走参考索引要 1862–8930 字符，而且**还没 读完**定义契约的那个函数体。",
+         "depth": 0
+        },
+        {
+         "text": "\"round the edges of this part\" 这种意图式查询能解析到 custom.fillet，而 FeatureScript 搜索只会排出一堆 query helper / filter —— 卡片层的价值不只是省字符。",
+         "depth": 0
+        },
+        {
+         "text": "卡片载荷里没有任何源码；解析一张卡不会触碰 get_function / library_source / guide_section（测试用 mock 断言这三者零调用）。",
+         "depth": 0
+        },
+        {
+         "text": "这是字符测量，不是带模型 loop 的 token 测量；\"调用方读完卡片就停\"没有被证明， 只证明了离线路线不需要实现源码。",
          "depth": 0
         }
        ]
@@ -4446,7 +4479,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "df4fdf89f877e34bc2551d819a412cef9f39f72ac9503514e67790accae04875",
+   "sha256": "8fac1b54c1b2481c8b1863e28654d11c5a60d3d99890cfc1bb2889486274353b",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -4674,7 +4707,7 @@
          "L2 browser_transaction",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Search the optional six-level browser catalog. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact..."
+         "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. Ordinary queries omit L1/L3 and semantically invalid tools..."
         ],
         [
          "browser_draw_part",

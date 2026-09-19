@@ -36,6 +36,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | REST Feature List CRUD (update/delete/rollback/suppress) | `test_rest_feature_list` (spec-path agreement, spec-derived response parsing, constructed `request.json` drift gate) | any live call is one separately authorized, budgeted fact |
 | FeatureScript source | `onshape_docs/query/fs_check.py` + `test_static_guards`, the `fs_check_script` protocol test, and the corpus gate | authorized upload/live compile only |
 | Whole-feature capability contract | `test_capabilities` (bounded values, no implementation in a card, symbol gate against the vendored reference, local checker, precedent equality) | dry-run, then deploy/apply/acceptance on the target host |
+| Capability discovery/retrieval (P4) | `test_capability_retrieval` (card-vs-reference cost, prose-query resolution, no dependency expansion, discovery wiring without widening exposure) | model-in-the-loop token measurement on the target host |
 | Generated references/indexes | builder and verifier `--check` | none by default |
 | Secret/redaction/fixtures | static scan + fixture inspection | never validate using real secret output |
 
@@ -49,7 +50,8 @@ python3 -m unittest dev.tests.test_quota_guards -v
 python3 -m unittest dev.tests.test_browser_mode -v
 python3 -m unittest dev.tests.test_browser_plan_completion -v
 python3 -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
-python3 -m unittest dev.tests.test_rest_feature_list dev.tests.test_capabilities -v
+python3 -m unittest dev.tests.test_rest_feature_list dev.tests.test_capabilities \
+  dev.tests.test_capability_retrieval -v
 ```
 
 `test_fs_notice_collector` runs the production notice-collector string against a

@@ -118,10 +118,10 @@ queries the *target* body; bodies that merely share a face can already be merged
 | G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI — **handlers delivered offline in P3; server confirmation still open** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; see `onshape_rest_api_mode/feature_list.py` and `test_rest_feature_list` | quota (D2) for the live half |
 | G2 | Browser leg stability under heavy iteration | D3; `browser-modeling.md` records the `not-computed` / part-count-0 failure mode and selector fragility | none (quota-free) |
 | G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof" | none |
-| G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | Existing catalog is **tool**-level; no capability-card layer exists | G1–G3 |
-| G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | Does not exist | G4 |
-| G6 | 108-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | Does not exist; candidates already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |
-| G7 | Thread geometry is the **only** real FS coverage hole | §8 | none |
+| G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | **Browser half delivered in P4**: `onshape_browser_mode/capabilities.py` (cards + bounded search) behind `browser_discover_tools`; the cross-backend contract is still open | G1–G3 |
+| G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | **Offline character benchmark delivered in P4** (`test_capability_retrieval`); no model-in-the-loop token measurement | G4 |
+| G6 | 108-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |
+| G7 | Thread geometry is the **only** real FS coverage hole | §8; `custom.spiral_ridge` is the accepted workaround, still `structural-only` for the general twist | none |
 | G8 | Route consolidation | `FS_HYBRID_COMPILER_INTEGRATION.md` and the external plan were parallel | closed by this page |
 
 `browser_wall_thickness_report` is superseded by the L6 FDM package but remains a
@@ -354,6 +354,27 @@ one complex long-tail feature.
 *Gate:* a normal capability call needs no implementation source, no recursive
 dependency expansion, and no FS docs search.
 
+Delivered offline: `capabilities.search(query, limit)` returns at most five cards
+ranked by identity -> alias/feature type -> `use_when` prose, and
+`browser_discover_tools` appends matching cards to its existing result when the
+query names a feature — no new tool, and the tool exposure levels are unchanged.
+A single incidental prose word ("feature", "part") is not a match; one weak word
+never qualifies a card on its own.
+
+`test_capability_retrieval` is the gate. It measures the two routes over the same
+indexes the server reads: for the three named queries the resolved card costs
+668–1422 characters, while the reference route costs 1862–8930 characters even
+before the caller reads the function body that defines the contract. It also
+asserts that a prose query ("round the edges of this part") resolves to
+`custom.fillet` while the FeatureScript search ranks only query helpers and
+filters, that the card payload contains no source, and that resolving a card
+touches no function entry, library source or guide page.
+
+Still open for the P4 gate: the benchmark is a character measurement plus a
+mock-based expansion check, not a token measurement with a model in the loop, and
+it cannot show that a caller *would* stop reading after the card. The
+"one capability call = one card" claim is proven for the offline route only.
+
 **P5 — Tool surface audit (G6).** Produce `Keep` / `Merge` / `Internal-only` /
 `Capability` / `Remove` for all **108** tools. Classification only; no mass
 refactor in this phase.
@@ -395,7 +416,7 @@ Compose checks from `../verification/MATRIX.md`; do not invent new gates.
 | Browser leg (P1, P2) | browser-mode tests, browser plan completion tests; real browser work only after mock/fixture/dry-run, read-only selector verification, stated cloud mutation, confirmation, domain-state verification |
 | FeatureScript source (P2, P6) | `fs_local_check.py` plus matching static tests; authorized upload/live compile only |
 | REST operations (P3) | quota guards; explicitly budgeted live fact only |
-| Capability cards (P4) | offline tests for card resolution and closed-closure behavior |
+| Capability cards (P4) | `test_capabilities` (contract, symbols, precedent), `test_capability_retrieval` (card-vs-reference cost, no expansion, discovery wiring) |
 | Tool surface (P5) | MCP, runtime-prompt, and generated-reference `--check` |
 
 Never claim an unexecuted check passed.

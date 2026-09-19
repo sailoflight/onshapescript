@@ -202,6 +202,24 @@
 - 卡片（`capabilities.cards()`）只含身份、`useWhen`、参数与验证状态，**不含实现**；
   实现只在 dry-run 预览里为人工审阅而出现。
 
+**怎么找到能力（发现路线）**
+
+`browser_discover_tools(query=...)` 在返回工具候选的同时，会把匹配的**能力卡片**
+附在 `capabilities` 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。
+`capabilities.search(query, limit)` 最多返回 5 张卡，排序为
+身份（id / 别名）→ 特征类型 → `use_when` 散文；单个偶然的散文词（"feature"、
+"part"）不足以命中，只有一个弱词也不算匹配。
+
+`dev/tests/test_capability_retrieval.py` 是这条路的门：
+- 卡片路线的载荷是 668–1422 字符；同一条查询走参考索引要 1862–8930 字符，而且**还没
+  读完**定义契约的那个函数体。
+- "round the edges of this part" 这种意图式查询能解析到 `custom.fillet`，而
+  FeatureScript 搜索只会排出一堆 query helper / filter —— 卡片层的价值不只是省字符。
+- 卡片载荷里没有任何源码；解析一张卡不会触碰 `get_function` / `library_source` /
+  `guide_section`（测试用 mock 断言这三者零调用）。
+- 这是**字符**测量，不是带模型 loop 的 token 测量；"调用方读完卡片就停"没有被证明，
+  只证明了离线路线不需要实现源码。
+
 **每个模板只用 vendored 参考里确实存在的符号**
 
 `dev/tests/test_capabilities.py` 会从生成的 FeatureScript 里抽出所有调用名、

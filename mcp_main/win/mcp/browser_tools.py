@@ -1083,15 +1083,23 @@ def browser_discover_tools(arguments: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(include_schema, bool):
         raise ValueError("include_schema must be a boolean")
     from mcp_main.win.mcp import server
+    from onshape_browser_mode import capabilities
     from onshape_browser_mode.semantics import discover_tools
 
-    return discover_tools(
+    result = discover_tools(
         server.TOOLS,
         query=query,
         semantic_levels=levels,
         limit=limit,
         include_schema=include_schema,
     )
+    # A whole-feature job is one capability card, not a tool name the caller has
+    # to assemble from an implementation they never wanted to read.
+    if query:
+        matches = capabilities.search(query, limit=3)
+        if matches:
+            result["capabilities"] = matches
+    return result
 
 
 def browser_invoke_discovered(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1173,7 +1181,7 @@ _BLEND_STAGE = {"type": "object", "properties": {"operation": {"type": "string",
 
 
 BROWSER_TOOLS = [
-    _tool("browser_discover_tools", "Search the optional six-level browser catalog. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact schemas. Classification guides discovery only and grants no execution authority.", {"query": {"type": "string", "default": ""}, "semantic_levels": {"type": "array", "items": {"type": "string", "enum": ["L1", "L2", "L3", "L4", "L5", "L6"]}, "uniqueItems": True, "maxItems": 6}, "limit": {"type": "integer", "minimum": 1, "maximum": 12, "default": 8}, "include_schema": {"type": "boolean", "default": True}}, mutating=False, seconds=1, network="offline"),
+    _tool("browser_discover_tools", "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact schemas. Classification guides discovery only and grants no execution authority.", {"query": {"type": "string", "default": ""}, "semantic_levels": {"type": "array", "items": {"type": "string", "enum": ["L1", "L2", "L3", "L4", "L5", "L6"]}, "uniqueItems": True, "maxItems": 6}, "limit": {"type": "integer", "minimum": 1, "maximum": 12, "default": 8}, "include_schema": {"type": "boolean", "default": True}}, mutating=False, seconds=1, network="offline"),
     _tool("browser_invoke_discovered", "Invoke one browser tool returned by browser_discover_tools. Nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative; this gateway does not grant permission or bypass a handler gate.", {"name": {"type": "string"}, "arguments": {"type": "object", "additionalProperties": True}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["name", "arguments"]),
     _tool("browser_export_step", "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP result, and persist a browser-owned step-manifest with SHA/provenance. Zero REST quota. Actual UI/download execution requires confirm_mutation=true; dry_run is local.", {"source_tab": {"type": "string"}, "export_id": {"type": "string"}, "document_id": {"type": "string"}, "workspace_id": {"type": "string"}, "element_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 30000, "maximum": 300000, "default": 120000}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=180, required=["source_tab", "export_id", "document_id", "workspace_id", "element_id"]),
     _tool("browser_geometry_status", "Report browser-mode non-slicer geometry backend readiness without starting the browser or revealing executable paths. If the configured backend is unavailable, perform a bounded search of sibling project virtual environments, global Python environments, and the Windows/WSL counterpart. Reusable versioned candidates are returned by opaque ID; when none exist, agents are instructed to ask before installation. Never installs automatically.", {}, mutating=False, seconds=90, network="offline"),

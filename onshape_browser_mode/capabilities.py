@@ -27,6 +27,7 @@ acceptance require the real machine and are not claimed here.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
@@ -345,6 +346,72 @@ def resolve(name: str) -> Capability:
 def cards() -> list[dict[str, Any]]:
     """Every capability card: identity, contract, routing, no implementation."""
     return [capability.card() for capability in CAPABILITIES]
+
+
+# Query tokens that match nothing on their own, so a search for "make a fillet
+# on this part" ranks the fillet card rather than whichever card mentions "make".
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "on", "in", "to", "for", "this", "that", "and", "or", "with",
+    "make", "add", "of", "it", "its", "is", "by", "at", "from", "into", "as",
+})
+
+
+def _tokens(query: str) -> list[str]:
+    return [
+        token for token in re.split(r"[^0-9a-zA-Z\u4e00-\u9fff]+", query.lower())
+        if token and token not in _STOP_WORDS
+    ]
+
+
+def _words(text: str) -> set[str]:
+    """Whole words only: "no" must not match "normal" in a card's prose."""
+    return {word for word in re.split(r"[^0-9a-zA-Z\u4e00-\u9fff]+", text.lower()) if word}
+
+
+def search(query: str, limit: int = 3) -> list[dict[str, Any]]:
+    """Bounded card search: identity, contract and routing, never implementation.
+
+    Ranking is deliberately simple and inspectable -- an exact id or alias beats
+    a `use_when` word match -- because the point of the card layer is that a
+    normal call needs no implementation source and no recursive expansion.
+    """
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 5:
+        raise CapabilityError("limit must be an integer from 1 through 5")
+    tokens = _tokens(query if isinstance(query, str) else "")
+    if not tokens:
+        return []
+    matches: list[dict[str, Any]] = []
+    for capability in CAPABILITIES:
+        strong = {capability.id.lower(), capability.id.split(".", 1)[-1].lower(),
+                  *(alias.lower() for alias in capability.aliases)}
+        strong.discard("")
+        middle_words = _words(f"{capability.feature_type} {capability.export_name}")
+        middle_words.discard("")
+        weak_words = _words(f"{capability.use_when} {capability.notes}")
+        weak_words.discard("")
+        score = 0
+        strong_hits = middle_hits = weak_hits = 0
+        matched: list[str] = []
+        for token in tokens:
+            if token in strong or (len(token) >= 4 and any(token in item for item in strong)):
+                score += 6 if token in strong else 3
+                strong_hits += 1
+            elif token in middle_words:
+                score += 2
+                middle_hits += 1
+            elif token in weak_words:
+                score += 1
+                weak_hits += 1
+            else:
+                continue
+            matched.append(token)
+        # One incidental prose word ("feature", "part") is not a match; naming a
+        # capability, an alias, or its feature type is.
+        if not matched or not (strong_hits or middle_hits or weak_hits >= 2):
+            continue
+        matches.append({"card": capability.card(), "score": score, "matchedOn": matched})
+    matches.sort(key=lambda item: (-item["score"], item["card"]["id"]))
+    return matches[:limit]
 
 
 def plan(name: str, values: Mapping[str, Any] | None = None) -> dict[str, Any]:
