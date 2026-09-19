@@ -55,6 +55,7 @@ def geometry_backend_status(
     discovery.pop("_candidates", None)
     if discovery["nextAction"]["kind"] == "configure_existing":
         discovery["nextAction"]["tool"] = "onshape_configure_geometry_backend"
+        discovery["nextAction"]["backend"] = "rest"
     status["dependencyResolution"] = discovery
     return status
 

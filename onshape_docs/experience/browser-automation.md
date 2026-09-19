@@ -70,9 +70,9 @@ transaction → L6 deliverable recipe 排序。这样先复用完成的多事务
 独立 artifact/manifest/retry 边界时才选择 L6。L1/L3 为减少
 普通上下文默认不暴露，但并非隐藏知识：开发、异常恢复或人工辅助需要时调用
 `browser_discover_tools` 并显式传 `semantic_levels=["L1"]` 或
-`semantic_levels=["L3"]`，再通过 `browser_invoke_discovered` 按返回 schema 调用；不
-要求额外 `intent` 参数。gateway 不绕过确认、成本或 handler 验收。未分类工具继续
-有效并默认可见；`ONSHAPE_MCP_TOOL_EXPOSURE=static` 保留完整列表兼容模式。当前审阅
+`semantic_levels=["L3"]`，再按返回的**精确注册名**直接调用（`mcp_tool_catalog`
+同样返回精确名与完整 schema）；没有单独的 invocation gateway 需要绕，发现步骤也
+不绕过确认、成本或 handler 验收。未分类工具继续有效并默认可见；`ONSHAPE_MCP_TOOL_EXPOSURE=static` 保留完整列表兼容模式。当前审阅
 元数据和非阻断 lint 在
 `onshape_browser_mode/semantics.py`。
 
@@ -85,9 +85,9 @@ Operator 以 `ONSHAPE_MCP_TOOL_EXPOSURE=dynamic` 启动；client 在 initialize 
 `notifications/tools/list_changed` 后重新请求并**替换** `tools/list`，不能在旧列表上追加。
 `reset` 回到该连接启动时的 profile；重新连接创建独立的新 view。
 
-窄化 browser semantic levels 时必须常驻 `browser_session`、
-`browser_discover_tools` 和 `browser_invoke_discovered`，否则 agent 难以观察、继续发现或
-恢复视图。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用
+窄化 browser semantic levels 时必须常驻 `browser_session` 和
+`browser_discover_tools`，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的
+兼容名不常驻，只能按精确名调用。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用
 固定 `semantic`/`profile` 或 discovery gateway，不要把“未展示”解释为“禁止”。
 
 ### 3.3 跨模块工具目录约定
@@ -173,7 +173,8 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - 长时间不操作后出现，文本：「您的 Onshape 会话已超时。 您的文档已保存。 单击此处重新连接。」
 - 重连链接：`a.alert-link.osx-message-bubble-link`（文本「单击此处重新连接。」）
 - 容器：`.osx-message`；关闭按钮：`.osx-close`
-- `browser_reconnect` 会检测并点击该链接恢复会话；`browser_open_document` /
+- `browser_session(action="reconnect")` 会检测并点击该链接恢复会话（旧的
+  `browser_reconnect` 名字仍可用，但只是兼容包装）；`browser_open_document` /
   `browser_read_featurescript` / `browser_deploy_featurescript` 在执行前自动重连。
 - 实测：点击后弹窗消失，页面回到原文档 URL。
 
@@ -347,8 +348,8 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   iframe 内。
 - 后续要操作工程图，需要 frame-aware 工具（Playwright `page.frames` 按 URL 匹配
   目标 frame，再在其内部 locator），或在 bridge 内以 CDP 访问。
-- 工程图加载慢：`正在加载工程图…` 长时间不消失时可 `browser_reload`（或
-  `location.reload()`）刷新；若源 Part Studio 已被删除，工程图会一直卡在加载。
+- 工程图加载慢：`正在加载工程图…` 长时间不消失时可 `browser_session(action="reload")`
+  （或 `location.reload()`）刷新；若源 Part Studio 已被删除，工程图会一直卡在加载。
 
 
 ## 10. Frame-aware 通用操作
@@ -385,7 +386,7 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   SHA-256；只有对应读回条件满足时，高层工具才返回 `assembled:true` / `drawn:true`。
 - 2026-08-25 的 app-shell / Drawing 只读扫描记录在
   `dev/button-map/scan-app-shell.json`。Drawing 的实际四视图位于 canvas 内，DOM
-  view selector 返回 0；`browser_drawing_insert_views` 因此还要求恰好一个新 tab，
+  view selector 返回 0；`browser_draw_part_with_views` 的视图阶段因此还要求恰好一个新 tab，
   并解码 main-canvas PNG，排除图框/标题栏后检查主体墨迹比例和空间集中度。
   实测 1240×694 fixture 中有四个投影视图，证据图为
   `dev/button-map/scan-drawing-four-views.png`。不可见的 preview/drawer 候选仍标记

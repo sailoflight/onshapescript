@@ -15,6 +15,13 @@ from typing import Any, Callable
 # browser module to find out that it needs a second confirmation.
 from onshape_docs.query import fs_check
 
+# The one surviving entry point for a Drawing transaction. The two absorbed
+# drawing names still work, but advice and discovery must point here.
+DRAWING_SURVIVOR = "browser_draw_part_with_views"
+# The absorbed invoker's survivor is the registry index: it names the exact tool
+# to call, and the transport calls it. See browser_invoke_discovered.
+INVOKE_SURVIVOR = "mcp_tool_catalog"
+
 
 def _confirm(arguments: dict[str, Any]) -> None:
     if arguments.get("confirm_mutation") is not True:
@@ -408,41 +415,62 @@ def browser_view_orientation(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def browser_drawing_insert_views(arguments: dict[str, Any]) -> dict[str, Any]:
-    part_name = arguments.get("part_name", "")
-    layout = arguments.get("view_layout", "four")
-    if not isinstance(part_name, str) or not part_name.strip():
-        raise ValueError("part_name is required")
-    if layout not in {"four", "single", "iso"}:
-        raise ValueError("view_layout must be four, single, or iso")
-    preview = _mutation_plan("browser_drawing_insert_views", arguments, ["open exact Part Studio", "open exact part context menu", "select drawing layout", "accept", "verify drawing-view geometry"])
-    if preview:
-        return preview
-    page, _ = _page()
-    from onshape_browser_mode.modeling_transactions import drawing_insert_views
-    return drawing_insert_views(page, part_name=part_name.strip(), view_layout=layout, part_studio_tab=arguments.get("part_studio_tab", ""), template=arguments.get("template", ""))
+    """Deprecated compatibility wrapper: views-only stage of one drawing job.
+
+    The absorbed name keeps its own contract (`viewsInserted` and the accepted
+    view evidence) while the merged tool owns the transaction.
+    """
+    result = browser_draw_part_with_views({**arguments, "dimensions": []})
+    views = result.get("views")
+    if not isinstance(views, dict):
+        return {**result, "deprecated": True, "useInstead": DRAWING_SURVIVOR}
+    return {
+        **views,
+        "deprecated": True,
+        "useInstead": DRAWING_SURVIVOR,
+        "drawingTransaction": result.get("drawn", False),
+    }
 
 
 def browser_draw_part_with_views(arguments: dict[str, Any]) -> dict[str, Any]:
-    part_name = arguments.get("part_name", "")
+    """The one Drawing transaction: verified views, dimensions, or both.
+
+    Absorbs `browser_drawing_insert_views` (give `part_name`, no dimensions) and
+    `browser_add_drawing_dimension` (give `dimensions`, no `part_name`) because
+    "create the views" and "dimension the views" are stages of a single drawing
+    job whose acceptance evidence must be read together.
+    """
+    raw_part_name = arguments.get("part_name", "")
+    part_name = raw_part_name.strip() if isinstance(raw_part_name, str) else ""
     layout = arguments.get("view_layout", "four")
-    if not isinstance(part_name, str) or not part_name.strip():
-        raise ValueError("part_name is required")
-    if layout not in {"four", "single", "iso"}:
-        raise ValueError("view_layout must be four, single, or iso")
     dimensions = arguments.get("dimensions")
-    if not isinstance(dimensions, list) or not dimensions:
-        raise ValueError("dimensions must be a non-empty array; use browser_drawing_insert_views for views only")
+    if dimensions is None:
+        dimensions = []
+    if not isinstance(dimensions, list):
+        raise ValueError("dimensions must be an array")
+    if part_name and layout not in {"four", "single", "iso"}:
+        raise ValueError("view_layout must be four, single, or iso")
+    if not part_name and not dimensions:
+        raise ValueError(
+            "provide part_name to insert verified views, dimensions to add to the current drawing, or both"
+        )
     normalized = []
     for index, dimension in enumerate(dimensions):
         if not isinstance(dimension, dict):
             raise ValueError(f"dimensions[{index}] must be an object")
         normalized.append(_normalize_dimension(dimension, f"dimensions[{index}]"))
-    preview = _mutation_plan("browser_draw_part_with_views", arguments, ["insert verified drawing views", "add requested dimensions", "require every stage acceptance"])
+    stages = []
+    if part_name:
+        stages.append("insert verified drawing views")
+    if normalized:
+        stages.append("add requested dimensions")
+    stages.append("require every stage acceptance")
+    preview = _mutation_plan("browser_draw_part_with_views", arguments, stages)
     if preview:
         return preview
     page, _ = _page()
     from onshape_browser_mode.modeling_transactions import draw_part_with_views
-    return draw_part_with_views(page, part_name=part_name.strip(), view_layout=layout, part_studio_tab=arguments.get("part_studio_tab", ""), template=arguments.get("template", ""), dimensions=normalized)
+    return draw_part_with_views(page, part_name=part_name, view_layout=layout, part_studio_tab=arguments.get("part_studio_tab", ""), template=arguments.get("template", ""), dimensions=normalized)
 
 
 def browser_wall_thickness_report(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -601,13 +629,25 @@ def _normalize_dimension(arguments: dict[str, Any], label: str = "dimension") ->
 
 
 def browser_add_drawing_dimension(arguments: dict[str, Any]) -> dict[str, Any]:
-    normalized = _normalize_dimension(arguments)
-    preview = _mutation_plan("browser_add_drawing_dimension", arguments, ["resolve drawing frame", "trigger dimension tool", "select geometry", "place dimension", "verify drawing change"])
-    if preview:
-        return preview
-    page, _ = _page()
-    from onshape_browser_mode.semantic import add_drawing_dimension
-    return add_drawing_dimension(page, **normalized)
+    """Deprecated compatibility wrapper: dimension stage of one drawing job.
+
+    The absorbed name keeps its single-dimension contract (flat tool/geometry/
+    placement arguments) while the merged tool owns the transaction.
+    """
+    result = browser_draw_part_with_views({
+        "dimensions": [arguments],
+        "dry_run": arguments.get("dry_run", False),
+        "confirm_mutation": arguments.get("confirm_mutation", False),
+    })
+    added = result.get("dimensions")
+    if not isinstance(added, list) or not added:
+        return {**result, "deprecated": True, "useInstead": DRAWING_SURVIVOR}
+    return {
+        **added[0],
+        "deprecated": True,
+        "useInstead": DRAWING_SURVIVOR,
+        "drawingTransaction": result.get("drawn", False),
+    }
 
 
 def browser_delete_element(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -822,7 +862,7 @@ def browser_draw_part(arguments: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("source_tab is required")
     dimensions = arguments.get("dimensions")
     if not isinstance(dimensions, list) or not dimensions:
-        raise ValueError("dimensions must be a non-empty array; use browser_drawing_insert_views for views only")
+        raise ValueError("dimensions must be a non-empty array; use browser_draw_part_with_views for a verified drawing job")
     normalized_dimensions = []
     for index, dimension in enumerate(dimensions):
         if not isinstance(dimension, dict):
@@ -984,21 +1024,47 @@ def browser_capture_screenshot(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def browser_geometry_status(arguments: dict[str, Any]) -> dict[str, Any]:
-    from onshape_browser_mode.geometry import browser_geometry_status as status
+    """Deprecated compatibility wrapper: readiness is one combined answer now.
 
-    return status()
+    The absorbed name was the *browser* half, so its own fields stay the browser
+    report -- a caller reading `ready`/`configured` must not silently start reading
+    the REST backend. The combined answer rides beside them under
+    `combinedReadiness`, and the surviving name reports it directly.
+    """
+    from mcp_main.win.mcp import server
+
+    survivor = server.GEOMETRY_STATUS_SURVIVOR
+    combined = server.HANDLERS[survivor](arguments)
+    backends = combined.get("backends")
+    browser = backends.get("browser") if isinstance(backends, dict) else None
+    if not isinstance(browser, dict):
+        return {**combined, "deprecated": True, "useInstead": survivor}
+    return {
+        **browser,
+        "deprecated": True,
+        "useInstead": survivor,
+        "combinedReadiness": {
+            "ready": combined.get("ready"),
+            "configuredBackends": combined.get("configuredBackends"),
+        },
+    }
 
 
 def browser_configure_geometry_backend(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Deprecated compatibility wrapper for the browser half of one command.
+
+    The surviving command takes an explicit `backend`; this name keeps its old
+    browser-only contract by supplying it, so an existing caller cannot silently
+    start configuring the other mode.
+    """
     candidate_id = arguments.get("candidate_id")
     if not isinstance(candidate_id, str) or not candidate_id.strip():
         raise ValueError("candidate_id is required")
-    from onshape_browser_mode.geometry import configure_browser_geometry_backend
+    from mcp_main.win.mcp import server
 
-    if arguments.get("dry_run"):
-        return configure_browser_geometry_backend(candidate_id, dry_run=True)
-    _confirm(arguments)
-    return configure_browser_geometry_backend(candidate_id)
+    survivor = server.GEOMETRY_CONFIGURE_SURVIVOR
+    result = server.HANDLERS[survivor]({**arguments, "backend": "browser"})
+    return {**result, "deprecated": True, "useInstead": survivor, "backend": "browser"}
 
 
 def browser_build_geometry_package(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1062,14 +1128,25 @@ def browser_discover_tools(arguments: dict[str, Any]) -> dict[str, Any]:
     )
     # A whole-feature job is one capability card, not a tool name the caller has
     # to assemble from an implementation they never wanted to read. The card
-    # carries its own invocation, because a capability is NOT invoked through
-    # `browser_invoke_discovered`: it is an argument to the deploy tool.
+    # carries its own invocation, because a capability is not a registered tool
+    # at all: it is an argument to the deploy tool.
     if query:
         result.update(capability_section(query, limit=3))
     return result
 
 
 def browser_invoke_discovered(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Deprecated compatibility wrapper for the discover-then-invoke hop.
+
+    The capability this claimed is the transport's own: `mcp_tool_catalog`
+    returns the exact registered name (and its full schema), and any registered
+    tool can then be called by that exact name even when the current view hides
+    it. So this envelope adds a hop without adding capability, and the merge is
+    that there is no separate invocation entry point -- not that discovery gained
+    a way to execute. Kept working for callers that already encode it, with the
+    authority story unchanged: the dispatched handler's own dry-run, mutation
+    confirmation, pacing, and acceptance gates remain authoritative.
+    """
     name = arguments.get("name", "")
     nested = arguments.get("arguments", {})
     if not isinstance(name, str) or not name.startswith("browser_"):
@@ -1091,7 +1168,12 @@ def browser_invoke_discovered(arguments: dict[str, Any]) -> dict[str, Any]:
     result = handler(forwarded)
     if not isinstance(result, dict):
         raise ValueError("discovered browser handler returned a non-object result")
-    return {"invokedTool": name, "result": result}
+    return {
+        "invokedTool": name,
+        "result": result,
+        "deprecated": True,
+        "useInstead": INVOKE_SURVIVOR,
+    }
 
 
 def _schema(
@@ -1158,10 +1240,10 @@ _DIMENSION_PROPERTIES = {"tool_selector": {"type": "string", "default": ""}, "ge
 
 BROWSER_TOOLS = [
     _tool("browser_discover_tools", "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. A matching card also carries the exact deploy call that uses it, because a capability is an argument to browser_deploy_and_apply_featurescript rather than a gateway invocation. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact schemas. Classification guides discovery only and grants no execution authority.", {"query": {"type": "string", "default": ""}, "semantic_levels": {"type": "array", "items": {"type": "string", "enum": ["L1", "L2", "L3", "L4", "L5", "L6"]}, "uniqueItems": True, "maxItems": 6}, "limit": {"type": "integer", "minimum": 1, "maximum": 12, "default": 8}, "include_schema": {"type": "boolean", "default": True}}, mutating=False, seconds=1, network="offline"),
-    _tool("browser_invoke_discovered", "Invoke one browser tool returned by browser_discover_tools. Nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative; this gateway does not grant permission or bypass a handler gate.", {"name": {"type": "string"}, "arguments": {"type": "object", "additionalProperties": True}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["name", "arguments"]),
+    _tool("browser_invoke_discovered", "Deprecated compatibility wrapper: call the registered tool by the exact name that mcp_tool_catalog returns. It invokes one browser tool from the discovery catalog; nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative and this gateway grants no permission and bypasses no handler gate. The hop is preserved for existing callers only.", {"name": {"type": "string"}, "arguments": {"type": "object", "additionalProperties": True}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["name", "arguments"]),
     _tool("browser_export_step", "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP result, and persist a browser-owned step-manifest with SHA/provenance. Zero REST quota. Actual UI/download execution requires confirm_mutation=true; dry_run is local.", {"source_tab": {"type": "string"}, "export_id": {"type": "string"}, "document_id": {"type": "string"}, "workspace_id": {"type": "string"}, "element_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 30000, "maximum": 300000, "default": 120000}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=180, required=["source_tab", "export_id", "document_id", "workspace_id", "element_id"]),
-    _tool("browser_geometry_status", "Report browser-mode non-slicer geometry backend readiness without starting the browser or revealing executable paths. If the configured backend is unavailable, perform a bounded search of sibling project virtual environments, global Python environments, and the Windows/WSL counterpart. Reusable versioned candidates are returned by opaque ID; when none exist, agents are instructed to ask before installation. Never installs automatically.", {}, mutating=False, seconds=90, network="offline"),
-    _tool("browser_configure_geometry_backend", "Configure browser mode from one opaque candidate_id returned by browser_geometry_status. The candidate is re-discovered before writing, so callers cannot supply an executable or argv. dry_run previews the selection; actual local configuration requires confirm_mutation=true. Never installs dependencies.", {"candidate_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["candidate_id"], network="offline"),
+    _tool("browser_geometry_status", "Deprecated compatibility wrapper: use onshape_geometry_status, which reports every configured backend in one answer. Kept so an existing caller keeps working; it delegates and returns the same report.", {}, mutating=False, seconds=90, network="offline"),
+    _tool("browser_configure_geometry_backend", "Deprecated compatibility wrapper: use onshape_configure_geometry_backend with backend='browser'. Kept so an existing caller cannot silently start configuring the other mode. The candidate is re-discovered before writing, so callers cannot supply an executable or argv. dry_run previews the selection; actual local configuration requires confirm_mutation=true.", {"candidate_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["candidate_id"], network="offline"),
     _tool("browser_build_geometry_package", "Build an offline L6 geometry-analysis package from one browser-owned STEP export manifest. The executable and argv come only from browser module configuration; MCP may select only export_id. Re-verifies STEP provenance/SHA and writes STEP/STL/reports/manifest without browser, REST, or Bambu calls.", {"export_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=360, required=["export_id"], network="offline"),
     _tool("browser_get_fs_compile_status", "Read the active FeatureScript Ace annotations plus the FeatureScript notice pane and report compiled status, every message of each notice, a self-labeled normalized code per diagnostic, and counts. Read-only and zero REST API quota.", {}, mutating=False, seconds=10),
     _tool("browser_fs_read_notices", "Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows with all message paragraphs, and restore the prior pane state. Read-only UI observation and zero REST API quota.", {}, mutating=False, seconds=10),
@@ -1182,8 +1264,8 @@ BROWSER_TOOLS = [
     _tool("browser_notifications_status", "Read the notification badge count and optionally open and read the notification drawer.", {"open_drawer": {"type": "boolean", "default": False}}, mutating=False, seconds=10),
     _tool("browser_share_document", "Open the document share dialog and return its visible text without changing permissions.", {}, mutating=False, seconds=10),
     _tool("browser_view_orientation", "Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes.", {"orientation": {"type": "string", "enum": ["current", "front", "back", "top", "bottom", "left", "right", "isometric"], "default": "current"}}, mutating=False, seconds=10),
-    _tool("browser_drawing_insert_views", "Create a drawing from an exact Part Studio part row, select a semantic view layout, and require drawing-view geometry evidence.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=60, required=["part_name"]),
-    _tool("browser_draw_part_with_views", "Create verified drawing views from a part, add one or more requested dimensions, and fail if any stage lacks acceptance evidence. Use browser_drawing_insert_views when dimensions are not required.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120, required=["part_name", "dimensions"]),
+    _tool("browser_drawing_insert_views", "Deprecated compatibility wrapper: use browser_draw_part_with_views with part_name and no dimensions. Kept so an existing caller keeps working; it creates a drawing from an exact Part Studio part row, selects a semantic view layout, requires drawing-view geometry evidence, and returns that view evidence.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=60, required=["part_name"]),
+    _tool("browser_draw_part_with_views", "The one Drawing transaction: create verified drawing views from an exact part row, add dimensions to the current Drawing frame, or both in one verified job (give part_name, dimensions, or both; supplying neither is a refusal). Every requested stage must produce acceptance evidence or the transaction fails. Absorbs the former browser_drawing_insert_views and browser_add_drawing_dimension.", {"part_name": {"type": "string", "default": ""}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "default": [], "description": "Dimensions to add to the current Drawing frame; one entry per dimension gesture."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120),
     _tool("browser_wall_thickness_report", "Read sampled browser measurements for a named body, report the minimum in millimeters, and never claim an unverified global minimum.", {"body_name": {"type": "string"}, "minimum_allowed_mm": {"type": "number", "exclusiveMinimum": 0}, "samples": {"type": "array", "items": {"type": "string"}, "maxItems": 32, "default": []}}, mutating=False, seconds=15, required=["body_name", "minimum_allowed_mm"]),
     _tool("browser_apply_blend", "Apply a fillet, chamfer, or draft to semantic targets and require amount readback plus an exact new error-free history row.", {"operation": {"type": "string", "enum": ["fillet", "chamfer", "draft"], "default": "fillet"}, "targets": _STRING_ARRAY, "amount": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["targets", "amount"]),
     _tool("browser_spiral_ridge", "Generate bounded helix+sweep FeatureScript, deploy and apply it through the browser, and verify the resulting feature and part.", {"base_radius_mm": {"type": "number", "minimum": 0.1, "maximum": 10000}, "pitch_mm": {"type": "number", "minimum": 0.1, "maximum": 10000}, "ridge_width_mm": {"type": "number", "minimum": 0.05, "maximum": 1000}, "ridge_height_mm": {"type": "number", "minimum": 0.05, "maximum": 1000}, "length_mm": {"type": "number", "minimum": 0.1, "maximum": 100000}, "clockwise": {"type": "boolean", "default": True}, "feature_studio_tab": {"type": "string", "default": "Spiral ridge FS"}, "part_studio_tab": {"type": "string", "default": "Spiral ridge PS"}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120, required=["base_radius_mm", "pitch_mm", "ridge_width_mm", "ridge_height_mm", "length_mm"]),
@@ -1195,12 +1277,12 @@ BROWSER_TOOLS = [
     _tool("browser_fix_instances", "Multi-select named Assembly instances and invoke the 固定 context action.", {"instance_names": _STRING_ARRAY, "assembly_tab": {"type": "string", "default": ""}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["instance_names", "instance_selector"]),
     _tool("browser_group_instances", "Multi-select named Assembly instances and invoke the 分组 toolbar action.", {"instance_names": _STRING_ARRAY, "assembly_tab": {"type": "string", "default": ""}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["instance_names", "instance_selector"]),
     _tool("browser_create_drawing", "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["source_tab"]),
-    _tool("browser_add_drawing_dimension", "Run a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verify a selector-count or canvas-image change.", {**_DIMENSION_PROPERTIES, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20),
+    _tool("browser_add_drawing_dimension", "Deprecated compatibility wrapper: use browser_draw_part_with_views with a one-entry dimensions array (flat tool/geometry/placement arguments are normalized the same way). Kept so an existing caller keeps working; it runs a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verifies a selector-count or canvas-image change.", {**_DIMENSION_PROPERTIES, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20),
     _tool("browser_delete_element", "Delete a visible document element by its tab data-id and verify that the tab disappears.", {"element_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["element_id"], destructive=True),
     _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with bounded `values` and no script; a capability generates its own source, name, and local check.", {"script": {"type": "string"}, "capability": {"type": "string", "description": "Capability id or alias, e.g. custom.fillet or 圆角. Mutually exclusive with script."}, "values": {"type": "object", "description": "Bounded capability values; unknown names and out-of-range numbers are refused."}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM, fs_check.ACKNOWLEDGEMENT_ARGUMENT: _ACKNOWLEDGE}, mutating=True, seconds=90, required=[], destructive=True, schema_extra={"anyOf": [{"required": ["script", "feature_name"]}, {"required": ["capability"]}]}),
     _tool("browser_build_part", "Ensure a Part Studio, apply a custom feature, and return normalized part count and names.", {"feature_name": {"type": "string"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"]),
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),
-    _tool("browser_draw_part", "Deprecated compatibility workflow: create a generic Drawing from a source tab and add one or more dimensions. It rejects empty dimensions before mutation; prefer browser_drawing_insert_views or browser_draw_part_with_views for verified part views.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab", "dimensions"]),
+    _tool("browser_draw_part", "Deprecated compatibility workflow: create a generic Drawing from a source tab and add one or more dimensions. It rejects empty dimensions before mutation; prefer browser_draw_part_with_views for a verified part-row drawing job.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab", "dimensions"]),
     _tool("browser_run_project", "Execute a validated browser project with checkpoints and resume. Legacy v1 runs flat steps; v2 runs setup plus a DAG of one or more independently asserted L6 deliverables and records a manifest for each accepted node.", {"project": {"type": "string", "default": "module-interface-verification"}, "resume": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=600),
     _tool("browser_capture_screenshot", "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; zero REST API quota; consumes one real browser action subject to the pacing guard.", {"selector": {"type": "string", "default": "", "description": "CSS selector scoped to one element's bounding box; empty captures the whole viewport."}, "frame_url": _FRAME, "index": {"type": "integer", "default": 0, "minimum": 0}, "full_page": {"type": "boolean", "default": False, "description": "Capture the whole scrollable page instead of the viewport."}, "output_dir": {"type": "string", "default": "dev/screenshots", "description": "Relative (or repo-rooted) output directory; must stay inside the repository root."}, "filename": {"type": "string", "default": "", "description": "PNG basename; a UTC timestamp is appended when empty."}, "data_url": {"type": "boolean", "default": False, "description": "Also return the image as a base64 data URL."}, "dry_run": _DRY}, mutating=False, seconds=10),
 ]

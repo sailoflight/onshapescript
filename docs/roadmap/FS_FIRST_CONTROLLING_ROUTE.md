@@ -102,7 +102,7 @@ List, human takeover at any point, cloud collaboration.
 | Claim from the research plan | Actual state | Evidence |
 |---|---|---|
 | "~80 MCP tools" | **106** — `browser`=66, `rest_operations`=18, `featurescript`=11, `rest_reference`=6, `project_docs`=3, `other`=2 (108 before the 2026-09-19 print-tool archive) | `docs/generated/TOOL_REFERENCE.md` summary block |
-| Capability Registry + bounded capability search (plan H3/H4) | **Implemented** | `mcp_tool_catalog` (bounded search, exact describe only, never returns every schema), `mcp_tool_view`, `browser_discover_tools`, `browser_invoke_discovered` |
+| Capability Registry + bounded capability search (plan H3/H4) | **Implemented** | `mcp_tool_catalog` (bounded search, exact describe only, never returns every schema), `mcp_tool_view`, `browser_discover_tools` |
 | Target chain `small fixed entry -> module -> capability -> level -> bounded candidates -> exact schema` | **Implemented and documented** | `DYNAMIC_TOOL_DISCOVERY.md` (Status: implemented) |
 | Six-level browser semantics | **Implemented** | `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`; `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=7, `L6`=1 |
 | REST inserts a Custom Feature instance | **Implemented and live-verified** | `onshape_rest_api_mode/operations.py` `instantiate_feature` -> POST `/api/v9/partstudios/d/{did}/w/{wid}/e/{eid}/features` + `BTFeatureDefinitionCall-1406`; refuses non-`OK` `featureStatus` |
@@ -125,7 +125,7 @@ queries the *target* body; bodies that merely share a face can already be merged
 | G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof". The reuse survey and the offline/machine split now live in `architecture/FS_VALIDATION_STRATEGY.md`: no offline reusable FS analyzer was found, so the structural checker stays and an external one would be a detected candidate, never an installed dependency | none |
 | G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | **Browser half delivered in P4**: `onshape_browser_mode/capabilities.py` (cards + bounded search) behind `browser_discover_tools`; the cross-backend contract is still open | G1–G3 |
 | G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | **Offline character benchmark delivered in P4** (`test_capability_retrieval`); no model-in-the-loop token measurement | G4 |
-| G6 | Surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) over the then-108-tool registry, now 106 | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference. Follow-up 1 executed 2026-09-19: the two `semantically_invalid` print stubs were archived (see `history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`) and the two high-risk names were reclassified `Internal-only`, so `Remove` is now 0 | none |
+| G6 | Surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) over the then-108-tool registry, now 106 | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference. Follow-ups executed 2026-09-19: the two `semantically_invalid` print stubs were archived (see `history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`) and the two high-risk names were reclassified `Internal-only`, so `Remove` is 0; then all eight `Merge` rows were executed as compatibility wrappers, so `Merge` is 0 and the ordinary `tools/list` is 72 | none |
 | G7 | Thread geometry is the **only** real FS coverage hole | §8; `custom.spiral_ridge` is the accepted workaround, still `structural-only` for the general twist | none |
 | G8 | Route consolidation | `FS_HYBRID_COMPILER_INTEGRATION.md` and the external plan were parallel | closed by this page |
 
@@ -408,8 +408,8 @@ can still resolve a card.
 A single incidental prose word ("feature", "part") is not a match; one weak word
 never qualifies a card on its own. Each match carries the deploy call that uses
 it — `browser_deploy_and_apply_featurescript` with `capability` and the card's own
-defaults as `values` — because the gateway route in the same result
-(`browser_invoke_discovered`) is not how a capability is invoked.
+defaults as `values` — because a capability is an argument to the deploy tool,
+not a registered name that any invocation route could call.
 
 `test_capability_retrieval` is the gate. It measures the two routes over the same
 indexes the server reads: for the four named queries the resolved card costs
@@ -443,8 +443,9 @@ registered survivor, a thin or placeholder reason, counts that disagree with the
 table, or a verdict that contradicts the tool's recorded exposure. The two
 `Internal-only` tools that were still default-exposed (`browser_fix_instances`,
 `browser_group_instances`) are named in the follow-ups rather than quietly
-tolerated; follow-up 2 then hid them, so the semantic `tools/list` is 80 tools
-and every `Internal-only` tool is default-hidden.
+tolerated; follow-up 2 then hid them, and follow-up 3 (the eight merges) hid the
+absorbed names too, so the semantic `tools/list` is 72 tools and every recorded
+`Internal-only` tool is default-hidden.
 
 Follow-up 1 was resolved on 2026-09-19 and the page now carries 106 rows: the two
 print-analysis stubs (`browser_print_orientation_check`,
@@ -452,12 +453,15 @@ print-analysis stubs (`browser_print_orientation_check`,
 `history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md` because they returned a
 compatibility result instead of doing their named job, while `browser_delete_tab`
 and `browser_draw_part` were reclassified `Internal-only` because the owner
-corrected the reason they are hidden — high risk, not uselessness. Verdicts are
-therefore 59 `Keep`, 28 `Internal-only`, 11 `Capability`, 8 `Merge`, 0 `Remove`.
+corrected the reason they are hidden — high risk, not uselessness. Follow-up 3
+then executed all eight `Merge` rows on the same day: every absorbed name keeps
+working as a deprecation wrapper (`deprecated` + `useInstead`) and is no longer
+advertised, so those rows became `Internal-only` too. Verdicts are therefore
+59 `Keep`, 36 `Internal-only`, 11 `Capability`, 0 `Merge`, 0 `Remove`.
 
-The audit phase itself was classification only; the archive above is the one
-follow-up since executed, so the generated reference and the runtime prompt
-changed with it.
+The audit phase itself was classification only; the archive and the merges above
+are the follow-ups since executed, so the generated reference, the runtime prompt
+and the ordinary `tools/list` changed with them.
 
 **P6 — Thread capability (G7).** First true capability-card proof, on the only
 real coverage hole.

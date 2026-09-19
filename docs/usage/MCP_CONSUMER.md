@@ -128,9 +128,9 @@ action can still mutate the cloud document and requires the tool's confirmation
 contract. Also inspect catalog `sideEffects`: screenshot/report artifacts,
 recorder state, persistent login profiles, and local caches can be written even
 when the Onshape operation itself is cloud-read-only. Prefer exact-ID
-`browser_delete_element` over the deprecated name wrapper,
-`browser_drawing_insert_views` for views only, and
-`browser_draw_part_with_views` only when one or more dimensions are required.
+`browser_delete_element` over the deprecated name wrapper, and one drawing
+transaction: `browser_draw_part_with_views` with `part_name` for verified views,
+with `dimensions` to dimension the current Drawing frame, or with both.
 
 #### Six-level browser selection
 
@@ -152,9 +152,11 @@ independent artifact/manifest boundary; do not decompose a suitable candidate in
 lower levels automatically. L1/L3 are omitted from
 ordinary discovery to save context, but their existence and purpose are not
 secret: call `browser_discover_tools` with `semantic_levels=["L1"]` or
-`semantic_levels=["L3"]`, inspect the returned exact schema, then use
-`browser_invoke_discovered`. No additional intent parameter is required, and the
-gateway does not bypass confirmation or handler acceptance. An `Internal-only`
+`semantic_levels=["L3"]`, inspect the returned exact schema, then call that
+candidate by its exact registered name; `mcp_tool_catalog` returns the same exact
+name and full schema. There is no separate invocation entry point to route
+through, and no discovery step bypasses confirmation or handler acceptance. An
+`Internal-only`
 tool is hidden the same way: `browser_fix_instances` and
 `browser_group_instances` act on a selection context that only
 `browser_assemble` establishes, so they are callable by exact name and visible
@@ -202,7 +204,8 @@ Three result-shape rules matter when routing a modeling request:
   whole-feature capability cards, each with an `invocation` naming
   `browser_deploy_and_apply_featurescript` plus the `capability` and the card's own
   default `values`. A capability is **not** a registered tool, so it never appears
-  in `results`, and it is not invoked through `browser_invoke_discovered`.
+  in `results`, and it is invoked as the deploy tool's `capability` argument,
+  not by name.
 - A non-empty query the tokenizer cannot read (Chinese, for example) matches no
   tool summary. It used to match the whole registry, which looked like a broad
   search and was a routing failure; such a query can still resolve a card.
@@ -212,9 +215,9 @@ Three result-shape rules matter when routing a modeling request:
 
 Tool display is a connection-scoped context and routing convention, never an
 authorization boundary. The complete `TOOLS`/`HANDLERS` registry remains loaded;
-a known-name `tools/call`, internal composition, and
-`browser_invoke_discovered` remain available when a tool is absent from the
-current `tools/list`. Confirmation, quota, browser pacing, cost, and acceptance
+a known-name `tools/call` and internal composition remain available when a tool
+is absent from the current `tools/list`, and the eight absorbed compatibility
+names still answer by exact name. Confirmation, quota, browser pacing, cost, and acceptance
 gates remain authoritative.
 
 Deployment modes are explicit:
@@ -228,9 +231,9 @@ Deployment modes are explicit:
 Profiles are `default`, `browser`, `rest`, `featurescript`, `documentation`,
 `geometry`, and `all`. An optional `semantic_levels` list narrows classified
 browser tools. `mcp_tool_view`, `mcp_tool_catalog`, `browser_session`,
-`browser_discover_tools`, and
-`browser_invoke_discovered` remain available as navigation/recovery surfaces in
-the relevant view.
+and `browser_discover_tools` remain available as navigation/recovery surfaces in
+the relevant view; the absorbed compatibility names do not, and are reachable
+only by exact name or through `mcp_tool_view profile=all`.
 
 Correct dynamic-client flow:
 
@@ -262,8 +265,12 @@ persists `step-manifest.json`. Use the owning mode's geometry status before its
 build tool. Status first checks explicit configuration, then performs a bounded
 sibling-project/global/Windows-WSL scan. A reusable dependency is represented by
 an opaque versioned `candidateId`; configure only through
-`browser_configure_geometry_backend` or `onshape_configure_geometry_backend`,
-which re-scans and never accepts executable/argv input. When status returns
+`onshape_configure_geometry_backend` with `backend='rest'` or
+`backend='browser'`, which re-scans and never accepts executable/argv input.
+Candidate ids come from one shared scan and are not backend-specific, so the
+target mode must be stated. `onshape_geometry_status` answers for every backend in
+one report; the old browser-only status and configure names remain callable as
+deprecated wrappers. When status returns
 `nextAction.kind=ask_before_install`, ask the human whether to install and do
 nothing until answered. Installation is never automatic. Geometry build remains
 an offline L6 recipe accepting only its staged export/translation ID.

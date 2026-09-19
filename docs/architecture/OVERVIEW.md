@@ -8,9 +8,11 @@ automation. The complete registered tool/handler surface is static, while
 `tools/list` supports fixed semantic/static/profile views and an opt-in dynamic
 per-connection view. A one-build `mcp_tool_catalog` index covers the complete
 registry independent of the current view; bounded search returns summaries and
-exact describe is the only on-demand full-schema path. Fixed browser
-discovery/invocation gateways reveal
-default-hidden L1/L3 tools on explicit level queries; dynamic mode emits
+exact describe is the only on-demand full-schema path. A fixed browser
+discovery gateway reveals default-hidden L1/L3 tools on explicit level queries and
+returns the exact registered name to call; there is no separate invocation
+gateway, and absorbed compatibility names stay callable by exact name without
+being advertised. Dynamic mode emits
 `notifications/tools/list_changed` after `mcp_tool_view` changes. Exposure is a
 context convention only: known-name dispatch and all safety gates remain unchanged.
 The ordinary stdio MCP and canonical dual-production-role runtime prompt are

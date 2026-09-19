@@ -100,7 +100,7 @@ pre-upload check that the vendored mirror cannot already give.
    the geometry backend discovers a converter: the caller selects by opaque
    candidate id, and the tool never installs one
    (`fdm_analysis/dependency_probe.py`,
-   `browser_configure_geometry_backend`). This is the mechanism for the owner's
+   `onshape_configure_geometry_backend` with `backend='browser'`). This is the mechanism for the owner's
    "reuse it if it is there" instruction; it stays unwired until a candidate is
    actually present.
 3. **A reused analyzer's findings are advisory too**, and must clear the same

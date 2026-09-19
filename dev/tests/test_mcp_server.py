@@ -90,9 +90,25 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(tool_result["exposureMode"], "semantic")
         tools = tool_result["tools"]
         names = {tool["name"] for tool in tools}
-        self.assertEqual(len(tools), 80)
+        # Tripwire: the ordinary view advertises one entry per surviving
+        # capability. Absorbed compatibility names stay registered but are not
+        # advertised, so this number must only change when a merge lands.
+        self.assertEqual(len(tools), 72)
         self.assertNotIn("browser_fix_instances", names)
         self.assertNotIn("browser_group_instances", names)
+        self.assertNotIn("browser_geometry_status", names)
+        self.assertNotIn("browser_configure_geometry_backend", names)
+        self.assertNotIn("browser_reconnect", names)
+        self.assertNotIn("browser_reload", names)
+        self.assertNotIn("browser_invoke_discovered", names)
+        self.assertNotIn("browser_drawing_insert_views", names)
+        self.assertNotIn("browser_add_drawing_dimension", names)
+        self.assertNotIn("fs_list_modules", names)
+        self.assertIn("browser_session", names)
+        self.assertIn("browser_draw_part_with_views", names)
+        self.assertIn("onshape_geometry_status", names)
+        self.assertIn("onshape_configure_geometry_backend", names)
+        self.assertIn("fs_quick_reference", names)
         self.assertIn("mcp_tool_view", names)
         self.assertIn("mcp_tool_catalog", names)
         view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")
@@ -107,7 +123,7 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("browser_create_drawing", names)
         self.assertIn("browser_run_project", names)
         self.assertIn("browser_discover_tools", names)
-        self.assertIn("browser_invoke_discovered", names)
+        self.assertNotIn("browser_invoke_discovered", names)
         self.assertNotIn("browser_inspect", names)
         self.assertNotIn("browser_click", names)
         self.assertNotIn("browser_fs_goto_definition", names)
@@ -173,6 +189,9 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(invoked["invokedTool"], "browser_draw_part")
         self.assertTrue(invoked["result"]["dryRun"])
         self.assertEqual(invoked["result"]["estimatedApiRequests"], 0)
+        # The absorbed invoker is preserved, not advertised, and it says so.
+        self.assertTrue(invoked["deprecated"])
+        self.assertEqual(invoked["useInstead"], "mcp_tool_catalog")
 
     def test_catalog_search_is_bounded_and_describe_is_exact_schema_path(self) -> None:
         responses, stderr = invoke([
@@ -327,7 +346,13 @@ class McpServerTest(unittest.TestCase):
             self.assertEqual(resolution["nextAction"]["kind"], "ask_before_install")
             self.assertTrue(resolution["nextAction"]["requiresUserConfirmation"])
         else:
-            self.assertEqual(resolution["nextAction"]["tool"], "browser_configure_geometry_backend")
+            self.assertEqual(resolution["nextAction"]["tool"], "onshape_configure_geometry_backend")
+        # The merged browser name stays callable but is no longer what readiness
+        # advice points at, and it keeps reporting its own half: the combined
+        # answer rides beside it so an old reader cannot silently switch backends.
+        self.assertTrue(status["deprecated"])
+        self.assertEqual(status["useInstead"], "onshape_geometry_status")
+        self.assertEqual(sorted(status["combinedReadiness"]), ["configuredBackends", "ready"])
         plan = responses[1]["result"]["structuredContent"]
         self.assertEqual(plan["semanticLevel"], "L6")
         self.assertFalse(plan["sourceManifestPresent"])
@@ -481,6 +506,15 @@ class McpServerTest(unittest.TestCase):
                     "arguments": {},
                 },
             },
+            {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "tools/call",
+                "params": {
+                    "name": "fs_quick_reference",
+                    "arguments": {"category": "Math"},
+                },
+            },
         ])
         self.assertEqual(stderr, "")
         op = responses[0]["result"]["structuredContent"]
@@ -497,8 +531,21 @@ class McpServerTest(unittest.TestCase):
         modules = responses[3]["result"]["structuredContent"]["modules"]
         self.assertTrue(modules)
         self.assertTrue(all(m["category"] == "Math" for m in modules))
+        self.assertTrue(responses[3]["result"]["structuredContent"]["deprecated"])
+        self.assertEqual(
+            responses[3]["result"]["structuredContent"]["useInstead"], "fs_quick_reference"
+        )
         quick = responses[4]["result"]["structuredContent"]
         self.assertTrue(quick["text"].startswith("# FeatureScript quick reference"))
+        # The ordinary orientation read stays the small digest: the 210-row
+        # module table is returned only when the caller asks for it.
+        self.assertNotIn("modules", quick)
+        self.assertTrue(quick["categories"])
+        narrowed = responses[5]["result"]["structuredContent"]
+        self.assertTrue(narrowed["text"].startswith("# FeatureScript quick reference"))
+        self.assertEqual(narrowed["moduleFilter"], "Math")
+        self.assertTrue(narrowed["modules"])
+        self.assertTrue(all(m["category"] == "Math" for m in narrowed["modules"]))
 
     def test_project_docs_tools(self) -> None:
         responses, stderr = invoke([
@@ -872,6 +919,10 @@ class McpServerTest(unittest.TestCase):
             self.assertEqual(resolution["nextAction"]["kind"], "ask_before_install")
         else:
             self.assertEqual(resolution["nextAction"]["tool"], "onshape_configure_geometry_backend")
+        # One readiness answer covers every owning mode, and its advice names the
+        # surviving configure command rather than a merged alias.
+        self.assertEqual(sorted(status["backends"]), ["browser", "rest"])
+        self.assertEqual(status["configuredBackends"], [])
         plan = responses[1]["result"]["structuredContent"]
         self.assertTrue(plan["dryRun"])
         self.assertEqual(plan["semanticLevel"], "L6")

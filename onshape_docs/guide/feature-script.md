@@ -43,8 +43,9 @@ Do not open generated JSON index files directly; use the `fs_*` readers.
 6. **See how Onshape writes it** — `fs_library_source` for the real
    implementation of a module or function, e.g. how `fCylinder` is built from
    `opExtrude`-style primitives or how `qCreatedBy` constructs a query.
-7. **Breadth before depth** — `fs_list_modules` to see the module layout and
-   `fs_list_functions` (with `prefix`) when you remember part of a name.
+7. **Breadth before depth** — `fs_quick_reference(include_modules=true)` (or
+   `category=...`) to see the exact module layout, and `fs_list_functions` (with
+   `prefix`) when you remember part of a name.
 8. **Project docs** — use `docs_search` or `docs_list` for candidates, then
    `docs_section` for one exact guide, experience, verification, reference, or
    example section served from `onshape_docs/index.json`.

@@ -253,6 +253,39 @@ def _update_reference(arguments: dict[str, Any]) -> dict[str, Any]:
     return fs_reference.update_reference(include_onshape_api=include_api)
 
 
+def _quick_reference(arguments: dict[str, Any]) -> dict[str, Any]:
+    """The one orientation call: digest, category map, and exact module rows.
+
+    The absorbed `fs_list_modules` is the exact-enumeration half of the same
+    question ("what is in the FeatureScript standard library?"), so it is a
+    request on this call rather than a second tool. The 210-row module table is
+    ~19 KB, so it is returned only when the caller asks for it: an ordinary
+    orientation read stays the small digest.
+    """
+    digest = fs_reference.quick_reference()
+    categories = fs_reference.list_categories()
+    category = arguments.get("category")
+    if category is not None and not isinstance(category, str):
+        raise ValueError("category must be a string")
+    include_modules = bool(arguments.get("include_modules")) or bool(category)
+    result: dict[str, Any] = {**digest, "categories": categories}
+    if include_modules:
+        result["modules"] = fs_reference.list_modules(category=category)
+        result["moduleFilter"] = category or None
+    return result
+
+
+def _list_modules_wrapper(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Deprecated compatibility wrapper for the absorbed module enumeration."""
+    result = _quick_reference({**arguments, "include_modules": True})
+    return {
+        "categories": result["categories"],
+        "modules": result["modules"],
+        "deprecated": True,
+        "useInstead": FS_QUICK_REFERENCE_SURVIVOR,
+    }
+
+
 def _local_state(arguments: dict[str, Any]) -> dict[str, Any]:
     state = load_json(STATE_PATH)
     return {
@@ -373,15 +406,77 @@ def _export_step(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+FS_QUICK_REFERENCE_SURVIVOR = "fs_quick_reference"
+BROWSER_SESSION_SURVIVOR = "browser_session"
+GEOMETRY_STATUS_SURVIVOR = "onshape_geometry_status"
+GEOMETRY_CONFIGURE_SURVIVOR = "onshape_configure_geometry_backend"
+# Which owning mode a configuration write targets. The opaque candidate ids come
+# from one shared bounded dependency scan and are therefore NOT backend-specific,
+# so the surviving command needs the target stated explicitly rather than guessed
+# from the candidate.
+GEOMETRY_BACKENDS = ("rest", "browser")
+
+
+def _point_at_survivor(status: dict[str, Any], survivor: str) -> dict[str, Any]:
+    """Rewrite a readiness report's advice to name the surviving tool.
+
+    Both merged names keep working, but only one is advertised: a deprecated
+    alias must not be the tool a caller is told to use next.
+    """
+    resolution = status.get("dependencyResolution")
+    if isinstance(resolution, dict):
+        next_action = resolution.get("nextAction")
+        if isinstance(next_action, dict) and next_action.get("kind") == "configure_existing":
+            next_action["tool"] = survivor
+    return status
+
+
 def _geometry_status(arguments: dict[str, Any]) -> dict[str, Any]:
-    return geometry_backend_status()
+    """Report every configured non-slicer geometry backend in one answer.
+
+    The merged half is the browser backend: readiness is one question, and a
+    caller answered for only one mode cannot tell whether a geometry package is
+    buildable at all.
+    """
+    from onshape_browser_mode.geometry import browser_geometry_status
+
+    rest = _point_at_survivor(geometry_backend_status(), GEOMETRY_CONFIGURE_SURVIVOR)
+    browser = _point_at_survivor(
+        browser_geometry_status(), GEOMETRY_CONFIGURE_SURVIVOR
+    )
+    configured = [
+        name for name, report in (("rest", rest), ("browser", browser))
+        if report.get("ready")
+    ]
+    return {
+        **rest,
+        "ready": bool(configured),
+        "configuredBackends": configured,
+        "backends": {"rest": rest, "browser": browser},
+        "note": (
+            "One readiness answer for every owning mode. `backends` carries each "
+            "mode's own report; the top-level fields repeat the rest backend for "
+            "callers written before the merge."
+        ),
+    }
 
 
 def _configure_geometry_backend(arguments: dict[str, Any]) -> dict[str, Any]:
     candidate_id = arguments.get("candidate_id")
     if not isinstance(candidate_id, str) or not candidate_id.strip():
         raise ValueError("candidate_id is required")
-    if arguments.get("dry_run"):
+    backend = arguments.get("backend", "rest")
+    if backend not in GEOMETRY_BACKENDS:
+        raise ValueError(f"backend must be one of {', '.join(GEOMETRY_BACKENDS)}")
+    dry_run = bool(arguments.get("dry_run"))
+    if backend == "browser":
+        from onshape_browser_mode.geometry import configure_browser_geometry_backend
+
+        if dry_run:
+            return configure_browser_geometry_backend(candidate_id, dry_run=True)
+        _confirm(arguments)
+        return configure_browser_geometry_backend(candidate_id)
+    if dry_run:
         return configure_rest_geometry_backend(candidate_id, dry_run=True)
     _confirm(arguments)
     return configure_rest_geometry_backend(candidate_id)
@@ -499,11 +594,14 @@ def _browser_watch(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Browser session status/login.
+    """Browser session control: status, login, release, reconnect, reload.
 
     This tool deliberately does NOT spend Onshape API quota. It starts or
     inspects the persistent Playwright browser profile; Playwright is imported
     lazily so the server still runs when the optional browser extra is missing.
+    `reconnect` and `reload` are the absorbed `browser_reconnect` /
+    `browser_reload` behaviours: both act on the same session this tool owns, so
+    they are requests on one session tool rather than two extra entry points.
     """
     from onshape_browser_mode.session import get_session
 
@@ -515,7 +613,30 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
         return session.status()
     if action == "release":
         return session.release()
-    raise ValueError("action must be status, login, or release")
+    if action == "reconnect":
+        return _browser_reconnect(arguments)
+    if action == "reload":
+        return _browser_reload(arguments)
+    raise ValueError("action must be status, login, release, reconnect, or reload")
+
+
+def _absorbed_session_action(action: str) -> Any:
+    """Build the deprecated compatibility wrapper for one absorbed session action.
+
+    The wrapper keeps the absorbed name's contract (no arguments, same result)
+    and says where it went, so an existing caller keeps working while new callers
+    use `browser_session`.
+    """
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        result = _browser_session({**arguments, "action": action})
+        return {
+            **result,
+            "deprecated": True,
+            "useInstead": BROWSER_SESSION_SURVIVOR,
+            "sessionAction": action,
+        }
+
+    return handler
 
 
 def _browser_inspect(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1042,7 +1163,7 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_reconnect(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Click the Onshape '重新连接' link if the session-timeout dialog is up."""
+    """Core of `browser_session(action='reconnect')`; not a registered name itself."""
     from onshape_browser_mode import actions
     from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
@@ -1055,7 +1176,7 @@ def _browser_reconnect(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_reload(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Reload the current browser page (e.g. a drawing stuck loading)."""
+    """Core of `browser_session(action='reload')`; not a registered name itself."""
     from onshape_browser_mode import actions
     from onshape_browser_mode.guard import get_guard
     from onshape_browser_mode.session import get_session
@@ -1503,19 +1624,23 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Return the curated FeatureScript quick-reference digest (onshape_docs/reference/quick-reference.md): a "
             "distilled cheat-sheet covering the language model, feature anatomy, parameters, queries, the "
-            "standard library map, common patterns, and pitfalls. Small enough to load into context in one "
-            "call; use it to orient before drilling into fs_get_function/fs_guide_section. Local and offline."
+            "standard library map, common patterns, and pitfalls, plus the category map with module counts. Small "
+            "enough to load into context in one call; use it to orient before drilling into "
+            "fs_get_function/fs_guide_section. Pass category (or include_modules=true) to also enumerate the exact "
+            "standard-library module rows: 210 modules across Modeling, Math, Onshape features, Utilities and "
+            "enums. Local and offline."
         ),
-        "inputSchema": object_schema(),
+        "inputSchema": object_schema({
+            "category": {"type": "string", "description": "Optional category filter for the exact module rows (exact case-insensitive). Implies include_modules."},
+            "include_modules": {"type": "boolean", "default": False, "description": "Also return the exact standard-library module rows (~19 KB)."},
+        }),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     {
         "name": "fs_list_modules",
         "description": (
-            "List the FeatureScript standard library modules (geometry.fs, query.fs, sweep.fs, ...), "
-            "grouped by the reference site's categories (Modeling, Math, Onshape features, Utilities, "
-            "enums). Optionally filter to one category. Local and offline; useful before looking up "
-            "functions so you know which module to search."
+            "Deprecated compatibility wrapper: use fs_quick_reference with include_modules=true (optionally with "
+            "category). Kept so an existing caller keeps working; it returns the same categories and module rows."
         ),
         "inputSchema": object_schema({
             "category": {"type": "string", "description": "Optional category filter (exact case-insensitive)."},
@@ -1983,10 +2108,12 @@ TOOLS: list[dict[str, Any]] = [
         "name": "onshape_geometry_status",
         "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": False},
         "description": (
-            "Report module-owned non-slicer geometry readiness. If the selected backend is unavailable, perform "
-            "a bounded zero-network search of sibling project virtual environments, global Python environments, "
-            "and the Windows/WSL counterpart. Returns opaque versioned candidates without executable paths; when "
-            "none exist, agents are instructed to ask before installation. Never installs automatically."
+            "Report non-slicer geometry readiness for EVERY owning mode in one answer: the top-level fields "
+            "mirror the rest backend and `backends` carries each mode's own report. If a selected backend is "
+            "unavailable, perform a bounded zero-network search of sibling project virtual environments, global "
+            "Python environments, and the Windows/WSL counterpart. Returns opaque versioned candidates without "
+            "executable paths; when none exist, agents are instructed to ask before installation. Never installs "
+            "automatically."
         ),
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
@@ -1995,12 +2122,15 @@ TOOLS: list[dict[str, Any]] = [
         "name": "onshape_configure_geometry_backend",
         "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": True, "cacheable": False},
         "description": (
-            "Configure REST mode from one opaque candidate_id returned by onshape_geometry_status. The bounded "
-            "dependency scan is repeated before writing, so callers cannot provide an executable or argv. "
-            "dry_run previews the candidate; actual local configuration requires confirm_mutation=true. Never installs dependencies."
+            "Configure one owning mode (backend='rest' or backend='browser') from one opaque candidate_id returned "
+            "by onshape_geometry_status. Candidate ids come from one shared dependency scan and are therefore not "
+            "backend-specific, so the target mode must be stated rather than inferred. The bounded dependency scan "
+            "is repeated before writing, so callers cannot provide an executable or argv. dry_run previews the "
+            "candidate; actual local configuration requires confirm_mutation=true. Never installs dependencies."
         ),
         "inputSchema": object_schema({
             "candidate_id": {"type": "string"},
+            "backend": {"type": "string", "enum": list(GEOMETRY_BACKENDS), "default": "rest"},
             "dry_run": {"type": "boolean", "default": False},
             "confirm_mutation": mutating_confirmation(),
         }, ["candidate_id"]),
@@ -2167,6 +2297,11 @@ TOOLS: list[dict[str, Any]] = [
             "process and releases its persistent-profile ownership; it is idempotent, may require login "
             "state to be refreshed later, and cannot close a browser owned by another MCP process. Use "
             "release when the owning agent has finished browser work unless continuation is intentional. "
+            "action='reconnect' detects the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') "
+            "and clicks the reconnect link to restore the live session, without creating or modifying cloud "
+            "data. action='reload' attempts a bounded reload of the current page (use it when an Onshape page, "
+            "especially a Drawing, has been loading for too long) and returns reload status, bounded-wait "
+            "warnings, the page URL, and best-effort tab state. "
             "The browser runs on the host that owns the ordinary stdio MCP process; "
             "cross-host transport, when needed, is supplied by an independently installed bridge. If "
             "Playwright is not installed on that host, this tool returns a clear setup error instead of "
@@ -2175,11 +2310,13 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({
             "action": {
                 "type": "string",
-                "enum": ["status", "login", "release"],
+                "enum": ["status", "login", "release", "reconnect", "reload"],
                 "default": "status",
                 "description": (
                     "status = read-only session report; login = open Onshape sign-in for the human; "
-                    "release = close only this MCP process's browser/context and release profile ownership."
+                    "release = close only this MCP process's browser/context and release profile ownership; "
+                    "reconnect = click the session-timeout dialog's reconnect link; reload = bounded reload "
+                    "of the current page."
                 ),
             },
         }),
@@ -2775,10 +2912,11 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Detect the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') and click "
-            "the reconnect link to restore the live session. Read-only session recovery — it does not create or "
-            "modify cloud data. Also runs automatically inside browser_open_document, browser_read_featurescript, "
-            "and browser navigation tools, including browser_reload, so a timed-out session recovers before the requested action."
+            "Deprecated compatibility wrapper: use browser_session with action='reconnect'. Kept so an existing "
+            "caller keeps working; it detects the Onshape session-timeout dialog and clicks the reconnect link to "
+            "restore the live session, without creating or modifying cloud data. Also runs automatically inside "
+            "browser_open_document and the browser navigation tools, so a timed-out session recovers before the "
+            "requested action."
         ),
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
@@ -2798,9 +2936,10 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Attempt a bounded reload of the current browser page. Use this when an Onshape page (especially "
-            "a Drawing) has been loading for too long. Zero REST API quota and no cloud-data mutation. "
-            "Returns reload status, bounded-wait warnings, page URL, and best-effort tab state."
+            "Deprecated compatibility wrapper: use browser_session with action='reload'. Kept so an existing "
+            "caller keeps working; it attempts a bounded reload of the current browser page when an Onshape page "
+            "(especially a Drawing) has been loading for too long. Zero REST API quota and no cloud-data "
+            "mutation; returns reload status, bounded-wait warnings, page URL, and best-effort tab state."
         ),
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
@@ -2838,8 +2977,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "browser_insert_custom_feature": _browser_insert_custom_feature,
     "browser_open_insert_feature_dialog": _browser_open_insert_feature_dialog,
     "browser_create_document_version": _browser_create_document_version,
-    "browser_reconnect": _browser_reconnect,
-    "browser_reload": _browser_reload,
+    "browser_reconnect": _absorbed_session_action("reconnect"),
+    "browser_reload": _absorbed_session_action("reload"),
     "onshape_get_project_state": _local_state,
     "onshape_api_quota": lambda _: {"quota": api_usage()},
     "onshape_eval_featurescript": _eval_featurescript,
@@ -2871,11 +3010,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "fs_check_version": _check_version,
     "fs_check_script": _check_script,
     "fs_update_reference": _update_reference,
-    "fs_quick_reference": lambda _: fs_reference.quick_reference(),
-    "fs_list_modules": lambda arguments: {
-        "categories": fs_reference.list_categories(),
-        "modules": fs_reference.list_modules(category=arguments.get("category")),
-    },
+    "fs_quick_reference": _quick_reference,
+    "fs_list_modules": _list_modules_wrapper,
     "fs_list_functions": lambda arguments: {
         "functions": fs_reference.list_functions(
             module=arguments.get("module"),

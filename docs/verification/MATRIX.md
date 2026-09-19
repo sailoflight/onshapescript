@@ -39,6 +39,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | FS validation boundary and checker locality | `test_fs_validation_strategy` (no network/process/third-party import in the checker or the diagnostic normalizer, survey links and non-adoption recorded, offline backlog separated from machine work) | nothing; the survey is search-level evidence, and a reused analyzer stays a detected candidate |
 | Whole-feature capability contract | `test_capabilities` (bounded values, no implementation in a card, symbol gate against the vendored reference, local checker, precedent equality) | dry-run, then deploy/apply/acceptance on the target host |
 | Capability discovery/retrieval (P4) | `test_capability_retrieval` (card-vs-reference cost, prose-query resolution, no dependency expansion, discovery wiring without widening exposure) | model-in-the-loop token measurement on the target host |
+| Tool surface (audit verdicts, merges, display views) | `test_tool_surface_audit` + `test_dynamic_tool_views` + `test_tool_catalog` (every row classified; no `Merge`/`Remove` left open; each absorbed name registered, default-hidden, reachable by exact name and still gated) | generated-reference and runtime-prompt `--check` |
 | Generated references/indexes | builder and verifier `--check` | none by default |
 | Secret/redaction/fixtures | static scan + fixture inspection | never validate using real secret output |
 
@@ -51,6 +52,8 @@ python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
 python3 -m unittest dev.tests.test_quota_guards -v
 python3 -m unittest dev.tests.test_browser_mode -v
 python3 -m unittest dev.tests.test_browser_plan_completion dev.tests.test_local_check_gate -v
+python3 -m unittest dev.tests.test_tool_surface_audit dev.tests.test_dynamic_tool_views \
+  dev.tests.test_tool_catalog dev.tests.test_tool_reference -v
 python3 -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
 python3 -m unittest dev.tests.test_rest_feature_list dev.tests.test_capabilities \
   dev.tests.test_capability_retrieval dev.tests.test_fs_validation_strategy -v

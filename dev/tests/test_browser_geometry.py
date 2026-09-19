@@ -100,7 +100,10 @@ class BrowserGeometryPackageTest(unittest.TestCase):
                     repo_root=root,
                 )
         resolution = status["dependencyResolution"]
-        self.assertEqual(resolution["nextAction"]["tool"], "browser_configure_geometry_backend")
+        # One configure command serves both modes, so the browser report names the
+        # survivor and states its own mode rather than a deprecated alias.
+        self.assertEqual(resolution["nextAction"]["tool"], "onshape_configure_geometry_backend")
+        self.assertEqual(resolution["nextAction"]["backend"], "browser")
         self.assertNotIn("_candidates", resolution)
         self.assertFalse(resolution["automaticInstall"])
 
@@ -171,6 +174,88 @@ class BrowserGeometryPackageTest(unittest.TestCase):
                     step_output_root=step_root,
                     output_root=root / "geometry",
                 )
+
+
+class MergedGeometryToolRoutingTest(unittest.TestCase):
+    """The two merged geometry names must keep their old target, not guess one.
+
+    Candidate ids come from one shared bounded dependency scan, so a candidate
+    cannot identify a backend. The surviving command therefore states the target
+    explicitly, and the browser compatibility wrapper supplies it.
+    """
+
+    def test_browser_wrapper_forces_the_browser_backend(self):
+        from mcp_main.win.mcp.browser_tools import browser_configure_geometry_backend
+
+        with mock.patch(
+            "onshape_browser_mode.geometry.configure_geometry_dependency",
+            return_value={"dryRun": True, "configured": False},
+        ) as browser_configure, mock.patch(
+            "onshape_rest_api_mode.geometry.configure_geometry_dependency",
+        ) as rest_configure:
+            result = browser_configure_geometry_backend(
+                {"candidate_id": "candidate1", "dry_run": True}
+            )
+        rest_configure.assert_not_called()
+        browser_configure.assert_called_once()
+        self.assertTrue(result["dryRun"])
+        self.assertTrue(result["deprecated"])
+        self.assertEqual(result["useInstead"], "onshape_configure_geometry_backend")
+        self.assertEqual(result["backend"], "browser")
+
+    def test_survivor_rejects_an_unknown_backend_before_any_write(self):
+        from mcp_main.win.mcp.server import _configure_geometry_backend
+
+        with self.assertRaisesRegex(ValueError, "backend must be one of"):
+            _configure_geometry_backend(
+                {"candidate_id": "candidate1", "backend": "browserr", "dry_run": True}
+            )
+
+    def test_survivor_defaults_to_rest(self):
+        from mcp_main.win.mcp.server import _configure_geometry_backend
+
+        with mock.patch(
+            "onshape_rest_api_mode.geometry.configure_geometry_dependency",
+            return_value={"dryRun": True, "configured": False},
+        ) as rest_configure, mock.patch(
+            "onshape_browser_mode.geometry.configure_geometry_dependency",
+        ) as browser_configure:
+            result = _configure_geometry_backend({"candidate_id": "candidate1", "dry_run": True})
+        browser_configure.assert_not_called()
+        rest_configure.assert_called_once()
+        self.assertTrue(result["dryRun"])
+
+    def test_browser_status_wrapper_reports_the_browser_half_and_the_combined_one(self):
+        from mcp_main.win.mcp.browser_tools import browser_geometry_status
+
+        browser_report = {"ready": False, "dependencyResolution": {"nextAction": None}}
+        rest_report = {"ready": True, "dependencyResolution": {"nextAction": None}}
+        with mock.patch(
+            "mcp_main.win.mcp.server.geometry_backend_status", return_value=dict(rest_report)
+        ), mock.patch(
+            "onshape_browser_mode.geometry.browser_geometry_status", return_value=dict(browser_report)
+        ):
+            result = browser_geometry_status({})
+        self.assertTrue(result["deprecated"])
+        self.assertEqual(result["useInstead"], "onshape_geometry_status")
+        # The absorbed name's own fields still describe the browser backend: a
+        # caller reading `ready` must not silently start reading the REST one.
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["combinedReadiness"],
+            {"ready": True, "configuredBackends": ["rest"]},
+        )
+
+    def test_browser_status_wrapper_survives_a_combined_report_without_backends(self):
+        from mcp_main.win.mcp import server
+        from mcp_main.win.mcp.browser_tools import browser_geometry_status
+
+        with mock.patch.dict(
+            server.HANDLERS, {server.GEOMETRY_STATUS_SURVIVOR: lambda _a: {"ready": True}}
+        ):
+            result = browser_geometry_status({})
+        self.assertTrue(result["deprecated"])
+        self.assertTrue(result["ready"])
 
 
 if __name__ == "__main__":

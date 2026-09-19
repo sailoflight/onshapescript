@@ -118,7 +118,8 @@ class SixLevelSemanticsTest(unittest.TestCase):
         )
         self.assertEqual([item["name"] for item in explicit["candidates"]], ["browser_click"])
         self.assertEqual(explicit["candidates"][0]["inputSchema"]["required"], ["selector"])
-        self.assertEqual(explicit["invocationTool"], "browser_invoke_discovered")
+        self.assertIsNone(explicit["invocationTool"])
+        self.assertIn("exact registered name", explicit["invocationNote"])
 
     def test_unknown_level_is_rejected_by_discovery_helper_only(self):
         with self.assertRaisesRegex(ValueError, "unknown semantic levels"):

@@ -307,8 +307,36 @@ class BrowserSessionReleaseTest(unittest.TestCase):
         self.assertEqual(session.start_calls, 0)
 
     def test_browser_session_rejects_unknown_action_with_release_guidance(self) -> None:
-        with self.assertRaisesRegex(ValueError, "status, login, or release"):
+        with self.assertRaisesRegex(ValueError, "status, login, release, reconnect, or reload"):
             server._browser_session({"action": "close"})
+
+    def test_session_reconnect_action_runs_the_absorbed_core(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.reconnect_if_needed",
+                        return_value={"reconnected": True}) as reconnect:
+            result = server._browser_session({"action": "reconnect"})
+        self.assertTrue(result["reconnected"])
+        reconnect.assert_called_once()
+        self.assertEqual(session.start_calls, 1)
+        self.assertEqual(guard.pace_calls, 1)
+
+    def test_absorbed_session_names_keep_their_contract_and_say_where_they_went(self) -> None:
+        """A merge keeps the old name callable: same behaviour, plus a pointer."""
+        for name, action in (("browser_reconnect", "reconnect"), ("browser_reload", "reload")):
+            with self.subTest(tool=name):
+                with mock.patch.object(
+                    server, "_browser_session", return_value={"reloaded": True}
+                ) as session:
+                    result = server.HANDLERS[name]({})
+                session.assert_called_once_with({"action": action})
+                self.assertTrue(result["deprecated"])
+                self.assertEqual(result["useInstead"], "browser_session")
+                self.assertEqual(result["sessionAction"], action)
+                self.assertTrue(result["reloaded"])
 
 
 # ---------------------------------------------------------------------------
@@ -1062,7 +1090,9 @@ class BrowserMetadataTest(unittest.TestCase):
     def test_browser_session_exposes_cooperative_release(self) -> None:
         tool = self.by_name["browser_session"]
         action = tool["inputSchema"]["properties"]["action"]
-        self.assertEqual(action["enum"], ["status", "login", "release"])
+        self.assertEqual(
+            action["enum"], ["status", "login", "release", "reconnect", "reload"]
+        )
         self.assertIn("release", action["description"])
         self.assertIn("browser_process_release", tool["cost"]["side_effects"])
         self.assertIn("another MCP process", tool["description"])

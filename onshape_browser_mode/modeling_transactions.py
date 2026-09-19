@@ -266,33 +266,49 @@ def draw_part_with_views(
     frame_url: str = selectors.DRAWING_FRAME_URL_PREFIX,
     dimensions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Insert verified drawing views, then add every required dimension."""
-    if not dimensions:
+    """One drawing transaction: verified views from a part row, dimensions, or both.
+
+    `part_name` selects the views stage (the part row the drawing is created
+    from) and `dimensions` selects the dimension stage on the current Drawing
+    frame. Supplying neither is a refusal, not a no-op mutation. A views-only
+    call returns accepted view evidence and a dimensions-only call returns the
+    per-dimension evidence, so both absorbed callers keep their own contract
+    while sharing one verified transaction.
+    """
+    dimensions = list(dimensions or [])
+    if not part_name and not dimensions:
         return {
             "drawn": False,
             "browserActionPerformed": False,
-            "reason": "at least one dimension is required; use drawing_insert_views for views only",
+            "reason": "provide part_name to insert verified views, dimensions to add to the current drawing, or both",
             "views": None,
             "dimensions": [],
         }
-    views = drawing_insert_views(
-        page,
-        part_name=part_name,
-        view_layout=view_layout,
-        part_studio_tab=part_studio_tab,
-        template=template,
-        frame_url=frame_url,
-    )
-    if not views.get("viewsInserted"):
-        return {"drawn": False, "views": views, "dimensions": []}
-    dimension_results = [semantic.add_drawing_dimension(page, **item) for item in dimensions or []]
+    views: dict[str, Any] | None = None
+    if part_name:
+        views = drawing_insert_views(
+            page,
+            part_name=part_name,
+            view_layout=view_layout,
+            part_studio_tab=part_studio_tab,
+            template=template,
+            frame_url=frame_url,
+        )
+        if not views.get("viewsInserted"):
+            return {"drawn": False, "views": views, "dimensions": []}
+    dimension_results = [semantic.add_drawing_dimension(page, **item) for item in dimensions]
+    # Every requested stage must pass. A views stage that failed already returned
+    # above, and `all([])` is True, so the dimension verdict alone is the job
+    # verdict: a views-only call is decided by its (already accepted) views, and a
+    # two-stage call still fails when either stage fails.
     dimensions_ok = all(bool(item.get("dimensionAdded")) for item in dimension_results)
+    views_ok = bool(views and views.get("viewsInserted"))
     return {
-        "drawn": bool(views.get("viewsInserted")) and dimensions_ok,
-        "viewsInserted": True,
+        "drawn": dimensions_ok,
+        "viewsInserted": views_ok,
         "views": views,
         "dimensions": dimension_results,
-        "dimensionsRequested": len(dimensions or []),
+        "dimensionsRequested": len(dimensions),
         "dimensionsAdded": sum(bool(item.get("dimensionAdded")) for item in dimension_results),
     }
 

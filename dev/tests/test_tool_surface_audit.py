@@ -100,7 +100,26 @@ class AuditDocumentTest(unittest.TestCase):
         for name, target in targets.items():
             self.assertIn(f"`{name}`", follow_ups)
             self.assertIn(f"`{target}`", follow_ups)
-        self.assertEqual(len(targets), 8)
+        # All eight merges were executed on 2026-09-19 and became
+        # `Internal-only`; the follow-up keeps naming them so the change stays
+        # traceable from this page.
+        self.assertEqual(targets, {})
+        for name in (
+            "fs_list_modules",
+            "browser_reconnect",
+            "browser_reload",
+            "browser_invoke_discovered",
+            "browser_drawing_insert_views",
+            "browser_add_drawing_dimension",
+            "browser_geometry_status",
+            "browser_configure_geometry_backend",
+        ):
+            with self.subTest(tool=name):
+                self.assertIn(f"`{name}`", follow_ups)
+                self.assertEqual(
+                    next(item["verdict"] for item in _rows() if item["name"] == name),
+                    "Internal-only",
+                )
 
     def test_summary_counts_match_the_table(self) -> None:
         counts = {verdict: 0 for verdict in VERDICTS}
@@ -146,15 +165,19 @@ class AuditDocumentTest(unittest.TestCase):
                 self.assertIn(f"`{name}`", _follow_ups())
 
     def test_internal_only_claim_is_measured_not_assumed(self) -> None:
-        """The doc says `Internal-only` tools are default-hidden. That is a
-        measurable claim: every one of them must be absent from the ordinary
-        browser list and reachable only by an explicit level query."""
+        """The doc says `Internal-only` tools are not ordinary model choices and
+        stay reachable by exact name. That is measurable: every recorded one must
+        have `default_exposure=False`, be absent from the ordinary list, and still
+        come back from an explicit level query through the real selection path."""
+        from mcp_main.win.mcp import server
+        from mcp_main.win.mcp.tool_views import (
+            ABSORBED_COMPATIBILITY_TOOLS,
+            select_view_tools,
+        )
+        from onshape_browser_mode.semantics import select_tool_names
+
         internal = [row["name"] for row in _rows() if row["verdict"] == "Internal-only"]
-        recorded = {
-            name: TOOL_SEMANTICS[name]
-            for name in internal
-            if name in TOOL_SEMANTICS
-        }
+        recorded = {name: TOOL_SEMANTICS[name] for name in internal if name in TOOL_SEMANTICS}
         self.assertGreaterEqual(len(recorded), 20)
         exposed = sorted(name for name, record in recorded.items() if record.default_exposure)
         self.assertEqual(
@@ -163,17 +186,36 @@ class AuditDocumentTest(unittest.TestCase):
             "an exception belongs in the follow-up section, not in the ordinary list",
         )
         # The claim is about the real selection path, not just the metadata flag.
-        from onshape_browser_mode.semantics import select_tool_names
-
         selected = set(select_tool_names(sorted(recorded)))
         self.assertEqual(selected & set(recorded), set())
+        # An absorbed compatibility wrapper outside the browser namespace has no
+        # semantics record and no level; its documented route is the complete
+        # registry view, so it must be listed there and nowhere ordinary.
+        every_level = ("L1", "L2", "L3", "L4", "L5", "L6")
+        revealed = {
+            tool["name"]
+            for tool in select_view_tools(
+                server.TOOLS, profile="browser", semantic_levels=every_level
+            )
+        }
+        complete = {
+            tool["name"] for tool in select_view_tools(server.TOOLS, profile="all", semantic_levels=None)
+        }
         for name in sorted(recorded):
             with self.subTest(tool=name):
-                self.assertEqual(
-                    [candidate for candidate in select_tool_names([name], semantic_levels=["L4", "L5", "L6", "L3", "L1"])],
-                    [name],
-                    f"{name} is not reachable by an explicit level query",
-                )
+                self.assertIn(name, revealed, f"{name} is not reachable by an explicit level query")
+        for name in sorted(internal):
+            if name in recorded:
+                continue
+            with self.subTest(tool=name):
+                self.assertIn(name, complete, f"{name} is not reachable in the complete view")
+                if name in ABSORBED_COMPATIBILITY_TOOLS:
+                    for profile in ("default", "rest", "featurescript", "documentation", "geometry"):
+                        self.assertNotIn(
+                            name,
+                            {tool["name"] for tool in select_view_tools(server.TOOLS, profile=profile, semantic_levels=None)},
+                            f"{name} is an absorbed wrapper and must not be advertised",
+                        )
 
     def test_capability_verdicts_are_whole_jobs(self) -> None:
         """A `Capability` verdict must describe a job, not a primitive: an L1-L3

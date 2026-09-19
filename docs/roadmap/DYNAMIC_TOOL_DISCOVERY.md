@@ -2,6 +2,17 @@
 
 Status: semantic/static/profile/dynamic exposure and connection-scoped replacement implemented
 
+> **Superseded in part (2026-09-19):** the eight `Merge` rows in
+> `architecture/TOOL_SURFACE_AUDIT.md` were executed. Where this page names
+> `browser_drawing_insert_views`, `browser_add_drawing_dimension`,
+> `browser_reconnect`, `browser_reload`, `browser_geometry_status`,
+> `browser_configure_geometry_backend`, `browser_invoke_discovered` or
+> `fs_list_modules` as a route, the surviving entry point is now
+> `browser_draw_part_with_views`, `browser_session`, `onshape_geometry_status`,
+> `onshape_configure_geometry_backend`, `mcp_tool_catalog` and
+> `fs_quick_reference` respectively; the old names remain callable as
+> deprecated wrappers. The body below is the dated plan of record.
+
 > **Phase D (browser native modeling) is deferred** under decision D5 in
 > `FS_FIRST_CONTROLLING_ROUTE.md`: driving Part Studio modeling UI is not the
 > modeling route. Phases A–C remain implemented and unchanged.

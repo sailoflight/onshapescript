@@ -41,7 +41,6 @@ _PROFILE_DESCRIPTIONS = {
 _ALWAYS_VISIBLE_BROWSER_TOOLS = {
     "browser_session",
     "browser_discover_tools",
-    "browser_invoke_discovered",
 }
 
 _FEATURESCRIPT_ONSHAPE_TOOLS = {
@@ -57,6 +56,16 @@ _FEATURESCRIPT_ONSHAPE_TOOLS = {
     "onshape_update_feature_list",
     "onshape_upload_feature_studio",
 }
+
+# Names absorbed by a merge that stay registered so an existing caller keeps
+# working, but are no longer advertised. Browser-namespace wrappers are hidden by
+# their own `default_exposure=False` semantics record; this set covers absorbed
+# names outside that namespace, which have no semantics record to consult. Only
+# the complete `all` registry view lists them (or `mcp_tool_catalog` by exact
+# name), because a compatibility path must not look like a normal choice.
+ABSORBED_COMPATIBILITY_TOOLS = frozenset({
+    "fs_list_modules",
+})
 
 
 def exposure_mode(value: str | None = None) -> str:
@@ -128,13 +137,18 @@ def select_view_tools(
         name = tool["name"]
         if not _profile_includes(name, profile):
             continue
+        if name in ABSORBED_COMPATIBILITY_TOOLS and profile != "all":
+            continue
         record = _semantic_record(name)
         if name in _ALWAYS_VISIBLE_BROWSER_TOOLS:
             result.append(tool)
             continue
         if name.startswith("browser_"):
-            if profile != "all" and record is not None and record.maturity == "invalid":
-                continue
+            # Hidden-ness for a browser name comes from its semantics record:
+            # `default_exposure=False` removes it from the ordinary list while an
+            # explicit semantic_levels query still reaches it by level. There is
+            # deliberately no second, maturity-based hiding path, because that
+            # would make a recorded name unreachable even when asked for.
             if semantic_levels is None:
                 if profile != "all" and name not in ordinary_browser:
                     continue

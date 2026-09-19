@@ -33,11 +33,15 @@ class ToolViewSelectionTest(unittest.TestCase):
         self.assertIn("fs_get_function", documentation)
         self.assertIn("onshape_api_endpoint", documentation)
         self.assertNotIn("browser_click", documentation)
-        self.assertIn("browser_geometry_status", geometry)
+        self.assertIn("onshape_geometry_status", geometry)
+        self.assertIn("onshape_configure_geometry_backend", geometry)
+        self.assertNotIn("browser_geometry_status", geometry)
+        self.assertNotIn("browser_configure_geometry_backend", geometry)
         self.assertIn("onshape_build_geometry_package", geometry)
         self.assertNotIn("browser_create_document", geometry)
         self.assertIn("fs_search", featurescript)
         self.assertIn("onshape_eval_featurescript", featurescript)
+        self.assertNotIn("fs_list_modules", featurescript)
         self.assertNotIn("onshape_geometry_status", featurescript)
 
     def test_browser_semantic_filter_can_reveal_l1_without_becoming_authority(self):
@@ -48,13 +52,67 @@ class ToolViewSelectionTest(unittest.TestCase):
         ))
         self.assertIn("browser_click", names)
         self.assertIn("browser_discover_tools", names)
-        self.assertIn("browser_invoke_discovered", names)
+        self.assertNotIn("browser_invoke_discovered", names)
         self.assertNotIn("browser_create_document", names)
         self.assertNotIn("browser_print_orientation_check", names)
+        # The absorbed invoker is an L2 name, so its own explicit level reaches it.
+        self.assertIn(
+            "browser_invoke_discovered",
+            self.names(select_view_tools(
+                server.TOOLS,
+                profile="browser",
+                semantic_levels=("L2",),
+            )),
+        )
 
     def test_static_all_profile_matches_complete_registry(self):
         selected = select_view_tools(server.TOOLS, profile="all", semantic_levels=None)
         self.assertEqual(selected, server.TOOLS)
+
+    def test_absorbed_names_stay_registered_but_are_never_advertised(self):
+        """A merge keeps the old name callable without making it a normal choice.
+
+        The exact-name registry stays authoritative, so hiding is a discovery
+        convention: the wrapper is absent from every ordinary profile and present
+        only in the complete `all` view.
+        """
+        from mcp_main.win.mcp.tool_views import ABSORBED_COMPATIBILITY_TOOLS
+
+        registered = {tool["name"] for tool in server.TOOLS}
+        self.assertTrue(ABSORBED_COMPATIBILITY_TOOLS)
+        self.assertTrue(ABSORBED_COMPATIBILITY_TOOLS <= registered)
+        for profile in ("default", "browser", "rest", "featurescript", "documentation", "geometry"):
+            with self.subTest(profile=profile):
+                names = self.names(
+                    select_view_tools(server.TOOLS, profile=profile, semantic_levels=None)
+                )
+                self.assertEqual(ABSORBED_COMPATIBILITY_TOOLS & names, set())
+        complete = self.names(select_view_tools(server.TOOLS, profile="all", semantic_levels=None))
+        self.assertEqual(ABSORBED_COMPATIBILITY_TOOLS & complete, ABSORBED_COMPATIBILITY_TOOLS)
+
+    def test_deprecated_browser_names_leave_the_ordinary_browser_view(self):
+        from onshape_browser_mode.semantics import TOOL_SEMANTICS
+
+        deprecated = {
+            name for name, record in TOOL_SEMANTICS.items()
+            if record.maturity == "deprecated"
+        }
+        self.assertTrue(deprecated)
+        ordinary = self.names(
+            select_view_tools(server.TOOLS, profile="browser", semantic_levels=None)
+        )
+        self.assertEqual(deprecated & ordinary, set())
+        # An explicit level query still reaches the ones that carry a level.
+        revealed = self.names(
+            select_view_tools(
+                server.TOOLS,
+                profile="browser",
+                semantic_levels=("L1", "L2", "L3", "L4", "L5", "L6"),
+            )
+        )
+        self.assertTrue(
+            {name for name in deprecated if TOOL_SEMANTICS[name].level} <= revealed
+        )
 
     def test_profile_mode_reads_fixed_startup_profile(self):
         with mock.patch.dict(os.environ, {

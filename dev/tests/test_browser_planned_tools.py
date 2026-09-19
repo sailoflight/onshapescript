@@ -229,16 +229,65 @@ class TransactionAcceptanceTest(unittest.TestCase):
         self.assertTrue(result["foldChanged"])
         self.assertEqual(result["foldedRanges"][0]["endRow"], 20)
 
-    def test_draw_workflow_rejects_empty_dimensions_before_mutation(self):
+    def test_draw_workflow_rejects_a_call_with_no_stage_before_mutation(self):
         with mock.patch.object(modeling_transactions, "drawing_insert_views") as insert_views, \
              mock.patch.object(semantic, "add_drawing_dimension") as add_dimension:
             result = modeling_transactions.draw_part_with_views(
-                mock.Mock(), part_name="Part 1", view_layout="four", dimensions=[]
+                mock.Mock(), part_name="", view_layout="four", dimensions=[]
             )
         self.assertFalse(result["drawn"])
         self.assertFalse(result["browserActionPerformed"])
         insert_views.assert_not_called()
         add_dimension.assert_not_called()
+
+    def test_views_only_stage_inserts_views_without_requesting_a_dimension(self):
+        page = mock.Mock()
+        with mock.patch.object(
+            modeling_transactions, "drawing_insert_views",
+            return_value={"viewsInserted": True},
+        ) as insert_views, mock.patch.object(semantic, "add_drawing_dimension") as add_dimension:
+            result = modeling_transactions.draw_part_with_views(
+                page, part_name="Part 1", view_layout="four", dimensions=[]
+            )
+        insert_views.assert_called_once()
+        add_dimension.assert_not_called()
+        self.assertTrue(result["drawn"])
+        self.assertTrue(result["viewsInserted"])
+        self.assertEqual(result["dimensionsRequested"], 0)
+        self.assertEqual(result["dimensionsAdded"], 0)
+
+    def test_dimension_only_stage_skips_the_views_stage(self):
+        page = mock.Mock()
+        dimension = {"tool_selector": "#dim", "geometry_selectors": ["#e"], "verification_selector": "#v"}
+        with mock.patch.object(modeling_transactions, "drawing_insert_views") as insert_views, \
+             mock.patch.object(
+                 semantic, "add_drawing_dimension", return_value={"dimensionAdded": True}
+             ) as add_dimension:
+            result = modeling_transactions.draw_part_with_views(
+                page, part_name="", view_layout="four", dimensions=[dimension]
+            )
+        insert_views.assert_not_called()
+        add_dimension.assert_called_once_with(page, **dimension)
+        self.assertTrue(result["drawn"])
+        self.assertFalse(result["viewsInserted"])
+        self.assertIsNone(result["views"])
+        self.assertEqual(result["dimensionsAdded"], 1)
+
+    def test_a_failed_dimension_stage_fails_the_views_only_transaction(self):
+        """Two stages in one job still fail as one job."""
+        page = mock.Mock()
+        dimension = {"tool_selector": "#dim", "geometry_selectors": ["#e"], "verification_selector": "#v"}
+        with mock.patch.object(
+            modeling_transactions, "drawing_insert_views",
+            return_value={"viewsInserted": True},
+        ), mock.patch.object(
+            semantic, "add_drawing_dimension", return_value={"dimensionAdded": False}
+        ):
+            result = modeling_transactions.draw_part_with_views(
+                page, part_name="Part 1", view_layout="four", dimensions=[dimension]
+            )
+        self.assertFalse(result["drawn"])
+        self.assertEqual(result["dimensionsAdded"], 0)
 
     def test_legacy_draw_part_rejects_empty_dimensions_before_mutation(self):
         page = mock.Mock()

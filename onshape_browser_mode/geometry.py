@@ -48,7 +48,12 @@ def browser_geometry_status(
     discovery = discover_geometry_dependencies(repo_root)
     discovery.pop("_candidates", None)
     if discovery["nextAction"]["kind"] == "configure_existing":
-        discovery["nextAction"]["tool"] = "browser_configure_geometry_backend"
+        # One configuration command now serves both owning modes, so this advice
+        # names that survivor and states which mode this report is about. The
+        # candidate ids come from one shared scan and are not backend-specific,
+        # so the mode cannot be inferred from them.
+        discovery["nextAction"]["tool"] = "onshape_configure_geometry_backend"
+        discovery["nextAction"]["backend"] = "browser"
     status["dependencyResolution"] = discovery
     return status
 

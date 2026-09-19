@@ -111,12 +111,17 @@ _classify(
     (
         "browser_session",
         "browser_watch",
-        "browser_reload",
-        "browser_reconnect",
         "browser_discover_tools",
-        "browser_invoke_discovered",
     ),
     "L2",
+)
+
+TOOL_SEMANTICS["browser_invoke_discovered"] = _semantic(
+    "L2",
+    default_exposure=False,
+    maturity="deprecated",
+    dependencies=("mcp_tool_catalog",),
+    note="Exact-name compatibility wrapper; any registered tool is callable by name, so it adds a hop, not capability.",
 )
 
 _classify(
@@ -165,7 +170,6 @@ _classify(
         "browser_fix_instances",
         "browser_group_instances",
         "browser_create_drawing",
-        "browser_add_drawing_dimension",
         "browser_delete_element",
         "browser_export_step",
     ),
@@ -210,10 +214,27 @@ TOOL_SEMANTICS.update({
         dependencies=("browser_delete_element",),
         note="Exact-name compatibility wrapper; prefer the exact data-id deletion contract.",
     ),
+    "browser_reconnect": _semantic(
+        "L2",
+        default_exposure=False,
+        maturity="deprecated",
+        dependencies=("browser_session",),
+        note="Exact-name compatibility wrapper; the session tool's reconnect action owns this behaviour.",
+    ),
+    "browser_reload": _semantic(
+        "L2",
+        default_exposure=False,
+        maturity="deprecated",
+        dependencies=("browser_session",),
+        note="Exact-name compatibility wrapper; the session tool's reload action owns this behaviour.",
+    ),
     "browser_geometry_status": _semantic(
         None,
         semantic_name="boundary_observation",
-        note="Local owning-mode readiness and dependency discovery; no browser or Onshape transaction.",
+        default_exposure=False,
+        maturity="deprecated",
+        dependencies=("onshape_geometry_status",),
+        note="Exact-name compatibility wrapper; readiness is now one combined answer over every owning mode.",
     ),
     "browser_draw_part": _semantic(
         "L5",
@@ -224,11 +245,21 @@ TOOL_SEMANTICS.update({
     ),
     "browser_drawing_insert_views": _semantic(
         "L5",
-        note="Creates a Drawing through the part-row context flow and establishes a verified view layout.",
+        default_exposure=False,
+        maturity="deprecated",
+        dependencies=("browser_draw_part_with_views",),
+        note="Exact-name compatibility wrapper; the views-only stage of the merged Drawing transaction.",
     ),
     "browser_draw_part_with_views": _semantic(
         "L5",
-        dependencies=("browser_drawing_insert_views", "browser_add_drawing_dimension"),
+        note="The one Drawing transaction: views, dimensions, or both in a single verified job.",
+    ),
+    "browser_add_drawing_dimension": _semantic(
+        "L5",
+        default_exposure=False,
+        maturity="deprecated",
+        dependencies=("browser_draw_part_with_views",),
+        note="Exact-name compatibility wrapper; the dimension stage of the merged Drawing transaction.",
     ),
     "browser_spiral_ridge": _semantic(
         "L5",
@@ -272,11 +303,14 @@ TOOL_SEMANTICS.update({
     "browser_configure_geometry_backend": _semantic(
         None,
         semantic_name="boundary_operation",
-        note="Selects a re-discovered local dependency candidate; never installs one.",
+        default_exposure=False,
+        maturity="deprecated",
+        dependencies=("onshape_configure_geometry_backend",),
+        note="Exact-name compatibility wrapper for the browser half; the surviving command takes backend='browser'.",
     ),
     "browser_build_geometry_package": _semantic(
         "L6",
-        dependencies=("browser_export_step", "browser_geometry_status"),
+        dependencies=("browser_export_step", "onshape_geometry_status"),
         note="Produces an independently consumable non-slicer geometry-analysis package.",
     ),
     "browser_sync_rest_state": _semantic(
@@ -389,7 +423,12 @@ def discover_tools(
         "explicitLevelQuery": levels is not None,
         "candidateCount": len(candidates),
         "candidates": candidates,
-        "invocationTool": "browser_invoke_discovered",
+        "invocationTool": None,
+        "invocationNote": (
+            "Call a candidate by its exact registered name through the transport. "
+            "This view does not execute anything: semantic level is discovery "
+            "guidance, not execution authority."
+        ),
         "note": "semantic level is discovery guidance, not execution authority",
     }
 

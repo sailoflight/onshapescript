@@ -62,7 +62,8 @@
 
 - `browser_create_document`、`browser_create_document_version`、`browser_insert_custom_feature`、
   `browser_get_page_tabs`、`browser_get_partstudio_features`、`browser_deploy_featurescript`、
-  `browser_read_featurescript`、`browser_open_document`、`browser_reconnect`。
+  `browser_read_featurescript`、`browser_open_document`、`browser_session`（会话恢复走
+  `action="reconnect"`）。
 - `browser_click` 支持 `selector+text` 精确定位与 `double` 双击。
 
 当前完整工具清单以 `docs_section(page="mcp-server")` 和 `tools/list` 为准；经验
@@ -157,12 +158,14 @@
   每个尺寸，空列表不再因 `all([])` 误报成功。
 - 实测修正（2026-08-25）：通用「创建工程图…」路径可能得到空白图纸。自动视图应
   从 Part Studio 的精确零件行右键菜单 `创建 <name> 的工程图…` 进入。
-  `browser_drawing_insert_views` 选择 `four` / `single` / `iso` 语义布局，要求恰好
-  一个新 drawing tab，并用 Drawing DOM 或 main-canvas PNG 墨迹分布验证视图。
+  `browser_draw_part_with_views` 的视图阶段选择 `four` / `single` / `iso` 语义布局，
+  要求恰好一个新 drawing tab，并用 Drawing DOM 或 main-canvas PNG 墨迹分布验证视图。
   当前 Drawing DOM 没有可靠 view 节点，实际四视图的 1240×694 canvas 已经视觉确认；
   原图、SHA 和像素指标在 `dev/button-map/scan-app-shell.json` /
-  `scan-drawing-four-views.png`。`browser_draw_part_with_views` 在此基础上再添加尺寸，
-  任一阶段失败即 `drawn:false`。
+  `scan-drawing-four-views.png`。同一个工具再按 `dimensions` 添加尺寸，只要给了
+  `part_name` 和 `dimensions` 就两阶段都要求通过，任一阶段失败即 `drawn:false`；
+  只给 `dimensions` 则只做尺寸阶段，只给 `part_name` 则只做视图阶段（视图-only
+  返回的就是旧 `browser_drawing_insert_views` 的 `viewsInserted` 证据）。
 
 ## 11. Fixture 驱动项目与验收
 
@@ -230,9 +233,10 @@
 
 `browser_discover_tools(query=...)` 在返回工具候选的同时，会把匹配的**能力卡片**
 附在 `capabilities` 字段里（同一个工具，没有新增工具，也没有放宽 L1/L3 的默认暴露）。
-每张卡还带 `invocation`：能力**不**走 `browser_invoke_discovered`，而是作为
+每张卡还带 `invocation`：能力不是注册工具名，而是作为
 `browser_deploy_and_apply_featurescript` 的 `capability` + `values` 参数，
-所以卡自己给出准确的调用（`values` 是卡片默认值，只做起点）。
+所以卡自己给出准确的调用（`values` 是卡片默认值，只做起点）。工具候选则相反：
+按 `browser_discover_tools` / `mcp_tool_catalog` 返回的精确注册名直接调用。
 `capabilities.search(query, limit)` 最多返回 5 张卡，排序为
 身份（id / 别名）→ 特征类型 → `use_when` 散文；单个偶然的散文词（"feature"、
 "part"）不足以命中，只有一个弱词也不算匹配。
@@ -316,6 +320,12 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
 - 真机验证前先读 `mcp_tool_catalog(action="status")`，把 `fingerprint` 与仓库算出的
   `ToolCatalogIndex(server.TOOLS).fingerprint` 比对；不等就说明线上不是当前代码。
   `registryCount` 只用来解释差异（多了什么、少了什么），不能单独当判据。
+  上段两个指纹值是 2026-09-19 的**测量记录**，不是常量：仓库侧任何 description /
+  schema 改动都会改变它（同日的八项工具合并就把仓库侧指纹换成了新值）。要比的是
+  「当场读到的线上值 vs 当场算出的仓库值」。
+- 同日的合并还改变了普通 `tools/list`：八个被吸收的兼容名不再出现在普通视图（浏览器
+  名通过 `default_exposure=False`，`fs_list_modules` 通过 `ABSORBED_COMPATIBILITY_TOOLS`），
+  所以普通列表从 80 降到 72，而注册表仍是 106。数字下降**不等于**工具变少。
 - 再用**只在仓库里存在**的一个能力参数（例如 `capability=`）探一下该工具的真实 schema。
 - 结论要按事实写：「验证的是生成出来的源码与浏览器应用链路」，不要写成「能力层已验证」。
 - 部署副本里 `browser-state.json` / `browser.local.toml` 是 Deployment 本地状态，

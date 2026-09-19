@@ -310,10 +310,10 @@ class ConnectionCatalogTest(unittest.TestCase):
         ))
         self.assertIs(documentation.catalog, geometry.catalog)
         first = self.call(documentation, 1, "mcp_tool_catalog", {
-            "action": "describe", "name": "browser_geometry_status"
+            "action": "describe", "name": "onshape_geometry_status"
         })[0]["result"]["structuredContent"]
         second = self.call(geometry, 2, "mcp_tool_catalog", {
-            "action": "describe", "name": "browser_geometry_status"
+            "action": "describe", "name": "onshape_geometry_status"
         })[0]["result"]["structuredContent"]
         self.assertFalse(first["tool"]["visibleInCurrentView"])
         self.assertTrue(second["tool"]["visibleInCurrentView"])

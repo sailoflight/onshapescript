@@ -187,9 +187,9 @@ class DiscoveryWiringTest(unittest.TestCase):
         self.assertIn("candidates", result)
 
     def test_a_card_carries_the_call_that_uses_it(self) -> None:
-        """The gateway route in the same result is `browser_invoke_discovered`,
-        which is wrong for a capability: a capability is an argument to the deploy
-        tool, so the card must say so itself."""
+        """The tool-candidate route is "call it by its exact name", which is wrong
+        for a capability: a capability is an argument to the deploy tool, so the
+        card must say so itself."""
         result = browser_tools.browser_discover_tools({"query": "fillet"})
         match = result["capabilities"][0]
         self.assertEqual(match["invocation"]["tool"], "browser_deploy_and_apply_featurescript")
