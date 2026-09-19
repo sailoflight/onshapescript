@@ -304,9 +304,11 @@ and reports an explicit non-success on any failed stage.
 
 Delivered offline: `onshape_browser_mode/capabilities.py` holds the contract
 (bounded values only; queries stay inside the generated feature's precondition;
-cards carry no implementation) and three capabilities — `custom.spiral_ridge`
+cards carry no implementation) and four capabilities — `custom.spiral_ridge`
 (`live-verified`, and asserted to render exactly the precedent's source),
-`custom.fillet`, and `custom.extrude` (with `remove` for the cut form). No new
+`custom.fillet`, `custom.extrude` (with `remove` for the cut form), and
+`custom.hole` (built from the vendored `holeDefinition`/`holeProfile`
+constructors). No new
 tool was added: `browser_deploy_and_apply_featurescript` now accepts either a raw
 `script` or a `capability` + `values`, with the two routes expressed as an
 `anyOf` in the schema and enforced in the handler. The generated source is
@@ -437,9 +439,9 @@ Compose checks from `../verification/MATRIX.md`; do not invent new gates.
 |---|---|
 | This roadmap and routing | project-layout tests; docs verification |
 | Browser leg (P1, P2) | browser-mode tests, browser plan completion tests; real browser work only after mock/fixture/dry-run, read-only selector verification, stated cloud mutation, confirmation, domain-state verification |
-| FeatureScript source (P2, P6) | `fs_local_check.py` plus matching static tests; authorized upload/live compile only |
+| FeatureScript source (P2, P6) | `fs_local_check.py` plus `test_static_guards` (including the measured-zero-FP import rule and the masked symbol scan); authorized upload/live compile only |
 | REST operations (P3) | quota guards; explicitly budgeted live fact only |
-| Capability cards (P4) | `test_capabilities` (contract, symbols, precedent), `test_capability_retrieval` (card-vs-reference cost, no expansion, discovery wiring) |
+| Capability cards (P4) | `test_capabilities` (contract, symbols, precedent), `test_capability_retrieval` (card-vs-reference cost, no expansion, both discovery entries, invocation shape) |
 | Tool surface (P5) | MCP, runtime-prompt, and generated-reference `--check` |
 
 Never claim an unexecuted check passed.
