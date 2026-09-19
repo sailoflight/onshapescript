@@ -1387,7 +1387,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "9356f305c53fe0a657e282bec681e47fdbf18926b2d0ae58a8b87adb7934977e",
+   "sha256": "6db7e4019d00e7246018405f2dc95236cfc0fd126405ce5dd250ec5981898399",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1682,6 +1682,10 @@
       {
        "type": "para",
        "text": "All local findings are advisory: they never block an upload, because the vendored reference can lag the live server. Measured against the real standard library, an argument-count check produced 30 false positives and a field-name check 73, so neither shipped; the two rules that did (non-map third argument to a definition-map call, dimensioned arithmetic mixed with a plain number) had zero. The gate that keeps them honest is dev/tools/fs_corpus_check.py, which scores the checker against the live-labeled instance corpus."
+      },
+      {
+       "type": "para",
+       "text": "False positives are also fixed, not just avoided. The symbol scan now reads the masked text, so a word inside an annotation string — \"Planar face (drill direction)\" — no longer reports a call to face(, and a commented-out example no longer reports its own types; test_static_guards pins both directions, including that a genuine unknown call or enum member is still warned."
       },
       {
        "type": "para",
@@ -2738,7 +2742,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "6f48c43db7a0e8a23a5e3e6c6ace5847408e87533c7bd9178d4d93e801859d8b",
+   "sha256": "4687a3c9ee0e157a4fa20221a454bbdde7f2bfb0ba57df6b1aed2d463f88e883",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3192,7 +3196,7 @@
          "depth": 0
         },
         {
-         "text": "能力数量与工具数量解耦：新增能力不新增工具。当前三个能力 （custom.spiral_ridge / custom.fillet / custom.extrude）都通过既有的 browser_deploy_and_apply_featurescript 调用，schema 用 anyOf: [script+feature_name, capability] 表达两条互斥路线，handler 再做一次校验。",
+         "text": "能力数量与工具数量解耦：新增能力不新增工具。当前四个能力 （custom.spiral_ridge / custom.fillet / custom.extrude / custom.hole）都通过既有的 browser_deploy_and_apply_featurescript 调用，schema 用 anyOf: [script+feature_name, capability] 表达两条互斥路线，handler 再做一次校验。",
          "depth": 0
         },
         {
@@ -3244,6 +3248,10 @@
       },
       {
        "type": "para",
+       "text": "孔（custom.hole）：一次基于证据的推翻。 早期结论是「不加 custom.hole， 因为 holeDefinition 的构造无法离线确认」。查过 vendored 源码后这个理由不成立： opHole 的字段（holeDefinition / axes / targets）与示例写在 geomOperations.fs，holeDefinition(profiles) 单参重载、holeProfile( positionReference, position, radius) 构造器、以及「最后一个 profile 的半径必须是 0」的规则写在 holeUtils.fs，AXIS_POINT / LAST_TARGET_END 是 holepositionreference.gen.fs 里的枚举成员，line(origin, direction) 来自 curveGeometry.fs，evVertexPoint / evPlane 来自 evaluate.fs。所以孔的形状是 可被符号门检查的构造调用，不是猜出来的 map 字面量。轴由人的两次选择决定 （起点顶点 + 平面面，钻孔方向取面法线的反向），通孔用 LAST_TARGET_END 引用而不是 一个很大的深度值。状态仍是 structural-only。"
+      },
+      {
+       "type": "para",
        "text": "验证状态要说清楚"
       },
       {
@@ -3254,7 +3262,7 @@
          "depth": 0
         },
         {
-         "text": "custom.fillet / custom.extrude — structural-only：只通过本地结构检查器 （fs_check，0 调用）与符号门。没有编译过、没有应用过、没有产生过几何。 这两条真机验证属于 P2 gate 的未完成部分，不得写成已验证。",
+         "text": "custom.fillet / custom.extrude / custom.hole — structural-only：只通过本地 结构检查器（fs_check，0 调用）与符号门。没有编译过、没有应用过、没有产生过几何。 这三条真机验证属于 P2 gate 的未完成部分，不得写成已验证。",
          "depth": 0
         }
        ]

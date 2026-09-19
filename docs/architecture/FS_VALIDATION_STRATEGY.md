@@ -49,6 +49,11 @@ Two consequences:
 2. Anything needing scope, type, unit, query, control-flow, or import-graph
    analysis is **out of reach offline** from the vendored mirror alone. That is
    not a backlog item for the scanner; it is the browser compiler's job.
+3. A false positive that is *found* is fixed, not tolerated. The symbol scan used
+   to read the raw text, so a lowercase word followed by `(` inside an annotation
+   string reported an unknown call; it now reads the masked text, with
+   `test_static_guards` pinning both the silence and the still-reported genuine
+   finding. That is the standard for every later rule.
 
 ## 3. External reuse survey (2026-09-19, search-level evidence)
 

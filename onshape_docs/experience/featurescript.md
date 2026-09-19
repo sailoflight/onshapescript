@@ -213,6 +213,12 @@ definition-map call, dimensioned arithmetic mixed with a plain number) had zero.
 The gate that keeps them honest is `dev/tools/fs_corpus_check.py`, which scores
 the checker against the live-labeled instance corpus.
 
+False positives are also fixed, not just avoided. The symbol scan now reads the
+masked text, so a word inside an annotation string — `"Planar face (drill
+direction)"` — no longer reports a call to `face(`, and a commented-out example no
+longer reports its own types; `test_static_guards` pins both directions, including
+that a genuine unknown call or enum member is still warned.
+
 Rules that save quota:
 
 - **Never compile-probe with uploads.** A bad body costs the same ~3 calls as a

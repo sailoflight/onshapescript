@@ -296,14 +296,19 @@ def _load_index(fs: FsFile) -> dict[str, set[str]] | None:
     }
 
 
-def check_symbols(fs: FsFile, index: dict[str, set[str]] | None) -> None:
+def check_symbols(fs: FsFile, index: dict[str, set[str]] | None, code: str | None = None) -> None:
     if index is None:
         return
-    defined = set(re.findall(r"\bfunction\s+(\w+)", fs.text))
+    # Scan the masked text. A call-shaped word inside a string or a comment is
+    # not a call: the annotation `"Planar face (drill direction)"` must not
+    # report `face(` as an unknown symbol, and a commented-out example must not
+    # report its types either.
+    code = strip_strings_and_comments(fs.text) if code is None else code
+    defined = set(re.findall(r"\bfunction\s+(\w+)", code))
     local_calls = defined | {"defineFeature", "println", "print", "size"}
     known = index["functions"] | index["predicates"]
 
-    for match in re.finditer(r"\b([a-z][A-Za-z0-9_]*)\s*\(", fs.text):
+    for match in re.finditer(r"\b([a-z][A-Za-z0-9_]*)\s*\(", code):
         name = match.group(1)
         if name in _KEYWORDS or name in local_calls:
             continue
@@ -312,14 +317,14 @@ def check_symbols(fs: FsFile, index: dict[str, set[str]] | None) -> None:
                     "verify against the live Feature Studio)")
 
     # Type references: 'is X', 'as X', ': X', 'var x : X', 'X.VALUE'.
-    type_hits = set(re.findall(r"\b(?:is|as)\s+([A-Z]\w*)", fs.text))
-    type_hits |= set(re.findall(r"\bvar\s+\w+\s*:\s*([A-Z]\w*)", fs.text))
+    type_hits = set(re.findall(r"\b(?:is|as)\s+([A-Z]\w*)", code))
+    type_hits |= set(re.findall(r"\bvar\s+\w+\s*:\s*([A-Z]\w*)", code))
     for name in sorted(type_hits - index["types"]):
         if name in index["constants"] or name in index["predicates"]:
             continue
         fs.warn(f"type '{name}' not in vendored std index")
 
-    for match in re.finditer(r"\b([A-Z]\w*)\.([A-Za-z0-9_]+)\b", fs.text):
+    for match in re.finditer(r"\b([A-Z]\w*)\.([A-Za-z0-9_]+)\b", code):
         type_name, member = match.group(1), match.group(2)
         values = index["type_values"].get(type_name)
         if values is not None and member not in values:
@@ -454,7 +459,7 @@ def check_source(fs: FsFile) -> FsFile:
     check_brackets(fs, masked)
     check_dangling_annotations(fs, comments_only, masked)
     check_define_feature(fs, masked)
-    check_symbols(fs, index)
+    check_symbols(fs, index, masked)
     check_op_definitions(fs, comments_only, masked, index)
     check_unit_mixing(fs, comments_only)
     return fs

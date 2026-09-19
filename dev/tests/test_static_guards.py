@@ -127,6 +127,79 @@ class CheckerCliTest(unittest.TestCase):
                          ["onshape_docs.query.fs_check"] * 3)
 
 
+class SymbolScanMaskingTest(unittest.TestCase):
+    """Symbol scanning must read the code, not the prose or the comments.
+
+    Regression: `check_symbols` scanned the raw text, so an annotation string
+    containing a lowercase word followed by `(` -- `"Planar face (drill
+    direction)"` -- reported a call to `face(`, and a commented-out example
+    reported its own types. A checker that flags words inside strings cannot be
+    trusted with a warning budget.
+    """
+
+    def _warnings(self, text: str) -> list[str]:
+        return check_text(text).warnings
+
+    def test_a_parenthesised_annotation_string_is_not_a_call(self) -> None:
+        text = _HEADER + (
+            'annotation { "Feature Type Name" : "MyFeature" }\n'
+            "export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            "    precondition\n"
+            "    {\n"
+            '        annotation { "Name" : "Planar face (drill direction)" }\n'
+            "        definition.face is Query;\n"
+            "    }\n"
+            "    {\n"
+            '        opExtrude(context, id + "e", { "entities" : definition.face, "direction" : Z_DIRECTION, "endBound" : BoundingType.BLIND, "endDepth" : 1 * millimeter });\n'
+            "    });\n"
+        )
+        self.assertEqual(self._warnings(text), [])
+
+    def test_a_commented_out_call_or_type_is_not_scanned(self) -> None:
+        text = _HEADER + (
+            'annotation { "Feature Type Name" : "MyFeature" }\n'
+            "export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            "    precondition\n"
+            "    {\n"
+            '        annotation { "Name" : "Size" }\n'
+            "        definition.size is number;\n"
+            "    }\n"
+            "    {\n"
+            "        // opFrobnicate(context, id, {}); and `definition.x is NotAType`\n"
+            "        /* MyEnum.BOGUS_MEMBER */\n"
+            "        println(1);\n"
+            "    });\n"
+        )
+        self.assertEqual(self._warnings(text), [])
+
+    def test_a_real_unknown_call_is_still_warned(self) -> None:
+        """The mask must not swallow the finding it exists to qualify."""
+        text = _HEADER + (
+            'annotation { "Feature Type Name" : "MyFeature" }\n'
+            "export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            "    {\n"
+            "        qFrobnicate(id);\n"
+            "    });\n"
+        )
+        self.assertTrue(
+            any("qFrobnicate" in warning for warning in self._warnings(text)),
+            "a genuine unknown symbol must still be reported",
+        )
+
+    def test_a_real_unknown_enum_member_is_still_warned(self) -> None:
+        text = _HEADER + (
+            'annotation { "Feature Type Name" : "MyFeature" }\n'
+            "export const myFeature = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            "    {\n"
+            "        const bound = BoundingType.NOT_A_BOUNDING_TYPE;\n"
+            "    });\n"
+        )
+        self.assertTrue(
+            any("NOT_A_BOUNDING_TYPE" in warning for warning in self._warnings(text)),
+            "a genuine unknown enum member must still be reported",
+        )
+
+
 class DanglingAnnotationTest(unittest.TestCase):
     def test_correct_annotation_is_not_flagged(self) -> None:
         fs = check_text(_VALID_FEATURE)
