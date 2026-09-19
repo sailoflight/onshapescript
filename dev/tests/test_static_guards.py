@@ -3,15 +3,19 @@
 
 Covers the local FeatureScript checker (onshape_docs/scripts/fs_local_check.py)
 — specifically that a dangling `Feature Type Name` annotation is detected even
-though string masking hides its marker, and that an unreplaced {{PLACEHOLDER}} is
-a structural error — plus the rate-limit re-raise ordering in live_gap_probe and
-the singleton-attribution safety in live_is_probe. No Onshape API call is ever
-made: live scripts are driven through mocks only.
+though string masking hides its marker, that an unreplaced {{PLACEHOLDER}} is a
+structural error, that a definition-map call with a non-map third argument and
+dimensioned arithmetic mixed with a plain number are warned about, and that the
+checker meets its acceptance on the live-labeled sample corpus — plus the
+rate-limit re-raise ordering in live_gap_probe and the singleton-attribution
+safety in live_is_probe. No Onshape API call is ever made: live scripts are
+driven through mocks only, and the corpus check is fully offline.
 """
 
 from __future__ import annotations
 
 import contextlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -185,6 +189,123 @@ class LiveIsProbeSingletonTest(unittest.TestCase):
         self.assertEqual(probe.pending, [])
         self.assertIn("isFake", probe.results)
         self.assertEqual(probe.results["isFake"]["verdict"], "FAILED")
+
+
+def _feature_with_body(body: str) -> str:
+    """A minimal valid custom feature whose body is `body`."""
+    return _HEADER + (
+        'annotation { "Feature Type Name" : "T" }\n'
+        "export const t = defineFeature(function(context is Context, id is Id, definition is map)\n"
+        "    precondition\n"
+        "    {\n"
+        '        annotation { "Name" : "Size" }\n'
+        "        isLength(definition.size, { (millimeter) : [1, 2, 3] } as LengthBoundSpec);\n"
+        "    }\n"
+        "    {\n"
+        f"        {body}\n"
+        "    });\n"
+    )
+
+
+class DefinitionMapArgumentTest(unittest.TestCase):
+    """A definition-map call's third argument must be a map literal.
+
+    The server accepts a scalar here at save time and only reports
+    `featureStatus=ERROR` at instantiation, so this class of defect is invisible
+    without a local rule.
+    """
+
+    def test_scalar_third_argument_is_warned(self) -> None:
+        checked = check_text(_feature_with_body('opExtrude(context, id + "e", 5);'))
+        self.assertTrue(
+            any("not a map literal" in warning for warning in checked.warnings),
+            checked.warnings,
+        )
+        self.assertFalse(checked.errors)
+
+    def test_string_third_argument_is_warned(self) -> None:
+        checked = check_text(_feature_with_body('opExtrude(context, id + "e", "nope");'))
+        self.assertTrue(
+            any("not a map literal" in warning for warning in checked.warnings),
+            checked.warnings,
+        )
+
+    def test_map_literal_third_argument_is_not_warned(self) -> None:
+        checked = check_text(_feature_with_body(
+            'opExtrude(context, id + "e", { "entities" : qCreatedBy(id, EntityType.BODY) });'
+        ))
+        self.assertFalse(
+            [warning for warning in checked.warnings if "not a map literal" in warning]
+        )
+
+    def test_variable_third_argument_is_never_second_guessed(self) -> None:
+        checked = check_text(_feature_with_body(
+            'const definition = { "entities" : qCreatedBy(id, EntityType.BODY) };\n'
+            '        opExtrude(context, id + "e", definition);'
+        ))
+        self.assertFalse(
+            [warning for warning in checked.warnings if "not a map literal" in warning]
+        )
+
+    def test_nested_map_value_does_not_confuse_argument_split(self) -> None:
+        checked = check_text(_feature_with_body(
+            'opExtrude(context, id + "e", { "entities" : qCreatedBy(id, EntityType.BODY), '
+            '"direction" : vector(1, 0, 0) });'
+        ))
+        self.assertFalse(
+            [warning for warning in checked.warnings if "not a map literal" in warning]
+        )
+
+
+class UnitMixingTest(unittest.TestCase):
+    """Dimensioned arithmetic joined to a plain number is flagged."""
+
+    def test_dimensioned_plus_plain_number_is_warned(self) -> None:
+        checked = check_text(_feature_with_body("var len = 5 * millimeter + 2;"))
+        self.assertTrue(
+            any("mixed dimensions" in warning for warning in checked.warnings),
+            checked.warnings,
+        )
+
+    def test_plain_number_plus_dimensioned_is_warned(self) -> None:
+        checked = check_text(_feature_with_body("var len = 2 + 5 * millimeter;"))
+        self.assertTrue(
+            any("mixed dimensions" in warning for warning in checked.warnings),
+            checked.warnings,
+        )
+
+    def test_genuine_unit_arithmetic_is_not_warned(self) -> None:
+        checked = check_text(_feature_with_body("var len = 5 * millimeter + 2 * centimeter;"))
+        self.assertFalse(
+            [warning for warning in checked.warnings if "mixed dimensions" in warning]
+        )
+
+    def test_plain_arithmetic_is_not_warned(self) -> None:
+        checked = check_text(_feature_with_body("var count = 5 + 2;"))
+        self.assertFalse(
+            [warning for warning in checked.warnings if "mixed dimensions" in warning]
+        )
+
+
+class LiveLabeledCorpusTest(unittest.TestCase):
+    """The checker's acceptance against the live-labeled sample corpus.
+
+    `dev/tools/fs_corpus_check.py` renders the recorded experiment templates and
+    compares the local verdict with the recorded live outcome. It exits 0 only
+    when every sample that the live server accepted and later failed at
+    instantiation is flagged locally, and no valid sample is flagged.
+    """
+
+    def test_labeled_corpus_meets_acceptance(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "dev" / "tools" / "fs_corpus_check.py")],
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("result: PASS", result.stdout)
+        self.assertIn("valid samples clean    : 6/6", result.stdout)
 
 
 if __name__ == "__main__":

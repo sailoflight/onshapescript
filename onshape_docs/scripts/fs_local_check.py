@@ -12,6 +12,20 @@ that actually burned quota during live verification:
 - unbalanced brackets, unreplaced {{PLACEHOLDER}}s
 - symbol/type references absent from the vendored std index (warning level:
   the mirror may lag the live server, and local defs are fine)
+- a definition-map call whose third argument cannot be a map, e.g.
+  `opExtrude(context, id, 5)` — the server accepts this at save time and only
+  reports `featureStatus=ERROR` at instantiation, so it must be caught locally
+- arithmetic that mixes a dimensioned value with a plain number, e.g.
+  `5 * millimeter + 2` — same deferred-failure shape
+
+Why field-name and argument-count checks are deliberately absent: the vendored
+reference's docblock extraction is incomplete. It records 6 fields for
+`opBoolean` and 1 for `opDeleteBodies`, while the real definitions accept many
+more, and it marks optional parameters inconsistently. Measured against the real
+standard library (`onshape_docs/reference/raw/std-library/`), a field-name check
+produced 73 false positives and an arity check 30 — on correct production code.
+Both are therefore omitted rather than shipped noisy; they become viable only
+once the reference's field extraction is complete.
 
 Usage:
     python3 onshape_docs/scripts/fs_local_check.py [FILE...]     # files or directories
@@ -26,6 +40,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
@@ -37,6 +52,23 @@ _KEYWORDS = {
     "return", "throw", "true", "var", "while",
 }
 _CALL_PREFIXES = ("q", "op", "ev", "to", "is", "f")  # naming-is-the-grammar
+
+# FeatureScript unit constants. The vendored index carries most of these, but a
+# fixed vocabulary keeps the unit check correct even when the index is missing.
+# Only whole-number arithmetic directly joined to a unit is inspected, so a
+# variable named like a unit cannot be mistaken for one.
+_KNOWN_UNITS = frozenset({
+    "millimeter", "centimeter", "meter", "kilometer", "inch", "foot", "yard",
+    "thou", "mil", "mile", "radian", "degree", "revolution", "gram", "kilogram",
+    "pound", "ounce", "tonne", "second", "minute", "hour", "ampere", "mole",
+    "candela", "kelvin", "newton", "pascal", "joule", "watt", "volt", "ohm",
+    "coulomb", "farad", "henry", "tesla", "weber", "hertz", "liter",
+})
+
+# A third positional argument that is definitely NOT a definition map. Anything
+# else -- a variable, a call, a parenthesised expression -- may legitimately hold
+# a map, so it is left alone. The check must never guess.
+_MAP_INCAPABLE = re.compile(r'^(?:[+-]?\d|\[|true\b|false\b|"|\')')
 
 
 class FsFile:
@@ -223,6 +255,7 @@ def _load_index(fs: FsFile) -> dict[str, set[str]] | None:
         "predicates": {item["name"] for item in data.get("predicates", [])},
         "types": {item["name"] for item in data.get("types", [])},
         "constants": {item["name"] for item in data.get("constants", [])},
+        "map_calls": _build_map_call_table(data),
         "type_values": {
             item["name"]: {
                 v if isinstance(v, str) else v.get("name")
@@ -263,15 +296,132 @@ def check_symbols(fs: FsFile, index: dict[str, set[str]] | None) -> None:
             fs.warn(f"'{type_name}.{member}' is not a documented value of {type_name}")
 
 
+def _build_map_call_table(data: dict) -> dict[str, str]:
+    """Map every call whose third positional argument is a definition map.
+
+    The reference documents this shape for every ``op*`` call and for the
+    sketch/primitive builders (``newSketch``, ``skPoint``, ``cube``, ...). The
+    value is the map parameter's documented name, used in the warning text.
+
+    Only the shape is indexed. Field names and required-argument counts are
+    intentionally not used -- see the module docstring for the measured reason.
+    """
+    table: dict[str, str] = {}
+    for item in data.get("functions", []):
+        if not isinstance(item, dict):
+            continue
+        match = re.search(r"\(([^)]*)\)", item.get("signature") or "")
+        if not match:
+            continue
+        params = [part.strip() for part in match.group(1).split(",")]
+        if len(params) < 3 or not params[2].endswith("is map"):
+            continue
+        table[item["name"]] = params[2].split(" is ")[0].strip()
+    return table
+
+
+def _call_argument_spans(
+    masked: str, readable: str, open_at: int
+) -> list[tuple[int, int]] | None:
+    """Split one call's arguments at the top level, returning source spans.
+
+    Structure comes from `masked`; `readable` (comments masked, string literals
+    intact) decides whether a trailing argument is really absent. Testing that on
+    the fully masked text would discard a string-literal argument, whose
+    characters are blanks there.
+    """
+    close = find_matching(masked, open_at)
+    if close is None:
+        return None
+    spans: list[tuple[int, int]] = []
+    depth = 0
+    start = open_at + 1
+    for index in range(open_at + 1, close):
+        char = masked[index]
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            spans.append((start, index))
+            start = index + 1
+    spans.append((start, close))
+    if len(spans) > 1 and not readable[spans[-1][0]:spans[-1][1]].strip():
+        spans.pop()
+    return spans
+
+
+def check_op_definitions(
+    fs: FsFile, comments_only: str, masked: str, index: dict[str, Any] | None
+) -> None:
+    """Warn when a definition-map call passes something that cannot be a map.
+
+    Warnings only: the vendored reference may lag the live server, and a wrong
+    blocking decision costs more than a noisy warning. A third argument that is a
+    variable or a call is never second-guessed -- only a literal that is
+    definitely not a map is reported.
+    """
+    table = (index or {}).get("map_calls") or {}
+    if not table:
+        return
+    for match in re.finditer(r"\b([A-Za-z_]\w*)\s*\(", masked):
+        name = match.group(1)
+        map_param = table.get(name)
+        if map_param is None:
+            continue
+        open_at = masked.find("(", match.start())
+        spans = _call_argument_spans(masked, comments_only, open_at)
+        if spans is None or len(spans) < 3:
+            continue
+        third = comments_only[spans[2][0]:spans[2][1]].strip()
+        if _MAP_INCAPABLE.match(third):
+            fs.warn(
+                f"{name}(...): the third argument is the '{map_param}' map, "
+                f"but {third.splitlines()[0][:24]!r} is not a map literal"
+            )
+
+
+_UNIT_ALTERNATION = "|".join(sorted(_KNOWN_UNITS, key=len, reverse=True))
+# value-with-units (+|-) plain number
+_UNIT_SUM = re.compile(
+    rf"\b\d+(?:\.\d+)?\s*\*\s*(?:{_UNIT_ALTERNATION})\b\s*[+\-]\s*\d+(?:\.\d+)?(?!\s*[*/])"
+)
+# plain number (+|-) value-with-units
+_UNIT_SUM_REVERSED = re.compile(
+    rf"\b\d+(?:\.\d+)?\s*[+\-]\s*\d+(?:\.\d+)?\s*\*\s*(?:{_UNIT_ALTERNATION})\b"
+)
+
+
+def check_unit_mixing(fs: FsFile, comments_only: str) -> None:
+    """Warn on arithmetic that adds a dimensioned value to a plain number.
+
+    ``5 * millimeter + 2`` mixes a length with a dimensionless number. FeatureScript
+    defers that to instantiation, so it is invisible at save time. Heuristic, and
+    therefore a warning: only literal ``number * unit`` joined to a literal number
+    is reported, and a following ``*`` excludes genuine unit arithmetic such as
+    ``5 * millimeter + 2 * centimeter``.
+    """
+    for pattern in (_UNIT_SUM, _UNIT_SUM_REVERSED):
+        for match in pattern.finditer(comments_only):
+            fs.warn(
+                "mixed dimensions: "
+                f"{match.group(0).strip()!r} combines a value with units and a "
+                "plain number"
+            )
+
+
 def check_file(path: Path) -> FsFile:
     fs = FsFile(path)
     masked = strip_strings_and_comments(fs.text)
     comments_only = strip_comments_only(fs.text)
+    index = _load_index(fs)
     check_header(fs)
     check_brackets(fs, masked)
     check_dangling_annotations(fs, comments_only, masked)
     check_define_feature(fs, masked)
-    check_symbols(fs, _load_index(fs))
+    check_symbols(fs, index)
+    check_op_definitions(fs, comments_only, masked, index)
+    check_unit_mixing(fs, comments_only)
     return fs
 
 
