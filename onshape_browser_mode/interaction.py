@@ -86,7 +86,10 @@ def wait_for_condition(
             elif condition in ("visible", "hidden", "attached", "detached"):
                 if not selector:
                     raise ValueError(f"selector is required for condition={condition!r}")
-                scope.locator(selector).first.wait_for(state=condition, timeout=timeout_ms)
+                # `text` narrows the target to a matching element, which is how a
+                # known row (e.g. one feature in a list) is waited for without a
+                # fixed sleep. Without `text` this is the first match, unchanged.
+                resolve_locator(scope, selector, text).wait_for(state=condition, timeout=timeout_ms)
             else:
                 raise ValueError(
                     "condition must be visible, hidden, attached, detached, text, url, network_idle, or frame"
@@ -104,6 +107,7 @@ def wait_for_condition(
         "waited": True,
         "condition": condition,
         "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"targetText": text} if text else {}),
         "frameUrl": scope_url(scope),
     }
 

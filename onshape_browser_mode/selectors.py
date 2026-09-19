@@ -56,6 +56,12 @@ FS_NOTICE_MESSAGE = ".notice-location-message"
 FS_NOTICE_LINE = ".notice-location-line-number"
 FS_NOTICE_COLUMN = ".notice-location-column-number"
 
+# Part Studio custom-feature apply path (zero quota; steps and evidence in
+# onshape_docs/experience/browser-automation.md)
+CUSTOM_FEATURE_MENU_ITEM = ".os-tool-dropdown-content .tool"
+FEATURE_DIALOG_OK = ".ns-dialog-button-ok.button-ok"
+PARTSTUDIO_FEATURE_ITEM = ".os-list-item"
+
 # Ace editor (FeatureScript source)
 ACE_EDITOR = ".ace_editor"
 ACE_TEXT_INPUT = "textarea.ace_text-input"

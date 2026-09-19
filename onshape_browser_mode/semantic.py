@@ -362,10 +362,7 @@ def build_part(page: Any, feature_name: str, part_studio_tab: str = "") -> dict[
     inserted = actions.insert_custom_feature(page, feature_name, part_studio_tab or None)
     features = inserted.get("features") or actions.read_partstudio_features(page)
     summary = parse_part_summary(str(features.get("partsText", "")))
-    feature_present = any(
-        item.get("isUserFeature") and feature_name.lower() in str(item.get("name", "")).lower()
-        for item in features.get("features", [])
-    )
+    feature_present = actions.feature_listed(features, feature_name)
     return {
         "built": bool(inserted.get("inserted")) and feature_present and summary["parts"] > 0,
         "featurePresent": feature_present,

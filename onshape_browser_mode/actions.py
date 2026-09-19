@@ -14,10 +14,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from onshape_browser_mode import diagnostics
+from onshape_browser_mode import diagnostics, interaction
 from onshape_browser_mode.selectors import (
     ACE_EDITOR,
     CONTEXT_MENU_LAYER,
+    CUSTOM_FEATURE_MENU_ITEM,
+    FEATURE_DIALOG_OK,
     FS_COMMIT_BUTTON,
     FS_MODULE_OUTLINE,
     FS_MODULE_OUTLINE_DROPDOWN,
@@ -31,6 +33,7 @@ from onshape_browser_mode.selectors import (
     FS_NOTICE_MESSAGE,
     FS_NOTICE_TABLE,
     FS_NOTICE_TOGGLE,
+    PARTSTUDIO_FEATURE_ITEM,
     TIMEOUT_RECONNECT_LINK,
 )
 
@@ -42,6 +45,14 @@ _ACE_GET_EDITOR_JS = """
   return ed || null;
 }
 """ % ACE_EDITOR
+
+#: Bounded waits for the Part Studio custom-feature apply path. Each is at least
+#: as long as the fixed sleep it replaced, so a slow workbench cannot regress,
+#: while a fast one no longer pays the full delay. See onshape_docs/experience/
+#: browser-automation.md for the recorded UI sequence.
+CUSTOM_FEATURE_MENU_TIMEOUT_MS = 8_000
+FEATURE_DIALOG_TIMEOUT_MS = 15_000
+PARTSTUDIO_REGENERATE_TIMEOUT_MS = 30_000
 
 #: Notice-pane collector. One notice table can carry several message paragraphs;
 #: all of them are returned in ``messages`` (``text`` keeps the first one for
@@ -845,6 +856,26 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     )
 
 
+def feature_listed(features: Any, feature_name: str) -> bool:
+    """Whether a read Part Studio feature list contains the named user feature.
+
+    This is the single presence rule used by both the apply path and
+    ``semantic.build_part``; an empty name is never a match.
+    """
+    if not isinstance(features, dict) or not isinstance(feature_name, str):
+        return False
+    wanted = feature_name.strip().lower()
+    if not wanted:
+        return False
+    items = features.get("features")
+    if not isinstance(items, list):
+        return False
+    return any(
+        isinstance(item, dict) and item.get("isUserFeature") and wanted in str(item.get("name", "")).lower()
+        for item in items
+    )
+
+
 def list_document_tabs(page: Any) -> dict[str, Any]:
     """List the document tabs (e.g. Feature Studio / Part Studio) on screen.
 
@@ -1049,13 +1080,24 @@ def insert_custom_feature(
     )
     if not clicked.get("clicked"):
         return {**clicked, "inserted": False}
-    page.wait_for_timeout(3000)
+    opened = interaction.wait_for_condition(
+        page,
+        condition="visible",
+        selector=CUSTOM_FEATURE_MENU_ITEM,
+        timeout_ms=CUSTOM_FEATURE_MENU_TIMEOUT_MS,
+    )
+    if not opened.get("waited"):
+        return {
+            "inserted": False,
+            "reason": "custom-feature dropdown did not open",
+            "menu": opened,
+        }
 
     # 2. Click the specific feature ITEM inside the dropdown (the dropdown may
     #    hold several workspace features; clicking the container hits whichever
     #    item sits at its centre, so scope the text match to the item rows).
     try:
-        items = page.locator(".os-tool-dropdown-content .tool")
+        items = page.locator(CUSTOM_FEATURE_MENU_ITEM)
         matches = [
             items.nth(index)
             for index in range(items.count())
@@ -1064,27 +1106,43 @@ def insert_custom_feature(
         if len(matches) != 1:
             return {"inserted": False, "reason": f"feature {feature_name!r} must match exactly one workspace dropdown item"}
         matches[0].click()
-        page.wait_for_timeout(10000)
     except Exception as exc:  # noqa: BLE001 - surface as structured result
         return {"inserted": False, "reason": f"feature dropdown click failed: {exc}"}
+    dialog = interaction.wait_for_condition(
+        page,
+        condition="visible",
+        selector=FEATURE_DIALOG_OK,
+        timeout_ms=FEATURE_DIALOG_TIMEOUT_MS,
+    )
 
     # 3. Accept the parameter dialog (checkmark) to finalize and compute.
     accepted = page.evaluate(
         """
         () => {
-          const ok = document.querySelector('.ns-dialog-button-ok.button-ok');
+          const ok = document.querySelector('%s');
           if (!ok) return {clicked: false, reason: 'accept button not found'};
           ok.click();
           return {clicked: true};
         }
-        """
+        """ % FEATURE_DIALOG_OK
     )
-    page.wait_for_timeout(15000)
+    # Regeneration is asynchronous: wait for this feature to appear in the tree
+    # instead of sleeping a fixed 15s and reading whatever is on screen.
+    regenerated = interaction.wait_for_condition(
+        page,
+        condition="visible",
+        selector=PARTSTUDIO_FEATURE_ITEM,
+        text=feature_name,
+        timeout_ms=PARTSTUDIO_REGENERATE_TIMEOUT_MS,
+    )
 
     features = read_partstudio_features(page)
+    listed = feature_listed(features, feature_name)
     return {
-        "inserted": bool(accepted.get("clicked")),
+        "inserted": bool(accepted.get("clicked")) and listed,
         "accepted": accepted,
+        "listed": listed,
+        "waits": {"menu": opened, "dialog": dialog, "regeneration": regenerated},
         "features": features,
         "pageUrl": page.url,
     }
