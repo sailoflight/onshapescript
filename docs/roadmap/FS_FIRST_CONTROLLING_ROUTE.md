@@ -326,9 +326,25 @@ rule are in `holeUtils.fs`, `AXIS_POINT`/`LAST_TARGET_END` are enum members of
 not a guessed map literal; through holes use the `LAST_TARGET_END` reference rather
 than a large depth.
 
-Still open for the P2 gate: the fillet, extrude and hole sources are
-`structural-only`. They have never been compiled or applied, so nothing here
-claims they produce geometry; that is the machine half of the gate.
+Still open for the P2 gate: the machine half of the gate. The 2026-09-19 live run
+(record: `onshape_docs/verification/capability-live-run-2026-09-19.md`) closed
+part of it and moved the boundary:
+
+- All four generated sources now **compile on the live server** (FeatureScript
+  3044, 0 errors, 0 warnings, 0 notices) with the deployed text byte-checked
+  against the capability generator. `structural-only` no longer describes them;
+  `server-compiled` does.
+- `custom.spiral_ridge` was **applied to real geometry**: Feature List row
+  `Sr Spiral ridge 1` computed, `零件数 (1)`, part `Spiral ridge cylinder`.
+- `custom.fillet`, `custom.extrude` and `custom.hole` **cannot be accepted**
+  without an interactive geometry pick — Onshape disables the dialog's accept
+  button while their required `Query` is empty — so no geometry is claimed for
+  them. This is a contract gap, not a script bug: the delivered contract lets a
+  caller supply bounded values only, and a selection-bound capability needs a
+  channel this layer does not have.
+- The live run also found and fixed a real workspace-row matcher defect (a row's
+  `innerText` is `"Bf\nBounded fillet"`, not the name), which is why this path
+  had no live evidence behind it before.
 
 **P3 — REST Feature-List CRUD (G1).** Update / delete / rollback / batch update
 plus suppression, dry-run first, fixture-backed.
@@ -442,6 +458,8 @@ Compose checks from `../verification/MATRIX.md`; do not invent new gates.
 | FeatureScript source (P2, P6) | `fs_local_check.py` plus `test_static_guards` (including the measured-zero-FP import rule and the masked symbol scan); authorized upload/live compile only |
 | REST operations (P3) | quota guards; explicitly budgeted live fact only |
 | Capability cards (P4) | `test_capabilities` (contract, symbols, precedent), `test_capability_retrieval` (card-vs-reference cost, no expansion, both discovery entries, invocation shape) |
+| Capability apply path | `test_browser_apply_path` (badged row, label fallback, non-match inventory, ambiguous label never guessed; waits are bounded conditions) |
+| Live capability evidence | `onshape_docs/verification/capability-live-run-2026-09-19.md`; browser-only, 0 REST calls, read back with the read-only feature tools |
 | Tool surface (P5) | MCP, runtime-prompt, and generated-reference `--check` |
 
 Never claim an unexecuted check passed.
@@ -454,6 +472,18 @@ Never claim an unexecuted check passed.
 3. How much of the `BROWSER_PLANNED_TOOLS.md` planned surface survives P5.
 4. Whether the deferred native-lowering phases are permanently retired or
    revisited if a FS-only ceiling is demonstrated.
+5. How a selection-bound capability reaches an automated caller: a bounded
+   geometry-selector value, a semantic-target channel like the one the native
+   blend path already uses, or restricting cards to self-generating geometry.
+   The 2026-09-19 live run proved a caller with scalars only cannot accept
+   `custom.fillet` / `custom.extrude` / `custom.hole`.
+6. When to refresh the Windows deployment from this repository. The live server
+   is a copy (`C:\MCP\onshapescript`) that runs behind the repository, so the
+   capability layer, the not-computed guard and the row-matcher fix are not live
+   yet. Refreshing is a deployment action: it restarts the server and closes the
+   browser process, so it needs its own approval and must preserve the
+   deployment-local `browser-state.json` / `browser.local.toml` and the
+   persistent browser profile.
 
 None of these block P1.
 

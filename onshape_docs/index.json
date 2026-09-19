@@ -2771,7 +2771,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "f882c1eedcd0955581f521e06d0ba01bdbc93a65459e7527326033678e271f0f",
+   "sha256": "c924c36a5ef8adf9f633889b19fb3d85f593d43e3f216708a7bad57e974458be",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -2860,6 +2860,18 @@
         },
         {
          "text": "代理网络慢：文档/标签/对话框加载都慢，每个导航后要轮询等待目标元素出现，不要固定短等待。",
+         "depth": 0
+        },
+        {
+         "text": "工具栏下拉的行文本不是特征名：行里先渲染 Feature Studio 的双字母徽标 （<div class=\"tool-initials-icon\">Bf</div>），再是名字 （<span class=\"tool-label\">Bounded fillet</span>），所以行的 innerText 是 \"Bf\\nBounded fillet\"。按整行文本与裸特征名做精确相等永远匹配不上（实测 2026-09-19， 四个能力分别是 Sr/Bh/Bf/Be）。要比就比 .tool-label 这个名字元素， 匹配失败时把下拉里实际可用的名字一起报出来。",
+         "depth": 0
+        },
+        {
+         "text": "用真实鼠标点击，不要用 page.evaluate 里的 element.click()：工具栏 「此工作区中的自定义特征」按钮用 JS .click() 不会展开下拉（Angular 事件不触发）， browser_click 的真实点击才会。该按钮的文案在 data-bs-original-title，不在 title。",
+         "depth": 0
+        },
+        {
+         "text": "「创建一个版本」提示只在对话框的「当前文档」页签上：插入对话框默认活动的可能是 「其他文档」，那里没有提示，browser_create_document_version 就会报 no version prompt。browser_create_document_version 要求对话框已经打开 （browser_open_insert_feature_dialog，L3 默认隐藏），并且在切标签后要等对话框渲染完 再读——deploy_and_apply 内部的 create_version 步骤读得太早，实测拿到的是 version prompt not present。",
          "depth": 0
         }
        ]
@@ -3221,7 +3233,7 @@
          "depth": 0
         },
         {
-         "text": "Query 不是能力参数：选面/选边留在生成特征的 precondition 里，由人在 Onshape 对话框里、看得见几何的情况下选。所以能力无法被要求去倒一个不存在的边。",
+         "text": "Query 不是能力参数：选面/选边留在生成特征的 precondition 里，由人在 Onshape 对话框里、看得见几何的情况下选。所以能力无法被要求去倒一个不存在的边。 实测代价（2026-09-19）：必填 Query 未拾取时 Onshape 会禁用接受键，所以一个 只会给标量值的调用者能部署、能编译、能列出来，但无法完成这类能力——它们目前 是人类在环的能力，不是代理端能力。只有自己从数字生成几何的能力 （custom.spiral_ridge）能端到端自动跑通。原生特征那条路已有语义目标选择通道 （browser_apply_blend 的 semantic targets），能力层要真正可被代理调用，需要等价物 或者自带几何。",
          "depth": 0
         },
         {
@@ -3285,17 +3297,21 @@
       },
       {
        "type": "para",
-       "text": "验证状态要说清楚"
+       "text": "验证状态要说清楚（实测记录： verification/capability-live-run-2026-09-19.md）"
       },
       {
        "type": "list",
        "items": [
         {
-         "text": "custom.spiral_ridge — live-verified：源码与被应用的特征都经真机验证过，且 test_capabilities 断言它渲染出的源码与 generate_spiral_ridge_script 逐字相同， 证明「抽契约」没有走样。",
+         "text": "custom.spiral_ridge — live-verified：源码与被应用的特征都经真机验证过，且 test_capabilities 断言它渲染出的源码与 generate_spiral_ridge_script 结构逐字相同 （只用本卡默认值时两者仅参数值不同），证明「抽契约」没有走样。真机结果：特征树 Sr Spiral ridge 1（hasError: false）、零件数 (1)、零件 Spiral ridge cylinder。",
          "depth": 0
         },
         {
-         "text": "custom.fillet / custom.extrude / custom.hole — structural-only：只通过本地 结构检查器（fs_check，0 调用）与符号门。没有编译过、没有应用过、没有产生过几何。 这三条真机验证属于 P2 gate 的未完成部分，不得写成已验证。",
+         "text": "custom.fillet / custom.extrude / custom.hole — 已服务端编译，未产生几何。四份源码 都在真实服务器（FeatureScript 3044）上 compiled: true、0 error、0 warning、0 notice， 且部署前后的源码逐字节核对过（只差结尾换行）。但这三个没有应用成功、没有产生过几何： 它们的必填 Query 没被拾取时 Onshape 直接把接受键置灰（button-ok disabled）， 代理端无法完成。任何几何结论都不得从这里推断。",
+         "depth": 0
+        },
+        {
+         "text": "因此这三条的真机验证只补齐了 P2 gate 的 deploy 半场；apply/几何半场对选择型能力仍然 打不开，原因见下。",
          "depth": 0
         }
        ]
@@ -3305,6 +3321,68 @@
        "text": "加一个能力的顺序：在 CAPABILITIES 里加一条（id、feature_type、别名、 use_when、参数、build_source）→ 让 test_capabilities 的符号门与本地检查器通过 → 真机跑 dry-run → deploy → apply → 用 featurePresent/featureComputed/零件数三项 验收。别名冲突会在 resolve() 里直接报错，不会变成模糊路由。"
       }
      ]
+    },
+    {
+     "level": 2,
+     "title": "14. 真机验证前先核对「跑的是哪份代码」",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "实测（2026-09-19）：browser_deploy_and_apply_featurescript(capability=..., dry_run=true) 返回 ValueError: script and feature_name are required——而这句话在本仓库里根本不存在。 原因是运行中的 Onshape MCP 服务是 Windows 上的普通 stdio 部署副本 C:\\MCP\\onshapescript（一份拷贝，不是 checkout），它落后于仓库：capabilities.py 不存在、semantic.py 没有未计算特征守卫、注册工具数 106（仓库 108）。"
+      },
+      {
+       "type": "para",
+       "text": "后果很实际：仓库是绿的、测试是过的、能力层是从未在线上跑过的。 所以："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "真机验证前先读 mcp_tool_catalog(action=\"status\") 的 registryCount，与仓库里 len(TOOL_REGISTRY) 比对；两者不等就说明线上不是当前代码。",
+         "depth": 0
+        },
+        {
+         "text": "再用只在仓库里存在的一个能力参数（例如 capability=）探一下该工具的真实 schema。",
+         "depth": 0
+        },
+        {
+         "text": "结论要按事实写：「验证的是生成出来的源码与浏览器应用链路」，不要写成「能力层已验证」。",
+         "depth": 0
+        },
+        {
+         "text": "部署副本里 browser-state.json / browser.local.toml 是 Deployment 本地状态， 刷新部署时必须保留。",
+         "depth": 0
+        },
+        {
+         "text": "刷新部署是部署动作（要重启服务端，会关掉浏览器进程），不属于开发/验证范围， 需要单独授权；浏览器登录态在持久 profile 里，但仍应事先说明。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "15. 选择型能力的真机边界",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "必填 Query 未拾取时，Onshape 特征对话框的接受键是禁用的："
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": ".ns-dialog-button-ok.button-ok  ->  class \"… disabled\", attribute disabled"
+      },
+      {
+       "type": "para",
+       "text": "按钮存在、可见、可点，但点它不会接受特征。所以「部署成功」与「能力可用」是两件事： custom.fillet / custom.extrude / custom.hole 的真机结论停在 服务端编译通过， built 类字段不能被当成几何证据。验收这些能力需要先有一条把几何选择也表达出来的通道。"
+      },
+      {
+       "type": "para",
+       "text": "一个附带发现：自定义特征在 UI 上确实与官方特征等价。打开 Bounded fillet 得到真正的 .ns-dialog-panel.feature-dialog（标题 Bounded fillet 1），字段就是 precondition 里按顺序写的注解 [\"Edges to fillet\", \"Radius\", \"Tangent propagation\"]，特征树里出现 待接受的 Bf Bounded fillet 1 行。取消后特征树回到 特征 (5)，没有残留行。"
+      }
+     ]
     }
    ]
   },
@@ -3312,7 +3390,7 @@
    "page": "verification",
    "category": "verification",
    "path": "onshape_docs/verification/README.md",
-   "sha256": "696958c4da9df87e1d2dfbf83fc572d3d957945aec70f2d1ad43c5ba3f702c1b",
+   "sha256": "332d4b7721767809ab4d64d8de8484b2e417a40840429ed9d27d6628e88a3538",
    "title": "Documentation verification",
    "sections": [
     {
@@ -3347,6 +3425,10 @@
         [
          "browser-tools-2026-08-25.md",
          "Developer/tester/field-evaluator evidence and explicit live-validation boundaries for the 22 promoted browser tools."
+        ],
+        [
+         "capability-live-run-2026-09-19.md",
+         "Live 0-REST browser run: the four capability sources compiled on the server, one applied to a real body, the row-matcher defect it found, and the selection boundary it exposed."
         ],
         [
          "live/",
@@ -3799,6 +3881,382 @@
        "type": "code",
        "language": "bash",
        "text": "env -u LIVE_API_ENABLED PYTHONDONTWRITEBYTECODE=1 \\\n  python3 -m unittest discover -s dev/tests -v\npython3 onshape_docs/verification/verify_docs.py\npython3 onshape_docs/scripts/build_tool_reference.py --check\ngit diff --check"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "capability-live-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
+   "sha256": "bc5a8954a7812bb7cc74a56c532e4708088947f5f79f9ae45c0bf84ba3bd76e6",
+   "title": "Whole-feature capability live run (2026-09-19)",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Whole-feature capability live run (2026-09-19)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This record closes the machine half of the P2 gate in docs/roadmap/FS_FIRST_CONTROLLING_ROUTE.md: it compiles the generated capability sources on the live server and applies one of them to real geometry, entirely through the browser UI at 0 REST calls."
+      },
+      {
+       "type": "para",
+       "text": "It also records two things that outlive the run: the live runtime was not this repository, and the workspace apply path carried a matching defect that this run found and fixed."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Scope and safety",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Onshape REST requests during this run: 0. LIVE_API_ENABLED stayed unset; no REST tool was called and no quota ledger entry was produced.",
+         "depth": 0
+        },
+        {
+         "text": "FeatureScript server version observed: 3044 (from the deployed source's FeatureScript 3044; header and the clean server compile of it).",
+         "depth": 0
+        },
+        {
+         "text": "Mutations: one new document, four Feature Studio tabs, one Part Studio tab, one document version, one applied custom feature. All inside the dedicated verification document below, never the trophy document.",
+         "depth": 0
+        },
+        {
+         "text": "The persistent browser session was established from the saved profile and was left running; nothing in this run released or restarted it.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "The runtime was a stale deployment, not this repository",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The first attempt tried the capability contract the repository documents:"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "browser_deploy_and_apply_featurescript(capability=\"custom.fillet\", dry_run=true)\n-> ValueError: script and feature_name are required"
+      },
+      {
+       "type": "para",
+       "text": "That message exists nowhere in this repository. The running Onshape MCP server is the Windows ordinary-stdio deployment at C:\\MCP\\onshapescript, a copy (not a checkout) whose STDIO_DEPLOYMENT.json records nativeStdioToolCount: 80 and offlineTests: 51. Measured live, read-only:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Surface",
+         "Running deployment C:\\MCP\\onshapescript",
+         "This repository at 52d43ff"
+        ],
+        [
+         "registered tools (mcp_tool_catalog status)",
+         "106",
+         "108"
+        ],
+        [
+         "visible tools",
+         "80",
+         "80"
+        ],
+        [
+         "onshape_browser_mode/capabilities.py",
+         "absent",
+         "present (4 cards)"
+        ],
+        [
+         "browser_deploy_and_apply_featurescript",
+         "script + feature_name only",
+         "also capability + values"
+        ],
+        [
+         "semantic.py not-computed guard",
+         "absent",
+         "present"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Consequences that bound this record:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The capability layer (capability= argument, card search, catalog capability route) was never exercised live and is not verified here. The run drove the generated sources through the deployment's raw-script path.",
+         "depth": 0
+        },
+        {
+         "text": "The deployment's build_part accepts on `inserted AND feature-present AND parts > 0 without the not-computed guard, so its built` field is not by itself proof of a computed row. This run therefore read the Feature List and part list directly with browser_get_partstudio_features and reports those reads, not the tool's verdict.",
+         "depth": 0
+        },
+        {
+         "text": "The deployment's deploy_featurescript is byte-identical to this repository's, and its deployed flag requires commit-accepted and byte-verified source and compiled. That flag is usable evidence.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Detecting this class of problem requires no REST call: the live mcp_tool_catalog registry count and a selectors-independent probe of one capability-only argument are enough. Recorded as a lesson in onshape_docs/experience/browser-modeling.md."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Target document",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Created for this run and kept as the evidence artifact:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "document 86e0af79961a09acafcdb72a, workspace 07cea03dcf0556d0d1a8a3ac",
+         "depth": 0
+        },
+        {
+         "text": "Part Studio 1 b1d0caa1e06f62da338d0ef8, Assembly 1 e96ee8c545fad133f90079ce",
+         "depth": 0
+        },
+        {
+         "text": "Spiral ridge FS 28387ea6f126e7d45ef539ac, Spiral ridge PS 05406f02482e1d943d80dc3e",
+         "depth": 0
+        },
+        {
+         "text": "cap fillet 53ab31c7213e133eaf2690b0, cap extrude 7b6e6e7ab8d44b00cc8e5e10, cap hole be1608994ebaca85c5f80d88",
+         "depth": 0
+        },
+        {
+         "text": "version capability verification V1",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Source identity",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Every deployed script was re-read from the server's saved diagnostic package and compared with the locally generated capability source. After CRLF normalization the only difference is the trailing newline the local files carry and the submitted script does not — the deployed text is the capability's own generated text, so these compile results are about the capability sources and not about a hand-edited copy."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Capability",
+         "Feature Type Name",
+         "Exact source",
+         "Local check",
+         "Server compile"
+        ],
+        [
+         "custom.spiral_ridge",
+         "Spiral ridge",
+         "2375 chars / 58 lines, sha256 2560b7d98008…c6b06f87",
+         "clear",
+         "compiled: true, 0 errors, 0 warnings, 0 notices"
+        ],
+        [
+         "custom.fillet",
+         "Bounded fillet",
+         "975 chars / 25 lines, sha256 fc27384b5778…5949fa16",
+         "clear",
+         "compiled: true, 0 errors, 0 warnings, 0 notices"
+        ],
+        [
+         "custom.extrude",
+         "Bounded extrude",
+         "1512 chars / 38 lines, sha256 8ce808031b8d…dfb6ca8f4",
+         "clear",
+         "compiled: true, 0 errors, 0 warnings, 0 notices"
+        ],
+        [
+         "custom.hole",
+         "Bounded hole",
+         "1862 chars / 41 lines, sha256 f46be53930fc…768edc05",
+         "clear",
+         "compiled: true, 0 errors, 0 warnings, 0 notices"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Each deploy also produced a local diagnostic package under the deployment's onshape_browser_mode/outputs/fs_diagnostics/<captureId>/ holding the source, compile-result.json, and a manifest. The sha256 above is the value the deploy reported for the source it byte-verified."
+      },
+      {
+       "type": "para",
+       "text": "custom.spiral_ridge's card template was additionally confirmed against the precedent generator: the two differ only in parameter values (card defaults 12 mm / 4 mm / 1.2 mm / 0.8 mm / 24 mm / anticlockwise versus the live call's 10 / 5 / 2 / 1 / 30 / clockwise), so the card renders the precedent's structure."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Apply and compute",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "custom.spiral_ridge was applied to Spiral ridge PS and computed:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "Feature List row",
+         "Sr Spiral ridge 1, isUserFeature: true, hasError: false"
+        ],
+        [
+         "Part list",
+         "零件数 (1)"
+        ],
+        [
+         "Part",
+         "Spiral ridge cylinder"
+        ],
+        [
+         "Curves",
+         "曲线数 (1)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "That is the whole chain working end to end with no REST call: a locally generated script is written into a Feature Studio, compiles on the server, appears as a workspace custom feature, and builds a solid body."
+      },
+      {
+       "type": "para",
+       "text": "A custom feature also presents in the UI exactly like a native one. Opening Bounded fillet produced a real feature dialog (.ns-dialog-panel.feature-dialog, header Bounded fillet 1) whose fields are the precondition annotations in order — [\"Edges to fillet\", \"Radius\", \"Tangent propagation\"] — and a pending Bf Bounded fillet 1 Feature List row. The dialog was cancelled; the Part Studio was re-read as 特征 (5) with only the spiral ridge row and one part, so no pending row survived."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Finding: a selection-bound capability cannot be accepted without a pick",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "custom.fillet, custom.extrude and custom.hole declare their target geometry as a required Query in the precondition. With that query unpicked, Onshape disables acceptance:"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "okCls: \"ns-dialog-button-ok button-ok disabled\", okDisabledAttr: \"disabled\""
+      },
+      {
+       "type": "para",
+       "text": "So the contract as delivered — caller supplies bounded values only; queries live in the generated feature's precondition — is not sufficient for a caller that cannot pick geometry. A scripted caller can deploy, compile and list these features, but cannot complete them; only a capability that generates its own geometry from numbers (custom.spiral_ridge) is fully invocable end to end. No geometry claim is made for custom.fillet, custom.extrude or custom.hole in this record, and none should be inferred from their rows."
+      },
+      {
+       "type": "para",
+       "text": "Carried into the roadmap as an open design item rather than silently patched: the native-feature path already has a semantic-target selection channel (browser_apply_blend), so the capability layer needs an equivalent, or self-contained geometry, before those three cards are agent-invocable."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Defect found and fixed: the workspace row matcher",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The first apply attempt failed with feature 'Spiral ridge' must match exactly one workspace dropdown item, even though the live dropdown did contain it. Reading the live DOM:"
+      },
+      {
+       "type": "code",
+       "language": "html",
+       "text": "<div class=\"tool-icon\"><div class=\"tool-initials-icon\">Sr</div></div>\n<span class=\"tool-label\">Spiral ridge</span>"
+      },
+      {
+       "type": "para",
+       "text": "The row renders a two-letter Feature Studio badge before the name, so the row's innerText is \"Sr\\nSpiral ridge\" (measured for all four rows: Sr, Bh, Bf, Be). insert_custom_feature compared that whole string to the bare feature name with ==, which can therefore never match a real workspace row. The documented measured flow inserted through the insert dialog (.select-item-dialog-item-row), so this path had no live evidence behind it."
+      },
+      {
+       "type": "para",
+       "text": "Fixed by matching the row's name element (CUSTOM_FEATURE_MENU_LABEL = \".os-tool-dropdown-content .tool .tool-label\"), falling back to the last non-empty text line for a row without a label element, and reporting the available labels on a non-match. Covered by four offline cases in dev/tests/test_browser_apply_path.py including the badged row, the fallback row, the non-match inventory, and two rows sharing one label (never guessed). The running deployment still carries the old matcher; the fix takes effect on the next deployment refresh."
+      },
+      {
+       "type": "para",
+       "text": "Two further exact-text comparisons use the same shape — actions.py (\"删除\" context-menu item) and transactions.py — and were not exercised live in this run, so they are not claimed either way."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Sequence facts worth keeping",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "A custom feature is not insertable until the document has a version. The insert dialog offers a 创建一个版本 prompt on its 当前文档 tab only; the deployment's create_version step inside deploy_and_apply reads the dialog immediately after a tab switch and found version prompt not present, because the dialog had not rendered yet.",
+         "depth": 0
+        },
+        {
+         "text": "The insert dialog's default active tab was 其他文档, where no prompt exists. The prompt appears after activating 当前文档 (.feature-studio-insert-dialog .os-dialog-tab). browser_create_document_version requires the dialog to be open already; browser_open_insert_feature_dialog (L3, default-hidden) is the tool that opens it.",
+         "depth": 0
+        },
+        {
+         "text": "A plain element.click() from page.evaluate did not open the toolbar's workspace dropdown; a real mouse click through browser_click did. The toolbar button carries its label in data-bs-original-title, not title.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Reproduce",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Read-only or 0-REST unless noted; confirm_mutation was required for the mutating steps."
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "browser_session(status)                                   # loginConfirmed: true, no human action\nbrowser_create_document(\"FS capability verification\")     # mutation\nbrowser_spiral_ridge(10, 5, 2, 1, 30, clockwise=true)     # deploy + apply + part, mutation\nbrowser_open_insert_feature_dialog()                      # L3, opens the dialog\nbrowser_click(\".feature-studio-insert-dialog .os-dialog-tab\", \"当前文档\")\nbrowser_create_document_version(\"capability verification V1\")   # mutation\nbrowser_deploy_and_apply_featurescript(script=<fillet>, feature_name=\"Bounded fillet\",\n    feature_studio_tab=\"cap fillet\", apply=false)         # per capability, mutation\nbrowser_get_partstudio_features()                         # read-only acceptance"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Boundaries",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Not verified here: the capability layer's own argument path, the catalog capability route, custom.fillet / custom.extrude / custom.hole geometry, any REST path, and the print/geometry backends.",
+         "depth": 0
+        },
+        {
+         "text": "The applied spiral ridge is a live artifact, not a shipped model; the trophy model and its Feature Studio were untouched.",
+         "depth": 0
+        },
+        {
+         "text": "The deployment refresh that would put this repository's capability layer, not-computed guard and row-matcher fix on the live server is a deployment action, not part of this run, and was deliberately not performed while the browser session had to stay alive.",
+         "depth": 0
+        }
+       ]
       }
      ]
     }

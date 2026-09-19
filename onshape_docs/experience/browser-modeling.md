@@ -27,6 +27,21 @@
 - 工具栏「添加自定义特征」的文字标签 `.tool-label.hide-in-toolbar` 隐藏，需按
   `.toolbar-item` 的 textContent 找到后点内部 `.tool.is-button`。
 - 代理网络慢：文档/标签/对话框加载都慢，每个导航后要轮询等待目标元素出现，不要固定短等待。
+- **工具栏下拉的行文本不是特征名**：行里先渲染 Feature Studio 的双字母徽标
+  （`<div class="tool-initials-icon">Bf</div>`），再是名字
+  （`<span class="tool-label">Bounded fillet</span>`），所以行的 `innerText` 是
+  `"Bf\nBounded fillet"`。按整行文本与裸特征名做**精确相等**永远匹配不上（实测 2026-09-19，
+  四个能力分别是 `Sr`/`Bh`/`Bf`/`Be`）。要比就比 `.tool-label` 这个**名字元素**，
+  匹配失败时把下拉里实际可用的名字一起报出来。
+- **用真实鼠标点击，不要用 `page.evaluate` 里的 `element.click()`**：工具栏
+  「此工作区中的自定义特征」按钮用 JS `.click()` 不会展开下拉（Angular 事件不触发），
+  `browser_click` 的真实点击才会。该按钮的文案在 `data-bs-original-title`，不在 `title`。
+- **「创建一个版本」提示只在对话框的「当前文档」页签上**：插入对话框默认活动的可能是
+  「其他文档」，那里没有提示，`browser_create_document_version` 就会报
+  `no version prompt`。`browser_create_document_version` 要求对话框**已经打开**
+  （`browser_open_insert_feature_dialog`，L3 默认隐藏），并且在切标签后要等对话框渲染完
+  再读——`deploy_and_apply` 内部的 `create_version` 步骤读得太早，实测拿到的是
+  `version prompt not present`。
 
 ## 3. 关键修正：Part Studio 需要「应用」特征
 
@@ -195,6 +210,12 @@
   `enum`。没有自由字符串、没有代码、没有 selector。
 - **Query 不是能力参数**：选面/选边留在生成特征的 `precondition` 里，由人在
   Onshape 对话框里、看得见几何的情况下选。所以能力无法被要求去倒一个不存在的边。
+  **实测代价**（2026-09-19）：必填 `Query` 未拾取时 Onshape 会禁用接受键，所以一个
+  只会给标量值的调用者能部署、能编译、能列出来，但**无法完成**这类能力——它们目前
+  是人类在环的能力，不是代理端能力。只有自己从数字生成几何的能力
+  （`custom.spiral_ridge`）能端到端自动跑通。原生特征那条路已有语义目标选择通道
+  （`browser_apply_blend` 的 semantic targets），能力层要真正可被代理调用，需要等价物
+  或者自带几何。
 - **能力数量与工具数量解耦**：新增能力不新增工具。当前四个能力
   （`custom.spiral_ridge` / `custom.fillet` / `custom.extrude` / `custom.hole`）都通过既有的
   `browser_deploy_and_apply_featurescript` 调用，schema 用
@@ -252,16 +273,58 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
 （起点顶点 + 平面面，钻孔方向取面法线的反向），通孔用 `LAST_TARGET_END` 引用而不是
 一个很大的深度值。状态仍是 `structural-only`。
 
-**验证状态要说清楚**
+**验证状态要说清楚**（实测记录：
+[`verification/capability-live-run-2026-09-19.md`](../verification/capability-live-run-2026-09-19.md)）
 
 - `custom.spiral_ridge` — `live-verified`：源码与被应用的特征都经真机验证过，且
-  `test_capabilities` 断言它渲染出的源码与 `generate_spiral_ridge_script` 逐字相同，
-  证明「抽契约」没有走样。
-- `custom.fillet` / `custom.extrude` / `custom.hole` — `structural-only`：只通过本地
-  结构检查器（`fs_check`，0 调用）与符号门。**没有编译过、没有应用过、没有产生过几何。**
-  这三条真机验证属于 P2 gate 的未完成部分，不得写成已验证。
+  `test_capabilities` 断言它渲染出的源码与 `generate_spiral_ridge_script` 结构逐字相同
+  （只用本卡默认值时两者仅参数值不同），证明「抽契约」没有走样。真机结果：特征树
+  `Sr Spiral ridge 1`（`hasError: false`）、`零件数 (1)`、零件 `Spiral ridge cylinder`。
+- `custom.fillet` / `custom.extrude` / `custom.hole` — **已服务端编译，未产生几何**。四份源码
+  都在真实服务器（FeatureScript 3044）上 `compiled: true`、0 error、0 warning、0 notice，
+  且部署前后的源码逐字节核对过（只差结尾换行）。**但这三个没有应用成功、没有产生过几何**：
+  它们的必填 `Query` 没被拾取时 Onshape 直接把接受键置灰（`button-ok disabled`），
+  代理端无法完成。任何几何结论都不得从这里推断。
+- 因此这三条的真机验证只补齐了 P2 gate 的 deploy 半场；apply/几何半场对选择型能力仍然
+  打不开，原因见下。
 
 **加一个能力的顺序**：在 `CAPABILITIES` 里加一条（id、`feature_type`、别名、
 `use_when`、参数、`build_source`）→ 让 `test_capabilities` 的符号门与本地检查器通过
 → 真机跑 dry-run → deploy → apply → 用 `featurePresent`/`featureComputed`/零件数三项
 验收。别名冲突会在 `resolve()` 里直接报错，不会变成模糊路由。
+
+## 14. 真机验证前先核对「跑的是哪份代码」
+
+**实测（2026-09-19）**：`browser_deploy_and_apply_featurescript(capability=..., dry_run=true)`
+返回 `ValueError: script and feature_name are required`——而这句话在本仓库里根本不存在。
+原因是运行中的 Onshape MCP 服务是 Windows 上的普通 stdio **部署副本**
+`C:\MCP\onshapescript`（一份拷贝，不是 checkout），它落后于仓库：`capabilities.py`
+不存在、`semantic.py` 没有未计算特征守卫、注册工具数 106（仓库 108）。
+
+后果很实际：**仓库是绿的、测试是过的、能力层是从未在线上跑过的。** 所以：
+
+- 真机验证前先读 `mcp_tool_catalog(action="status")` 的 `registryCount`，与仓库里
+  `len(TOOL_REGISTRY)` 比对；两者不等就说明线上不是当前代码。
+- 再用**只在仓库里存在**的一个能力参数（例如 `capability=`）探一下该工具的真实 schema。
+- 结论要按事实写：「验证的是生成出来的源码与浏览器应用链路」，不要写成「能力层已验证」。
+- 部署副本里 `browser-state.json` / `browser.local.toml` 是 Deployment 本地状态，
+  刷新部署时必须保留。
+- 刷新部署是**部署动作**（要重启服务端，会关掉浏览器进程），不属于开发/验证范围，
+  需要单独授权；浏览器登录态在持久 profile 里，但仍应事先说明。
+
+## 15. 选择型能力的真机边界
+
+必填 `Query` 未拾取时，Onshape 特征对话框的接受键是禁用的：
+
+```
+.ns-dialog-button-ok.button-ok  ->  class "… disabled", attribute disabled
+```
+
+按钮存在、可见、可点，但点它不会接受特征。所以「部署成功」与「能力可用」是两件事：
+`custom.fillet` / `custom.extrude` / `custom.hole` 的真机结论停在 **服务端编译通过**，
+`built` 类字段不能被当成几何证据。验收这些能力需要先有一条把几何选择也表达出来的通道。
+
+一个附带发现：自定义特征在 UI 上确实与官方特征等价。打开 `Bounded fillet` 得到真正的
+`.ns-dialog-panel.feature-dialog`（标题 `Bounded fillet 1`），字段就是 `precondition`
+里按顺序写的注解 `["Edges to fillet", "Radius", "Tangent propagation"]`，特征树里出现
+待接受的 `Bf Bounded fillet 1` 行。取消后特征树回到 `特征 (5)`，没有残留行。
