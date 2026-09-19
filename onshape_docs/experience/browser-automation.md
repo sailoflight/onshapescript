@@ -225,6 +225,48 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - 提交按钮：`.tool.is-activatable.os-primary.is-button`，文案「提交」，
   `className.includes('disabled')` 表示无未提交改动。
 
+## 5.6 FeatureScript 诊断回路（通知采集 → 归一化 → 回落本地）
+
+**观察层保持不变**：`actions.read_featurescript_notices()` 原样返回页面上读到的
+通知行；`actions.read_featurescript_compile_status()` 才做派生。
+
+- **全部消息**：一个 `.feature-script-notice-table` 可能含多个
+  `.notice-location-message` 段落。采集器（`actions.FS_NOTICE_SNAPSHOT_JS`，模块常量）
+  现在返回 `messages` 数组，`text` 仍是第一段，老调用方不受影响。
+- **归一化编码**：每个派生诊断带 `code` / `codeBasis` / `codeStable`，便于归类而不用
+  解析自由散文。四种 basis：
+  - `errorstringenum`：文本里出现 vendored `ErrorStringEnum` 定义过的全大写 token；
+  - `errorstringenumDescription`：整条消息恰好等于**唯一**一个 code 的英文描述；
+  - `compilerMessage`：我们自己归纳的编译器消息族（前缀 `FS_`），标注为不稳定；
+  - `unclassified`：没匹配上，原样保留并计数，不硬塞。
+- **源码行**：落盘产物里每条诊断附 `sourceContext`（行号、源码行、caret、截断标记），
+  诊断因此自包含、可离线复现。
+- **去重 + 频次**：同一条缺陷同时出现在 Ace annotations 和通知面板时合成一个 group，
+  记录 `sources` 与全部 `locations`，所以 `count` 是缺陷数而不是通道数。
+- **回流产物**：`save_featurescript_diagnostic()` 除原有 `featurescript.fs` /
+  `compile-result.json` / `manifest.json` 外写入 `diagnostics.json`，并在返回值里给出
+  有界的 `corpusEntry`（`{source 摘要, 归一化诊断, 服务端结论}`），供本地分析器在没有
+  MCP 宿主机文件系统访问权时也能消费。`load_retained_diagnostics()` 反向读取历史采集，
+  旧格式采集标记为 `normalized: false` 而不是丢弃。
+- **编码表来源与规模**：`ErrorStringEnum` 被上游标为 `@internal`，**不在生成的 FsDoc
+  索引里**，唯一本地来源是 `onshape_docs/reference/raw/std-library/errorstringenum.gen.fs`。
+  实测：1759 个 code、1703 条描述、其中 **20 条描述被多个 code 共用**（如
+  "Error regenerating."、"Failed to create assembly instance."）——这些一律不猜，落到
+  `unclassified`；35 个 code 无描述只能靠 token 匹配。可用 `ONSHAPE_FS_ERROR_ENUM`
+  覆盖路径；读不到时 `codeTable.available: false` 并退化为消息族匹配，不静默失败。
+- **告警级**：编码与摘要只用于归类/告警，**不阻断上传**；vendored 索引可能滞后线上。
+
+已验证边界（诚实记录）：
+- 归一化、源码行、去重汇总、采集产物、历史读取由 `dev/tests/test_fs_diagnostics.py`
+  覆盖（离线、确定性）。
+- 采集器字符串本身由 `dev/tests/test_fs_notice_collector.py` 在 **node + stub DOM** 下
+  执行**同一份生产字符串**，覆盖多消息、severity 回退、行/列非数字、非活动标签跳过、
+  `notices-out-of-date` 跳过、空表跳过、不可见 toggle。
+- **未验证**：以上都还没在真实 Onshape 页面上跑过。采集器新增的 `messages` 假设
+  （一个通知表含多个 `.notice-location-message` 节点）没有实机证据；现有实机记录只有
+  `dev/button-map/scan-fs-notices.json`（28 条通知、4 条样本文本）。真机只读复核需要
+  操作者在场。
+
 ## 6. 已知坑
 
 - 多标签漂移：人工登录可能在新标签打开 documents，旧 signin 标签仍残留。`status()`/`start()`

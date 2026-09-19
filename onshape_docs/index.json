@@ -1892,7 +1892,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "1aa8070280a5d080b27db95e156e10f9eb585279151303657e19dbfd59d14c2d",
+   "sha256": "dc9a3d8a82fbff75e8ea44362deb3fe907025bce5a9e1936f3111e863a9386f9",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2416,6 +2416,86 @@
         },
         {
          "text": "提交按钮：.tool.is-activatable.os-primary.is-button，文案「提交」， className.includes('disabled') 表示无未提交改动。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5.6 FeatureScript 诊断回路（通知采集 → 归一化 → 回落本地）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "观察层保持不变：actions.read_featurescript_notices() 原样返回页面上读到的 通知行；actions.read_featurescript_compile_status() 才做派生。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "全部消息：一个 .feature-script-notice-table 可能含多个 .notice-location-message 段落。采集器（actions.FS_NOTICE_SNAPSHOT_JS，模块常量） 现在返回 messages 数组，text 仍是第一段，老调用方不受影响。",
+         "depth": 0
+        },
+        {
+         "text": "归一化编码：每个派生诊断带 code / codeBasis / codeStable，便于归类而不用 解析自由散文。四种 basis：",
+         "depth": 0
+        },
+        {
+         "text": "errorstringenum：文本里出现 vendored ErrorStringEnum 定义过的全大写 token；",
+         "depth": 1
+        },
+        {
+         "text": "errorstringenumDescription：整条消息恰好等于唯一一个 code 的英文描述；",
+         "depth": 1
+        },
+        {
+         "text": "compilerMessage：我们自己归纳的编译器消息族（前缀 FS_），标注为不稳定；",
+         "depth": 1
+        },
+        {
+         "text": "unclassified：没匹配上，原样保留并计数，不硬塞。",
+         "depth": 1
+        },
+        {
+         "text": "源码行：落盘产物里每条诊断附 sourceContext（行号、源码行、caret、截断标记）， 诊断因此自包含、可离线复现。",
+         "depth": 0
+        },
+        {
+         "text": "去重 + 频次：同一条缺陷同时出现在 Ace annotations 和通知面板时合成一个 group， 记录 sources 与全部 locations，所以 count 是缺陷数而不是通道数。",
+         "depth": 0
+        },
+        {
+         "text": "回流产物：save_featurescript_diagnostic() 除原有 featurescript.fs / compile-result.json / manifest.json 外写入 diagnostics.json，并在返回值里给出 有界的 corpusEntry（{source 摘要, 归一化诊断, 服务端结论}），供本地分析器在没有 MCP 宿主机文件系统访问权时也能消费。load_retained_diagnostics() 反向读取历史采集， 旧格式采集标记为 normalized: false 而不是丢弃。",
+         "depth": 0
+        },
+        {
+         "text": "编码表来源与规模：ErrorStringEnum 被上游标为 @internal，**不在生成的 FsDoc 索引里**，唯一本地来源是 onshape_docs/reference/raw/std-library/errorstringenum.gen.fs。 实测：1759 个 code、1703 条描述、其中 20 条描述被多个 code 共用（如 \"Error regenerating.\"、\"Failed to create assembly instance.\"）——这些一律不猜，落到 unclassified；35 个 code 无描述只能靠 token 匹配。可用 ONSHAPE_FS_ERROR_ENUM 覆盖路径；读不到时 codeTable.available: false 并退化为消息族匹配，不静默失败。",
+         "depth": 0
+        },
+        {
+         "text": "告警级：编码与摘要只用于归类/告警，不阻断上传；vendored 索引可能滞后线上。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "已验证边界（诚实记录）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "归一化、源码行、去重汇总、采集产物、历史读取由 dev/tests/test_fs_diagnostics.py 覆盖（离线、确定性）。",
+         "depth": 0
+        },
+        {
+         "text": "采集器字符串本身由 dev/tests/test_fs_notice_collector.py 在 node + stub DOM 下 执行同一份生产字符串，覆盖多消息、severity 回退、行/列非数字、非活动标签跳过、 notices-out-of-date 跳过、空表跳过、不可见 toggle。",
+         "depth": 0
+        },
+        {
+         "text": "未验证：以上都还没在真实 Onshape 页面上跑过。采集器新增的 messages 假设 （一个通知表含多个 .notice-location-message 节点）没有实机证据；现有实机记录只有 dev/button-map/scan-fs-notices.json（28 条通知、4 条样本文本）。真机只读复核需要 操作者在场。",
          "depth": 0
         }
        ]
@@ -4277,7 +4357,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "087c8eb46078ddf025c27dbce14848196a4025f8d397472ed0b98a0dd5f34eac",
+   "sha256": "2b004d97b5e4baaeb05bef814942cd3f8c703ada67069ba312c88266dc4ed6cf",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -4617,7 +4697,7 @@
          "L3 onshape_interaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows, and restore the prior pane state. Read-only UI observation and..."
+         "Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows with all message paragraphs, and restore the prior pane state...."
         ],
         [
          "browser_fs_toggle_fold",
@@ -4649,7 +4729,7 @@
          "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Read the active FeatureScript Ace annotations plus the FeatureScript notice pane and report compiled status, normalized errors, and counts. Read-only and zero REST API quota."
+         "Read the active FeatureScript Ace annotations plus the FeatureScript notice pane and report compiled status, every message of each notice, a self-labeled normalized code per dia..."
         ],
         [
          "browser_get_fs_symbols",

@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from onshape_browser_mode import diagnostics
 from onshape_browser_mode.selectors import (
     ACE_EDITOR,
     CONTEXT_MENU_LAYER,
@@ -41,6 +42,69 @@ _ACE_GET_EDITOR_JS = """
   return ed || null;
 }
 """ % ACE_EDITOR
+
+#: Notice-pane collector. One notice table can carry several message paragraphs;
+#: all of them are returned in ``messages`` (``text`` keeps the first one for
+#: callers that predate the list). Kept as a module constant so the offline
+#: stub-DOM test in dev/tests exercises the exact string sent to Playwright.
+FS_NOTICE_SNAPSHOT_JS = """
+(selectors) => {
+  const visible = (el) => {
+    if (!el) return false;
+    const style = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' &&
+      rect.width > 0 && rect.height > 0;
+  };
+  const text = (el) => (el ? (el.innerText || el.textContent || '').trim() : '');
+  const integer = (el) => {
+    const value = Number.parseInt(text(el), 10);
+    return Number.isInteger(value) ? value : null;
+  };
+  const toggle = document.querySelector(selectors.toggle);
+  const content = document.querySelector(selectors.content);
+  const activeTab = Array.from(document.querySelectorAll('.os-tab-bar-tab'))
+    .find((tab) => (tab.className || '').includes('active'));
+  const activeTabName = text(activeTab && activeTab.querySelector('.os-tab-name'));
+  const containers = content
+    ? Array.from(content.querySelectorAll('.element-notice-set-container'))
+    : [];
+  const notices = [];
+  for (const container of containers) {
+    if (container.querySelector('.notices-out-of-date')) continue;
+    const tabName = text(container.querySelector('.element-notice-title'));
+    if (activeTabName && tabName && tabName !== activeTabName) continue;
+    for (const table of container.querySelectorAll(selectors.table)) {
+      const messages = Array.from(table.querySelectorAll(selectors.message))
+        .map(text).filter(Boolean);
+      if (!messages.length) continue;
+      const line = integer(table.querySelector(selectors.line));
+      const column = integer(table.querySelector(selectors.column));
+      let severity = 'warning';
+      if (table.querySelector('.fs-notice-error')) severity = 'error';
+      else if (table.querySelector('.fs-notice-info')) severity = 'info';
+      notices.push({
+        severity,
+        text: messages[0],
+        messages,
+        line,
+        column,
+        row: line === null ? 0 : Math.max(0, line - 1),
+        col: column === null ? 0 : Math.max(0, column - 1),
+        tabName,
+      });
+    }
+  }
+  return {
+    found: !!toggle || !!content,
+    indicatorPresent: visible(toggle),
+    paneOpen: !!(toggle && toggle.querySelector('.flyout-toggle-button.os-expanded')),
+    activeTabName,
+    noticeCount: notices.length,
+    notices,
+  };
+}
+"""
 
 
 def read_featurescript_editor(page: Any) -> str | None:
@@ -101,63 +165,7 @@ def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
 
 def _read_featurescript_notice_snapshot(page: Any) -> dict[str, Any]:
     return page.evaluate(
-        """
-        (selectors) => {
-          const visible = (el) => {
-            if (!el) return false;
-            const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden' &&
-              rect.width > 0 && rect.height > 0;
-          };
-          const text = (el) => (el ? (el.innerText || el.textContent || '').trim() : '');
-          const integer = (el) => {
-            const value = Number.parseInt(text(el), 10);
-            return Number.isInteger(value) ? value : null;
-          };
-          const toggle = document.querySelector(selectors.toggle);
-          const content = document.querySelector(selectors.content);
-          const activeTab = Array.from(document.querySelectorAll('.os-tab-bar-tab'))
-            .find((tab) => (tab.className || '').includes('active'));
-          const activeTabName = text(activeTab && activeTab.querySelector('.os-tab-name'));
-          const containers = content
-            ? Array.from(content.querySelectorAll('.element-notice-set-container'))
-            : [];
-          const notices = [];
-          for (const container of containers) {
-            if (container.querySelector('.notices-out-of-date')) continue;
-            const tabName = text(container.querySelector('.element-notice-title'));
-            if (activeTabName && tabName && tabName !== activeTabName) continue;
-            for (const table of container.querySelectorAll(selectors.table)) {
-              const messages = Array.from(table.querySelectorAll(selectors.message))
-                .map(text).filter(Boolean);
-              if (!messages.length) continue;
-              const line = integer(table.querySelector(selectors.line));
-              const column = integer(table.querySelector(selectors.column));
-              let severity = 'warning';
-              if (table.querySelector('.fs-notice-error')) severity = 'error';
-              else if (table.querySelector('.fs-notice-info')) severity = 'info';
-              notices.push({
-                severity,
-                text: messages[0],
-                line,
-                column,
-                row: line === null ? 0 : Math.max(0, line - 1),
-                col: column === null ? 0 : Math.max(0, column - 1),
-                tabName,
-              });
-            }
-          }
-          return {
-            found: !!toggle || !!content,
-            indicatorPresent: visible(toggle),
-            paneOpen: !!(toggle && toggle.querySelector('.flyout-toggle-button.os-expanded')),
-            activeTabName,
-            noticeCount: notices.length,
-            notices,
-          };
-        }
-        """,
+        FS_NOTICE_SNAPSHOT_JS,
         {
             "toggle": FS_NOTICE_TOGGLE,
             "content": FS_NOTICE_CONTENT,
@@ -240,8 +248,38 @@ def read_featurescript_notices(page: Any) -> dict[str, Any]:
     }
 
 
+def _enrich_compile_errors(
+    errors: list[dict[str, Any]],
+    index: diagnostics.ErrorStringEnumIndex | None = None,
+) -> list[dict[str, Any]]:
+    """Add the normalized code and every message paragraph to each diagnostic.
+
+    The raw notice text is the browser's unfiltered observation; this derived
+    view is what a consumer groups on. ``codeBasis``/``codeStable`` state whether
+    the code is server-defined or one of our compiler-message families, so a
+    caller never has to guess how much to trust it.
+    """
+    enriched = []
+    for item in errors:
+        normalized = diagnostics.normalize_diagnostic(str(item.get("text", "")), index)
+        messages = item.get("messages")
+        enriched.append({
+            **item,
+            "messages": list(messages) if isinstance(messages, list) and messages
+            else ([str(item.get("text"))] if str(item.get("text", "")).strip() else []),
+            **normalized,
+        })
+    return enriched
+
+
 def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
-    """Combine Ace annotations with the active FeatureScript notice pane."""
+    """Combine Ace annotations with the active FeatureScript notice pane.
+
+    Every returned diagnostic carries ``messages`` (all paragraphs of one notice
+    table) and a self-labeled ``code``. ``diagnosticSummary`` appears only when
+    there is something to summarize, so a clean compile stays small.
+    """
+    index = diagnostics.error_string_enum_index()
     try:
         ace = _read_featurescript_ace_annotations(page)
     except Exception as exc:  # noqa: BLE001 - deployment must retain failure evidence
@@ -250,24 +288,25 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
             "compiled": False,
             "annotationCount": 0,
             "noticeCount": 0,
-            "errors": [{
+            "errors": _enrich_compile_errors([{
                 "row": 0,
                 "col": 0,
                 "text": f"Ace annotation read failed: {type(exc).__name__}: {exc}",
                 "type": "error",
                 "source": "compileObservation",
-            }],
+            }], index),
             "notices": [],
             "noticeReadComplete": False,
             "reason": f"Ace annotation read failed: {type(exc).__name__}: {exc}",
         }
     if not isinstance(ace, dict) or not ace.get("found"):
+        ace_errors = [item for item in (ace or {}).get("errors", []) if isinstance(item, dict)]
         return {
             "found": False,
             "compiled": False,
             "annotationCount": int((ace or {}).get("annotationCount", 0)),
             "noticeCount": 0,
-            "errors": list((ace or {}).get("errors", [])),
+            "errors": _enrich_compile_errors(ace_errors, index),
             "notices": [],
             "noticeReadComplete": False,
             "reason": (ace or {}).get("reason", "FeatureScript annotations unavailable"),
@@ -285,6 +324,9 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
             "line": item.get("line"),
             "column": item.get("column"),
             "text": str(item.get("text", "")),
+            "messages": [
+                str(message) for message in item.get("messages", []) if str(message).strip()
+            ],
             "type": str(item.get("severity", "warning")),
             "source": "featureScriptNotice",
             "tabName": str(item.get("tabName", "")),
@@ -293,7 +335,7 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
     ]
     ace_errors = [item for item in ace.get("errors", []) if isinstance(item, dict)]
     notice_complete = bool(notice_status.get("complete"))
-    errors = [*ace_errors, *notice_errors]
+    errors = _enrich_compile_errors([*ace_errors, *notice_errors], index)
     result = {
         "found": True,
         "compiled": not errors and notice_complete,
@@ -307,6 +349,10 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
         "noticePaneOpenedForRead": bool(notice_status.get("openedForRead")),
         "noticePaneRestored": bool(notice_status.get("restored", True)),
     }
+    if errors:
+        result["diagnosticSummary"] = diagnostics.inline_diagnostic_summary(
+            diagnostics.summarize_diagnostics({"errors": errors}, index=index)
+        )
     if not notice_complete:
         result["reason"] = str(
             notice_status.get("reason", "FeatureScript notice indicator present but notices were not readable")

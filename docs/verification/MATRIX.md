@@ -31,6 +31,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | External bridge registration | this repo's example only | bridge project's protocol/registry/lifecycle suite |
 | Browser schema/workflow | browser plan + MCP tests | authorized target-host scenario after dry-run |
 | Browser session/selectors | browser-mode tests | read-only inspect/watch first |
+| FS diagnostic loop (notice read, code normalization, capture) | `test_fs_diagnostics` + `test_fs_notice_collector` (node stub-DOM probe) | read-only notice-pane probe on the target host |
 | REST/budget/operations | quota guards | explicitly budgeted live fact only |
 | FeatureScript source | `fs_local_check.py` + matching static tests | authorized upload/live compile only |
 | Generated references/indexes | builder and verifier `--check` | none by default |
@@ -45,7 +46,12 @@ python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
 python3 -m unittest dev.tests.test_quota_guards -v
 python3 -m unittest dev.tests.test_browser_mode -v
 python3 -m unittest dev.tests.test_browser_plan_completion -v
+python3 -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
 ```
+
+`test_fs_notice_collector` runs the production notice-collector string against a
+stub DOM with `node`; it skips when node is not installed rather than reporting
+the collector as covered.
 
 Generated JSON indexes, `docs/generated/TOOL_REFERENCE.md`, and
 `mcp_main/dsh/runtime-prompt-companion.js` are not hand-edited.

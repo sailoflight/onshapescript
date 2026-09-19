@@ -261,6 +261,26 @@ and it unblocks everything else.
 (local-checker rejects, compile errors, `not-computed` rows, stale sessions), with
 recorded evidence and no silent success.
 
+Delivered so far, all offline:
+
+- **P1c** — `dev/tools/fs_corpus_check.py` renders the recorded instance corpus
+  and scores the local checker against its live labels. Current result: 4/4 target
+  samples flagged, 6/6 valid samples clean. The three version-drift samples
+  (`07/11/13`) are recorded with the FS-3029-vs-3044 caveat and are excluded from
+  acceptance.
+- **P1a** — two advisory rules in `onshape_docs/scripts/fs_local_check.py`: a
+  definition-map call whose third argument cannot be a map, and dimensioned
+  arithmetic mixed with a plain number. Both had zero false positives on the real
+  standard library. Argument-count and field-name checks were measured, produced
+  30 and 73 false positives, and were removed rather than shipped.
+- **P1b** — the browser notice read now returns every message paragraph of a
+  notice table, and the capture path adds a normalized, source-annotated
+  diagnostics summary plus a bounded corpus entry for the local analyzer. The
+  notice collector string is exercised offline against a stub DOM with node.
+
+Still open for the P1 gate: the real-machine apply/verify loop over pathological
+inputs. That needs the operator present and is not claimed as done.
+
 **P2 — Whole-feature Custom capability template.** Generalize the
 `browser_spiral_ridge` precedent into a data-driven contract; land the first
 capabilities (extrude/cut, hole, fillet) as whole-feature custom features.
