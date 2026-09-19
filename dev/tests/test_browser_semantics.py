@@ -22,13 +22,12 @@ class SixLevelSemanticsTest(unittest.TestCase):
     def test_catalog_lint_passes(self):
         self.assertEqual(semantics.validate_catalog(), [])
 
-    def test_ordinary_discovery_hides_l1_l3_and_invalid_fdm(self):
+    def test_ordinary_discovery_hides_l1_and_l3(self):
         names = [
             "browser_click",
             "browser_open_doc_menu",
             "browser_open_document",
             "browser_deploy_and_apply_featurescript",
-            "browser_print_orientation_check",
             "future_unclassified_browser_tool",
         ]
         self.assertEqual(
@@ -64,16 +63,19 @@ class SixLevelSemanticsTest(unittest.TestCase):
         self.assertFalse(capture["defaultExposure"])
         self.assertIn("browser_fs_capture_diagnostic", deploy["dependencies"])
 
-    def test_explicit_query_can_find_invalid_tool_for_diagnostics(self):
+    def test_explicit_query_can_find_a_default_hidden_tool_for_diagnostics(self):
+        # browser_draw_part is the last recorded non-default-exposure maturity
+        # left in the catalog now that the two print stubs were archived on
+        # 2026-09-19 (docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md).
         self.assertEqual(
             semantics.select_tool_names(
-                ["browser_print_orientation_check"],
-                semantic_levels=["L4"],
+                ["browser_draw_part"],
+                semantic_levels=["L5"],
             ),
-            ["browser_print_orientation_check"],
+            ["browser_draw_part"],
         )
-        metadata = semantics.semantic_metadata("browser_print_orientation_check")
-        self.assertEqual(metadata["maturity"], "semantically_invalid")
+        metadata = semantics.semantic_metadata("browser_draw_part")
+        self.assertEqual(metadata["maturity"], "deprecated")
         self.assertFalse(metadata["defaultExposure"])
 
     def test_unclassified_tools_are_valid(self):

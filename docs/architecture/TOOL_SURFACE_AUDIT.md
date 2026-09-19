@@ -1,12 +1,19 @@
 # Tool surface audit (P5)
 
 Verdict for every registered tool: what it is for, whether it earns its place in
-the ordinary model-facing surface, and what should happen to it next. This is a
-**classification only** -- no tool was renamed, merged or removed by the phase
-that produced it. The verdicts are authored judgment, and
+the ordinary model-facing surface, and what should happen to it next. Phase one
+was a **classification only** -- no tool was renamed, merged or removed to produce
+it. The verdicts are authored judgment, and
 `dev/tests/test_tool_surface_audit.py` is the gate: it re-parses the table below
 and fails if a registered tool is unclassified, a verdict is not one of the five,
 a `Merge` verdict does not name a registered tool, or a reason is missing.
+
+**Status 2026-09-19.** One follow-up has since been executed: the two
+print-analysis stubs were archived by owner decision, so they no longer occupy a
+row and the table now covers the 106 registered tools. The archive record is
+`history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`. `browser_delete_tab` and
+`browser_draw_part` were reclassified from `Remove` to `Internal-only` in the same
+pass, because the owner corrected the reason they are hidden; see rule 4.
 
 ## How to read a verdict
 
@@ -15,10 +22,10 @@ a `Merge` verdict does not name a registered tool, or a reason is missing.
 | `Keep` | Earns its place as an ordinary model-facing tool at its current level. |
 | `Capability` | The real value is a whole-feature or whole-document job. It belongs behind a capability card (roadmap P2/P4), not as a step a caller assembles by hand. |
 | `Merge` | Overlaps another tool enough that one entry point should absorb it. The target column names the survivor; the verdict says so explicitly rather than silently dropping a name. |
-| `Internal-only` | Needed for composition or recovery, but it should not be a default model choice. In most cases the semantics record already marks it default-hidden for the same reason. |
-| `Remove` | Deprecated or semantically invalid, or superseded by a verified path. Deleting it is a follow-up refactor, not part of this phase. |
+| `Internal-only` | Needed for composition, recovery, or a deliberately-preserved compatibility path, but it should not be a default model choice. In most cases the semantics record already marks it default-hidden for the same reason. |
+| `Remove` | Deprecated or semantically invalid, or superseded by a verified path. Deleting it is a follow-up refactor, not part of this phase. Currently no row carries this verdict. |
 
-Three rules produced the non-obvious verdicts:
+Four rules produced the non-obvious verdicts:
 
 1. **A click is not a result.** Single-step UI affordances (`Internal-only`) are
    kept out of the ordinary surface so callers go through typed tools that verify
@@ -30,6 +37,11 @@ Three rules produced the non-obvious verdicts:
    geometry backends keep separate implementations, but status and configuration
    are one question and one decision each, so those entry points merge while the
    other two paths stay distinct.
+4. **Default-hidden is not one reason.** A tool can be out of the ordinary list
+   because it is high-risk (`browser_delete_tab` is destructive,
+   `browser_draw_part` invites an unverified path) or because it does not do its
+   job at all (the two archived print stubs). The first kind stays and is
+   reclassified `Internal-only`; only the second is worth removing.
 
 ## Coverage
 
@@ -44,9 +56,9 @@ skips the hidden tools cannot decide whether they should still exist.
 | `Keep` | 59 |
 | `Capability` | 11 |
 | `Merge` | 8 |
-| `Internal-only` | 26 |
-| `Remove` | 4 |
-| **total** | **108** |
+| `Internal-only` | 28 |
+| `Remove` | 0 |
+| **total** | **106** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -63,11 +75,11 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_create_drawing` | `Keep` | - | Creates a Drawing from a named source and template; a complete, self-contained document step. |
 | `browser_create_tab` | `Keep` | - | Creates Feature Studio/Part Studio/Assembly tabs; the composition step every browser workflow needs. |
 | `browser_delete_element` | `Keep` | - | Deletes a document element by tab id; the general cleanup path that supersedes browser_delete_tab. |
-| `browser_delete_tab` | `Remove` | - | Deprecated compatibility wrapper kept for older callers; browser_delete_element covers the same job through the current path. |
+| `browser_delete_tab` | `Internal-only` | - | Deprecated compatibility wrapper kept for older callers; `browser_delete_element` covers the same job through the current path. Hidden because it is destructive, not because it is useless, so it stays reachable by exact name. |
 | `browser_deploy_and_apply_featurescript` | `Capability` | - | End-to-end deploy-and-apply with verification; the capability a caller actually wants, not its five constituent steps. |
 | `browser_deploy_featurescript` | `Keep` | - | Deploy through the UI at zero REST quota, with the local check attached; the browser leg's core operation. |
 | `browser_discover_tools` | `Keep` | - | The only view that exposes hidden L1/L3 tools together with their semantic levels; mcp_tool_catalog does not carry those levels. |
-| `browser_draw_part` | `Remove` | - | Deprecated compatibility workflow superseded by the verified draw-part path; keeping the name invites use of the unverified one. |
+| `browser_draw_part` | `Internal-only` | - | Deprecated compatibility workflow superseded by the verified draw-part path; hidden because keeping the name visible invites use of the unverified one, not because the capability is worthless. Reachable by exact name and by an explicit `L5` query. |
 | `browser_draw_part_with_views` | `Capability` | - | Whole drawing job (views plus dimensions and verification) that deserves a capability card with its own acceptance criteria. |
 | `browser_drawing_insert_views` | `Merge` | `browser_draw_part_with_views` | Creating views from a part row is the first half of the draw-part workflow; one entry point removes the need to choose the half. |
 | `browser_duplicate_element` | `Keep` | - | Duplicates an id-addressed element; a safe way to iterate without touching the original. |
@@ -98,8 +110,6 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_open_document` | `Keep` | - | Smallest useful navigation step; everything else assumes a specific document is open. |
 | `browser_open_insert_feature_dialog` | `Internal-only` | - | The dialog-open step inside browser_insert_custom_feature; separate exposure invites half-finished sequences. |
 | `browser_press_key` | `Internal-only` | - | Composition primitive for keyboard input; typed tools own the trusted-event details. |
-| `browser_print_optimize_part` | `Remove` | - | Recorded as semantically invalid: it validates inputs and returns a compatibility workflow result without doing the optimization. |
-| `browser_print_orientation_check` | `Remove` | - | Recorded as semantically invalid: it returns a compatibility result rather than performing the check. Keeping it only preserves a misleading name. |
 | `browser_read_featurescript` | `Keep` | - | Reads the editor buffer, which is the only way to see unsaved source that never reached the server. |
 | `browser_read_selection_preview` | `Internal-only` | - | Reads a panel selection or preview card; meaningful only inside a flow that then acts on the selection. |
 | `browser_reconnect` | `Merge` | `browser_session` | Recovery is a session state transition; one entry point keeps the timeout/reconnect state machine in a single place. |
@@ -161,24 +171,29 @@ skips the hidden tools cannot decide whether they should still exist.
 
 ## What this audit changes next
 
-Classification only: nothing was renamed, merged, hidden or deleted to produce
-the table above. The verdicts point at five follow-up jobs, in the order they
-should be attempted.
+The original phase was classification only: nothing was renamed, merged or hidden
+to produce the table above. The verdicts pointed at five follow-up jobs. Job 1 has
+since been resolved; the other four keep their original order.
 
-1. **Removals (4). — Blocked on a decision, not on callers.** The four are
-   deprecated or semantically invalid and already default-hidden, and the caller
-   inventory was measured: no project fixture under `dev/fixtures-capture/` or
-   `examples/` routes to any of them, so their only remaining references are the
-   registry itself, the permissive `ALLOWED_PROJECT_TOOLS` / `TOOL_OUTCOME_KEYS`
-   tables in `onshape_browser_mode/project.py`, this page, and tests.
-   `browser_delete_tab` also still has its own handler in `mcp_main/win/mcp/server.py`
-   while the other three live in `browser_tools`.
-   Deleting `browser_print_orientation_check` and `browser_print_optimize_part`
-   contradicts a recorded decision: `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`
-   says, while the Bambu exclusion is active, to **keep** them fail-closed and
-   default-hidden rather than restoring draft analysis, with their replacement
-   belonging to the shared STEP/converter/Bambu plan. That conflict is the
-   blocker — resolving it is an owner decision, not a cleanup.
+1. **Print-stub archive (was: "Removals (4)"). — Done 2026-09-19.** The caller
+   inventory had already been measured: no project fixture under
+   `dev/fixtures-capture/` or `examples/` routed to any of the four rows, so their
+   only remaining references were the registry, the permissive
+   `ALLOWED_PROJECT_TOOLS` / `TOOL_OUTCOME_KEYS` tables in
+   `onshape_browser_mode/project.py`, this page, and tests.
+   `browser_print_orientation_check` and its dependent
+   `browser_print_optimize_part` were fail-closed stubs that returned a
+   `semantically invalid` compatibility result without doing the work their names
+   promise, so the owner directed that those two be archived rather than kept
+   fail-closed forever under the Bambu exclusion (that earlier position in
+   `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md` is now superseded). They are
+   removed from the registry, the dispatch table, the semantics catalog, the
+   project tables and `modeling_transactions`, and recorded in
+   `history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md` with their source, so a future
+   print-analysis module can recover the intent without restoring a misleading
+   tool name. `browser_delete_tab` and `browser_draw_part` were **not** removed:
+   the same decision corrected their verdict to `Internal-only` (rule 4). The
+   registered surface went from 108 to 106 tools.
 2. **Hidden-by-default gaps (2). — Done.** `browser_fix_instances` and
    `browser_group_instances` were classified `Internal-only` but were still
    default-exposed (L4, `default_exposure=True`), unlike every other

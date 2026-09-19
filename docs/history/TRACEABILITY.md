@@ -25,6 +25,7 @@ second architecture, operations, or product contract.
 | `legacy/PROJECT_RELAY_README.md` | Former production project relay wiring and lifecycle notes | Retired/non-executable; current runtime is the ordinary MCP plus independently installed adapter |
 | `legacy/SHARED_BRIDGE_MIGRATION.md` | Independent bridge extraction specification and acceptance rationale | Accepted historical migration record; shared bridge implementation/operations live outside this repository |
 | `legacy/DEV_README.md` | Former `dev/` landing page and Windows browser setup notes | Replaced by the development-lab contract and Operator runbook; documentation no longer lives in `dev/` |
+| `legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md` | Retired `browser_print_orientation_check` / `browser_print_optimize_part` stubs and the dead `draft_angle_proxy` helper, quoted before removal | Retired detail (removed 2026-09-19 by owner decision); the names are gone from the registry, so current print analysis belongs to a future slicer-backed module |
 | `../../onshape_docs/verification/live/README.md` and sibling JSON records | Dated live FeatureScript experiments, quota incidents, outcomes, and raw evidence | Durable conclusions live in experience/root safety authority; raw outcomes remain evidence and dated ledger narration is not current state |
 
 ## Topic-to-authority map
@@ -46,6 +47,7 @@ second architecture, operations, or product contract.
 | Four-level FS-mode semantic tool surface focused on FS script mode (deploy/compile-status/symbols/parameter-edit), its Part-Studio coupling points (part context-menu drawing auto-views), and improvement suggestions for existing browser tools | `../roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` | Current roadmap (live-browser evidence 2026-08-25) |
 | App-generic L2 semantics of the document shell (top navbar, left panel + icon rail, bottom tab bar, viewport chrome), the cross-Studio chrome independent of Studio type | `../roadmap/BROWSER_GENERIC_L2_SEMANTICS.md` | Current roadmap (live screenshot + DOM evidence 2026-08-25) |
 | Deduped single-source registry of all planned-but-not-implemented browser tools (FS script mode, drawing, print, app-generic shell) | `../roadmap/BROWSER_PLANNED_TOOLS.md` | Current roadmap (consolidated 2026-08-25) |
+| Retired browser FDM print analysis (`browser_print_orientation_check`, `browser_print_optimize_part`) | Nothing current: the tools were removed 2026-09-19 and the archived source is `legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`; a future analysis module owns the measurement | Retired detail; a slicer-backed module would have to re-enter through the tool-surface audit |
 | One-off convergence runs, obsolete tool counts, dated account/ledger snapshots | Archived source or raw verification evidence only | Historical context; deliberately not a current contract |
 
 ## Legacy browser/MCP record mapping

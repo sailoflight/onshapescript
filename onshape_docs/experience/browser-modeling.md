@@ -190,9 +190,12 @@
 - Onshape `拔模分析` 是制造角度可视化，不是 FDM 打印朝向分析。它不能单独证明床面
   接触、支撑、桥接、重心稳定性、打印高度、层间强度、构建体积或 Bambu Studio
   profile 下的切片结果。
-- 当前 `browser_print_orientation_check` 只会得到 `assessable:false` /
-  `risk:"unknown"`，六级 catalog 已将其标为 `semantically_invalid` 并默认隐藏；依赖它的
-  `browser_print_optimize_part` 同样不能作为有效 FDM 工作流。
+- `browser_print_orientation_check` 只会得到 `assessable:false` /
+  `risk:"unknown"`，六级 catalog 曾将其标为 `semantically_invalid` 并默认隐藏；依赖它的
+  `browser_print_optimize_part` 同样不能作为有效 FDM 工作流。这两个名字已于 2026-09-19
+  归档并从工具表移除（源码留档：`../../docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`）。
+  **可复用教训**：一个永远做不到名字所承诺工作的工具，比没有这个工具更糟 —— 失败闭环
+  只能证明"没做"，不能证明"不能做"；这类名字应当归档，而不是长期 fail-closed 占位。
 - 正确边界是：浏览器或 REST 模式各自导出规范 STEP 并构造相同 artifact contract；根级
   共享 `fdm_analysis` 库负责显式 STEP tessellation、网格指标、Bambu Studio 切片、报告
   和 manifest。共享库本身不是 MCP 语义工具。
@@ -299,12 +302,20 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
 返回 `ValueError: script and feature_name are required`——而这句话在本仓库里根本不存在。
 原因是运行中的 Onshape MCP 服务是 Windows 上的普通 stdio **部署副本**
 `C:\MCP\onshapescript`（一份拷贝，不是 checkout），它落后于仓库：`capabilities.py`
-不存在、`semantic.py` 没有未计算特征守卫、注册工具数 106（仓库 108）。
+不存在、`semantic.py` 没有未计算特征守卫、注册工具数 106（当时仓库 108）。
+
+> 注意：`106` 当时是**落后**的标志；2026-09-19 归档两个 print 工具后仓库自身也是 106，
+> 于是两边数字相等而内容不同 —— 实测同日的对照是：部署副本 `browser`=68 /
+> `featurescript`=10 / `rest`=17，仓库 `browser`=66 / `featurescript`=11 / `rest`=18。
+> 因此**只比数字会漏判**，必须比指纹：`mcp_tool_catalog(action="status").fingerprint`
+> 当时是 `754218124c1b28c4…`，仓库 `ToolCatalogIndex(FINGERPRINT 源)`
+> 算出 `272cc39d6f0fa4b3…`；不等即说明线上不是当前代码。
 
 后果很实际：**仓库是绿的、测试是过的、能力层是从未在线上跑过的。** 所以：
 
-- 真机验证前先读 `mcp_tool_catalog(action="status")` 的 `registryCount`，与仓库里
-  `len(TOOL_REGISTRY)` 比对；两者不等就说明线上不是当前代码。
+- 真机验证前先读 `mcp_tool_catalog(action="status")`，把 `fingerprint` 与仓库算出的
+  `ToolCatalogIndex(server.TOOLS).fingerprint` 比对；不等就说明线上不是当前代码。
+  `registryCount` 只用来解释差异（多了什么、少了什么），不能单独当判据。
 - 再用**只在仓库里存在**的一个能力参数（例如 `capability=`）探一下该工具的真实 schema。
 - 结论要按事实写：「验证的是生成出来的源码与浏览器应用链路」，不要写成「能力层已验证」。
 - 部署副本里 `browser-state.json` / `browser.local.toml` 是 Deployment 本地状态，

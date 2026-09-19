@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "f41ff2764fcd09dc14cf2222705f3cbe56fc3f4a6596a071c601361d55923715",
+   "sha256": "a5677fe6e6330e0045a0ce727c6655c4ebe91d611643f7ba408d1da2d67a04bb",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -670,7 +670,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") is the cooperative end-of-work cleanup: it closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. An agent should call it in a finally-style cleanup after browser work unless continued use of the same browser is intentional. Release may require the login state to be refreshed later and cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Read-only observation should come first. browser_fs_read_notices opens and restores the active FeatureScript notice pane and returns normalized notice rows; browser_get_fs_compile_status combines those rows with Ace annotations, while browser_get_fs_symbols reads the Module-outline inventory. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and combined compiler evidence verify with no blocking warning/error. Every committed deployment attempt also writes a local diagnostic package containing the full source and compile result under onshape_browser_mode/outputs/fs_diagnostics/; the experimental, default-hidden browser_fs_capture_diagnostic creates the same package on demand. These local artifacts can contain proprietary source code and must be protected accordingly. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses semantic exposure. FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The later FDM review marks the draft-analysis-based browser_print_orientation_check and dependent browser_print_optimize_part semantically invalid and default-hidden; draft analysis is not an FDM orientation engine. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, browser_drawing_insert_views for views only, and browser_draw_part_with_views only when one or more dimensions are required."
+       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") is the cooperative end-of-work cleanup: it closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. An agent should call it in a finally-style cleanup after browser work unless continued use of the same browser is intentional. Release may require the login state to be refreshed later and cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Read-only observation should come first. browser_fs_read_notices opens and restores the active FeatureScript notice pane and returns normalized notice rows; browser_get_fs_compile_status combines those rows with Ace annotations, while browser_get_fs_symbols reads the Module-outline inventory. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and combined compiler evidence verify with no blocking warning/error. Every committed deployment attempt also writes a local diagnostic package containing the full source and compile result under onshape_browser_mode/outputs/fs_diagnostics/; the experimental, default-hidden browser_fs_capture_diagnostic creates the same package on demand. These local artifacts can contain proprietary source code and must be protected accordingly. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses semantic exposure. FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The draft-analysis-based browser_print_orientation_check and its dependent browser_print_optimize_part were semantically invalid — draft analysis is not an FDM orientation engine — and were removed from the surface on 2026-09-19 rather than left as fail-closed names; do not call them and do not expect a browser print-analysis tool until a slicer-backed module is designed. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, browser_drawing_insert_views for views only, and browser_draw_part_with_views only when one or more dimensions are required."
       }
      ]
     },
@@ -2771,7 +2771,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "c924c36a5ef8adf9f633889b19fb3d85f593d43e3f216708a7bad57e974458be",
+   "sha256": "50f4f687811a92ce7de0125f30f45c3ac8c38d0ed30154aa79bce0bd4626cf61",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3198,7 +3198,7 @@
          "depth": 0
         },
         {
-         "text": "当前 browser_print_orientation_check 只会得到 assessable:false / risk:\"unknown\"，六级 catalog 已将其标为 semantically_invalid 并默认隐藏；依赖它的 browser_print_optimize_part 同样不能作为有效 FDM 工作流。",
+         "text": "browser_print_orientation_check 只会得到 assessable:false / risk:\"unknown\"，六级 catalog 曾将其标为 semantically_invalid 并默认隐藏；依赖它的 browser_print_optimize_part 同样不能作为有效 FDM 工作流。这两个名字已于 2026-09-19 归档并从工具表移除（源码留档：../../docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md）。 可复用教训：一个永远做不到名字所承诺工作的工具，比没有这个工具更糟 —— 失败闭环 只能证明\"没做\"，不能证明\"不能做\"；这类名字应当归档，而不是长期 fail-closed 占位。",
          "depth": 0
         },
         {
@@ -3328,7 +3328,11 @@
      "blocks": [
       {
        "type": "para",
-       "text": "实测（2026-09-19）：browser_deploy_and_apply_featurescript(capability=..., dry_run=true) 返回 ValueError: script and feature_name are required——而这句话在本仓库里根本不存在。 原因是运行中的 Onshape MCP 服务是 Windows 上的普通 stdio 部署副本 C:\\MCP\\onshapescript（一份拷贝，不是 checkout），它落后于仓库：capabilities.py 不存在、semantic.py 没有未计算特征守卫、注册工具数 106（仓库 108）。"
+       "text": "实测（2026-09-19）：browser_deploy_and_apply_featurescript(capability=..., dry_run=true) 返回 ValueError: script and feature_name are required——而这句话在本仓库里根本不存在。 原因是运行中的 Onshape MCP 服务是 Windows 上的普通 stdio 部署副本 C:\\MCP\\onshapescript（一份拷贝，不是 checkout），它落后于仓库：capabilities.py 不存在、semantic.py 没有未计算特征守卫、注册工具数 106（当时仓库 108）。"
+      },
+      {
+       "type": "para",
+       "text": "> 注意：106 当时是落后的标志；2026-09-19 归档两个 print 工具后仓库自身也是 106， > 于是两边数字相等而内容不同 —— 实测同日的对照是：部署副本 browser=68 / > featurescript=10 / rest=17，仓库 browser=66 / featurescript=11 / rest=18。 > 因此只比数字会漏判，必须比指纹：mcp_tool_catalog(action=\"status\").fingerprint > 当时是 754218124c1b28c4…，仓库 ToolCatalogIndex(FINGERPRINT 源) > 算出 272cc39d6f0fa4b3…；不等即说明线上不是当前代码。"
       },
       {
        "type": "para",
@@ -3338,7 +3342,7 @@
        "type": "list",
        "items": [
         {
-         "text": "真机验证前先读 mcp_tool_catalog(action=\"status\") 的 registryCount，与仓库里 len(TOOL_REGISTRY) 比对；两者不等就说明线上不是当前代码。",
+         "text": "真机验证前先读 mcp_tool_catalog(action=\"status\")，把 fingerprint 与仓库算出的 ToolCatalogIndex(server.TOOLS).fingerprint 比对；不等就说明线上不是当前代码。 registryCount 只用来解释差异（多了什么、少了什么），不能单独当判据。",
          "depth": 0
         },
         {
@@ -3542,7 +3546,7 @@
    "page": "browser-tools-verification",
    "category": "verification",
    "path": "onshape_docs/verification/browser-tools-2026-08-25.md",
-   "sha256": "5527a85578b93c783eed8b220927cf4fbf85973e3600bf79f2f3d3ff04810af0",
+   "sha256": "9218ae36809ca0c97de2fac5d5db9b62114afd7458e3cbafb04c9413940a8d5d",
    "title": "Browser planned-tool implementation verification (2026-08-25)",
    "sections": [
     {
@@ -3862,7 +3866,7 @@
          "depth": 0
         },
         {
-         "text": "Print orientation remains unknown, but the stronger six-level conclusion is that the draft-analysis implementation is not an FDM orientation engine at all. It is cataloged semantically_invalid and default-hidden pending the shared STEP/converter/Bambu replacement.",
+         "text": "Print orientation remains unknown, but the stronger six-level conclusion is that the draft-analysis implementation is not an FDM orientation engine at all. It was cataloged semantically_invalid and default-hidden. (Superseded 2026-09-19: the two print tools were archived rather than left fail-closed — see ../../docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md; the measurement in this record is unchanged.)",
          "depth": 0
         },
         {
@@ -3890,7 +3894,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "bc5a8954a7812bb7cc74a56c532e4708088947f5f79f9ae45c0bf84ba3bd76e6",
+   "sha256": "57ba5eb7d3b408048ae36b203a7be739ee9ce11a31885f18f6356289e34e9050",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -3985,6 +3989,10 @@
          "present"
         ]
        ]
+      },
+      {
+       "type": "para",
+       "text": "The counts in that table are the measurement at 52d43ff. The repository later dropped to 106 as well, when the two print stubs were archived on 2026-09-19, so the two registries now agree on the number while still differing in content: live browser=68 / featurescript=10 / rest=17 against repository browser=66 / featurescript=11 / rest=18 at archive time. The registry fingerprint is therefore the discriminator — live 754218124c1b28c4…, repository 272cc39d6f0fa4b3… — exactly as recorded in ../experience/browser-modeling.md §14."
       },
       {
        "type": "para",
@@ -4978,7 +4986,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "6e60534d3e210e66a3d58ce73b32cbf28837b7f8e9a6a4488ae826cc3b42ebd2",
+   "sha256": "36699dd7bb386cec0a62d656f0a36e15c73f55e1bd7107be1a285402898e4c45",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -4999,7 +5007,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 108",
+         "text": "Registered tools: 106",
          "depth": 0
         },
         {
@@ -5011,11 +5019,11 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=68, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
+         "text": "Capability counts: browser=66, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
          "depth": 0
         },
         {
-         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=28, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1",
+         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=27, L5=7, L6=1, boundary_observation=1, boundary_operation=2, project_control=1",
          "depth": 0
         }
        ]
@@ -5455,22 +5463,6 @@
          "key",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
          "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota."
-        ],
-        [
-         "browser_print_optimize_part",
-         "browser",
-         "L5 onshape_workflow",
-         "body_name, orientation, wall",
-         "network=offline; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=shared_read/none",
-         "Deprecated compatibility workflow: validates inputs, then stops before browser/model mutation because its draft-based FDM orientation dependency is semantically invalid."
-        ],
-        [
-         "browser_print_orientation_check",
-         "browser",
-         "L4 onshape_transaction",
-         "body_name",
-         "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Deprecated compatibility result: returns semantically invalid/unassessable without a browser action because Onshape draft analysis is not an FDM orientation engine."
         ],
         [
          "browser_read_featurescript",

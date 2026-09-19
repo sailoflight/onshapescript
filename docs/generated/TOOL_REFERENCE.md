@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **108**
+- Registered tools: **106**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=68, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
+- Capability counts: `browser`=66, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=7, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
 
 ## Safety interpretation
 
@@ -73,8 +73,6 @@
 | `browser_open_document` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Open a document from the Onshape documents list by its visible name. Read-only navigation: it goes to the documents list and clicks the matching document link, then returns the... |
 | `browser_open_insert_feature_dialog` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Open the Part Studio '添加自定义特征' dialog through the browser UI so a follow-up browser_create_document_version call can click its '创建一个版本' prompt, or so the caller can inspect the... |
 | `browser_press_key` | `browser` | `L1 browser_primitive` | `key` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota. |
-| `browser_print_optimize_part` | `browser` | `L5 onshape_workflow` | `body_name`, `orientation`, `wall` | network=offline; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=shared_read/none | Deprecated compatibility workflow: validates inputs, then stops before browser/model mutation because its draft-based FDM orientation dependency is semantically invalid. |
-| `browser_print_orientation_check` | `browser` | `L4 onshape_transaction` | `body_name` | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none | Deprecated compatibility result: returns semantically invalid/unassessable without a browser action because Onshape draft analysis is not an FDM orientation engine. |
 | `browser_read_featurescript` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read the FeatureScript source currently open in the browser's Ace editor and return it together with the document/workspace/element ids parsed from the page URL. Read-only, zero... |
 | `browser_read_selection_preview` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read a visible left-panel selection or tab-preview card and return its text and labeled fields. |
 | `browser_reconnect` | `browser` | `L2 browser_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Detect the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') and click the reconnect link to restore the live session. Read-only session recovery — it does not creat... |

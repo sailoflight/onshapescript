@@ -114,7 +114,7 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("browser_open_doc_menu", names)
         self.assertNotIn("browser_fs_read_notices", names)
         self.assertNotIn("browser_fs_capture_diagnostic", names)
-        self.assertNotIn("browser_print_orientation_check", names)
+        self.assertNotIn("browser_draw_part", names)
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -134,8 +134,8 @@ class McpServerTest(unittest.TestCase):
                 "params": {
                     "name": "browser_discover_tools",
                     "arguments": {
-                        "query": "click",
-                        "semantic_levels": ["L1"],
+                        "query": "draw part",
+                        "semantic_levels": ["L5"],
                         "limit": 4,
                     },
                 },
@@ -147,24 +147,32 @@ class McpServerTest(unittest.TestCase):
                 "params": {
                     "name": "browser_invoke_discovered",
                     "arguments": {
-                        "name": "browser_print_orientation_check",
-                        "arguments": {"body_name": "fixture"},
+                        "name": "browser_draw_part",
+                        "arguments": {
+                            "source_tab": "Part Studio 1",
+                            "dimensions": [{
+                                "tool_selector": "#dimension-tool",
+                                "geometry_selectors": ["#edge-1"],
+                                "verification_selector": "#dimension-1",
+                            }],
+                        },
+                        "dry_run": True,
                     },
                 },
             },
         ])
         self.assertEqual(stderr, "")
         discovered = responses[0]["result"]["structuredContent"]
-        self.assertEqual(discovered["semanticLevels"], ["L1"])
+        self.assertEqual(discovered["semanticLevels"], ["L5"])
         self.assertTrue(discovered["explicitLevelQuery"])
-        self.assertIn("browser_click", {item["name"] for item in discovered["candidates"]})
-        click = next(item for item in discovered["candidates"] if item["name"] == "browser_click")
-        self.assertEqual(click["semantic"]["semanticLevel"], "L1")
-        self.assertIn("inputSchema", click)
+        self.assertIn("browser_draw_part", {item["name"] for item in discovered["candidates"]})
+        draw = next(item for item in discovered["candidates"] if item["name"] == "browser_draw_part")
+        self.assertEqual(draw["semantic"]["semanticLevel"], "L5")
+        self.assertIn("inputSchema", draw)
         invoked = responses[1]["result"]["structuredContent"]
-        self.assertEqual(invoked["invokedTool"], "browser_print_orientation_check")
-        self.assertFalse(invoked["result"]["orientationChecked"])
-        self.assertFalse(invoked["result"]["browserActionPerformed"])
+        self.assertEqual(invoked["invokedTool"], "browser_draw_part")
+        self.assertTrue(invoked["result"]["dryRun"])
+        self.assertEqual(invoked["result"]["estimatedApiRequests"], 0)
 
     def test_catalog_search_is_bounded_and_describe_is_exact_schema_path(self) -> None:
         responses, stderr = invoke([
@@ -257,7 +265,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         result = responses[0]["result"]
         self.assertEqual(result["exposureMode"], "static")
-        self.assertEqual(len(result["tools"]), 108)
+        self.assertEqual(len(result["tools"]), 106)
         self.assertIn("browser_inspect", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_read_notices", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_capture_diagnostic", {tool["name"] for tool in result["tools"]})

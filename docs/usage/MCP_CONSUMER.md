@@ -117,10 +117,13 @@ are in the complete browser registry; ordinary `tools/list` uses semantic
 exposure. FS insertion writes require dry-run and
 confirmation; fold/navigation and app-shell observations are zero-REST UI
 operations. Drawing auto-view success requires exactly one new tab plus DOM or
-decoded-canvas view evidence. The later FDM review marks the draft-analysis-based
-`browser_print_orientation_check` and dependent `browser_print_optimize_part`
-semantically invalid and default-hidden; draft analysis is not an FDM orientation
-engine. A real click, type, submit, create, delete, deploy, assemble, or drawing
+decoded-canvas view evidence. The draft-analysis-based
+`browser_print_orientation_check` and its dependent `browser_print_optimize_part`
+were semantically invalid — draft analysis is not an FDM orientation engine — and
+were removed from the surface on 2026-09-19 rather than left as fail-closed
+names; do not call them and do not expect a browser print-analysis tool until a
+slicer-backed module is designed. A real click, type, submit, create, delete,
+deploy, assemble, or drawing
 action can still mutate the cloud document and requires the tool's confirmation
 contract. Also inspect catalog `sideEffects`: screenshot/report artifacts,
 recorder state, persistent login profiles, and local caches can be written even

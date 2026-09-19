@@ -45,17 +45,19 @@ FeatureScript-backed workflow, not an unsupported native-toolbar helix guess.
 
 Correction:
 
-- `browser_print_orientation_check` currently opens Onshape draft analysis. That
-  surface cannot establish FDM bed contact, support demand, bridge behavior,
+- `browser_print_orientation_check` opened Onshape draft analysis. That surface
+  cannot establish FDM bed contact, support demand, bridge behavior,
   center-of-mass stability, print height, layer strength, build volume, or
-  profile-specific slice results. The tool remains compatibility code but is
-  marked `semantically_invalid` and default-hidden in the optional catalog.
+  profile-specific slice results. It was cataloged `semantically_invalid` and
+  default-hidden, and on 2026-09-19 it was archived rather than kept as
+  compatibility code; the gap it names is still open
+  (`../history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`).
 - `browser_wall_thickness_report` is only an L4 sampled UI observation; it is not
   a global mesh wall-thickness result.
 - `browser_apply_blend` remains one L4 Onshape transaction.
-- `browser_print_optimize_part` is structurally L5, but its invalid orientation
-  dependency and apply-before-assessment ordering mean it cannot be treated as a
-  valid FDM workflow.
+- `browser_print_optimize_part` was structurally L5, but its invalid orientation
+  dependency and apply-before-assessment ordering meant it could not be treated
+  as a valid FDM workflow; it was archived in the same pass.
 
 The replacement uses canonical STEP from browser or REST source adapters,
 explicit STEP tessellation, and the shared root-level `fdm_analysis` library.

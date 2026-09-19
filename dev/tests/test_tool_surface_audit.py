@@ -8,10 +8,9 @@ itself. What CAN be checked is that it is complete and self-consistent:
 * every verdict is one of the five, every `Merge` names a different registered
   tool as its survivor, and every other verdict leaves the column empty;
 * every row carries a real reason, and the summary counts match the table;
-* the two verdicts that make claims about recorded metadata -- `Remove` and
-  `Internal-only` -- are compared against the semantics records, and the known
-  gaps are required to be acknowledged in the follow-up section rather than left
-  implicit.
+* the verdict that makes a claim about recorded metadata -- `Internal-only` -- is
+  compared against the semantics records, and the known gaps are required to be
+  acknowledged in the follow-up section rather than left implicit.
 
 An audit that silently drops a tool fails here, which is the whole point: the
 hidden and deprecated entries are exactly the ones a completeness check must
@@ -117,27 +116,34 @@ class AuditDocumentTest(unittest.TestCase):
         self.assertEqual(int(total.group("count")), len(server.TOOLS))
         self.assertEqual(sum(counts.values()), len(server.TOOLS))
 
-    def test_remove_verdicts_agree_with_the_recorded_maturity(self) -> None:
-        """A `Remove` verdict must be backed by the metadata, not by taste."""
-        removed = [row["name"] for row in _rows() if row["verdict"] == "Remove"]
-        self.assertEqual(
-            removed,
-            [
-                "browser_delete_tab",
-                "browser_draw_part",
-                "browser_print_optimize_part",
-                "browser_print_orientation_check",
-            ],
-        )
-        for name in removed:
-            with self.subTest(tool=name):
-                record = TOOL_SEMANTICS.get(name)
-                self.assertIsNotNone(record, f"{name} is not backed by a semantics record")
-                self.assertNotEqual(record.maturity, "implemented")
-                self.assertFalse(
+    def test_no_remove_verdicts_remain_and_hidden_tools_are_internal_only(self) -> None:
+        """A verdict that makes a claim about recorded metadata must be backed by
+        it, not by taste. After the 2026-09-19 archive no row is `Remove`: the two
+        stubs that genuinely did not do their job are gone, and the two tools that
+        are merely high-risk are `Internal-only`, which is what their records
+        already said."""
+        rows = _rows()
+        removed = [row["name"] for row in rows if row["verdict"] == "Remove"]
+        self.assertEqual(removed, [], "`Remove` is resolved; see the archive record")
+        for row in rows:
+            if row["verdict"] == "Internal-only":
+                continue
+            with self.subTest(tool=row["name"]):
+                record = TOOL_SEMANTICS.get(row["name"])
+                if record is None:
+                    continue
+                self.assertTrue(
                     record.default_exposure,
-                    f"{name} is already hidden; a Remove verdict implies it should not be reachable by default",
+                    f"{row['name']} is default-hidden, so only `Internal-only` is honest",
                 )
+        for name in ("browser_delete_tab", "browser_draw_part"):
+            with self.subTest(tool=name):
+                row = next(item for item in rows if item["name"] == name)
+                self.assertEqual(row["verdict"], "Internal-only")
+        # The archived names must still be traceable from this page.
+        for name in ("browser_print_orientation_check", "browser_print_optimize_part"):
+            with self.subTest(tool=name):
+                self.assertIn(f"`{name}`", _follow_ups())
 
     def test_internal_only_claim_is_measured_not_assumed(self) -> None:
         """The doc says `Internal-only` tools are default-hidden. That is a

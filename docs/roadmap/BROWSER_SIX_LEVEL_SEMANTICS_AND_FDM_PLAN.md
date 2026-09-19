@@ -36,8 +36,14 @@ While this exclusion is active:
 - do not probe, invoke, install, or develop against Bambu Studio;
 - do not implement a Bambu metrics parser or describe slicing as available;
 - keep Bambu execution adapters as unverified protocol/replay infrastructure;
-- keep `browser_print_orientation_check` and `browser_print_optimize_part`
-  fail-closed/default-hidden rather than restoring draft analysis;
+- ~~keep `browser_print_orientation_check` and `browser_print_optimize_part`
+  fail-closed/default-hidden rather than restoring draft analysis~~ — **superseded
+  2026-09-19.** The owner directed that the two stubs be archived instead of kept
+  fail-closed indefinitely, because a name that never does its job is worse than
+  no name. They were removed from the registry and their source is preserved in
+  `../history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`. Nothing else in this
+  section changes: draft analysis is still not an FDM orientation engine, and the
+  shared STEP/converter replacement below still owns the real measurement;
 - make no live REST request for this work.
 
 Bambu work resumes only after the user installs and pins a version, supplies
@@ -295,11 +301,12 @@ recommendations.
 | transient full FDM feasibility analysis | L5 |
 | produce STEP, mesh, sliced project, reports, and manifest | L6 |
 
-The existing `browser_print_optimize_part` is not L6. Its current ordering is
-also unsafe: it may apply a blend before discovering that orientation is not
-assessable. Analysis and mutation must be separated. Any geometry optimization
-must have an explicit dry run, confirmation, idempotency guard, and post-change
-re-export/reanalysis.
+The former `browser_print_optimize_part` was not L6. Its ordering was also
+unsafe: it could apply a blend before discovering that orientation was not
+assessable. That tool was archived on 2026-09-19, so what survives from this
+paragraph is the requirement, not the defect: analysis and mutation must be
+separated, and any geometry optimization must have an explicit dry run,
+confirmation, idempotency guard, and post-change re-export/reanalysis.
 
 ## 10. Shared FDM library boundary
 

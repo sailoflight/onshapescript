@@ -439,20 +439,6 @@ def browser_draw_part_with_views(arguments: dict[str, Any]) -> dict[str, Any]:
     return draw_part_with_views(page, part_name=part_name.strip(), view_layout=layout, part_studio_tab=arguments.get("part_studio_tab", ""), template=arguments.get("template", ""), dimensions=normalized)
 
 
-def browser_print_orientation_check(arguments: dict[str, Any]) -> dict[str, Any]:
-    body_name = arguments.get("body_name", "")
-    direction = arguments.get("build_direction", "+z")
-    limit = arguments.get("max_overhang_angle_degrees", 45)
-    if not isinstance(body_name, str) or not body_name.strip():
-        raise ValueError("body_name is required")
-    if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"}:
-        raise ValueError("unsupported build_direction")
-    if not isinstance(limit, (int, float)) or not 0 <= limit <= 90:
-        raise ValueError("max_overhang_angle_degrees must be from 0 through 90")
-    from onshape_browser_mode.modeling_transactions import print_orientation_check
-    return print_orientation_check(None, body_name=body_name.strip(), build_direction=direction, max_overhang_angle_degrees=float(limit))
-
-
 def browser_wall_thickness_report(arguments: dict[str, Any]) -> dict[str, Any]:
     body_name = arguments.get("body_name", "")
     minimum = arguments.get("minimum_allowed_mm")
@@ -483,48 +469,6 @@ def browser_apply_blend(arguments: dict[str, Any]) -> dict[str, Any]:
     page, _ = _page()
     from onshape_browser_mode.modeling_transactions import apply_blend
     return apply_blend(page, operation=operation, targets=targets, amount=amount.strip())
-
-
-def browser_print_optimize_part(arguments: dict[str, Any]) -> dict[str, Any]:
-    body_name = arguments.get("body_name", "")
-    orientation = arguments.get("orientation")
-    wall = arguments.get("wall")
-    blend = arguments.get("blend")
-    if not isinstance(body_name, str) or not body_name.strip():
-        raise ValueError("body_name is required")
-    if not isinstance(orientation, dict) or not isinstance(wall, dict):
-        raise ValueError("orientation and wall stage objects are required")
-    direction = orientation.get("build_direction")
-    angle = orientation.get("max_overhang_angle_degrees")
-    if direction not in {"+x", "-x", "+y", "-y", "+z", "-z"} or not isinstance(angle, (int, float)) or not 0 <= angle <= 90:
-        raise ValueError("orientation requires a valid build_direction and 0..90 angle")
-    minimum = wall.get("minimum_allowed_mm")
-    samples = wall.get("samples", [])
-    if not isinstance(minimum, (int, float)) or minimum <= 0:
-        raise ValueError("wall.minimum_allowed_mm must be positive")
-    if not isinstance(samples, list) or len(samples) > 32 or any(not isinstance(item, str) or not item.strip() for item in samples):
-        raise ValueError("wall.samples must contain at most 32 non-empty names")
-    if blend is not None:
-        if not isinstance(blend, dict):
-            raise ValueError("blend must be an object")
-        if blend.get("operation") not in {"fillet", "chamfer", "draft"}:
-            raise ValueError("blend.operation must be fillet, chamfer, or draft")
-        _strings(blend.get("targets"), "blend.targets")
-        amount = blend.get("amount", "")
-        amount_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(?:mm|cm|m|in|inch|deg|°)\s*", amount, re.I) if isinstance(amount, str) else None
-        if amount_match is None or float(amount_match.group(1)) <= 0:
-            raise ValueError("blend.amount must be a positive unit-bearing quantity")
-    if arguments.get("dry_run", False):
-        return {
-            "dryRun": True,
-            "tool": "browser_print_optimize_part",
-            "semanticValidity": "invalid",
-            "browserActionPlanned": False,
-            "mutationPlanned": False,
-            "reason": "draft analysis is not an FDM orientation engine",
-        }
-    from onshape_browser_mode.modeling_transactions import print_optimize_part
-    return print_optimize_part(None, body_name=body_name.strip(), blend=blend, orientation=orientation, wall=wall)
 
 
 def browser_spiral_ridge(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1175,9 +1119,6 @@ def _tool(name: str, description: str, properties: dict[str, Any], *, mutating: 
 
 _POINT = {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}, "required": ["x", "y"], "additionalProperties": False}
 _DIMENSION_PROPERTIES = {"tool_selector": {"type": "string", "default": ""}, "geometry_selectors": {**_STRING_ARRAY, "default": []}, "placement_selector": {"type": "string", "default": ""}, "verification_selector": {"type": "string", "default": ""}, "tool_key": {"type": "string", "default": ""}, "canvas_selector": {"type": "string", "default": "canvas"}, "canvas_index": {"type": "integer", "default": 0, "minimum": 0}, "geometry_points": {"type": "array", "items": _POINT, "default": []}, "placement_point": _POINT, "frame_url": {"type": "string", "default": "production-drawing-"}}
-_ORIENTATION_STAGE = {"type": "object", "properties": {"build_direction": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]}, "max_overhang_angle_degrees": {"type": "number", "minimum": 0, "maximum": 90}}, "required": ["build_direction", "max_overhang_angle_degrees"], "additionalProperties": False}
-_WALL_STAGE = {"type": "object", "properties": {"minimum_allowed_mm": {"type": "number", "exclusiveMinimum": 0}, "samples": {"type": "array", "items": {"type": "string"}, "maxItems": 32, "default": []}}, "required": ["minimum_allowed_mm"], "additionalProperties": False}
-_BLEND_STAGE = {"type": "object", "properties": {"operation": {"type": "string", "enum": ["fillet", "chamfer", "draft"]}, "targets": _STRING_ARRAY, "amount": {"type": "string"}}, "required": ["operation", "targets", "amount"], "additionalProperties": False}
 
 
 BROWSER_TOOLS = [
@@ -1208,10 +1149,8 @@ BROWSER_TOOLS = [
     _tool("browser_view_orientation", "Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes.", {"orientation": {"type": "string", "enum": ["current", "front", "back", "top", "bottom", "left", "right", "isometric"], "default": "current"}}, mutating=False, seconds=10),
     _tool("browser_drawing_insert_views", "Create a drawing from an exact Part Studio part row, select a semantic view layout, and require drawing-view geometry evidence.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=60, required=["part_name"]),
     _tool("browser_draw_part_with_views", "Create verified drawing views from a part, add one or more requested dimensions, and fail if any stage lacks acceptance evidence. Use browser_drawing_insert_views when dimensions are not required.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120, required=["part_name", "dimensions"]),
-    _tool("browser_print_orientation_check", "Deprecated compatibility result: returns semantically invalid/unassessable without a browser action because Onshape draft analysis is not an FDM orientation engine.", {"body_name": {"type": "string"}, "build_direction": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"], "default": "+z"}, "max_overhang_angle_degrees": {"type": "number", "minimum": 0, "maximum": 90, "default": 45}}, mutating=False, seconds=1, required=["body_name"], network="offline"),
     _tool("browser_wall_thickness_report", "Read sampled browser measurements for a named body, report the minimum in millimeters, and never claim an unverified global minimum.", {"body_name": {"type": "string"}, "minimum_allowed_mm": {"type": "number", "exclusiveMinimum": 0}, "samples": {"type": "array", "items": {"type": "string"}, "maxItems": 32, "default": []}}, mutating=False, seconds=15, required=["body_name", "minimum_allowed_mm"]),
     _tool("browser_apply_blend", "Apply a fillet, chamfer, or draft to semantic targets and require amount readback plus an exact new error-free history row.", {"operation": {"type": "string", "enum": ["fillet", "chamfer", "draft"], "default": "fillet"}, "targets": _STRING_ARRAY, "amount": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["targets", "amount"]),
-    _tool("browser_print_optimize_part", "Deprecated compatibility workflow: validates inputs, then stops before browser/model mutation because its draft-based FDM orientation dependency is semantically invalid.", {"body_name": {"type": "string"}, "blend": _BLEND_STAGE, "orientation": _ORIENTATION_STAGE, "wall": _WALL_STAGE, "dry_run": _DRY}, mutating=False, seconds=1, required=["body_name", "orientation", "wall"], network="offline"),
     _tool("browser_spiral_ridge", "Generate bounded helix+sweep FeatureScript, deploy and apply it through the browser, and verify the resulting feature and part.", {"base_radius_mm": {"type": "number", "minimum": 0.1, "maximum": 10000}, "pitch_mm": {"type": "number", "minimum": 0.1, "maximum": 10000}, "ridge_width_mm": {"type": "number", "minimum": 0.05, "maximum": 1000}, "ridge_height_mm": {"type": "number", "minimum": 0.05, "maximum": 1000}, "length_mm": {"type": "number", "minimum": 0.1, "maximum": 100000}, "clockwise": {"type": "boolean", "default": True}, "feature_studio_tab": {"type": "string", "default": "Spiral ridge FS"}, "part_studio_tab": {"type": "string", "default": "Spiral ridge PS"}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120, required=["base_radius_mm", "pitch_mm", "ridge_width_mm", "ridge_height_mm", "length_mm"]),
     _tool("browser_wait", "Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota.", {"condition": {"type": "string", "enum": ["visible", "hidden", "attached", "detached", "text", "url", "network_idle", "frame"], "default": "visible"}, "selector": {"type": "string", "default": ""}, "text": {"type": "string", "default": ""}, "frame_url": _FRAME, "timeout_ms": {"type": "integer", "default": 30000, "minimum": 1, "maximum": 60000}}, mutating=False, seconds=60),
     _tool("browser_press_key", "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota.", {"selector": {"type": "string", "default": ""}, "target_text": {"type": "string", "default": ""}, "index": {"type": "integer", "default": 0, "minimum": 0}, "key": {"type": "string"}, "frame_url": _FRAME, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=5, required=["key"]),
@@ -1259,10 +1198,8 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_view_orientation": browser_view_orientation,
     "browser_drawing_insert_views": browser_drawing_insert_views,
     "browser_draw_part_with_views": browser_draw_part_with_views,
-    "browser_print_orientation_check": browser_print_orientation_check,
     "browser_wall_thickness_report": browser_wall_thickness_report,
     "browser_apply_blend": browser_apply_blend,
-    "browser_print_optimize_part": browser_print_optimize_part,
     "browser_spiral_ridge": browser_spiral_ridge,
     "browser_wait": browser_wait,
     "browser_press_key": browser_press_key,

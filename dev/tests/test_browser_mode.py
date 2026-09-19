@@ -1019,7 +1019,10 @@ class BrowserMetadataTest(unittest.TestCase):
         self.assertTrue(self.by_name["browser_delete_tab"]["annotations"]["destructiveHint"])
 
     def test_tool_count_unchanged(self) -> None:
-        self.assertEqual(len(server.TOOLS), 108)
+        # 106 since the two print-analysis stubs were archived on 2026-09-19
+        # (docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md). This number is a
+        # tripwire: it must only move when a tool is deliberately added or removed.
+        self.assertEqual(len(server.TOOLS), 106)
 
 
 if __name__ == "__main__":

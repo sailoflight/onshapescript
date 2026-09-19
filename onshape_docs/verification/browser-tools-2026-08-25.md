@@ -124,8 +124,10 @@ contracts, not new tool requirements.
   wall thickness remains null because that backend is unavailable.
 - Print orientation remains `unknown`, but the stronger six-level conclusion is
   that the draft-analysis implementation is not an FDM orientation engine at
-  all. It is cataloged `semantically_invalid` and default-hidden pending the
-  shared STEP/converter/Bambu replacement.
+  all. It was cataloged `semantically_invalid` and default-hidden. (Superseded
+  2026-09-19: the two print tools were archived rather than left fail-closed —
+  see `../../docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`; the
+  measurement in this record is unchanged.)
 - Cloud-creating/editing operations still require a separately authorized
   Windows smoke before they can be called field-validated.
 

@@ -101,10 +101,10 @@ List, human takeover at any point, cloud collaboration.
 
 | Claim from the research plan | Actual state | Evidence |
 |---|---|---|
-| "~80 MCP tools" | **108** — `browser`=68, `rest_operations`=18, `featurescript`=11, `rest_reference`=6, `project_docs`=3, `other`=2 | `docs/generated/TOOL_REFERENCE.md` summary block |
+| "~80 MCP tools" | **106** — `browser`=66, `rest_operations`=18, `featurescript`=11, `rest_reference`=6, `project_docs`=3, `other`=2 (108 before the 2026-09-19 print-tool archive) | `docs/generated/TOOL_REFERENCE.md` summary block |
 | Capability Registry + bounded capability search (plan H3/H4) | **Implemented** | `mcp_tool_catalog` (bounded search, exact describe only, never returns every schema), `mcp_tool_view`, `browser_discover_tools`, `browser_invoke_discovered` |
 | Target chain `small fixed entry -> module -> capability -> level -> bounded candidates -> exact schema` | **Implemented and documented** | `DYNAMIC_TOOL_DISCOVERY.md` (Status: implemented) |
-| Six-level browser semantics | **Implemented** | `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`; `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1 |
+| Six-level browser semantics | **Implemented** | `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`; `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=7, `L6`=1 |
 | REST inserts a Custom Feature instance | **Implemented and live-verified** | `onshape_rest_api_mode/operations.py` `instantiate_feature` -> POST `/api/v9/partstudios/d/{did}/w/{wid}/e/{eid}/features` + `BTFeatureDefinitionCall-1406`; refuses non-`OK` `featureStatus` |
 | "Browser only as Feature Studio fallback" | **Already decided, and now strengthened by D5** | `BROWSER_FS_SEMANTIC_TOOLS.md`: native feature-mode "explicitly out of current scope" |
 | "Boolean-only is not a complete CAD primitive" | Direction correct; the repository holds a more precise construction-level record | `onshape_docs/experience/browser-modeling.md` §8/§9 |
@@ -125,7 +125,7 @@ queries the *target* body; bodies that merely share a face can already be merged
 | G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof". The reuse survey and the offline/machine split now live in `architecture/FS_VALIDATION_STRATEGY.md`: no offline reusable FS analyzer was found, so the structural checker stays and an external one would be a detected candidate, never an installed dependency | none |
 | G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | **Browser half delivered in P4**: `onshape_browser_mode/capabilities.py` (cards + bounded search) behind `browser_discover_tools`; the cross-backend contract is still open | G1–G3 |
 | G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | **Offline character benchmark delivered in P4** (`test_capability_retrieval`); no model-in-the-loop token measurement | G4 |
-| G6 | 108-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |
+| G6 | Surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) over the then-108-tool registry, now 106 | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference. Follow-up 1 executed 2026-09-19: the two `semantically_invalid` print stubs were archived (see `history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`) and the two high-risk names were reclassified `Internal-only`, so `Remove` is now 0 | none |
 | G7 | Thread geometry is the **only** real FS coverage hole | §8; `custom.spiral_ridge` is the accepted workaround, still `structural-only` for the general twist | none |
 | G8 | Route consolidation | `FS_HYBRID_COMPILER_INTEGRATION.md` and the external plan were parallel | closed by this page |
 
@@ -422,21 +422,30 @@ refactor in this phase.
 runtime prompt stay consistent.
 
 Delivered: [`architecture/TOOL_SURFACE_AUDIT.md`](../architecture/TOOL_SURFACE_AUDIT.md)
-classifies all 108 registered tools — 59 `Keep`, 26 `Internal-only`, 11
-`Capability`, 8 `Merge`, 4 `Remove` — with a reason per row and a follow-up list
-in the order the work should be attempted. `test_tool_surface_audit` is the gate:
-it re-parses the page and fails on an unclassified or invented tool, an unknown
-verdict, a `Merge` that does not name a registered survivor, a thin or
-placeholder reason, counts that disagree with the table, or a `Remove` verdict
-that is not backed by the tool's recorded maturity. The two `Internal-only` tools
-that were still default-exposed (`browser_fix_instances`,
+classifies all 108 registered tools as they stood in P5 — 59 `Keep`, 26
+`Internal-only`, 11 `Capability`, 8 `Merge`, 4 `Remove` — with a reason per row
+and a follow-up list in the order the work should be attempted.
+`test_tool_surface_audit` is the gate: it re-parses the page and fails on an
+unclassified or invented tool, an unknown verdict, a `Merge` that does not name a
+registered survivor, a thin or placeholder reason, counts that disagree with the
+table, or a verdict that contradicts the tool's recorded exposure. The two
+`Internal-only` tools that were still default-exposed (`browser_fix_instances`,
 `browser_group_instances`) are named in the follow-ups rather than quietly
 tolerated; follow-up 2 then hid them, so the semantic `tools/list` is 80 tools
 and every `Internal-only` tool is default-hidden.
 
-Classification only: no tool was renamed, merged, hidden or removed, so the
-generated reference and the runtime prompt are unchanged by P5 apart from the new
-`onshape_update_feature_list` entry that P3 added.
+Follow-up 1 was resolved on 2026-09-19 and the page now carries 106 rows: the two
+print-analysis stubs (`browser_print_orientation_check`,
+`browser_print_optimize_part`) were archived to
+`history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md` because they returned a
+compatibility result instead of doing their named job, while `browser_delete_tab`
+and `browser_draw_part` were reclassified `Internal-only` because the owner
+corrected the reason they are hidden — high risk, not uselessness. Verdicts are
+therefore 59 `Keep`, 28 `Internal-only`, 11 `Capability`, 8 `Merge`, 0 `Remove`.
+
+The audit phase itself was classification only; the archive above is the one
+follow-up since executed, so the generated reference and the runtime prompt
+changed with it.
 
 **P6 — Thread capability (G7).** First true capability-card proof, on the only
 real coverage hole.

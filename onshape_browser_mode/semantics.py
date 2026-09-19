@@ -230,23 +230,6 @@ TOOL_SEMANTICS.update({
         "L5",
         dependencies=("browser_drawing_insert_views", "browser_add_drawing_dimension"),
     ),
-    "browser_print_orientation_check": _semantic(
-        "L4",
-        default_exposure=False,
-        maturity="semantically_invalid",
-        note="Current draft-analysis evidence is not an FDM orientation analysis.",
-    ),
-    "browser_print_optimize_part": _semantic(
-        "L5",
-        default_exposure=False,
-        dependencies=(
-            "browser_apply_blend",
-            "browser_print_orientation_check",
-            "browser_wall_thickness_report",
-        ),
-        maturity="semantically_invalid",
-        note="Current workflow depends on an invalid FDM orientation proxy.",
-    ),
     "browser_spiral_ridge": _semantic(
         "L5",
         dependencies=("browser_deploy_and_apply_featurescript",),

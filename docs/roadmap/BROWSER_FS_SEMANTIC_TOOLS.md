@@ -230,23 +230,25 @@ watch/configure choices are captured in `dev/button-map/scan-fs-editor.json`.
 
 ## 5. FDM-oriented tool correction (from `BROWSER_MODELING_GAPS.md`)
 
-The original browser implementation is retained for compatibility but is not a
-valid FDM conclusion chain:
+The original browser implementation was not a valid FDM conclusion chain. Both
+browser print tools were archived on 2026-09-19
+(`../history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`); what is recorded here is
+why, so a future module does not repeat the mistake:
 
-- `browser_print_orientation_check` opens Onshape draft analysis. Draft analysis
+- `browser_print_orientation_check` opened Onshape draft analysis. Draft analysis
   does not evaluate bed contact, support demand, bridges, stability, print
   height, layer-direction strength, build volume, or slicer-profile results. The
-  six-level catalog marks the tool `semantically_invalid` and hides it from
-  ordinary discovery; its current `assessable:false` / `risk:"unknown"` result
-  must not be treated as an FDM orientation analysis.
+  six-level catalog marked the tool `semantically_invalid` and hid it from
+  ordinary discovery; its `assessable:false` / `risk:"unknown"` result was never
+  an FDM orientation analysis.
 - `browser_wall_thickness_report` is an L4 sampled UI observation with
   `coverage:"sampled"` and `globalMinimumVerified:false`, not a complete mesh
   wall-thickness analysis.
 - `browser_apply_blend` remains one L4 Onshape transaction when it creates and
   verifies one history feature.
-- `browser_print_optimize_part` is an L5 workflow, but its current dependency on
-  the invalid orientation proxy and its apply-blend-before-assessment ordering
-  make the workflow semantically invalid. It is hidden from ordinary discovery.
+- `browser_print_optimize_part` was an L5 workflow whose dependency on the
+  invalid orientation proxy and apply-blend-before-assessment ordering made it
+  semantically invalid; it was archived with the tool it depended on.
 
 The replacement design exports canonical STEP through the owning browser or
 REST mode and calls the shared, non-tool `fdm_analysis` library described in

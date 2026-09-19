@@ -43,6 +43,15 @@ is the Windows ordinary-stdio deployment at `C:\MCP\onshapescript`, a **copy**
 | `browser_deploy_and_apply_featurescript` | `script` + `feature_name` only | also `capability` + `values` |
 | `semantic.py` not-computed guard | **absent** | present |
 
+The counts in that table are the measurement at `52d43ff`. The repository later
+dropped to 106 as well, when the two print stubs were archived on 2026-09-19, so
+the two registries now agree on the **number** while still differing in content:
+live `browser`=68 / `featurescript`=10 / `rest`=17 against repository
+`browser`=66 / `featurescript`=11 / `rest`=18 at archive time. The registry
+`fingerprint` is therefore the discriminator — live
+`754218124c1b28c4…`, repository `272cc39d6f0fa4b3…` — exactly as recorded in
+`../experience/browser-modeling.md` §14.
+
 Consequences that bound this record:
 
 - The capability **layer** (`capability=` argument, card search, catalog

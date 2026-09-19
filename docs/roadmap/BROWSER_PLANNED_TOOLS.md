@@ -26,10 +26,11 @@ The rows previously listed here moved to the static MCP registry on 2026-08-25:
   `browser_fs_insert_snippet`, `browser_fs_insert_parameter`,
   `browser_fs_toggle_fold`, `browser_edit_feature_parameters`, and
   `browser_fs_watch_part_studio`.
-- Drawing/print/modeling: `browser_drawing_insert_views`,
-  `browser_draw_part_with_views`, `browser_print_orientation_check`,
-  `browser_wall_thickness_report`, `browser_apply_blend`,
-  `browser_print_optimize_part`, and `browser_spiral_ridge`.
+- Drawing/modeling: `browser_drawing_insert_views`,
+  `browser_draw_part_with_views`, `browser_wall_thickness_report`,
+  `browser_apply_blend`, and `browser_spiral_ridge`. Two further rows moved here
+  on 2026-08-25 and were later archived: `browser_print_orientation_check` and
+  `browser_print_optimize_part` (see `../history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`).
 - App shell: `browser_open_doc_menu`, `browser_set_panel_filter`,
   `browser_toggle_left_panel`, `browser_read_selection_preview`,
   `browser_element_context_menu`, `browser_duplicate_element`,
@@ -45,13 +46,16 @@ in `dev/tests/test_browser_planned_tools.py`. Read-only field evidence is in
 separately authorized validation activity; lack of that authorization is
 reported as an unexecuted validation, not as an unimplemented tool.
 
-Registry presence is distinct from semantic validity. The later six-level review
-marks `browser_print_orientation_check` and its dependent
-`browser_print_optimize_part` default-hidden and `semantically_invalid`: draft
-analysis is not an FDM orientation engine. Their replacement belongs to the
+Registry presence is distinct from semantic validity. The six-level review first
+marked `browser_print_orientation_check` and its dependent
+`browser_print_optimize_part` default-hidden and `semantically_invalid` because
+draft analysis is not an FDM orientation engine; on 2026-09-19 the owner then
+directed that the two misleading names be removed rather than left fail-closed,
+so they no longer appear in any table. Their replacement still belongs to the
 shared STEP/converter/Bambu plan in
 `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`; this does not recreate the old
-planned-tool rows.
+planned-tool rows, and a future print-analysis module must re-enter through the
+tool-surface audit.
 
 Implemented tools are intentionally absent from this registry. On 2026-08-25,
 `browser_get_fs_compile_status` and `browser_get_fs_symbols` also moved to the
@@ -112,10 +116,11 @@ Notes:
 - `browser_draw_part` is a default-hidden generic-drawing compatibility workflow;
   empty dimensions fail before any browser action.
 - `browser_tools` is the Python module name, not a tool; excluded.
-- Print tools (`browser_print_orientation_check`, `browser_apply_blend`,
+- Print-oriented tools (`browser_print_orientation_check`, `browser_apply_blend`,
   `browser_draw_part_with_views`, `browser_drawing_insert_views`) were deduped
   here before implementation; `BROWSER_MODELING_GAPS.md` retains their gap and
-  resolution history.
+  resolution history. Of those four, only `browser_print_orientation_check` was
+  ever archived (2026-09-19); the other three are registered tools.
 
 ## 3. References
 

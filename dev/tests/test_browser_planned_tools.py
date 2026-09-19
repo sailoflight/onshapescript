@@ -25,10 +25,8 @@ PLANNED_NAMES = {
     "browser_fs_watch_part_studio",
     "browser_drawing_insert_views",
     "browser_draw_part_with_views",
-    "browser_print_orientation_check",
     "browser_wall_thickness_report",
     "browser_apply_blend",
-    "browser_print_optimize_part",
     "browser_open_doc_menu",
     "browser_set_panel_filter",
     "browser_toggle_left_panel",
@@ -44,8 +42,6 @@ PLANNED_NAMES = {
 READ_ONLY_NAMES = {
     "browser_fs_goto_definition",
     "browser_fs_toggle_fold",
-    "browser_print_orientation_check",
-    "browser_print_optimize_part",
     "browser_wall_thickness_report",
     "browser_set_panel_filter",
     "browser_toggle_left_panel",
@@ -55,12 +51,6 @@ READ_ONLY_NAMES = {
     "browser_share_document",
     "browser_view_orientation",
 }
-
-OFFLINE_NAMES = {
-    "browser_print_orientation_check",
-    "browser_print_optimize_part",
-}
-
 
 MUTATING_CALLS = {
     "browser_fs_insert_snippet": {"row": 10, "column": 4},
@@ -115,10 +105,30 @@ class PlannedRegistryTest(unittest.TestCase):
 
     def test_all_planned_names_are_registered_once(self):
         names = [tool["name"] for tool in server.TOOLS]
-        self.assertEqual(len(server.TOOLS), 108)
+        self.assertEqual(len(server.TOOLS), 106)
         self.assertEqual(len(names), len(set(names)))
         self.assertTrue(PLANNED_NAMES.issubset(names))
         self.assertTrue(PLANNED_NAMES.issubset(server.HANDLERS))
+
+    def test_archived_print_tools_are_absent_from_every_table(self):
+        """The two print stubs were archived on 2026-09-19 by owner decision.
+
+        An archive that leaves a name behind in a registry, dispatch table,
+        project allow-list or outcome map is not an archive, so this asserts
+        every table lost the two names together.
+        """
+        from onshape_browser_mode import semantics
+
+        for name in ("browser_print_orientation_check", "browser_print_optimize_part"):
+            with self.subTest(tool=name):
+                self.assertNotIn(name, [tool["name"] for tool in server.TOOLS])
+                self.assertNotIn(name, server.HANDLERS)
+                self.assertNotIn(name, project.ALLOWED_PROJECT_TOOLS)
+                self.assertNotIn(name, project.TOOL_OUTCOME_KEYS)
+                self.assertNotIn(name, semantics.TOOL_SEMANTICS)
+        for function in ("print_orientation_check", "print_optimize_part", "draft_angle_proxy"):
+            with self.subTest(function=function):
+                self.assertFalse(hasattr(modeling_transactions, function))
 
     def test_planned_only_registry_lists_filed_rows_but_not_implemented(self):
         root = Path(__file__).resolve().parents[2]
@@ -135,10 +145,10 @@ class PlannedRegistryTest(unittest.TestCase):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
         for name in PLANNED_NAMES:
             tool = by_name[name]
-            self.assertEqual(
-                tool["cost"]["network"],
-                "offline" if name in OFFLINE_NAMES else "browser",
-            )
+            # Every tool promoted from the planned registry is a browser tool.
+            # The last two `network=offline` rows were the print-analysis stubs,
+            # archived on 2026-09-19 (docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md).
+            self.assertEqual(tool["cost"]["network"], "browser")
             self.assertEqual(tool["cost"]["max_api_requests"], 0)
             self.assertEqual(tool["annotations"]["readOnlyHint"], name in READ_ONLY_NAMES)
             properties = tool["inputSchema"]["properties"]
@@ -237,37 +247,6 @@ class TransactionAcceptanceTest(unittest.TestCase):
         self.assertFalse(result["drawn"])
         self.assertFalse(result["browserActionPerformed"])
         create_drawing.assert_not_called()
-
-    def test_print_orientation_rejects_draft_analysis_without_browser_action(self):
-        page = mock.Mock()
-        result = modeling_transactions.print_orientation_check(
-            page,
-            body_name="Part 1",
-            build_direction="+z",
-            max_overhang_angle_degrees=45,
-        )
-        self.assertFalse(result["orientationChecked"])
-        self.assertFalse(result["assessable"])
-        self.assertFalse(result["fdmCapable"])
-        self.assertEqual(result["semanticValidity"], "invalid")
-        self.assertEqual(result["risk"], "unknown")
-        self.assertFalse(result["browserActionPerformed"])
-        page.assert_not_called()
-
-    def test_print_optimize_stops_before_browser_or_blend(self):
-        args = {
-            "body_name": "Part 1",
-            "blend": {"operation": "fillet", "targets": ["Edge 1"], "amount": "2 mm"},
-            "orientation": {"build_direction": "+z", "max_overhang_angle_degrees": 45},
-            "wall": {"minimum_allowed_mm": 1.2, "samples": ["Face 1"]},
-        }
-        with mock.patch.object(browser_tools, "_page", side_effect=AssertionError("session started")), \
-             mock.patch.object(modeling_transactions, "apply_blend", side_effect=AssertionError("blend attempted")):
-            result = browser_tools.browser_print_optimize_part(args)
-        self.assertFalse(result["optimized"])
-        self.assertEqual(result["semanticValidity"], "invalid")
-        self.assertFalse(result["mutationAttempted"])
-        self.assertEqual(result["failedStage"], "orientation")
 
     def test_watch_target_accepts_exact_already_configured_readback(self):
         page = mock.Mock()
