@@ -183,3 +183,46 @@
   和 manifest。共享库本身不是 MCP 语义工具。
 - 一个明确朝向的模式包装器是 L4，多朝向排序/临时完整分析是 L5，包含 STEP、网格、
   3MF、报告和 manifest 的正式成果包是 L6。
+
+## 13. 能力契约（whole-feature capability contract）
+
+`browser_spiral_ridge` 的形状被抽成契约，实现是
+`onshape_browser_mode/capabilities.py`：能力 = 数据 + 源码生成器，不是又一个工具实现。
+
+**契约**
+
+- 调用方只给 **有界值**：`length`（mm，带 min/max）、`number`、`boolean`、封闭
+  `enum`。没有自由字符串、没有代码、没有 selector。
+- **Query 不是能力参数**：选面/选边留在生成特征的 `precondition` 里，由人在
+  Onshape 对话框里、看得见几何的情况下选。所以能力无法被要求去倒一个不存在的边。
+- **能力数量与工具数量解耦**：新增能力不新增工具。当前三个能力
+  （`custom.spiral_ridge` / `custom.fillet` / `custom.extrude`）都通过既有的
+  `browser_deploy_and_apply_featurescript` 调用，schema 用
+  `anyOf: [script+feature_name, capability]` 表达两条互斥路线，handler 再做一次校验。
+- 卡片（`capabilities.cards()`）只含身份、`useWhen`、参数与验证状态，**不含实现**；
+  实现只在 dry-run 预览里为人工审阅而出现。
+
+**每个模板只用 vendored 参考里确实存在的符号**
+
+`dev/tests/test_capabilities.py` 会从生成的 FeatureScript 里抽出所有调用名、
+`Enum.Member` 与全大写常量，逐个对照 `onshape_docs/reference/`（索引 + 枚举成员）。
+这不是「我觉得对」，而是「参考里确实有」；调用名或枚举成员写错会直接失败。
+`opFillet` 的 `entities`/`radius`/`tangentPropagation`、
+`opExtrude` 的 `entities`/`direction`/`endBound`/`endDepth`、
+`opBoolean` 的 `tools`/`targets`/`operationType`，以及 `BLEND_BOUNDS` /
+`LENGTH_BOUNDS` 常量，都取自 vendored 标准库源码（`geomOperations.fs`、
+`valueBounds.fs`），而不是模型记忆。
+
+**验证状态要说清楚**
+
+- `custom.spiral_ridge` — `live-verified`：源码与被应用的特征都经真机验证过，且
+  `test_capabilities` 断言它渲染出的源码与 `generate_spiral_ridge_script` 逐字相同，
+  证明「抽契约」没有走样。
+- `custom.fillet` / `custom.extrude` — `structural-only`：只通过本地结构检查器
+  （`fs_check`，0 调用）与符号门。**没有编译过、没有应用过、没有产生过几何。**
+  这两条真机验证属于 P2 gate 的未完成部分，不得写成已验证。
+
+**加一个能力的顺序**：在 `CAPABILITIES` 里加一条（id、`feature_type`、别名、
+`use_when`、参数、`build_source`）→ 让 `test_capabilities` 的符号门与本地检查器通过
+→ 真机跑 dry-run → deploy → apply → 用 `featurePresent`/`featureComputed`/零件数三项
+验收。别名冲突会在 `resolve()` 里直接报错，不会变成模糊路由。

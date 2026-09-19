@@ -297,6 +297,25 @@ capabilities (extrude/cut, hole, fillet) as whole-feature custom features.
 *Gate:* each capability runs dry-run -> local check -> deploy -> apply -> verify,
 and reports an explicit non-success on any failed stage.
 
+Delivered offline: `onshape_browser_mode/capabilities.py` holds the contract
+(bounded values only; queries stay inside the generated feature's precondition;
+cards carry no implementation) and three capabilities — `custom.spiral_ridge`
+(`live-verified`, and asserted to render exactly the precedent's source),
+`custom.fillet`, and `custom.extrude` (with `remove` for the cut form). No new
+tool was added: `browser_deploy_and_apply_featurescript` now accepts either a raw
+`script` or a `capability` + `values`, with the two routes expressed as an
+`anyOf` in the schema and enforced in the handler. The generated source is
+checked three ways offline — the local structural checker, a gate that every
+referenced function/enum/constant exists in the vendored reference, and the
+value contract itself (`test_capabilities`).
+
+Still open for the P2 gate: the fillet and extrude sources are
+`structural-only`. They have never been compiled or applied, so nothing here
+claims they produce geometry; that is the machine half of the gate. `custom.hole`
+was **not** added — `opHole` needs a `holeDefinition` whose construction is not
+verifiable offline from the vendored material, and shipping a guessed one would
+trade a real capability for the appearance of one.
+
 **P3 — REST Feature-List CRUD (G1).** Update / delete / rollback / batch update
 plus suppression, dry-run first, fixture-backed.
 *Gate:* offline tests prove request construction and parsing; any live fact is

@@ -716,14 +716,64 @@ def _ensure_tab(page: Any, tab_name: str, tab_type: str) -> dict[str, Any]:
     }
 
 
-def browser_deploy_and_apply_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
+def _capability_request(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Resolve `capability` + `values` into source, feature name, and local check.
+
+    Zero browser and zero network: the capability report is pure data plus
+    generated text, which is what makes `dry_run=true` a real preview of the
+    script that would be committed.
+    """
+    from onshape_browser_mode import capabilities
+    from onshape_docs.query import fs_check
+
+    plan = capabilities.plan(arguments["capability"], arguments.get("values"))
+    checked = fs_check.check_source(
+        fs_check.FsFile.from_text(plan["source"], name=f"<{plan['capability']['id']}>")
+    )
+    plan["localCheck"] = {**checked.as_result(), "advisory": True}
+    return plan
+
+
+def _local_check_text(script: str) -> dict[str, Any]:
+    """The zero-cost checker verdict for a caller-supplied script, advisory only."""
+    from onshape_docs.query import fs_check
+
+    checked = fs_check.check_source(fs_check.FsFile.from_text(script, name="<script>"))
+    return {**checked.as_result(), "advisory": True}
+
+
+def _resolve_deploy_source(arguments: dict[str, Any]) -> tuple[str, str, dict[str, Any] | None, dict[str, Any]]:
+    """Exactly one of `script` or `capability`, plus the local check to report.
+
+    A capability supplies its own feature name (the Feature List row that
+    acceptance matches), so the caller does not have to repeat it.
+    """
     script = arguments.get("script", "")
     feature_name = arguments.get("feature_name", "")
+    capability_plan = None
+    if arguments.get("capability"):
+        if isinstance(script, str) and script.strip():
+            raise ValueError("provide either script or capability, never both")
+        capability_plan = _capability_request(arguments)
+        script = capability_plan["source"]
+        feature_name = feature_name or capability_plan["featureName"]
     if not isinstance(script, str) or not script.strip() or not feature_name:
-        raise ValueError("script and feature_name are required")
+        raise ValueError(
+            "Provide a non-empty `script` with `feature_name`, or a `capability` "
+            "(with optional `values`) and no script."
+        )
+    local_check = (
+        capability_plan["localCheck"] if capability_plan else _local_check_text(script)
+    )
+    return script, feature_name, capability_plan, local_check
+
+
+def browser_deploy_and_apply_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
+    script, feature_name, capability_plan, local_check = _resolve_deploy_source(arguments)
+    extra = {"capability": capability_plan} if capability_plan else {}
     preview = _mutation_plan("browser_deploy_and_apply_featurescript", arguments, ["ensure Feature Studio", "write and commit source", "ensure Part Studio", "create version if prompted", "apply feature", "read parts"])
     if preview:
-        return preview
+        return {**preview, **extra, "localCheck": local_check}
     page, guard = _page()
     from onshape_browser_mode import actions
     from onshape_browser_mode.semantic import build_part, deploy_featurescript
@@ -731,17 +781,17 @@ def browser_deploy_and_apply_featurescript(arguments: dict[str, Any]) -> dict[st
     ps_tab = arguments.get("part_studio_tab", "Part Studio 1")
     fs_state = _ensure_tab(page, fs_tab, "Feature Studio")
     if not fs_state.get("ready", fs_state.get("created", False)):
-        return {"deployed": False, "reason": fs_state.get("reason", "Feature Studio unavailable")}
+        return {"deployed": False, "reason": fs_state.get("reason", "Feature Studio unavailable"), **extra}
     guard.pace()
     deployed = deploy_featurescript(page, script)
     if not deployed.get("deployed"):
-        return deployed
+        return {**deployed, **extra}
     if not arguments.get("apply", True):
-        return {"applied": False, **deployed, "featureStudio": fs_state}
+        return {"applied": False, **deployed, "featureStudio": fs_state, **extra}
     guard.pace()
     ps_state = _ensure_tab(page, ps_tab, "Part Studio")
     if not ps_state.get("ready", ps_state.get("created", False)):
-        return {**deployed, "built": False, "reason": ps_state.get("reason", "Part Studio unavailable")}
+        return {**deployed, "built": False, "reason": ps_state.get("reason", "Part Studio unavailable"), **extra}
     version = None
     if arguments.get("create_version", True):
         guard.pace()
@@ -758,7 +808,7 @@ def browser_deploy_and_apply_featurescript(arguments: dict[str, Any]) -> dict[st
             pass
     guard.pace()
     built = build_part(page, feature_name, ps_tab)
-    return {**deployed, **built, "featureStudio": fs_state, "partStudio": ps_state, "version": version}
+    return {**deployed, **built, "featureStudio": fs_state, "partStudio": ps_state, "version": version, **extra}
 
 
 def browser_build_part(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1069,10 +1119,17 @@ def browser_invoke_discovered(arguments: dict[str, Any]) -> dict[str, Any]:
     return {"invokedTool": name, "result": result}
 
 
-def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+def _schema(
+    properties: dict[str, Any],
+    required: list[str] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": False}
     if required:
         schema["required"] = required
+    if extra:
+        # For contracts `required` cannot express, e.g. "one of two routes".
+        schema.update(extra)
     return schema
 
 
@@ -1082,7 +1139,7 @@ _FRAME = {"type": "string", "default": "", "description": "Substring of the targ
 _STRING_ARRAY = {"type": "array", "items": {"type": "string"}, "minItems": 1}
 
 
-def _tool(name: str, description: str, properties: dict[str, Any], *, mutating: bool, seconds: int, required: list[str] | None = None, destructive: bool = False, network: str = "browser") -> dict[str, Any]:
+def _tool(name: str, description: str, properties: dict[str, Any], *, mutating: bool, seconds: int, required: list[str] | None = None, destructive: bool = False, network: str = "browser", schema_extra: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "name": name,
         "description": description,
@@ -1098,7 +1155,7 @@ def _tool(name: str, description: str, properties: dict[str, Any], *, mutating: 
             "mutating": mutating,
             "cacheable": False,
         },
-        "inputSchema": _schema(properties, required),
+        "inputSchema": _schema(properties, required, schema_extra),
         "annotations": {
             "readOnlyHint": not mutating,
             "destructiveHint": destructive,
@@ -1158,7 +1215,7 @@ BROWSER_TOOLS = [
     _tool("browser_create_drawing", "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["source_tab"]),
     _tool("browser_add_drawing_dimension", "Run a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verify a selector-count or canvas-image change.", {**_DIMENSION_PROPERTIES, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20),
     _tool("browser_delete_element", "Delete a visible document element by its tab data-id and verify that the tab disappears.", {"element_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["element_id"], destructive=True),
-    _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data.", {"script": {"type": "string"}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["script", "feature_name"], destructive=True),
+    _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with bounded `values` and no script; a capability generates its own source, name, and local check.", {"script": {"type": "string"}, "capability": {"type": "string", "description": "Capability id or alias, e.g. custom.fillet or 圆角. Mutually exclusive with script."}, "values": {"type": "object", "description": "Bounded capability values; unknown names and out-of-range numbers are refused."}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=[], destructive=True, schema_extra={"anyOf": [{"required": ["script", "feature_name"]}, {"required": ["capability"]}]}),
     _tool("browser_build_part", "Ensure a Part Studio, apply a custom feature, and return normalized part count and names.", {"feature_name": {"type": "string"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"]),
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),
     _tool("browser_draw_part", "Deprecated compatibility workflow: create a generic Drawing from a source tab and add one or more dimensions. It rejects empty dimensions before mutation; prefer browser_drawing_insert_views or browser_draw_part_with_views for verified part views.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "minItems": 1}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["source_tab", "dimensions"]),
