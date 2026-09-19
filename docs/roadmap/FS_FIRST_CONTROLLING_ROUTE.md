@@ -389,9 +389,10 @@ it re-parses the page and fails on an unclassified or invented tool, an unknown
 verdict, a `Merge` that does not name a registered survivor, a thin or
 placeholder reason, counts that disagree with the table, or a `Remove` verdict
 that is not backed by the tool's recorded maturity. The two `Internal-only` tools
-that are still default-exposed (`browser_fix_instances`,
+that were still default-exposed (`browser_fix_instances`,
 `browser_group_instances`) are named in the follow-ups rather than quietly
-tolerated.
+tolerated; follow-up 2 then hid them, so the semantic `tools/list` is 80 tools
+and every `Internal-only` tool is default-hidden.
 
 Classification only: no tool was renamed, merged, hidden or removed, so the
 generated reference and the runtime prompt are unchanged by P5 apart from the new

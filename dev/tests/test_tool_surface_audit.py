@@ -140,9 +140,9 @@ class AuditDocumentTest(unittest.TestCase):
                 )
 
     def test_internal_only_claim_is_measured_not_assumed(self) -> None:
-        """The doc says most `Internal-only` tools are already default-hidden. That
-        is a measurable claim: count it, and require the exceptions to be named in
-        the follow-up section instead of quietly tolerated."""
+        """The doc says `Internal-only` tools are default-hidden. That is a
+        measurable claim: every one of them must be absent from the ordinary
+        browser list and reachable only by an explicit level query."""
         internal = [row["name"] for row in _rows() if row["verdict"] == "Internal-only"]
         recorded = {
             name: TOOL_SEMANTICS[name]
@@ -150,16 +150,24 @@ class AuditDocumentTest(unittest.TestCase):
             if name in TOOL_SEMANTICS
         }
         self.assertGreaterEqual(len(recorded), 20)
-        hidden = {name for name, record in recorded.items() if not record.default_exposure}
-        self.assertGreaterEqual(
-            len(hidden), int(len(recorded) * 0.8),
-            "the 'already hidden' justification no longer holds for the majority",
+        exposed = sorted(name for name, record in recorded.items() if record.default_exposure)
+        self.assertEqual(
+            exposed, [],
+            "every Internal-only tool must be default-hidden; "
+            "an exception belongs in the follow-up section, not in the ordinary list",
         )
-        exposed = sorted(set(recorded) - hidden)
-        self.assertEqual(exposed, ["browser_fix_instances", "browser_group_instances"])
-        for name in exposed:
+        # The claim is about the real selection path, not just the metadata flag.
+        from onshape_browser_mode.semantics import select_tool_names
+
+        selected = set(select_tool_names(sorted(recorded)))
+        self.assertEqual(selected & set(recorded), set())
+        for name in sorted(recorded):
             with self.subTest(tool=name):
-                self.assertIn(name, _follow_ups())
+                self.assertEqual(
+                    [candidate for candidate in select_tool_names([name], semantic_levels=["L4", "L5", "L6", "L3", "L1"])],
+                    [name],
+                    f"{name} is not reachable by an explicit level query",
+                )
 
     def test_capability_verdicts_are_whole_jobs(self) -> None:
         """A `Capability` verdict must describe a job, not a primitive: an L1-L3

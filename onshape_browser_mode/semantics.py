@@ -272,6 +272,20 @@ TOOL_SEMANTICS.update({
             "browser_group_instances",
         ),
     ),
+    # The only two `Internal-only` tools that were still default-exposed (audit
+    # follow-up 2). They act on a selection context that only `browser_assemble`
+    # establishes, so they are reachable by exact name and by an explicit
+    # `semantic_levels=["L4"]` query, but not advertised in the ordinary list.
+    "browser_fix_instances": _semantic(
+        "L4",
+        default_exposure=False,
+        note="Internal step of the assembly workflow; browser_assemble declares it, and its selection context exists only there.",
+    ),
+    "browser_group_instances": _semantic(
+        "L4",
+        default_exposure=False,
+        note="Internal step of the assembly workflow; browser_assemble declares it, and its selection context exists only there.",
+    ),
     "browser_configure_geometry_backend": _semantic(
         None,
         semantic_name="boundary_operation",

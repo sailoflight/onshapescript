@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "7b2f4ad97fb8d84ef4c185ce4a19510f07810855cc81304887e2d02497190af5",
+   "sha256": "4f20d6ae7aab2c9882553c97fb1c061fe700b06d6d2bc5244ed864da1e07e242",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -713,7 +713,7 @@
       },
       {
        "type": "para",
-       "text": "Project control is outside L1-L6 and coordinates one or more L6 nodes. Ordinary selection ranks L5 workflows first, then L4 verified transactions/observations, then L2 generic browser transactions, then L6 deliverable recipes. This maximizes reuse of completed workflows while reserving L6 for an explicitly requested independent artifact/manifest boundary; do not decompose a suitable candidate into lower levels automatically. L1/L3 are omitted from ordinary discovery to save context, but their existence and purpose are not secret: call browser_discover_tools with semantic_levels=[\"L1\"] or semantic_levels=[\"L3\"], inspect the returned exact schema, then use browser_invoke_discovered. No additional intent parameter is required, and the gateway does not bypass confirmation or handler acceptance. Unclassified tools remain valid and visible by default. Set ONSHAPE_MCP_TOOL_EXPOSURE=static only for complete-registry compatibility or debugging."
+       "text": "Project control is outside L1-L6 and coordinates one or more L6 nodes. Ordinary selection ranks L5 workflows first, then L4 verified transactions/observations, then L2 generic browser transactions, then L6 deliverable recipes. This maximizes reuse of completed workflows while reserving L6 for an explicitly requested independent artifact/manifest boundary; do not decompose a suitable candidate into lower levels automatically. L1/L3 are omitted from ordinary discovery to save context, but their existence and purpose are not secret: call browser_discover_tools with semantic_levels=[\"L1\"] or semantic_levels=[\"L3\"], inspect the returned exact schema, then use browser_invoke_discovered. No additional intent parameter is required, and the gateway does not bypass confirmation or handler acceptance. An Internal-only tool is hidden the same way: browser_fix_instances and browser_group_instances act on a selection context that only browser_assemble establishes, so they are callable by exact name and visible through browser_discover_tools at their explicit level, but absent from the ordinary list. Unclassified tools remain valid and visible by default. Set ONSHAPE_MCP_TOOL_EXPOSURE=static only for complete-registry compatibility or debugging."
       }
      ]
     },

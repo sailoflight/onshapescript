@@ -170,12 +170,14 @@ should be attempted.
    deprecated or semantically invalid, and all four are already default-hidden.
    Delete them once no caller remains; `browser_delete_element` and the verified
    draw-part path cover their jobs.
-2. **Hidden-by-default gaps (2).** `browser_fix_instances` and
-   `browser_group_instances` are classified `Internal-only` but are still
+2. **Hidden-by-default gaps (2). — Done.** `browser_fix_instances` and
+   `browser_group_instances` were classified `Internal-only` but were still
    default-exposed (L4, `default_exposure=True`), unlike every other
-   `Internal-only` browser tool. Either hide them or fold them into
-   `browser_assemble`, which is the only flow that establishes their selection
-   context.
+   `Internal-only` browser tool. They are now hidden: reachable by exact name and
+   by an explicit `semantic_levels=["L4"]` query, but absent from the ordinary
+   list, which drops the semantic `tools/list` from 82 to 80. Folding them into
+   `browser_assemble` remains the alternative and is not done, because that is a
+   browser-side behaviour change no offline test can prove.
 3. **Merges (8 rows, 6 targets).** `fs_list_modules` -> `fs_quick_reference`;
    `browser_reconnect` and `browser_reload` -> `browser_session`;
    `browser_invoke_discovered` -> `mcp_tool_catalog`;

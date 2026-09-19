@@ -90,7 +90,9 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(tool_result["exposureMode"], "semantic")
         tools = tool_result["tools"]
         names = {tool["name"] for tool in tools}
-        self.assertEqual(len(tools), 82)
+        self.assertEqual(len(tools), 80)
+        self.assertNotIn("browser_fix_instances", names)
+        self.assertNotIn("browser_group_instances", names)
         self.assertIn("mcp_tool_view", names)
         self.assertIn("mcp_tool_catalog", names)
         view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")

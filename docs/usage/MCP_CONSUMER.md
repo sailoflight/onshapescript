@@ -151,9 +151,14 @@ ordinary discovery to save context, but their existence and purpose are not
 secret: call `browser_discover_tools` with `semantic_levels=["L1"]` or
 `semantic_levels=["L3"]`, inspect the returned exact schema, then use
 `browser_invoke_discovered`. No additional intent parameter is required, and the
-gateway does not bypass confirmation or handler acceptance. Unclassified tools
-remain valid and visible by default. Set `ONSHAPE_MCP_TOOL_EXPOSURE=static` only
-for complete-registry compatibility or debugging.
+gateway does not bypass confirmation or handler acceptance. An `Internal-only`
+tool is hidden the same way: `browser_fix_instances` and
+`browser_group_instances` act on a selection context that only
+`browser_assemble` establishes, so they are callable by exact name and visible
+through `browser_discover_tools` at their explicit level, but absent from the
+ordinary list. Unclassified tools remain valid and visible by default. Set
+`ONSHAPE_MCP_TOOL_EXPOSURE=static` only for complete-registry compatibility or
+debugging.
 
 #### Tool catalog search and description
 
