@@ -23,7 +23,10 @@ from onshape_rest_api_mode.client import (
 # Zero-cost static checker: a syntactically bad upload still costs quota with
 # no diagnostics, so every real upload runs this first and refuses on
 # structural errors. Dry runs surface the same errors/warnings with no network.
-from onshape_docs.scripts import fs_local_check
+# The checker is an offline analysis API under onshape_docs/query/ (the module
+# at onshape_docs/scripts/fs_local_check.py is only a command-line shim).
+from onshape_docs.query import fs_check
+from onshape_rest_api_mode import feature_list
 
 FEATURE_TYPE = "branchCableTrophyDisplay"
 FEATURE_NAME = "Branch cable trophy display"
@@ -378,7 +381,7 @@ def _local_check_result(source: Any) -> dict[str, Any]:
     """Run the zero-cost FeatureScript static checker on `source` and shape the
     result for both live refusal and dry-run reporting. Never touches the
     network; reads the local file and the vendored std index only."""
-    checked = fs_local_check.check_file(source)
+    checked = fs_check.check_file(source)
     return {
         "path": str(source),
         "ok": not checked.errors,
@@ -526,19 +529,20 @@ def create_validation_part_studio(
 
 
 def _instantiate_body(parameters: dict[str, Any], namespace: str) -> dict[str, Any]:
-    """The explicit custom-feature POST body, shared by live + dry_run."""
-    return {
-        "btType": "BTFeatureDefinitionCall-1406",
-        "feature": {
-            "btType": "BTMFeature-134",
-            "featureType": FEATURE_TYPE,
-            "name": FEATURE_NAME,
-            "namespace": namespace,
-            "parameters": parameter_payload(parameters),
-            "returnAfterSubfeatures": False,
-            "suppressed": False,
-        },
-    }
+    """The explicit custom-feature POST body, shared by live + dry_run.
+
+    The envelope comes from `feature_list` so add and update cannot drift into
+    two different `BTFeatureDefinitionCall-1406` shapes.
+    """
+    return feature_list.feature_definition_call({
+        "btType": feature_list.FEATURE,
+        "featureType": FEATURE_TYPE,
+        "name": FEATURE_NAME,
+        "namespace": namespace,
+        "parameters": parameter_payload(parameters),
+        "returnAfterSubfeatures": False,
+        "suppressed": False,
+    })
 
 
 def instantiate_feature(
@@ -608,6 +612,152 @@ def instantiate_feature(
             f"Feature regeneration failed with status {summary['featureStatus'] or 'unknown'}"
         )
     return summary
+
+
+FEATURE_LIST_ACTIONS = ("suppress", "unsuppress", "rollback", "delete", "replace")
+
+
+def _feature_list_plan(
+    action: str,
+    *,
+    did: str,
+    wid: str,
+    eid: str,
+    feature_id: str | None,
+    feature_ids: Any,
+    rollback_index: Any,
+    feature_definition: dict[str, Any] | None,
+) -> list[tuple[str, str, dict[str, Any] | None, str]]:
+    """The exact (method, path, body, note) list for one action.
+
+    ONE builder feeds both the dry-run and the live path, so a dry run cannot
+    describe a request the live path would not send.
+    """
+    if action in {"suppress", "unsuppress"}:
+        suppressed = action == "suppress"
+        ids = feature_list.validate_feature_ids(feature_ids)
+        return [(
+            "POST",
+            feature_list.updates_path(did, wid, eid),
+            feature_list.suppression_body(ids, suppressed),
+            f"{'suppress' if suppressed else 'unsuppress'} {len(ids)} feature(s) in one call; "
+            "updateSuppressionAttributes must be true or the API ignores the flag",
+        )]
+    if action == "rollback":
+        return [(
+            "POST",
+            feature_list.rollback_path(did, wid, eid),
+            feature_list.rollback_body(rollback_index),
+            f"move the Feature List rollback bar to index {rollback_index} "
+            f"({feature_list.ROLLBACK_END} = end of the list)",
+        )]
+    if action == "delete":
+        # Deliberately one id per call: the tool then costs exactly one request
+        # per invocation, which is what the declared cost and the quota guard
+        # assume. Bulk cleanup is repeated calls, not an unbounded list.
+        if not feature_id:
+            raise ValueError("feature_id is required for action 'delete'")
+        return [(
+            "DELETE",
+            feature_list.feature_path(did, wid, eid, feature_id),
+            None,
+            "one DELETE; there is no batch delete endpoint",
+        )]
+    # action == "replace": the caller read the definition, changed it, and posts
+    # the whole thing back. The path id and the body id must agree, otherwise the
+    # body would silently redefine a different feature than the URL names.
+    if not isinstance(feature_definition, dict):
+        raise ValueError("feature_definition must be the full feature object for action 'replace'")
+    body_id = feature_definition.get("featureId")
+    if not body_id:
+        raise ValueError("feature_definition must carry featureId")
+    if body_id != feature_id:
+        raise ValueError(
+            f"feature_definition.featureId ({body_id!r}) must equal feature_id ({feature_id!r})"
+        )
+    return [(
+        "POST",
+        feature_list.feature_path(did, wid, eid, body_id),
+        feature_list.feature_definition_call(feature_definition),
+        "full definition replace in place; omitted parameters are NOT preserved",
+    )]
+
+
+def update_feature_list(
+    action: str,
+    part_studio_id: str | None = None,
+    feature_id: str | None = None,
+    feature_ids: Any = None,
+    rollback_index: Any = None,
+    feature_definition: dict[str, Any] | None = None,
+    client: OnshapeClient | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Update, delete, roll back, suppress, or replace Part Studio features.
+
+    `dry_run=True` returns the exact request plan with zero network. Every live
+    call sends ONE request per planned item and is never retried: a delete or a
+    suppression that times out may already have been applied.
+    """
+    if action not in FEATURE_LIST_ACTIONS:
+        raise ValueError(
+            f"action must be one of {', '.join(FEATURE_LIST_ACTIONS)}; got {action!r}"
+        )
+    if client is None:
+        client = OnshapeClient(require_credentials=not dry_run)
+    did, wid, eid = resolve_part_studio_id(client, part_studio_id)
+    plan = _feature_list_plan(
+        action,
+        did=did,
+        wid=wid,
+        eid=eid,
+        feature_id=feature_id,
+        feature_ids=feature_ids,
+        rollback_index=rollback_index,
+        feature_definition=feature_definition,
+    )
+    if dry_run:
+        return _dry_run(
+            [client.describe(method, path, body) | {"note": note} for method, path, body, note in plan],
+            note=(
+                f"{len(plan)} API call(s); each is sent at most once. A non-GET response is "
+                "the only evidence the change was accepted, so read the Feature List "
+                "afterwards to confirm the cloud state."
+            ),
+        )
+    results: list[dict[str, Any]] = []
+    for method, path, body, _note in plan:
+        if body is None:
+            payload = client.request(method, path, timeout=600)
+        else:
+            payload = client.request(method, path, body, timeout=600)
+        if action == "replace":
+            summary = feature_list.summarize_feature_definition(payload)
+            if summary["featureStatus"] != "OK":
+                # Same rule as instantiate_feature: a definition that did not
+                # regenerate cleanly is not a success, even though the POST
+                # itself returned 2xx.
+                raise RuntimeError(
+                    "Feature definition update did not regenerate cleanly: status "
+                    f"{summary['featureStatus'] or 'unknown'}"
+                )
+        elif action in {"suppress", "unsuppress"}:
+            summary = feature_list.summarize_update_features(payload)
+        elif action == "rollback":
+            summary = feature_list.summarize_rollback(payload)
+        else:
+            summary = feature_list.summarize_feature_api_base(payload)
+        results.append({"method": method, "path": path, "response": summary})
+    return {
+        "action": action,
+        "requestCount": len(results),
+        "results": results,
+        "verifyWith": (
+            "Read the Feature List (onshape_get_project_state + a features GET, or "
+            "browser_get_partstudio_features) to confirm the cloud state; the "
+            "mutation response alone is not domain verification."
+        ),
+    }
 
 
 def check_model(

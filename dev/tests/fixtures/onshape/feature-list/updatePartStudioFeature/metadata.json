@@ -1,0 +1,17 @@
+{
+  "operation": "POST /partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
+  "operationId": "updatePartStudioFeature",
+  "liveExecuted": false,
+  "status": null,
+  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "requestBuiltBy": "feature_list.feature_definition_call + OnshapeClient.describe",
+  "responseSchema": "BTFeatureDefinitionResponse-1617",
+  "purpose": "Replace a feature definition in place. The real body is the object read back from the Feature List with the intended edit applied; this one is deliberately minimal because BTFeatureDefinitionCall-1406 declares no required fields.",
+  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09",
+    "Content-Type": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "None recorded: no request was sent, so no response exists."
+}

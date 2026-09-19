@@ -90,7 +90,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(tool_result["exposureMode"], "semantic")
         tools = tool_result["tools"]
         names = {tool["name"] for tool in tools}
-        self.assertEqual(len(tools), 81)
+        self.assertEqual(len(tools), 82)
         self.assertIn("mcp_tool_view", names)
         self.assertIn("mcp_tool_catalog", names)
         view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")
@@ -255,7 +255,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         result = responses[0]["result"]
         self.assertEqual(result["exposureMode"], "static")
-        self.assertEqual(len(result["tools"]), 107)
+        self.assertEqual(len(result["tools"]), 108)
         self.assertIn("browser_inspect", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_read_notices", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_capture_diagnostic", {tool["name"] for tool in result["tools"]})

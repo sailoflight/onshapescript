@@ -889,7 +889,7 @@ class HandlerCompositionTest(unittest.TestCase):
 class PlannedMetadataTest(unittest.TestCase):
     def test_registry_and_cost_contract(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
-        self.assertEqual(len(by_name), 107)
+        self.assertEqual(len(by_name), 108)
         before = len(server.TOOLS)
         browser_tools.install(server.TOOLS, server.HANDLERS)
         self.assertEqual(len(server.TOOLS), before)

@@ -53,6 +53,28 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
   - `POST /partnumber/nextnumbers`
 - Otherwise the spec is internally consistent: every endpoint's security scheme,
   request-body reference, and response schema reference resolves (verified).
+- **`POST /partstudios/.../features/rollback` declares its request body as a bare
+  `{"type": "string"}`, which cannot be right for a position.** The real shape is
+  in the operation's own description: `{ "rollbackIndex": integer }`, with `-1`
+  meaning "move the bar to the end of the list". Trust the prose here, not the
+  schema. `onshape_rest_api_mode/feature_list.py` builds the object and
+  `test_rest_feature_list` pins both halves of that evidence.
+- **Suppression goes through `updateFeatures`, not a full redefinition.**
+  `POST .../features/updates` (`BTUpdateFeaturesCall-1748`) "does not fully
+  redefine the features; it updates only the parameters supplied in the
+  top-level feature structure, and optionally can update feature suppression
+  attributes". So suppress/unsuppress is one call carrying a minimal
+  `BTMFeature-134` (`btType` + `featureId` + `suppressed`) plus
+  `updateSuppressionAttributes: true` — without that flag the API ignores the
+  suppression field. Re-posting the whole definition through
+  `updatePartStudioFeature` is the wrong tool for it: anything omitted from the
+  body is *not* preserved by a definition replace.
+- **Feature List mutations have no domain response of their own.** The four
+  responses (`BTFeatureDefinitionResponse-1617`, `BTFeatureApiBase-1430`,
+  `BTSetFeatureRollbackResponse-1042`, `BTUpdateFeaturesResponse-1333`) return
+  versioning metadata and, for the batch/definition cases, the new
+  `featureStates`. That is "the server accepted this", not "the model changed as
+  intended" — read the Feature List afterwards.
 
 ## Workflow pointers
 

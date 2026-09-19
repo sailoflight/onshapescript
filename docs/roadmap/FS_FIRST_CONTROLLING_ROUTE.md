@@ -96,7 +96,7 @@ List, human takeover at any point, cloud collaboration.
 
 | Claim from the research plan | Actual state | Evidence |
 |---|---|---|
-| "~80 MCP tools" | **106** — `browser`=68, `rest_operations`=17, `featurescript`=10, `rest_reference`=6, `project_docs`=3, `other`=2 | `docs/generated/TOOL_REFERENCE.md` summary block |
+| "~80 MCP tools" | **108** — `browser`=68, `rest_operations`=18, `featurescript`=11, `rest_reference`=6, `project_docs`=3, `other`=2 | `docs/generated/TOOL_REFERENCE.md` summary block |
 | Capability Registry + bounded capability search (plan H3/H4) | **Implemented** | `mcp_tool_catalog` (bounded search, exact describe only, never returns every schema), `mcp_tool_view`, `browser_discover_tools`, `browser_invoke_discovered` |
 | Target chain `small fixed entry -> module -> capability -> level -> bounded candidates -> exact schema` | **Implemented and documented** | `DYNAMIC_TOOL_DISCOVERY.md` (Status: implemented) |
 | Six-level browser semantics | **Implemented** | `BROWSER_SIX_LEVEL_SEMANTICS_AND_FDM_PLAN.md`; `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1 |
@@ -115,12 +115,12 @@ queries the *target* body; bodies that merely share a face can already be merged
 
 | # | Gap | Evidence | Blocked by |
 |---|---|---|---|
-| G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI and have **no handler** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; only `addPartStudioFeature` is used; whole-repo grep finds it only in `dev/tests/test_mcp_server.py` | quota (D2) |
+| G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI — **handlers delivered offline in P3; server confirmation still open** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; see `onshape_rest_api_mode/feature_list.py` and `test_rest_feature_list` | quota (D2) for the live half |
 | G2 | Browser leg stability under heavy iteration | D3; `browser-modeling.md` records the `not-computed` / part-count-0 failure mode and selector fragility | none (quota-free) |
 | G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof" | none |
 | G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | Existing catalog is **tool**-level; no capability-card layer exists | G1–G3 |
 | G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | Does not exist | G4 |
-| G6 | 106-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | Does not exist; candidates already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |
+| G6 | 108-tool surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) | Does not exist; candidates already annotated in the generated reference (4 `Deprecated`, one `semantically_invalid` and default-hidden) | none |
 | G7 | Thread geometry is the **only** real FS coverage hole | §8 | none |
 | G8 | Route consolidation | `FS_HYBRID_COMPILER_INTEGRATION.md` and the external plan were parallel | closed by this page |
 
@@ -292,6 +292,33 @@ plus suppression, dry-run first, fixture-backed.
 *Gate:* offline tests prove request construction and parsing; any live fact is
 separately authorized and budgeted.
 
+Delivered, all offline:
+
+- `onshape_rest_api_mode/feature_list.py` holds the pure builders and parsers for
+  the four operations that had no handler: `updatePartStudioFeature`,
+  `deletePartStudioFeature`, `updateRollback`, `updateFeatures`.
+- `operations.update_feature_list` is the one entry point (`suppress`,
+  `unsuppress`, `rollback`, `delete`, `replace`); the dry run and the live call
+  build their request through the same function, so a dry run cannot describe a
+  request the live path would not send.
+- Tool `onshape_update_feature_list` exposes it: one live request per call, always
+  with `confirm_mutation`, always with `dry_run` available first. Its quota gate
+  uses the plan's own `estimatedRequests` rather than a hand-written number.
+- The rollback body follows the operation's described object, not the spec's
+  `{"type": "string"}`; suppression uses `updateFeatures` with
+  `updateSuppressionAttributes: true`, which is the documented suppression
+  channel.
+- Evidence: `dev/tests/test_rest_feature_list.py` (spec-path agreement by
+  `operationId`, spec-derived response instances, validation, live-path parsing,
+  fixture drift). `dev/tests/fixtures/onshape/feature-list/` holds the four
+  constructed requests and says in each `metadata.json` that nothing was sent —
+  there is deliberately no `response.json`.
+
+Still open for the P3 gate: no live call has been made, so the payloads here are
+constructed-and-reviewed, not server-confirmed. The first authorized call should
+be a single suppression (1 request, cheap, reversible) with the response captured
+into the existing fixture directories.
+
 **P4 — Capability card layer + retrieval benchmark (G4, G5).** Above the fixed
 catalog; benchmark card hit vs docs search vs full docs on Extrude, Thread, and
 one complex long-tail feature.
@@ -299,7 +326,7 @@ one complex long-tail feature.
 dependency expansion, and no FS docs search.
 
 **P5 — Tool surface audit (G6).** Produce `Keep` / `Merge` / `Internal-only` /
-`Capability` / `Remove` for all **106** tools. Classification only; no mass
+`Capability` / `Remove` for all **108** tools. Classification only; no mass
 refactor in this phase.
 *Gate:* every tool has a classification with a reason; generated reference and
 runtime prompt stay consistent.

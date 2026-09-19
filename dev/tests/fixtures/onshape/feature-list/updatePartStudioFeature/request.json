@@ -1,0 +1,18 @@
+{
+  "method": "POST",
+  "url": "https://cad.onshape.com/api/v9/partstudios/d/DOCID/w/WKSID/e/PSID/features/featureid/FEATID_A",
+  "headers": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09",
+    "Content-Type": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "body": {
+    "btType": "BTFeatureDefinitionCall-1406",
+    "feature": {
+      "btType": "BTMFeature-134",
+      "featureId": "FEATID_A",
+      "name": "Renamed in place",
+      "suppressed": false
+    }
+  }
+}

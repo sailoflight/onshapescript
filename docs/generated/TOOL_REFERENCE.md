@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Registered tools: **107**
+- Registered tools: **108**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=68, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=17, `rest_reference`=6
+- Capability counts: `browser`=68, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
 - Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
 
 ## Safety interpretation
@@ -145,6 +145,7 @@
 | `onshape_list_document_elements` | `rest_operations` | - | - | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration_target_state | List elements in the configured Onshape workspace (names, element types, IDs, microversions). By default it returns the locally cached element table at ZERO API cost — that tabl... |
 | `onshape_render_preview` | `rest_operations` | - | `view` | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/explicit_target | Request one shaded PNG rendering of the existing configured Part Studio from Onshape. The remote operation is read-only but may consume rendering resources. By default it return... |
 | `onshape_run_validation_pipeline` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state | Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a... |
+| `onshape_update_feature_list` | `rest_operations` | - | `confirm_mutation`, `action` | network=live; api_max=1; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target | Change the Part Studio Feature List through the REST Feature API: suppress or unsuppress existing features, move the rollback bar, delete one feature, or replace one feature def... |
 | `onshape_upload_feature_studio` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=3; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration | Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled branchCableTrophyDisplay specification. This overwrites cloud Feature Studio content... |
 
 ## Capability: rest_reference

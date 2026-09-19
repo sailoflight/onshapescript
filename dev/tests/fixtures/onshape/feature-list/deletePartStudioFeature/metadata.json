@@ -1,0 +1,16 @@
+{
+  "operation": "DELETE /partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
+  "operationId": "deletePartStudioFeature",
+  "liveExecuted": false,
+  "status": null,
+  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "requestBuiltBy": "feature_list.feature_path + OnshapeClient.describe",
+  "responseSchema": "BTFeatureApiBase-1430",
+  "purpose": "Remove one feature from the Feature List. One request per feature; there is no batch delete endpoint.",
+  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "None recorded: no request was sent, so no response exists."
+}

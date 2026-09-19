@@ -1724,7 +1724,7 @@
    "page": "llm-experience-api",
    "category": "experience",
    "path": "onshape_docs/experience/rest-api.md",
-   "sha256": "48c3114cb388e28543248f6c573ad3ce46edd79f22d4252860bcdca49d8819f4",
+   "sha256": "330baaef332635482a343adc63c443982b665fd3b470b7c08b9aea76102c8598",
    "title": "Verified experience: Onshape REST API",
    "sections": [
     {
@@ -1839,6 +1839,18 @@
         },
         {
          "text": "Otherwise the spec is internally consistent: every endpoint's security scheme, request-body reference, and response schema reference resolves (verified).",
+         "depth": 0
+        },
+        {
+         "text": "**POST /partstudios/.../features/rollback declares its request body as a bare {\"type\": \"string\"}, which cannot be right for a position.** The real shape is in the operation's own description: { \"rollbackIndex\": integer }, with -1 meaning \"move the bar to the end of the list\". Trust the prose here, not the schema. onshape_rest_api_mode/feature_list.py builds the object and test_rest_feature_list pins both halves of that evidence.",
+         "depth": 0
+        },
+        {
+         "text": "Suppression goes through updateFeatures, not a full redefinition. POST .../features/updates (BTUpdateFeaturesCall-1748) \"does not fully redefine the features; it updates only the parameters supplied in the top-level feature structure, and optionally can update feature suppression attributes\". So suppress/unsuppress is one call carrying a minimal BTMFeature-134 (btType + featureId + suppressed) plus updateSuppressionAttributes: true — without that flag the API ignores the suppression field. Re-posting the whole definition through updatePartStudioFeature is the wrong tool for it: anything omitted from the body is not preserved by a definition replace.",
+         "depth": 0
+        },
+        {
+         "text": "Feature List mutations have no domain response of their own. The four responses (BTFeatureDefinitionResponse-1617, BTFeatureApiBase-1430, BTSetFeatureRollbackResponse-1042, BTUpdateFeaturesResponse-1333) return versioning metadata and, for the batch/definition cases, the new featureStates. That is \"the server accepted this\", not \"the model changed as intended\" — read the Feature List afterwards.",
          "depth": 0
         }
        ]
@@ -4366,7 +4378,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "54aaf10b1ca27f1e4f8f01b140aa9bd3b929b22b16ac07745cd2dd9eda0eb677",
+   "sha256": "46b09c911262f896648ba1845c3a09513396cc4097fbfbc97b93fc7c434ee19e",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -4387,7 +4399,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 107",
+         "text": "Registered tools: 108",
          "depth": 0
         },
         {
@@ -4399,7 +4411,7 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=68, featurescript=11, other=2, project_docs=3, rest_operations=17, rest_reference=6",
+         "text": "Capability counts: browser=68, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
          "depth": 0
         },
         {
@@ -5335,6 +5347,14 @@
          "confirm_mutation",
          "network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state",
          "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a..."
+        ],
+        [
+         "onshape_update_feature_list",
+         "rest_operations",
+         "-",
+         "confirm_mutation, action",
+         "network=live; api_max=1; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target",
+         "Change the Part Studio Feature List through the REST Feature API: suppress or unsuppress existing features, move the rollback bar, delete one feature, or replace one feature def..."
         ],
         [
          "onshape_upload_feature_studio",

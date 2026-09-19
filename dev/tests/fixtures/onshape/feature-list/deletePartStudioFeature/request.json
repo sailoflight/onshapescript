@@ -1,0 +1,9 @@
+{
+  "method": "DELETE",
+  "url": "https://cad.onshape.com/api/v9/partstudios/d/DOCID/w/WKSID/e/PSID/features/featureid/FEATID_A",
+  "headers": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "body": null
+}

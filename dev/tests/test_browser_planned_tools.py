@@ -13,7 +13,7 @@ from unittest import mock
 
 from mcp_main.win.mcp import browser_tools, server
 from onshape_browser_mode import modeling_transactions, project, selectors, semantic, transactions
-from onshape_docs.scripts.fs_local_check import check_file
+from onshape_docs.query.fs_check import check_file
 
 
 PLANNED_NAMES = {
@@ -115,7 +115,7 @@ class PlannedRegistryTest(unittest.TestCase):
 
     def test_all_planned_names_are_registered_once(self):
         names = [tool["name"] for tool in server.TOOLS]
-        self.assertEqual(len(server.TOOLS), 107)
+        self.assertEqual(len(server.TOOLS), 108)
         self.assertEqual(len(names), len(set(names)))
         self.assertTrue(PLANNED_NAMES.issubset(names))
         self.assertTrue(PLANNED_NAMES.issubset(server.HANDLERS))

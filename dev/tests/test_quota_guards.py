@@ -355,6 +355,7 @@ class McpCostMetadataTest(unittest.TestCase):
             "onshape_export_step",
             "onshape_create_validation_part_studio",
             "onshape_instantiate_feature",
+            "onshape_update_feature_list",
             "onshape_run_validation_pipeline",
         })
         for name in live:
@@ -587,7 +588,7 @@ class BudgetGuardAttemptCapTest(unittest.TestCase):
 
 
 class LocalCheckRefusalTest(unittest.TestCase):
-    """fs_local_check is mandatory before a real upload; dry runs surface its
+    """The local checker is mandatory before a real upload; dry runs surface its
     errors/warnings with zero network."""
 
     def setUp(self) -> None:
@@ -605,7 +606,7 @@ class LocalCheckRefusalTest(unittest.TestCase):
         bad = mock.Mock()
         bad.errors = ["defineFeature closed early", "unbalanced '{'"]
         bad.warnings = ["unreplaced {{PLACEHOLDER}}"]
-        with mock.patch.object(operations.fs_local_check, "check_file", return_value=bad):
+        with mock.patch.object(operations.fs_check, "check_file", return_value=bad):
             with self.assertRaises(RuntimeError) as ctx:
                 operations.upload_feature_studio(client=self.cl, dry_run=False)
             self.assertIn("structural errors", str(ctx.exception))

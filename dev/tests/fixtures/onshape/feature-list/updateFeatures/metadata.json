@@ -1,0 +1,17 @@
+{
+  "operation": "POST /partstudios/d/{did}/w/{wid}/e/{eid}/features/updates",
+  "operationId": "updateFeatures",
+  "liveExecuted": false,
+  "status": null,
+  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "requestBuiltBy": "feature_list.suppression_body + OnshapeClient.describe",
+  "responseSchema": "BTUpdateFeaturesResponse-1333",
+  "purpose": "Suppress two existing features in ONE call: the API needs updateSuppressionAttributes=true or the supplied suppression flag is ignored.",
+  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09",
+    "Content-Type": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "None recorded: no request was sent, so no response exists."
+}

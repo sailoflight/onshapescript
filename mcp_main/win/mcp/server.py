@@ -41,6 +41,7 @@ from onshape_rest_api_mode.operations import (
     check_model,
     create_validation_part_studio,
     eval_featurescript,
+    FEATURE_LIST_ACTIONS,
     feature_studio_status,
     instantiate_feature,
     list_document_elements,
@@ -49,6 +50,7 @@ from onshape_rest_api_mode.operations import (
     public_state,
     render_preview,
     run_validation_pipeline,
+    update_feature_list,
     upload_feature_studio,
 )
 
@@ -382,6 +384,30 @@ def _instantiate(arguments: dict[str, Any]) -> dict[str, Any]:
         overrides=overrides,
         part_studio_id=arguments.get("part_studio_id"),
     )
+
+
+def _update_feature_list(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Update the Part Studio Feature List. Exactly ONE request per call.
+
+    The quota estimate is not a hand-written number: the live path first builds
+    the same request plan the dry run returns (zero network) and passes its
+    length to the annual-quota guard, so the declared cost and the real cost
+    cannot drift apart.
+    """
+    _confirm(arguments)
+    call = {
+        "part_studio_id": arguments.get("part_studio_id"),
+        "feature_id": arguments.get("feature_id"),
+        "feature_ids": arguments.get("feature_ids"),
+        "rollback_index": arguments.get("rollback_index"),
+        "feature_definition": arguments.get("feature_definition"),
+    }
+    action = arguments["action"]
+    if arguments.get("dry_run"):
+        return update_feature_list(action, dry_run=True, **call)
+    plan = update_feature_list(action, dry_run=True, **call)
+    _require_live(plan["estimatedRequests"], f"update_feature_list ({action})")
+    return update_feature_list(action, **call)
 
 
 def _pipeline(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1986,6 +2012,54 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
     },
     {
+        "name": "onshape_update_feature_list",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": True, "cacheable": False},
+        "description": (
+            "Change the Part Studio Feature List through the REST Feature API: suppress or unsuppress existing "
+            "features, move the rollback bar, delete one feature, or replace one feature definition in place. "
+            "Exactly one API call per invocation, never retried. action='suppress'/'unsuppress' takes "
+            "feature_ids (a list) and sends updateFeatures with updateSuppressionAttributes=true, which the API "
+            "requires for the flag to be honoured; action='rollback' takes rollback_index (-1 = end of the "
+            "list); action='delete' takes one feature_id (there is no batch delete); action='replace' takes "
+            "feature_id plus the complete feature_definition read back from the Feature List, and a "
+            "regeneration status other than OK is reported as a failure. Read the Feature List afterwards to "
+            "confirm the cloud state: the mutation response alone is not domain verification. Use dry_run=true "
+            "to see the exact method, URL and body before anything is sent."
+        ),
+        "inputSchema": object_schema({
+            "confirm_mutation": mutating_confirmation(),
+            "action": {
+                "type": "string",
+                "enum": list(FEATURE_LIST_ACTIONS),
+                "description": "suppress | unsuppress | rollback | delete | replace",
+            },
+            "feature_id": {
+                "type": "string",
+                "description": "One feature id. Required for action='delete' and action='replace'.",
+            },
+            "feature_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Feature ids to suppress/unsuppress (one call for the whole list). Required for suppress/unsuppress.",
+            },
+            "rollback_index": {
+                "type": "integer",
+                "description": "New rollback bar position; -1 moves it to the end of the list. Required for action='rollback'.",
+            },
+            "feature_definition": {
+                "type": "object",
+                "description": "The complete feature object for action='replace', including its featureId (it must match feature_id).",
+            },
+            "part_studio_id": {"type": "string"},
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Construct and return the exact request (method/URL/body) without sending it.",
+            },
+        }, ["confirm_mutation", "action"]),
+        "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "onshape_run_validation_pipeline",
         "cost": {"network": "live", "estimated_requests": 8, "max_requests": 13, "mutating": True, "cacheable": False},
         "description": (
@@ -2728,6 +2802,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_build_geometry_package": _build_geometry_package,
     "onshape_create_validation_part_studio": _create_part_studio,
     "onshape_instantiate_feature": _instantiate,
+    "onshape_update_feature_list": _update_feature_list,
     "onshape_run_validation_pipeline": _pipeline,
     # FeatureScript reference tools (local, offline)
     "fs_check_version": _check_version,

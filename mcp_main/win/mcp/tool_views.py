@@ -54,6 +54,7 @@ _FEATURESCRIPT_ONSHAPE_TOOLS = {
     "onshape_instantiate_feature",
     "onshape_render_preview",
     "onshape_run_validation_pipeline",
+    "onshape_update_feature_list",
     "onshape_upload_feature_studio",
 }
 

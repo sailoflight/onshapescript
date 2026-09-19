@@ -33,6 +33,7 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | Browser session/selectors | browser-mode tests | read-only inspect/watch first |
 | FS diagnostic loop (notice read, code normalization, capture) | `test_fs_diagnostics` + `test_fs_notice_collector` (node stub-DOM probe) | read-only notice-pane probe on the target host |
 | REST/budget/operations | quota guards | explicitly budgeted live fact only |
+| REST Feature List CRUD (update/delete/rollback/suppress) | `test_rest_feature_list` (spec-path agreement, spec-derived response parsing, constructed `request.json` drift gate) | any live call is one separately authorized, budgeted fact |
 | FeatureScript source | `onshape_docs/query/fs_check.py` + `test_static_guards`, the `fs_check_script` protocol test, and the corpus gate | authorized upload/live compile only |
 | Generated references/indexes | builder and verifier `--check` | none by default |
 | Secret/redaction/fixtures | static scan + fixture inspection | never validate using real secret output |
@@ -47,6 +48,7 @@ python3 -m unittest dev.tests.test_quota_guards -v
 python3 -m unittest dev.tests.test_browser_mode -v
 python3 -m unittest dev.tests.test_browser_plan_completion -v
 python3 -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
+python3 -m unittest dev.tests.test_rest_feature_list -v
 ```
 
 `test_fs_notice_collector` runs the production notice-collector string against a

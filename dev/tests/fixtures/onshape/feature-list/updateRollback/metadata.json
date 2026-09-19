@@ -1,0 +1,17 @@
+{
+  "operation": "POST /partstudios/d/{did}/w/{wid}/e/{eid}/features/rollback",
+  "operationId": "updateRollback",
+  "liveExecuted": false,
+  "status": null,
+  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "requestBuiltBy": "feature_list.rollback_body + OnshapeClient.describe",
+  "responseSchema": "BTSetFeatureRollbackResponse-1042",
+  "purpose": "Move the rollback bar to the end of the list (-1), the documented no-op-safe position used to recompute the whole Feature List.",
+  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09",
+    "Content-Type": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "None recorded: no request was sent, so no response exists."
+}
