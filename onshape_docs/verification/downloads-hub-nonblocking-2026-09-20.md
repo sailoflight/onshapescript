@@ -53,6 +53,12 @@ MCP error -32001: downstream_timeout     # 约 32 s 后返回
 - `browser_export_step` 在 `download.save_as()` 之后立即请求关闭本次下载留下的内部页面
   （`_close_internal_download_pages`，全函数 guarded：上下文缺失或原生失败都不算导出失败）。
 
+同类审计（同一缺陷是否还有别的入口）：`grep -rn "\.close()" onshape_browser_mode/` 在
+本模块内**没有**任何 `page.close()` 调用点，唯一把页面清单交给
+`SyncSession.reconcile_pages` 的位置就是上面已过滤的那一处；登录探测与
+`browser_session(status)` 只是**跳过**内部页面（不探测、不关闭），并在状态里以
+`{"url": ..., "browserInternal": true}` 标出，便于卡顿时定位。即该缺陷类在本模块内已收敛。
+
 ## 4. 验收
 
 ### 4.1 离线
