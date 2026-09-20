@@ -94,6 +94,15 @@
 “添加自定义特征”选择器中的条目、Part Studio 中的 `not-computed` 行、或仅有
 `feature-id` 都不足以证明建模成功。最终判定必须同时读取特征树和零件数。
 
+- **`partNames` 不可信，只有 `parts` 可用（2026-09-20 实测）**。`read_partstudio_features`
+  把 `.part-list-container` 的文本按 `\s+ → 单空格` 归一化并截断到 400 字符，而
+  `parse_part_summary` 按 `\s{2,}|\n` 切名字 —— 归一化之后这个切分永远不会命中，
+  于是两条分支都错：`count == 1` 走特例，把整个剩余串当成一个名字（实测
+  `零件数 (1) 螺旋凸棱柱 曲线数 (1)` → `["螺旋凸棱柱 曲线数 (1)"]`，把下一个分区表头
+  `曲线数` 吞进了名字）；`count > 1` 直接返回 `[]` 且 `partNamesParsed: false`
+  （实测 `零件数 (9)` 与 `零件数 (11)` 两次）。判定建模成功只用 `parts > 0`；
+  真名字应从 DOM 按零件行元素取，而不是解析归一化后的字符串。
+
 ## 7. 已知边界
 
 - 部署一个已实例化 Feature Studio 的新版本后，Part Studio 通常会自动重新生成，
@@ -323,6 +332,15 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
   上段两个指纹值是 2026-09-19 的**测量记录**，不是常量：仓库侧任何 description /
   schema 改动都会改变它（同日的八项工具合并就把仓库侧指纹换成了新值）。要比的是
   「当场读到的线上值 vs 当场算出的仓库值」。
+- **再加一条独立的逐文件哈希佐证（2026-09-20 实测）**。对仓库与部署副本各遍历一遍
+  白名单后缀（`.py/.md/.json/.fs/...`）、跳过 `.git`/`.venv`/`outputs`/`temp` 等目录，
+  逐文件比对 sha256：当日仓库 651 文件 vs 部署 556 文件，**所有随代码发布的文件
+  逐字节相同**，仅 3 个不同且都可解释 ——
+  `onshape_browser_mode/config/geometry-backend.json`、
+  `onshape_rest_api_mode/config/onshape-state.json`（宿主运行期状态）与
+  `.agent-project-guides.json`（治理文件，不随代码发布）。指纹相等是必要条件，
+  哈希相等把结论从"某个数字相等"升级成"内容相同"，也是判断**是否需要**刷新部署
+  最省事的依据（当时结论：不需要，因此省掉一次会关掉浏览器会话的重启）。
 - 同日的合并还改变了普通 `tools/list`：八个被吸收的兼容名不再出现在普通视图（浏览器
   名通过 `default_exposure=False`，`fs_list_modules` 通过 `ABSORBED_COMPATIBILITY_TOOLS`），
   所以普通列表从 80 降到 72，而注册表仍是 106。数字下降**不等于**工具变少。

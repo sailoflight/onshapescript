@@ -221,6 +221,10 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `browser_deploy_and_apply_featurescript(feature_studio_tab=, part_studio_tab=)`、
   `browser_export_step` 等），而 `browser_get_partstudio_features` 只读**当前屏幕**
   那一个标签。
+  `browser_create_tab(tab_type="Feature Studio")` 是让起点落在 Feature Studio 的可见
+  手段（它创建的标签会立即成为当前标签）；2026-09-20 用它造起点，才让"从 Feature
+  Studio 切到 Part Studio"这个前置条件可复现。只点当前标签等于没切，那两个等待也不会
+  被花掉。
 - **接受按钮不能"点完就数"（2026-09-20 实测）**。`browser_edit_feature_parameters`
   第一版点完 ✓ 只固定 `wait_for_timeout(500)` 再数输入框，成功应用的那次却报
   `accepted: false` / `parametersApplied: false`；第二次调用读到的 `before`
@@ -252,6 +256,19 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `rows.nth(index)` 双击，并在两者计数不一致时拒绝点击，同时报出
   `featureRows` / `matchedRows` / `locatorRows`。旧文案 "must match exactly one row"
   既没说 0 也没说多个，这正是它无法从外部诊断的原因。
+- **读视图与定位器不是同一个集合，差值恒定 +1（2026-09-20 实测，当前会全面拒绝）**。
+  `read_partstudio_features` 的采集 JS 末尾有 `.filter(f => f.name)`，会把
+  `innerText` 与 `textContent` 都为空的 `.os-list-item` 丢掉；而
+  `page.locator('.os-list-item.ns-user-feature')` 照数。实测两个规模完全不同的
+  Part Studio：`Spiral ridge PS` 读到 11 行、定位器数到 **12**；`Part Studio 1`
+  读到 1 行、定位器数到 **2** —— 恒定 +1，说明页面上存在一个**无文本**的
+  `.os-list-item.ns-user-feature` 节点，且与该元素无关。于是上面那条
+  `locatorRows != 行数` 的拒绝会在**任何** Part Studio 上触发，
+  `browser_edit_feature_parameters` 在真机上整体不可用。拒绝本身是对的：集合多一个
+  成员时 `rows.nth(index)` 会双击到别的行（这是"宁可拒绝也不误点"的正确方向）。
+  修法是让两个视图成为**同一个集合**，而不是放宽守卫：要么读侧也枚举无文本行
+  （同时让 `count_custom_features` 只数有名字的行，避免预算虚高），要么在页面内用
+  与定位器相同的 `querySelectorAll` 求下标。
 - **`arg` 是 keyword-only；写错会被 `except Exception: pass` 吞掉（同批发现）**。
   playwright-python 的 `wait_for_function(expression, *, arg=None, timeout=None, …)`
   里 `arg` 只能按关键字传。`transactions.py` 有两处（切监控目标、复制标签页）按位置
@@ -364,6 +381,14 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - 删除：右键 → `li.context-menu-item` 含「删除」→ 通常无二次确认对话框，删除后
   该标签消失；被删标签会先激活再消失，其余标签顺序保持。
 - 删除/重命名都是 0 REST 配额的 UI 写操作，仍需 `confirm_mutation=true`。
+- **"已删除"不能用节点 detach 判定（2026-09-20 实测）**。`browser_delete_element`
+  等的是标签节点脱离 DOM，但 SPA 只给节点加上 `hidden` 类（`ng-class` 由
+  `tab.getIsRemoved()` 决定），节点仍在 DOM 中，于是 30 秒后超时报
+  `deleted: false`——而 `browser_get_page_tabs` 已经不再列出该标签，删除其实**成功**
+  了。超时日志还会露出第二个陷阱：locator 是 `.os-tab-bar-tab` 的 `nth(3)`，被删节点
+  留着时索引不移动，一旦它真的消失，同一个 `nth` 会解析到**下一个**标签。正确判据是
+  "该 `data-id` 从 `browser_get_page_tabs` 的标签列表里消失"（或检查 `hidden` 类），
+  而不是等 detach，也不要按位置索引判断。
 - `dev/button-map/scan-app-shell.json` 证明 Part Studio 标签和 part row 的右键菜单都出现
   `导出…`。登录恢复后又实测了 Part Studio export dialog：根节点
   `.modal.export-dialog`；文件名 `#export-filename-input`；格式

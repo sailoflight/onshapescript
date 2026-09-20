@@ -1164,3 +1164,124 @@ The full offline suite is **641 OK** (up from 625), and all four docs gates pass
   `gate check` tab was therefore read from the local diagnostic package it wrote
   when it was captured, not from the live UI.
 
+## Second live session — the certificate after the host crash (2026-09-20, +0800)
+
+A host crash took the WSL bridge node and every running agent session with it. The
+working tree survived and was committed as four topical slices, tip `96390cf`.
+This section is the first live evidence after the recovery, and it is deliberately
+a **session-boundary certificate**: the calls below ran against generation 7 with
+this repository's code, and that was established before any browser action.
+
+### Freshness, measured before the first live call (0 REST, 0 cloud mutations)
+
+| Signal | Value |
+|---|---|
+| `mcp_tool_catalog(action="status").fingerprint` | `7091559fe48fdd0826369762837ddb7720e7f047e749c8d37b0251e28352aced` |
+| `ToolCatalogIndex(server.TOOLS).fingerprint` computed in this repository | identical, byte for byte |
+| 651 repository files vs 556 deployed, sha256 each | every shipped code file identical; 3 differ — `onshape_browser_mode/config/geometry-backend.json` and `onshape_rest_api_mode/config/onshape-state.json` (host runtime state) and `.agent-project-guides.json` (governance, not shipped with the code) |
+
+The fingerprint gate is the one
+[`../experience/browser-modeling.md`](../experience/browser-modeling.md) §14
+requires; the per-file hashes are the independent second opinion, and they are what
+makes "the deployment is this repository" a statement about *content* rather than
+about one number. No refresh was needed, so no restart that would have cost the
+browser session.
+
+### The tab-switch readiness waits, live (was owed)
+
+The owed item was the pair of readiness waits that only the `part_studio_tab`
+branch spends. A forced switch is required to exercise them at all, and — the
+recorded gap — **no visible tool activates a tab**: only composite transactions
+that take a tab argument switch the current one. `browser_create_tab` therefore
+created a real Feature Studio (`Feature Studio 1`, `55194a57da634e5038073f00`) and
+left it active, which is the exact from-state that produced the original failure
+("workspace-custom-features button not found" plus a baseline of 0 rows on a Part
+Studio holding 8 custom features). `browser_insert_custom_feature` was then called
+**standalone**, with `part_studio_tab="Spiral ridge PS"`.
+
+| Signal | Recorded failure | This run |
+|---|---|---|
+| `budgets.customFeaturesRead` | `0` | **`9`** |
+| `panelReady` | absent | `waited: true`, `partstudio_row_count`, 19 ms |
+| `toolbarReady` | `workspace-custom-features button not found` | `waited: true`, `toolbar_button_visible`, 233 ms |
+| `baselineRows` | `0` | **`9`** |
+| `waits.regeneration` / `commitSurvival` | — | `waited: true`, minimum 10, 188 ms / 5 616 ms |
+| `budgets.regenerationMs` / `commitSurvivalMs` | fixed 30 s | `48 000` / `102 000` = `30 000 + 2 000×9` / `30 000 + 8 000×9` |
+| `inserted` / `commit.committed` | — | `true` / `true` |
+| row and parts | — | `Sr Spiral ridge 8`, `hasError: false`, `零件数 (9) → (10)` |
+
+Both waits resolved in 19 ms and 233 ms, so this run certifies that the branch
+**spends** them and that the baseline read is no longer 0 — it does not stress the
+race the fix was written for, because the recorded failing render did not
+reproduce. The honest claim is the narrow one.
+
+### The generator's output, re-certified verbatim
+
+`browser_spiral_ridge(base_radius_mm=10, pitch_mm=5, ridge_width_mm=2,
+ridge_height_mm=1, length_mm=30, clockwise=true)` on the same document:
+
+| Signal | Value |
+|---|---|
+| `diagnosticCapture.sourceSha256` | `540f71eb7867ca0d128457ee472ca22c839d108ac014afcb67564b7faeb5736d` |
+| the same value computed locally from `generate_spiral_ridge_script(10, 5, 2, 1, 30, clockwise=True)` | identical — the deployed text **is** the repository's generator output, 3 516 chars / 78 lines |
+| server | `deployed: true`, `verified: true`, `commitAccepted: true`, `compiled: true`, 0 errors / 0 warnings / 0 notices |
+| `inserted` / `commit.committed` | `true` / `true`, `minimum: 11`, survival 6 025 ms of 110 000 ms |
+| row and parts | `Sr Spiral ridge 9`, `hasError: false`, `零件数 (10) → (11)` |
+| `version` | `{"created": false, "reason": "version prompt not present"}` — no new version, and none was needed: the workspace toolbar dropdown exposes the Feature Studio's current spec, which is also why the earlier run applied the feature before any version existed |
+
+`annotationCount: 0` is not a missing-parameter signal: that counter reads the Ace
+editor's diagnostic annotations, not the source's `annotation {}` blocks. The
+parameter panel itself was **not** re-read this run, because the tool that reads it
+refuses (below); the recorded dialog read plus the byte-identity of the deployed
+source is what supports "five parameters in the default slot" here, and that is a
+conjunction of one earlier observation with one measurement from this run, not a
+single fresh one.
+
+### `_locate_feature_row` refuses on every element (new, blocking)
+
+The corrected row identification refuses to click when the read and the locator
+disagree, and live they **always** disagree by exactly one:
+
+| Element | rows the read names | `locatorRows` | call |
+|---|---|---|---|
+| `Spiral ridge PS` | 11 | **12** | `browser_edit_feature_parameters("Sr Spiral ridge 9", {baseRadius: "12 mm", length: "40 mm"})` |
+| `Part Studio 1` | 1 | **2** | the same call on `Sr Spiral ridge 1` |
+
+Both returns are `parametersApplied: false` with
+`reason: "the read lists N custom-feature rows but the row locator sees N+1;
+refusing to click a row that may be a different one"`, and the second call was
+byte-identical to the first, so this is deterministic rather than a transient DOM.
+A constant `+1` across elements holding 1 and 11 named rows means **one extra
+`.os-list-item.ns-user-feature` node with no text is present on every Part Studio
+page**. The read cannot see it: `read_partstudio_features`'s collector ends with
+`.filter(f => f.name)`, which drops any row whose `innerText` and `textContent` are
+both empty, while `page.locator('.os-list-item.ns-user-feature')` counts it.
+
+The refusal is therefore **correct** — `rows.nth(index)` against a set with one
+extra member above the target opens a different row's dialog — but the consequence
+is that the corrected `browser_edit_feature_parameters` path is unusable on any
+element, and its live verification is **blocked, not passed**. The fix direction is
+to make the two views the *same set* rather than to relax the guard: either
+enumerate nameless rows in the read too (keeping `count_custom_features` on named
+rows so the budgets do not inflate), or derive the click index in the page from the
+same `querySelectorAll` the locator counts. Nothing was changed here: a source edit
+invalidates the freshness certificate above, and refreshing a deployment is a
+separate authorized action.
+
+### Two smaller live findings
+
+- **`browser_delete_element` reports a tab it did delete as not deleted.** Deleting
+  `55194a57da634e5038073f00` returned `deleted: false` after timing out waiting for
+  `.os-tab-bar-tab` `nth(3)` to detach, but the call log shows the node ending as
+  `class="os-tab-bar-tab hidden"` (Onshape's `ng-class` sets `hidden` from
+  `tab.getIsRemoved()`; the SPA does not detach the node), and
+  `browser_get_page_tabs` afterwards no longer lists `Feature Studio 1`. The
+  verification assumes detachment, so the verdict is inverted for every tab delete.
+- **`browser_build_part` on a Part Studio with 0 custom features** returned
+  `built: true`, `inserted: true`, `commit.committed: true` and, usefully,
+  `budgets.customFeaturesRead: 0` with `regenerationMs: 30000` /
+  `commitSurvivalMs: 30000` — the documented "an unreadable or zero count reproduces
+  the previous fixed budget" floor, measured. Its `partNames` failure shows both
+  branches from one call: `count == 1` → `["螺旋凸棱柱 曲线数 (1)"]`, the next section
+  header swallowed into the name; `count > 1` → `[]` with `partNamesParsed: false`.
+

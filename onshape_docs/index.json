@@ -2101,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "dd49ba851ae987db209669c303c22c9051bb1a4108cde77f8c894f3b193b1e09",
+   "sha256": "8a34da7b8cedc43354b1f1249550e0749b437d12c8a01c5bd3c9a5a36f08583b",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2521,7 +2521,7 @@
          "depth": 0
         },
         {
-         "text": "切标签后先等面板渲染，再读基线（2026-09-20 实测）。从 Feature Studio 切到 Part Studio 后立刻读特征树，会读到空面板：实测在已有 8 个自定义特征的文档上 budgets.customFeaturesRead: 0，于是 minimum = 0 + 1 = 1，恰好被屏幕上一个 旧行满足 —— 一次静默的假通过。所以 insert_custom_feature 在切标签后先等 「面板出现至少 1 行」（.features-title / .os-list-item，30 s）再等 「工作区自定义特征按钮可见」（PS_WORKSPACE_CUSTOM_FEATURE_BTN，30 s）， 两者都记进结果的 panelReady / toolbarReady；没有切标签时不花这两个等待。 另外没有任何工具能\"切换当前标签\"：只有带标签参数的复合事务会切 （browser_insert_custom_feature(part_studio_tab=)、 browser_deploy_and_apply_featurescript(feature_studio_tab=, part_studio_tab=)、 browser_export_step 等），而 browser_get_partstudio_features 只读当前屏幕 那一个标签。",
+         "text": "切标签后先等面板渲染，再读基线（2026-09-20 实测）。从 Feature Studio 切到 Part Studio 后立刻读特征树，会读到空面板：实测在已有 8 个自定义特征的文档上 budgets.customFeaturesRead: 0，于是 minimum = 0 + 1 = 1，恰好被屏幕上一个 旧行满足 —— 一次静默的假通过。所以 insert_custom_feature 在切标签后先等 「面板出现至少 1 行」（.features-title / .os-list-item，30 s）再等 「工作区自定义特征按钮可见」（PS_WORKSPACE_CUSTOM_FEATURE_BTN，30 s）， 两者都记进结果的 panelReady / toolbarReady；没有切标签时不花这两个等待。 另外没有任何工具能\"切换当前标签\"：只有带标签参数的复合事务会切 （browser_insert_custom_feature(part_studio_tab=)、 browser_deploy_and_apply_featurescript(feature_studio_tab=, part_studio_tab=)、 browser_export_step 等），而 browser_get_partstudio_features 只读当前屏幕 那一个标签。 browser_create_tab(tab_type=\"Feature Studio\") 是让起点落在 Feature Studio 的可见 手段（它创建的标签会立即成为当前标签）；2026-09-20 用它造起点，才让\"从 Feature Studio 切到 Part Studio\"这个前置条件可复现。只点当前标签等于没切，那两个等待也不会 被花掉。",
          "depth": 0
         },
         {
@@ -2554,6 +2554,10 @@
         },
         {
          "text": "按名字匹配特征行不可靠，要按\"读到的位置\"点（2026-09-20 实测）。同一个面板， read_partstudio_features 把 Sr Spiral ridge 7 读成唯一命中，而 page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral ridge 7') 连续四次（含两次页面重载）给出非 1 的计数 —— 同一个 DOM 的读视图与定位器视图 不一致，所以名字匹配不能单独用来选行。browser_edit_feature_parameters 现在先 等面板渲染（wait_for_panel_rows），用读结果识别行、按读到的 DOM 顺序位置 rows.nth(index) 双击，并在两者计数不一致时拒绝点击，同时报出 featureRows / matchedRows / locatorRows。旧文案 \"must match exactly one row\" 既没说 0 也没说多个，这正是它无法从外部诊断的原因。",
+         "depth": 0
+        },
+        {
+         "text": "读视图与定位器不是同一个集合，差值恒定 +1（2026-09-20 实测，当前会全面拒绝）。 read_partstudio_features 的采集 JS 末尾有 .filter(f => f.name)，会把 innerText 与 textContent 都为空的 .os-list-item 丢掉；而 page.locator('.os-list-item.ns-user-feature') 照数。实测两个规模完全不同的 Part Studio：Spiral ridge PS 读到 11 行、定位器数到 12；Part Studio 1 读到 1 行、定位器数到 2 —— 恒定 +1，说明页面上存在一个无文本的 .os-list-item.ns-user-feature 节点，且与该元素无关。于是上面那条 locatorRows != 行数 的拒绝会在任何 Part Studio 上触发， browser_edit_feature_parameters 在真机上整体不可用。拒绝本身是对的：集合多一个 成员时 rows.nth(index) 会双击到别的行（这是\"宁可拒绝也不误点\"的正确方向）。 修法是让两个视图成为同一个集合，而不是放宽守卫：要么读侧也枚举无文本行 （同时让 count_custom_features 只数有名字的行，避免预算虚高），要么在页面内用 与定位器相同的 querySelectorAll 求下标。",
          "depth": 0
         },
         {
@@ -2806,6 +2810,10 @@
          "depth": 0
         },
         {
+         "text": "\"已删除\"不能用节点 detach 判定（2026-09-20 实测）。browser_delete_element 等的是标签节点脱离 DOM，但 SPA 只给节点加上 hidden 类（ng-class 由 tab.getIsRemoved() 决定），节点仍在 DOM 中，于是 30 秒后超时报 deleted: false——而 browser_get_page_tabs 已经不再列出该标签，删除其实成功 了。超时日志还会露出第二个陷阱：locator 是 .os-tab-bar-tab 的 nth(3)，被删节点 留着时索引不移动，一旦它真的消失，同一个 nth 会解析到下一个标签。正确判据是 \"该 data-id 从 browser_get_page_tabs 的标签列表里消失\"（或检查 hidden 类）， 而不是等 detach，也不要按位置索引判断。",
+         "depth": 0
+        },
+        {
          "text": "dev/button-map/scan-app-shell.json 证明 Part Studio 标签和 part row 的右键菜单都出现 导出…。登录恢复后又实测了 Part Studio export dialog：根节点 .modal.export-dialog；文件名 #export-filename-input；格式 #export-format-dropdown；STEP 版本 #step-export-version-dropdown；自定义单位 checkbox #custom-step-units-checkbox；单位 selector [ng-model='options.stepExportUnit']；下载方式 #export-options-dropdown；单独文件 [ng-model='download.shouldExportPartsAsIndividualFiles']；隐藏实例 #export-hidden-entities-checkbox。可稳定选择 STEP/AP242/Millimeter/下载，并取消对话框。",
          "depth": 0
         },
@@ -2950,7 +2958,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "00b6b51bc75d02e21ab6225422f81a0e4ff6f05d2825b40c5abb8a592c8ef83b",
+   "sha256": "7e36b2d161c04e5de30776fbc884787ce6c6c4cce2f712a857da70ad6a1b3e30",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3199,6 +3207,15 @@
       {
        "type": "para",
        "text": "“添加自定义特征”选择器中的条目、Part Studio 中的 not-computed 行、或仅有 feature-id 都不足以证明建模成功。最终判定必须同时读取特征树和零件数。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "partNames 不可信，只有 parts 可用（2026-09-20 实测）。read_partstudio_features 把 .part-list-container 的文本按 \\s+ → 单空格 归一化并截断到 400 字符，而 parse_part_summary 按 \\s{2,}|\\n 切名字 —— 归一化之后这个切分永远不会命中， 于是两条分支都错：count == 1 走特例，把整个剩余串当成一个名字（实测 零件数 (1) 螺旋凸棱柱 曲线数 (1) → [\"螺旋凸棱柱 曲线数 (1)\"]，把下一个分区表头 曲线数 吞进了名字）；count > 1 直接返回 [] 且 partNamesParsed: false （实测 零件数 (9) 与 零件数 (11) 两次）。判定建模成功只用 parts > 0； 真名字应从 DOM 按零件行元素取，而不是解析归一化后的字符串。",
+         "depth": 0
+        }
+       ]
       }
      ]
     },
@@ -3522,6 +3539,10 @@
        "items": [
         {
          "text": "真机验证前先读 mcp_tool_catalog(action=\"status\")，把 fingerprint 与仓库算出的 ToolCatalogIndex(server.TOOLS).fingerprint 比对；不等就说明线上不是当前代码。 registryCount 只用来解释差异（多了什么、少了什么），不能单独当判据。 上段两个指纹值是 2026-09-19 的测量记录，不是常量：仓库侧任何 description / schema 改动都会改变它（同日的八项工具合并就把仓库侧指纹换成了新值）。要比的是 「当场读到的线上值 vs 当场算出的仓库值」。",
+         "depth": 0
+        },
+        {
+         "text": "再加一条独立的逐文件哈希佐证（2026-09-20 实测）。对仓库与部署副本各遍历一遍 白名单后缀（.py/.md/.json/.fs/...）、跳过 .git/.venv/outputs/temp 等目录， 逐文件比对 sha256：当日仓库 651 文件 vs 部署 556 文件，**所有随代码发布的文件 逐字节相同**，仅 3 个不同且都可解释 —— onshape_browser_mode/config/geometry-backend.json、 onshape_rest_api_mode/config/onshape-state.json（宿主运行期状态）与 .agent-project-guides.json（治理文件，不随代码发布）。指纹相等是必要条件， 哈希相等把结论从\"某个数字相等\"升级成\"内容相同\"，也是判断是否需要刷新部署 最省事的依据（当时结论：不需要，因此省掉一次会关掉浏览器会话的重启）。",
          "depth": 0
         },
         {
@@ -4077,7 +4098,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "9112afb9ad6fdc1e9334b17bd46f07639a25e46e9003e002927cf15e0f38326e",
+   "sha256": "7103d15de167fb59d2967a2ba98fe762e02ab7886cc1987f494444ca89d91e96",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -5947,6 +5968,218 @@
         },
         {
          "text": "No reachable tool can read a FeatureScript notice. browser_fs_read_notices, browser_notifications_status and browser_click are all `default_exposure: false, and this deployment's shared backend rejects mcp_tool_view` with shared_view_fixed. browser_get_fs_compile_status reads the pane but needs the Feature Studio on screen, which no visible tool can activate. The notice for the gate check tab was therefore read from the local diagnostic package it wrote when it was captured, not from the live UI.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Second live session — the certificate after the host crash (2026-09-20, +0800)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "A host crash took the WSL bridge node and every running agent session with it. The working tree survived and was committed as four topical slices, tip 96390cf. This section is the first live evidence after the recovery, and it is deliberately a session-boundary certificate: the calls below ran against generation 7 with this repository's code, and that was established before any browser action."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Freshness, measured before the first live call (0 REST, 0 cloud mutations)",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "mcp_tool_catalog(action=\"status\").fingerprint",
+         "7091559fe48fdd0826369762837ddb7720e7f047e749c8d37b0251e28352aced"
+        ],
+        [
+         "ToolCatalogIndex(server.TOOLS).fingerprint computed in this repository",
+         "identical, byte for byte"
+        ],
+        [
+         "651 repository files vs 556 deployed, sha256 each",
+         "every shipped code file identical; 3 differ — onshape_browser_mode/config/geometry-backend.json and onshape_rest_api_mode/config/onshape-state.json (host runtime state) and .agent-project-guides.json (governance, not shipped with the code)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The fingerprint gate is the one ../experience/browser-modeling.md §14 requires; the per-file hashes are the independent second opinion, and they are what makes \"the deployment is this repository\" a statement about content rather than about one number. No refresh was needed, so no restart that would have cost the browser session."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The tab-switch readiness waits, live (was owed)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The owed item was the pair of readiness waits that only the part_studio_tab branch spends. A forced switch is required to exercise them at all, and — the recorded gap — no visible tool activates a tab: only composite transactions that take a tab argument switch the current one. browser_create_tab therefore created a real Feature Studio (Feature Studio 1, 55194a57da634e5038073f00) and left it active, which is the exact from-state that produced the original failure (\"workspace-custom-features button not found\" plus a baseline of 0 rows on a Part Studio holding 8 custom features). browser_insert_custom_feature was then called standalone, with part_studio_tab=\"Spiral ridge PS\"."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Recorded failure",
+         "This run"
+        ],
+        [
+         "budgets.customFeaturesRead",
+         "0",
+         "9"
+        ],
+        [
+         "panelReady",
+         "absent",
+         "waited: true, partstudio_row_count, 19 ms"
+        ],
+        [
+         "toolbarReady",
+         "workspace-custom-features button not found",
+         "waited: true, toolbar_button_visible, 233 ms"
+        ],
+        [
+         "baselineRows",
+         "0",
+         "9"
+        ],
+        [
+         "waits.regeneration / commitSurvival",
+         "—",
+         "waited: true, minimum 10, 188 ms / 5 616 ms"
+        ],
+        [
+         "budgets.regenerationMs / commitSurvivalMs",
+         "fixed 30 s",
+         "48 000 / 102 000 = 30 000 + 2 000×9 / 30 000 + 8 000×9"
+        ],
+        [
+         "inserted / commit.committed",
+         "—",
+         "true / true"
+        ],
+        [
+         "row and parts",
+         "—",
+         "Sr Spiral ridge 8, hasError: false, 零件数 (9) → (10)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Both waits resolved in 19 ms and 233 ms, so this run certifies that the branch spends them and that the baseline read is no longer 0 — it does not stress the race the fix was written for, because the recorded failing render did not reproduce. The honest claim is the narrow one."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The generator's output, re-certified verbatim",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_spiral_ridge(base_radius_mm=10, pitch_mm=5, ridge_width_mm=2, ridge_height_mm=1, length_mm=30, clockwise=true) on the same document:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "diagnosticCapture.sourceSha256",
+         "540f71eb7867ca0d128457ee472ca22c839d108ac014afcb67564b7faeb5736d"
+        ],
+        [
+         "the same value computed locally from generate_spiral_ridge_script(10, 5, 2, 1, 30, clockwise=True)",
+         "identical — the deployed text is the repository's generator output, 3 516 chars / 78 lines"
+        ],
+        [
+         "server",
+         "deployed: true, verified: true, commitAccepted: true, compiled: true, 0 errors / 0 warnings / 0 notices"
+        ],
+        [
+         "inserted / commit.committed",
+         "true / true, minimum: 11, survival 6 025 ms of 110 000 ms"
+        ],
+        [
+         "row and parts",
+         "Sr Spiral ridge 9, hasError: false, 零件数 (10) → (11)"
+        ],
+        [
+         "version",
+         "{\"created\": false, \"reason\": \"version prompt not present\"} — no new version, and none was needed: the workspace toolbar dropdown exposes the Feature Studio's current spec, which is also why the earlier run applied the feature before any version existed"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "annotationCount: 0 is not a missing-parameter signal: that counter reads the Ace editor's diagnostic annotations, not the source's annotation {} blocks. The parameter panel itself was not re-read this run, because the tool that reads it refuses (below); the recorded dialog read plus the byte-identity of the deployed source is what supports \"five parameters in the default slot\" here, and that is a conjunction of one earlier observation with one measurement from this run, not a single fresh one."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "_locate_feature_row refuses on every element (new, blocking)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The corrected row identification refuses to click when the read and the locator disagree, and live they always disagree by exactly one:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Element",
+         "rows the read names",
+         "locatorRows",
+         "call"
+        ],
+        [
+         "Spiral ridge PS",
+         "11",
+         "12",
+         "browser_edit_feature_parameters(\"Sr Spiral ridge 9\", {baseRadius: \"12 mm\", length: \"40 mm\"})"
+        ],
+        [
+         "Part Studio 1",
+         "1",
+         "2",
+         "the same call on Sr Spiral ridge 1"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Both returns are parametersApplied: false with reason: \"the read lists N custom-feature rows but the row locator sees N+1; refusing to click a row that may be a different one\", and the second call was byte-identical to the first, so this is deterministic rather than a transient DOM. A constant +1 across elements holding 1 and 11 named rows means one extra .os-list-item.ns-user-feature node with no text is present on every Part Studio page. The read cannot see it: read_partstudio_features's collector ends with .filter(f => f.name), which drops any row whose innerText and textContent are both empty, while page.locator('.os-list-item.ns-user-feature') counts it."
+      },
+      {
+       "type": "para",
+       "text": "The refusal is therefore correct — rows.nth(index) against a set with one extra member above the target opens a different row's dialog — but the consequence is that the corrected browser_edit_feature_parameters path is unusable on any element, and its live verification is blocked, not passed. The fix direction is to make the two views the same set rather than to relax the guard: either enumerate nameless rows in the read too (keeping count_custom_features on named rows so the budgets do not inflate), or derive the click index in the page from the same querySelectorAll the locator counts. Nothing was changed here: a source edit invalidates the freshness certificate above, and refreshing a deployment is a separate authorized action."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Two smaller live findings",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_delete_element reports a tab it did delete as not deleted. Deleting 55194a57da634e5038073f00 returned deleted: false after timing out waiting for .os-tab-bar-tab nth(3) to detach, but the call log shows the node ending as class=\"os-tab-bar-tab hidden\" (Onshape's ng-class sets hidden from tab.getIsRemoved(); the SPA does not detach the node), and browser_get_page_tabs afterwards no longer lists Feature Studio 1. The verification assumes detachment, so the verdict is inverted for every tab delete.",
+         "depth": 0
+        },
+        {
+         "text": "browser_build_part on a Part Studio with 0 custom features returned built: true, inserted: true, commit.committed: true and, usefully, budgets.customFeaturesRead: 0 with regenerationMs: 30000 / commitSurvivalMs: 30000 — the documented \"an unreadable or zero count reproduces the previous fixed budget\" floor, measured. Its partNames failure shows both branches from one call: count == 1 → [\"螺旋凸棱柱 曲线数 (1)\"], the next section header swallowed into the name; count > 1 → [] with partNamesParsed: false.",
          "depth": 0
         }
        ]
