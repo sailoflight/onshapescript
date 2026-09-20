@@ -231,7 +231,27 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   已经是新值。改成有界条件等待
   （`page.wait_for_function('(selector) => document.querySelector(selector) === null', arg=PS_FEATURE_DIALOG, timeout=60_000)`）
   后同一操作报 `parametersApplied: true` / `accepted: true` / `regenerationOk: true`
-  / `persistenceOk: true`。**"对话框关闭"才是接受动作完成的信号**，而不是经过多少毫秒。
+  / `persistenceOk: true`。**"对话框关闭"是这里唯一可读的完成信号**，不是经过多少毫秒
+  ——但这条信号只在一半情况下可靠，见下一段 2026-09-20 第四轮的实测修正：
+  accept **真改了参数**时它 95 s 仍未出现，而提交早已落库。
+- **"对话框关闭"不是"参数已改"的完成信号（2026-09-20 第四轮实测，修正上一条）**。
+  同一元素、同一特征、同一代码路径，只改"accept 是否真的改变参数"这一个变量：
+
+  | accept | 对话框 `before` → `after` | 关闭条件 |
+  |---|---|---|
+  | 真改参数 | `10 mm` → `12 mm` | **95 s 仍未满足**（25+25+45 s） |
+  | 空操作 | `12 mm` → `12 mm` | **满足，5 ms** |
+  | 真改参数 | `12 mm` → `10 mm` | **60 s 仍未满足**（20+40 s） |
+  | 空操作（复位） | `10 mm` → `10 mm` | **满足，4 ms** |
+
+  这四次 accept **全部提交成功**，而且证据不依赖对话框：每次真改之后用一次有界页面
+  重载丢掉那个还开着的面板，再从**全新加载的页面**打开对话框，`before` 读到的就是**新值**
+  （第一次后 12 mm，第三次后 10 mm）。重载只丢客户端 UI 状态，不会撤销服务端提交。
+  操作员在同一 95 s 时间窗内（15:18:30 +0800）看到的面板也确实是开着的、外观正常
+  （标题 `Spiral ridge 1`、`Base radius 12 mm`、绿色 ✓、红色 ✗，行选中，无转圈无报错）。
+  **所以"面板移除"对真改参数这一类编辑不是完成信号**；它瞬间满足空操作、对真改长时间
+  不满足，而两种情况下的提交都已完成。要在这类编辑上拿到判决，只能走"重载 → 重新打开
+  并读回值"（本轮实测可行，且读回值与请求值逐字相符），不能等面板消失。
 - 工具栏：`.toolbar-item`，按钮 `.tool.is-activatable.is-button`；文字标签
   `.tool-label.hide-in-toolbar` 是**隐藏的**，`browser_click(text=...)` 点不到，
   要按 `.toolbar-item` 的 textContent 找到后点内部按钮。
@@ -247,6 +267,22 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   / ridgeHeight 2 mm / length 30 mm`；改成 `12 mm` / `40 mm` 后 ✓ 生效并持久化。
   precondition 为空的特征在这里**没有任何可编辑字段**，只显示内部几何图元
   （extrude / helix / sweep / boolean），这是"生成的特征不像官方特征"的根因。
+  - 面板根是 `.ns-dialog-panel.feature-dialog`，右上角是绿色 ✓ 与红色 ✗；**行名带着
+    自定义特征徽标**：`read_partstudio_features` 读到的行名是 `Sr Spiral ridge 1`，
+    而对话框标题是**裸名字** `Spiral ridge 1`（`Sr` 是渲染出来的徽标文本，不是名字的
+    一部分）。按名字定位特征行时要用**带徽标的那份**，因为读与定位都取自同一个
+    `innerText`。
+  - **"参数对话框是否开着"可以不靠人、也不靠 L1 原语判断**（2026-09-20 实测，受控对照：
+    同一元素同一特征，只让面板开关不同）：开着时用户特征行 `className` 为
+    `os-list-item related-highlight edited selected ns-user-feature`、零件为
+    `os-list-item edited`；关闭时回到 `os-list-item ns-user-feature`、零件 `os-list-item`
+    ——与编辑前的基线逐字相同。`read_partstudio_features` 本来就返回这个字段，所以
+    `browser_get_partstudio_features` 足以回答这个问题。注意 `edited` 并不表示"文档有
+    未保存改动"：真改落库后关闭面板，该 class 就消失了。
+  - 这个后端（WSL 侧 `onshape` 连接）是**固定工具视图**：`browser_eval` 返回
+    `unknown tool`，`mcp_tool_view(action="set")` 返回 `shared_view_fixed`，
+    所以"页内求值/截图/按键"这类 L1 原语在这里都不可用；需要它们才能回答的问题
+    必须转成"人看屏幕"或"用已有的读类工具找等价判别条件"（上一条就是后者的例子）。
 - **行的身份与下标的必须来自同一次枚举，绝不能拿"读过筛的读"去比"照数数的定位器"
   （2026-09-20 实测，已修复）**。同一个面板上，`read_partstudio_features` 把
   `Sr Spiral ridge 7` 读成唯一命中，而
@@ -279,8 +315,10 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   耗时 **61.7 s**（桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/
   中继在 60 s 先超时，返回 `MCP error -32001: downstream_timeout`。旧定位拒绝是 <1 s、
   约 618 B 的载荷，所以"61.7 s 后产出了多千字节响应"本身就证明它已经越过定位并走完对话框
-  流程；但 `parametersApplied` 与写入结果**无法从客户端证实**。原因可测：
-  `PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000`，而 Onshape 要在对话框报"关闭"前重算整个模型。
+  流程；但 `parametersApplied` 与写入结果**无法从客户端证实**。**"61.7 s = 模型重算花了
+  61.7 s"这个归因已被第四轮实测推翻**：61.7 s 只比 `PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000`
+  多一个开销，而实测的关闭延迟要么 ≤5 ms（空操作 accept）、要么 >95 s（真改参数）。
+  随"是否真改参数"跳变的量不是"重算时长"，那 60 s 是旧代码**自己的有界等待被跑满**。
   **修法：把"提交"与"确认"拆成两段**——点击 accept 就是提交，对话框关闭只是"重算完成"的
   信号。默认段在点击 accept 后立刻返回 `applyState: "pending_verification"`、
   `parametersApplied: null`（**绝不返回 `False`**：写入并未失败），并带 `verifyWith` 指向
@@ -290,6 +328,20 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `wait_for_regeneration=true`。同一现象还伴随页面掉到 `about:blank` 与会话登出（因果未
   确立，只按观测记录），所以长事务不要为了拿返回值而重跑。**凡可能超过传输上限的浏览器事务，
   超时都不等于失败，重试可能重复执行。**
+  - **两段式已真机认证（2026-09-20 第四轮，0 REST 配额）**：第一段在 accept 后立刻返回
+    （`applyState: "pending_verification"`、`parametersApplied: null`、`readbackOk: true`、
+    带 `verifyWith`），面板关闭后第二段给出完整判决 —— `verified: true`、
+    `parametersApplied: true`、`regenerationOk: true`、`persistenceOk: true`、
+    `persisted.baseRadius` 与请求值逐字相符（同一元素上两次，`elapsedMs` 5 与 4）。
+    **安全属性也立住了**：三次真改参数的第一段都返回 `pending_verification`，
+    第二段返回 `parametersApplied: null` + `retryVerify: true` 而**没有**编造
+    `applied: false`，也没有再把载荷丢给 60 s 传输上限。
+  - **仍未闭合的一点**：真改参数时面板长时间不消失，所以"等面板关闭"这条判据
+    在传输安全预算内**无法**给出判决（`retryVerify: true` 会一直重复）。
+    能用的判决路径是本轮实测过的：**重载页面**（丢掉还开着的面板，不撤销已提交的改动）
+    → 重新打开对话框 → 读 `before` 与请求值比对。另注意两个字段是**初值而非测量值**，
+    不要当数据读：第一段的 `accept.waitMs` 恒为 `0`（该路径根本没做那次等待，不是
+    "等了 0 ms"），第二段未关闭时的 `featureState: []` 是空初值，不是"没找到行"。
 - **必须有工具能把"已有标签"设为活动，否则读类工具没有目标可指（2026-09-20 实测）**。
   `browser_get_partstudio_features`、`browser_edit_feature_parameters` 这类工具都作用于
   **当前活动标签**，而此前只有 `browser_create_tab`（新建即激活）与
@@ -300,6 +352,11 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   就给 id）或"恰好一个同名标签"选择，**绝不按位置**（标签条是 `ng-repeat`，增删标签会
   重编号），判据是回读该 `data-id` 自己的 `active` 类；`content="partstudio"` 时再等特征树
   标题与行——切换过去的 Part Studio 分阶段渲染，立刻读会读到 0 行。
+  **已真机认证（2026-09-20 第四轮）**：从 `Spiral ridge PS` 切到 `Part Studio 1`，
+  `activated: true` / `clicked: true` / `activeBefore` 与 `activeAfter` 是**两个不同 id**，
+  `wait.elapsedMs` **357 ms**，`contentReady.headerVisible: true`、行等待 6 ms；
+  标签已经活动时不点（`alreadyActive: true, clicked: false`）但仍做就绪等待（60/68 ms），
+  所以它同时是"切换"和"就绪门"。
 - **`arg` 是 keyword-only；写错会被 `except Exception: pass` 吞掉（同批发现）**。
   playwright-python 的 `wait_for_function(expression, *, arg=None, timeout=None, …)`
   里 `arg` 只能按关键字传。`transactions.py` 有两处（切监控目标、复制标签页）按位置

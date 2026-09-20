@@ -2101,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "b4219bf36593844fbc876cd75f257c653b3b0d371657d4e4f906ba6f8326842b",
+   "sha256": "504eda4b53de1c610f0b5991dc80c4021bf33a711881fea837e067ec9d9e2248",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2525,9 +2525,26 @@
          "depth": 0
         },
         {
-         "text": "接受按钮不能\"点完就数\"（2026-09-20 实测）。browser_edit_feature_parameters 第一版点完 ✓ 只固定 wait_for_timeout(500) 再数输入框，成功应用的那次却报 accepted: false / parametersApplied: false；第二次调用读到的 before 已经是新值。改成有界条件等待 （page.wait_for_function('(selector) => document.querySelector(selector) === null', arg=PS_FEATURE_DIALOG, timeout=60_000)） 后同一操作报 parametersApplied: true / accepted: true / regenerationOk: true / persistenceOk: true。\"对话框关闭\"才是接受动作完成的信号，而不是经过多少毫秒。",
+         "text": "接受按钮不能\"点完就数\"（2026-09-20 实测）。browser_edit_feature_parameters 第一版点完 ✓ 只固定 wait_for_timeout(500) 再数输入框，成功应用的那次却报 accepted: false / parametersApplied: false；第二次调用读到的 before 已经是新值。改成有界条件等待 （page.wait_for_function('(selector) => document.querySelector(selector) === null', arg=PS_FEATURE_DIALOG, timeout=60_000)） 后同一操作报 parametersApplied: true / accepted: true / regenerationOk: true / persistenceOk: true。\"对话框关闭\"是这里唯一可读的完成信号，不是经过多少毫秒 ——但这条信号只在一半情况下可靠，见下一段 2026-09-20 第四轮的实测修正： accept 真改了参数时它 95 s 仍未出现，而提交早已落库。",
          "depth": 0
         },
+        {
+         "text": "\"对话框关闭\"不是\"参数已改\"的完成信号（2026-09-20 第四轮实测，修正上一条）。 同一元素、同一特征、同一代码路径，只改\"accept 是否真的改变参数\"这一个变量：",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "| accept | 对话框 before → after | 关闭条件 | |---|---|---| | 真改参数 | 10 mm → 12 mm | 95 s 仍未满足（25+25+45 s） | | 空操作 | 12 mm → 12 mm | 满足，5 ms | | 真改参数 | 12 mm → 10 mm | 60 s 仍未满足（20+40 s） | | 空操作（复位） | 10 mm → 10 mm | 满足，4 ms |"
+      },
+      {
+       "type": "para",
+       "text": "这四次 accept 全部提交成功，而且证据不依赖对话框：每次真改之后用一次有界页面 重载丢掉那个还开着的面板，再从全新加载的页面打开对话框，before 读到的就是新值 （第一次后 12 mm，第三次后 10 mm）。重载只丢客户端 UI 状态，不会撤销服务端提交。 操作员在同一 95 s 时间窗内（15:18:30 +0800）看到的面板也确实是开着的、外观正常 （标题 Spiral ridge 1、Base radius 12 mm、绿色 ✓、红色 ✗，行选中，无转圈无报错）。 所以\"面板移除\"对真改参数这一类编辑不是完成信号；它瞬间满足空操作、对真改长时间 不满足，而两种情况下的提交都已完成。要在这类编辑上拿到判决，只能走\"重载 → 重新打开 并读回值\"（本轮实测可行，且读回值与请求值逐字相符），不能等面板消失。"
+      },
+      {
+       "type": "list",
+       "items": [
         {
          "text": "工具栏：.toolbar-item，按钮 .tool.is-activatable.is-button；文字标签 .tool-label.hide-in-toolbar 是隐藏的，browser_click(text=...) 点不到， 要按 .toolbar-item 的 textContent 找到后点内部按钮。",
          "depth": 0
@@ -2553,6 +2570,18 @@
          "depth": 0
         },
         {
+         "text": "面板根是 .ns-dialog-panel.feature-dialog，右上角是绿色 ✓ 与红色 ✗；**行名带着 自定义特征徽标**：read_partstudio_features 读到的行名是 Sr Spiral ridge 1， 而对话框标题是裸名字 Spiral ridge 1（Sr 是渲染出来的徽标文本，不是名字的 一部分）。按名字定位特征行时要用带徽标的那份，因为读与定位都取自同一个 innerText。",
+         "depth": 1
+        },
+        {
+         "text": "\"参数对话框是否开着\"可以不靠人、也不靠 L1 原语判断（2026-09-20 实测，受控对照： 同一元素同一特征，只让面板开关不同）：开着时用户特征行 className 为 os-list-item related-highlight edited selected ns-user-feature、零件为 os-list-item edited；关闭时回到 os-list-item ns-user-feature、零件 os-list-item ——与编辑前的基线逐字相同。read_partstudio_features 本来就返回这个字段，所以 browser_get_partstudio_features 足以回答这个问题。注意 edited 并不表示\"文档有 未保存改动\"：真改落库后关闭面板，该 class 就消失了。",
+         "depth": 1
+        },
+        {
+         "text": "这个后端（WSL 侧 onshape 连接）是固定工具视图：browser_eval 返回 unknown tool，mcp_tool_view(action=\"set\") 返回 shared_view_fixed， 所以\"页内求值/截图/按键\"这类 L1 原语在这里都不可用；需要它们才能回答的问题 必须转成\"人看屏幕\"或\"用已有的读类工具找等价判别条件\"（上一条就是后者的例子）。",
+         "depth": 1
+        },
+        {
          "text": "**行的身份与下标的必须来自同一次枚举，绝不能拿\"读过筛的读\"去比\"照数数的定位器\" （2026-09-20 实测，已修复）**。同一个面板上，read_partstudio_features 把 Sr Spiral ridge 7 读成唯一命中，而 page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral ridge 7') 连续四次（含两次页面重载）给出非 1 的计数；改成\"读计数 vs 定位器计数\"之后更糟： read_partstudio_features 的采集 JS 末尾有 .filter(f => f.name)，会丢掉 innerText 与 textContent 都为空的那个 .os-list-item，而定位器照数。两个规模 完全不同的 Part Studio 上恒差 +1（Spiral ridge PS 读 11 / 数 12；Part Studio 1 读 1 / 数 2），于是\"计数必须相等\"的守卫在每个元素上都拒绝， browser_edit_feature_parameters 真机整体不可用。（修复后在 Spiral ridge PS 复测：featureRows 12 项、locatorRows 12、面板就绪 16 ms，且该无文本节点排在 最后——所以当时的名字序号并没有偏移，拒绝完全来自那次计数比较。） 集合差不是页面变化，所以\"筛过的读\"与\"照数的定位器\"永远不能互为前置条件。 修法不是放宽守卫，而是让两者成为同一个集合：_USER_FEATURE_ROWS_JS 在页面内一次 querySelectorAll 同时返回 count 与 names（含无文本行、按 DOM 顺序）， 名字匹配与 rows.nth(index) 的下标都取自这一份列表；定位器计数只留作过期检查 （两次查询之间页面真变了才拒绝）。browser_edit_feature_parameters 先 wait_for_panel_rows 等面板渲染，拒绝时一并报出 featureRows / matchedRows / locatorRows。旧文案 \"must match exactly one row\" 既没说 0 也没说多个，这正是它无法从外部诊断的原因。",
          "depth": 0
         },
@@ -2561,11 +2590,19 @@
          "depth": 0
         },
         {
-         "text": "工具事务可能比传输上限活得久：拆两段，别让\"确认\"拖住\"提交\"（2026-09-20 实测）。 browser_edit_feature_parameters 一次做完\"提交 + 确认\"时，在 11 个用户特征的 Part Studio 上 耗时 61.7 s（桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/ 中继在 60 s 先超时，返回 MCP error -32001: downstream_timeout。旧定位拒绝是 <1 s、 约 618 B 的载荷，所以\"61.7 s 后产出了多千字节响应\"本身就证明它已经越过定位并走完对话框 流程；但 parametersApplied 与写入结果无法从客户端证实。原因可测： PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000，而 Onshape 要在对话框报\"关闭\"前重算整个模型。 修法：把\"提交\"与\"确认\"拆成两段——点击 accept 就是提交，对话框关闭只是\"重算完成\"的 信号。默认段在点击 accept 后立刻返回 applyState: \"pending_verification\"、 parametersApplied: null（绝不返回 False：写入并未失败），并带 verifyWith 指向 browser_verify_feature_parameters；第二段用更小的预算（25 s）等对话框关闭，关不上就返回 parametersApplied: null + retryVerify: true，不猜——对话框还开着时行列表可能仍是 accept 之前的 DOM，用它宣称\"已重新生成\"就是编造。要一次做完的调用方显式传 wait_for_regeneration=true。同一现象还伴随页面掉到 about:blank 与会话登出（因果未 确立，只按观测记录），所以长事务不要为了拿返回值而重跑。**凡可能超过传输上限的浏览器事务， 超时都不等于失败，重试可能重复执行。**",
+         "text": "工具事务可能比传输上限活得久：拆两段，别让\"确认\"拖住\"提交\"（2026-09-20 实测）。 browser_edit_feature_parameters 一次做完\"提交 + 确认\"时，在 11 个用户特征的 Part Studio 上 耗时 61.7 s（桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/ 中继在 60 s 先超时，返回 MCP error -32001: downstream_timeout。旧定位拒绝是 <1 s、 约 618 B 的载荷，所以\"61.7 s 后产出了多千字节响应\"本身就证明它已经越过定位并走完对话框 流程；但 parametersApplied 与写入结果无法从客户端证实。**\"61.7 s = 模型重算花了 61.7 s\"这个归因已被第四轮实测推翻**：61.7 s 只比 PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000 多一个开销，而实测的关闭延迟要么 ≤5 ms（空操作 accept）、要么 >95 s（真改参数）。 随\"是否真改参数\"跳变的量不是\"重算时长\"，那 60 s 是旧代码自己的有界等待被跑满。 修法：把\"提交\"与\"确认\"拆成两段——点击 accept 就是提交，对话框关闭只是\"重算完成\"的 信号。默认段在点击 accept 后立刻返回 applyState: \"pending_verification\"、 parametersApplied: null（绝不返回 False：写入并未失败），并带 verifyWith 指向 browser_verify_feature_parameters；第二段用更小的预算（25 s）等对话框关闭，关不上就返回 parametersApplied: null + retryVerify: true，不猜——对话框还开着时行列表可能仍是 accept 之前的 DOM，用它宣称\"已重新生成\"就是编造。要一次做完的调用方显式传 wait_for_regeneration=true。同一现象还伴随页面掉到 about:blank 与会话登出（因果未 确立，只按观测记录），所以长事务不要为了拿返回值而重跑。**凡可能超过传输上限的浏览器事务， 超时都不等于失败，重试可能重复执行。**",
          "depth": 0
         },
         {
-         "text": "必须有工具能把\"已有标签\"设为活动，否则读类工具没有目标可指（2026-09-20 实测）。 browser_get_partstudio_features、browser_edit_feature_parameters 这类工具都作用于 当前活动标签，而此前只有 browser_create_tab（新建即激活）与 insert_custom_feature(part_studio_tab=…) 内部那段标签点击会切标签； browser_rename_tab 双击标签名进入改名模式并不会让该标签变成活动（实测 active 仍是原标签）。后果很具体：想在一个小元素上做端到端验证都做不到，只能撞 11 特征的大元素， 于是又踩上 60 s 上限。现在由 browser_activate_tab 补上：按 data-id（标签列表本身 就给 id）或\"恰好一个同名标签\"选择，绝不按位置（标签条是 ng-repeat，增删标签会 重编号），判据是回读该 data-id 自己的 active 类；content=\"partstudio\" 时再等特征树 标题与行——切换过去的 Part Studio 分阶段渲染，立刻读会读到 0 行。",
+         "text": "两段式已真机认证（2026-09-20 第四轮，0 REST 配额）：第一段在 accept 后立刻返回 （applyState: \"pending_verification\"、parametersApplied: null、readbackOk: true、 带 verifyWith），面板关闭后第二段给出完整判决 —— verified: true、 parametersApplied: true、regenerationOk: true、persistenceOk: true、 persisted.baseRadius 与请求值逐字相符（同一元素上两次，elapsedMs 5 与 4）。 安全属性也立住了：三次真改参数的第一段都返回 pending_verification， 第二段返回 parametersApplied: null + retryVerify: true 而没有编造 applied: false，也没有再把载荷丢给 60 s 传输上限。",
+         "depth": 1
+        },
+        {
+         "text": "仍未闭合的一点：真改参数时面板长时间不消失，所以\"等面板关闭\"这条判据 在传输安全预算内无法给出判决（retryVerify: true 会一直重复）。 能用的判决路径是本轮实测过的：重载页面（丢掉还开着的面板，不撤销已提交的改动） → 重新打开对话框 → 读 before 与请求值比对。另注意两个字段是初值而非测量值， 不要当数据读：第一段的 accept.waitMs 恒为 0（该路径根本没做那次等待，不是 \"等了 0 ms\"），第二段未关闭时的 featureState: [] 是空初值，不是\"没找到行\"。",
+         "depth": 1
+        },
+        {
+         "text": "必须有工具能把\"已有标签\"设为活动，否则读类工具没有目标可指（2026-09-20 实测）。 browser_get_partstudio_features、browser_edit_feature_parameters 这类工具都作用于 当前活动标签，而此前只有 browser_create_tab（新建即激活）与 insert_custom_feature(part_studio_tab=…) 内部那段标签点击会切标签； browser_rename_tab 双击标签名进入改名模式并不会让该标签变成活动（实测 active 仍是原标签）。后果很具体：想在一个小元素上做端到端验证都做不到，只能撞 11 特征的大元素， 于是又踩上 60 s 上限。现在由 browser_activate_tab 补上：按 data-id（标签列表本身 就给 id）或\"恰好一个同名标签\"选择，绝不按位置（标签条是 ng-repeat，增删标签会 重编号），判据是回读该 data-id 自己的 active 类；content=\"partstudio\" 时再等特征树 标题与行——切换过去的 Part Studio 分阶段渲染，立刻读会读到 0 行。 已真机认证（2026-09-20 第四轮）：从 Spiral ridge PS 切到 Part Studio 1， activated: true / clicked: true / activeBefore 与 activeAfter 是两个不同 id， wait.elapsedMs 357 ms，contentReady.headerVisible: true、行等待 6 ms； 标签已经活动时不点（alreadyActive: true, clicked: false）但仍做就绪等待（60/68 ms）， 所以它同时是\"切换\"和\"就绪门\"。",
          "depth": 0
         },
         {
@@ -4119,7 +4156,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "384d587a295c59ab19afb97abd0e184f5789c73c64d6f28c90846bb3ebeeb11a",
+   "sha256": "341983781bddf6d550283927f541a784d3d4a6330f3a67af97b4ca5a1486f1e4",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -6427,6 +6464,295 @@
       {
        "type": "para",
        "text": "Two openings are recorded rather than worked around: the tool's wall time against the transport limit, and the absence of any tool that can make an existing tab the active one (which is why a small-element end-to-end success could not be substituted for the 11-feature element)."
+      },
+      {
+       "type": "para",
+       "text": "Both openings were then worked on in commit 1ac2cc3 (the two-stage parameter edit and browser_activate_tab) and re-measured live in the fourth step below. That step also falsifies the mechanism this section attributed the 61.7 s to."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Fourth live step — both openings closed, and the close signal falsified (2026-09-20, +0800)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This is the first live measurement of the fixes in 1ac2cc3. It certifies the tab-activation opening as closed and the two-stage apply as correct, and it replaces the transport explanation this document gave for the 61.7 s with a measured one."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Deployment identity (second refresh, generation 4 → 5)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The runtime is a file-copy deployment at C:\\MCP\\onshapescript, so a fix is not live until the files are shipped and the process is replaced — and this fix moved the tool surface as well as behaviour."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Step",
+         "Evidence"
+        ],
+        [
+         "plan (read-only)",
+         "589 repo source files: 16 changed, 0 missing, 573 identical"
+        ],
+        [
+         "apply",
+         "16 files shipped, pre-images + manifests written to artifacts/deploy-backups/20260920T070919Z-two-stage-edit-and-activate-tab"
+        ],
+        [
+         "verify (read-only)",
+         "shippedPresent: 589, mismatched: []"
+        ],
+        [
+         "recycle",
+         "bridge_control restart on onshape: generation 4 → 5, preservedClients: 1, force-kill/not-needed, phases drain/entered, protocol-close/stdin-closed, wait/exited"
+        ],
+        [
+         "tool fingerprint",
+         "7091559f… → c51cef0179267818d5ee34022b17c0014753980a3df810109771da1523375b9c, equal to the repository; live catalog 108 registered / 74 visible / 68 browser"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Unlike the first refresh, this fingerprint did move, because this change added two tools (browser_verify_feature_parameters, browser_activate_tab). The two classes therefore both have a live example: a behaviour-only change leaves the fingerprint identical and needs the per-file hash sweep, a surface change moves it. The sweep remains the only gate that covers both."
+      },
+      {
+       "type": "para",
+       "text": "The recycle again terminated the browser process and ended the Onshape web session, so one human login was required. That is session-cookie semantics, not an intended guard: no logout, atexit or cookie-clearing exists in the code."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The tab-activation opening is closed, live",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_activate_tab was called on Part Studio 1 while Spiral ridge PS was active — the exact situation that made the read/edit tools operate on the wrong element and had no zero-quota remedy:"
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"activated\": true, \"elementId\": \"b1d0caa1e06f62da338d0ef8\", \"name\": \"Part Studio 1\",\n \"alreadyActive\": false, \"clicked\": true,\n \"activeBefore\": \"05406f02482e1d943d80dc3e\", \"activeAfter\": \"b1d0caa1e06f62da338d0ef8\",\n \"wait\": {\"condition\": \"tab_active_class\", \"waited\": true, \"timeoutMs\": 15000, \"elapsedMs\": 357},\n \"contentReady\": {\"headerVisible\": true,\n                  \"rows\": {\"waited\": true, \"condition\": \"partstudio_row_count\", \"minimum\": 1, \"elapsedMs\": 6}}}"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The verdict is that tab's own active class re-read by data-id, not the click, and the two ids in activeBefore/activeAfter are different tabs.",
+         "depth": 0
+        },
+        {
+         "text": "357 ms to switch. The earlier browser_rename_tab workaround reported renamed: true and left the previous tab active; there is now an actual selector.",
+         "depth": 0
+        },
+        {
+         "text": "content=\"partstudio\" also gated the switch on the Feature List title and its rows, which is what makes it usable as the readiness wait a dblclick needs.",
+         "depth": 0
+        },
+        {
+         "text": "Re-called when the tab was already active, it reports alreadyActive: true, clicked: false and still waits (elapsedMs 60 and 68 in two calls), so it is both a switch and a readiness gate.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The two-stage apply is correct, and the commit is real",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Stage 1 of browser_edit_feature_parameters (wait_for_regeneration=false, the default) returned with the dialog still being re-evaluated and did not lose or invent a verdict:"
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"parametersApplied\": null, \"applyState\": \"pending_verification\", \"pendingVerification\": true,\n \"updated\": [\"baseRadius\"], \"missing\": [], \"readbackOk\": true,\n \"before\": {\"baseRadius\": \"10 mm\", \"pitch\": \"5 mm\", \"ridgeWidth\": \"2 mm\",\n            \"ridgeHeight\": \"1 mm\", \"length\": \"30 mm\"},\n \"after\":  {\"baseRadius\": \"12 mm\", \"pitch\": \"5 mm\", \"ridgeWidth\": \"2 mm\",\n            \"ridgeHeight\": \"1 mm\", \"length\": \"30 mm\"},\n \"accept\": {\"clicked\": true, \"waitMs\": 0},\n \"verifyWith\": {\"tool\": \"browser_verify_feature_parameters\",\n                \"arguments\": {\"feature_name\": \"Sr Spiral ridge 1\",\n                              \"parameters\": {\"baseRadius\": \"12 mm\"}}}}"
+      },
+      {
+       "type": "para",
+       "text": "When the panel had closed, stage 2 proved the write end to end — twice:"
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"verified\": true, \"parametersApplied\": true,\n \"dialogClosed\": {\"waited\": true, \"condition\": \"feature_dialog_absent\", \"timeoutMs\": 20000, \"elapsedMs\": 5},\n \"regenerationOk\": true, \"persistenceOk\": true, \"featureState\": [{\"name\": \"Sr Spiral ridge 1\", \"hasError\": false}],\n \"persisted\": {\"baseRadius\": \"12 mm\", \"pitch\": \"5 mm\", \"ridgeWidth\": \"2 mm\",\n               \"ridgeHeight\": \"1 mm\", \"length\": \"30 mm\"}}"
+      },
+      {
+       "type": "para",
+       "text": "A second green run returned elapsedMs: 4 with persisted.baseRadius: \"10 mm\". So parametersApplied is no longer null for a real edit: the edit below is the same element and the same path, and the verdict is a measurement."
+      },
+      {
+       "type": "para",
+       "text": "Two fields in the stage-1 payload are initialisers rather than measurements and must not be read as data: accept.waitMs is 0 because the default path returns before that wait is ever performed (it is not \"waited 0 ms\"), and featureState: [] in a not-yet-closed stage-2 payload is the empty initialiser, not \"no rows were found\". Both are recorded here because reading either as a measurement is exactly the class of false negative this pass was fixing; they are candidates for a follow-up, not part of the shipped contract."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The finding: after an accept that CHANGES a parameter, the panel does not report closed",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The second stage can only answer once document.querySelector('.feature-dialog') === null. On this element that condition does not become true for an edit that changes a parameter, while the same accept on unchanged values satisfies it in milliseconds. Four accepts on the same feature, with the accept's own before/after as the variable:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "accept",
+         "dialog before → after",
+         "close condition observed"
+        ],
+        [
+         "real change",
+         "10 mm → 12 mm",
+         "no at 25 s, 25 s, 45 s (95 s total)"
+        ],
+        [
+         "no-op",
+         "12 mm → 12 mm",
+         "yes, elapsedMs: 5"
+        ],
+        [
+         "real change",
+         "12 mm → 10 mm",
+         "no at 20 s, 40 s (60 s total)"
+        ],
+        [
+         "no-op (restore)",
+         "10 mm → 10 mm",
+         "yes, elapsedMs: 4"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Every one of those accepts committed. The proof does not depend on the panel: after each real-change accept a bounded page reload was used to discard the still-open panel, and the next dialog — opened from a freshly loaded page — read the new value as its before (12 mm after the first, 10 mm after the third). A reload discards client UI state; it does not undo a server-side commit. So the write had landed while the panel was still present."
+      },
+      {
+       "type": "para",
+       "text": "The operator's view of the same window agrees: a screenshot at 15:18:30 +0800, inside the 95 s of timeouts, shows the panel open with header Spiral ridge 1, Base radius 12 mm, a green ✓ and a red ✗, and Sr Spiral ridge 1 selected in the Feature List. It looks normal — no spinner, no error, no disabled ✓ — which is why the accept cannot be diagnosed from the panel's appearance."
+      },
+      {
+       "type": "para",
+       "text": "This is why a human observation was needed at all: this backend is a fixed tool view, so the primitives that would have settled it in one call are not callable here — browser_eval returns unknown tool and mcp_tool_view(action=\"set\") returns shared_view_fixed. The category is therefore \"not answerable from the exposed tool surface\", and the human-in-the-loop report is the evidence of record."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Correction to the section above: the 61.7 s was PS_DIALOG_CLOSE_TIMEOUT_MS being consumed",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The section above attributes the 61.7 s to re-evaluation: \"Onshape re-evaluates the whole model before the dialog reports closed. On an element with 11 user features that wait is tens of seconds.\" The measurements above do not support that."
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "61.7 s sits one overhead above PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000, and the measured close latency is not \"tens of seconds\" — it is **≤ 5 ms when the accept changes nothing and still unsatisfied after 95 s when it does**. A quantity that jumps from 4 ms to >95 s with the change/no-change variable is not a re-evaluation duration.",
+         "depth": 0
+        },
+        {
+         "text": "What the 61.7 s most likely was: the old code's own 60 s bounded wait on a condition that a real edit does not satisfy, plus overhead. The earlier document already noted that accepted = close[\"waited\"] or count() == 0 was a fallback; this pass shows the fallback was load-bearing.",
+         "depth": 0
+        },
+        {
+         "text": "The consequence for the record: \"the model re-evaluation is slow\" is withdrawn. The measured statement is narrower and more useful — **accepting an edit that changes a parameter commits the change in seconds and may leave .feature-dialog in the DOM past any transport-safe budget, so panel removal is not a completion signal for that class of edit.**",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The safety half of the design held, and this is the part worth keeping: three accepts that changed a parameter all returned pending_verification, and the second stage answered parametersApplied: null with retryVerify: true instead of a verdict. No false applied: false was reported, no payload was lost to the 60 s relay limit, and the three earlier failure modes this pass was fixing are untouched."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "A discriminator that needs no human and no page eval",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The panel's presence is visible in a read this tool surface can make. Same element, same feature, only the panel state differing:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "panel",
+         "user-feature row className",
+         "part className"
+        ],
+        [
+         "open",
+         "os-list-item related-highlight edited selected ns-user-feature",
+         "os-list-item edited"
+        ],
+        [
+         "closed",
+         "os-list-item ns-user-feature",
+         "os-list-item"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The closed row is identical to the pre-edit baseline (os-list-item ns-user-feature, part os-list-item), so the document was left exactly as found: baseRadius back at 10 mm, no edited, no selected. read_partstudio_features already returns this field, so \"is the parameter panel open\" is answerable offline without a screenshot and without the L1 primitives."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Status after this run",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Item",
+         "Live status"
+        ],
+        [
+         "browser_activate_tab (the second opening)",
+         "verified live — data-id switch in 357 ms, own-active-class verdict, contentReady gate"
+        ],
+        [
+         "two-stage stage 1 (pending_verification, no false verdict)",
+         "verified live — 10 → 12 mm, readbackOk: true, verifyWith correct"
+        ],
+        [
+         "two-stage stage 2 verdict when the panel closes",
+         "verified live — verified: true, regenerationOk: true, persistenceOk: true, elapsedMs 4-5"
+        ],
+        [
+         "stage 2 for an edit that changes a parameter",
+         "not certifiable as designed — the panel stays open ≥ 60-95 s after a committed change, so the close-based verdict cannot resolve inside a transport-safe call"
+        ],
+        [
+         "the 61.7 s mechanism claim",
+         "withdrawn — see the correction above"
+        ],
+        [
+         "Sr Spiral ridge 9 values from the lost call (Spiral ridge PS)",
+         "still unknown; untouched by this pass"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The one remaining opening is therefore not the transport limit as such but the choice of completion signal: the panel's removal is satisfied instantly by a no-op accept and not at all (in ≥ 95 s) by a real one, while the commit in both cases is already done."
       }
      ]
     }
