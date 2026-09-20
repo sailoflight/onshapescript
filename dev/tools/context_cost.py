@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Context cost of the three ways to reach one CAD feature.
+
+The roadmap's G5 item asks how much context a caller must load to act, and the
+project has only ever measured it in **characters** (`dev/tests/test_capability_retrieval.py`).
+This tool prints the same three routes side by side and adds an estimated token
+count, so the gap is visible in one place:
+
+* ``card`` — what `browser_discover_tools` returns for the query, plus the
+  capability plan: the bounded values and the source the capability generates.
+* ``reference-search`` — what the FeatureScript reference search returns for the
+  same query, i.e. the candidate list a caller starts from.
+* ``full-docs`` — the complete guide page for the subject, i.e. what a caller
+  reads when the indexed entries are not enough.
+
+Honest limits, which the numbers must be read against:
+
+* ``estimate_tokens`` is an ESTIMATE, not a tokenizer measurement. No tokenizer
+  is available offline here, and adding one is a dependency decision the project
+  has not made. CJK code points are counted as one token each; everything else
+  is counted at four characters per token. Treat the ratios as the signal and
+  the absolute values as approximate.
+* Size is not sufficiency. Whether a route lets a model produce a *correct*
+  call is a separate question; the one live data point is the capability run
+  recorded in `onshape_docs/verification/capability-live-run-2026-09-19.md`.
+
+Usage::
+
+    python3 dev/tools/context_cost.py [--query TEXT] [--json]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from onshape_browser_mode import capabilities  # noqa: E402
+from onshape_docs.query import fs_reference  # noqa: E402
+
+CJK_RANGES = ((0x3000, 0x303F), (0x4E00, 0x9FFF), (0xFF00, 0xFFEF))
+
+
+def _is_cjk(character: str) -> bool:
+    code = ord(character)
+    return any(low <= code <= high for low, high in CJK_RANGES)
+
+
+def estimate_tokens(text: str) -> int:
+    """Documented estimate: 1 token per CJK code point, 4 characters per token otherwise."""
+    cjk = sum(1 for character in text if _is_cjk(character))
+    other = len(text) - cjk
+    return cjk + math.ceil(other / 4)
+
+
+def size_of(payload: object) -> dict[str, int]:
+    text = json.dumps(payload, ensure_ascii=False, default=str)
+    return {"chars": len(text), "estimatedTokens": estimate_tokens(text)}
+
+
+def measure(query: str, limit: int) -> dict[str, object]:
+    routes: dict[str, object] = {}
+
+    matches = capabilities.search(query, limit=limit)
+    plan = capabilities.plan(matches[0]["card"]["id"]) if matches else None
+    routes["card"] = {
+        **size_of(matches),
+        "matchedCapabilities": [item["card"]["id"] for item in matches],
+        "planOnly": size_of(
+            {
+                "capability": plan["capability"],
+                "values": plan["values"],
+                "featureName": plan["featureName"],
+                "invocation": {"capability": plan["capability"]["id"], "values": plan["values"]},
+            }
+        )
+        if plan
+        else None,
+        "generatedSource": size_of(plan["source"]) if plan else None,
+    }
+
+    tokens = [token for token in query.replace("的", " ").split() if token] or [query]
+    reference_hits: list[dict[str, object]] = []
+    for token in tokens:
+        try:
+            reference_hits.extend(fs_reference.search(token, limit=limit))
+        except ValueError:
+            continue
+    routes["reference-search"] = {
+        **size_of(reference_hits),
+        "hitCount": len(reference_hits),
+        "names": [entry.get("name") for entry in reference_hits[:5]],
+    }
+
+    page = fs_reference.guide_section("modeling")
+    routes["full-docs"] = {**size_of(page), "page": "modeling"}
+
+    return {"query": query, "limit": limit, "routes": routes}
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--query", default="fillet the edges of a picked face")
+    parser.add_argument("--cjk-query", default="圆角")
+    parser.add_argument("--limit", type=int, default=3)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    report = {
+        "estimator": {
+            "method": "1 token per CJK code point, 4 characters per token otherwise",
+            "kind": "estimate, not a tokenizer measurement",
+        },
+        "measurements": [measure(args.query, args.limit), measure(args.cjk_query, args.limit)],
+    }
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

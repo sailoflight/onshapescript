@@ -1408,7 +1408,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "ebb170acf341c84dfad5c9ab551ad299696fd3dba0282030472d53c166f0cc74",
+   "sha256": "5d6578385583322a74dc4f0b4eb46212c674e3d92710ea49eda4e7cc98ee3b4c",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1628,6 +1628,113 @@
     },
     {
      "level": 3,
+     "title": "Annotation strings are ASCII-only; body strings are not (live, browser leg)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Measured 2026-09-20 through the browser FeatureScript editor (deploy → read the notice pane → commit), which costs 0 REST quota per probe. Four deploys of the same feature, varying only the strings:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Deploy",
+         "\"Feature Type Name\"",
+         "parameter \"Name\" labels",
+         "body setProperty value",
+         "result"
+        ],
+        [
+         "1",
+         "螺旋凸棱",
+         "Chinese",
+         "Chinese",
+         "compiled: false — \"Nonconforming feature function 'spiralRidgeCn': Invalid character in 'Feature Type Name' annotation: only printable ASCII allowed\""
+        ],
+        [
+         "2",
+         "Spiral ridge CN",
+         "Chinese",
+         "Chinese",
+         "compiled: false — \"precondition analysis failed\" + \"Invalid character in 'Name' annotation\" for all five parameters"
+        ],
+        [
+         "3",
+         "Spiral ridge",
+         "ASCII",
+         "ASCII",
+         "compiled: true, 0 notices"
+        ],
+        [
+         "4",
+         "Spiral ridge",
+         "ASCII",
+         "螺旋凸棱柱",
+         "compiled: true, 0 notices; the parts list showed 螺旋凸棱柱"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "So the gate is annotations only, and it applies to every annotation string value, not just \"Feature Type Name\":"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "A non-ASCII annotation value kills the whole feature. Deploy 2 kept a valid ASCII type name and still emitted zero feature specs, so a single Chinese parameter label is enough to lose the feature — and the message names the key, not the line, so a long precondition needs a per-parameter scan.",
+         "depth": 0
+        },
+        {
+         "text": "*Non-ASCII string values* in the body are legal.** The vendored standard library already relies on this (holeTable.fs:160 passes \"⌀\" to tolerancedValueToString, and holetables.gen.fs:35277 has \"S™/SS™/CLS™\" as a table-map value), and deploy 4 both compiled clean and displayed the Chinese name in the part list. The name shown next to a body therefore does not have to match the ASCII UI label.",
+         "depth": 0
+        },
+        {
+         "text": "*A Chinese UI* label is impossible**, so a localized custom feature gets an ASCII \"Feature Type Name\" and ASCII \"Name\" labels; only model/part names can carry the Chinese text. The local checker warns about this shape (fs_check.check_annotation_ascii) rather than failing the deploy.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "A precondition is what makes a generated feature look official (live)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The first version of the generated spiral declared an empty precondition, so it published zero parameters. Onshape then showed the feature's internals (fCylinder → an \"extrude\", opHelix, sketch+sweep, opBoolean) read-only with nothing editable — visually nothing like a standard feature even though the history row was a valid custom feature. Adding one"
+      },
+      {
+       "type": "code",
+       "language": "featurescript",
+       "text": "annotation { \"Name\" : \"Base radius\" }\nisLength(definition.baseRadius, { (millimeter) : [12.5, 50, 200] } as LengthBoundSpec);"
+      },
+      {
+       "type": "para",
+       "text": "per dimension produces a real parameter dialog (Base radius 10 mm / Pitch 6 mm / Ridge width 2 mm / Ridge height 2 mm / Length 30 mm in the measured run), and editing two of those fields applied and persisted:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The requested value belongs in the bound spec's middle slot (the LengthBoundSpec literal is [min, default, max]), and the body must then read definition.* — a baked constant makes the dialog disagree with the geometry, e.g. a helix whose revolution count no longer follows pitch.",
+         "depth": 0
+        },
+        {
+         "text": "setProperty(..., PropertyType.NAME) is where a non-ASCII part name goes, not the annotation.",
+         "depth": 0
+        },
+        {
+         "text": "The measured dialog read 10 mm / 6 mm / 2 mm / 2 mm / 30 mm for the requested 10/6/2/2/30, i.e. the default slot is honored verbatim.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
      "title": "evalfeaturescript as the live-doc tool (live, verified)",
      "blocks": [
       {
@@ -1718,6 +1825,18 @@
       },
       {
        "type": "para",
+       "text": "One rule came from a failure the local pass used to miss entirely, and the live evidence is still visible in the scratch document: the gate check Feature Studio carries the yellow/red notice from 2026-09-19, because the server saved and then rejected"
+      },
+      {
+       "type": "para",
+       "text": "isLength(definition.depth, { (0) * millimeter, (100) * millimeter } as LengthBoundSpec);"
+      },
+      {
+       "type": "para",
+       "text": "with five notices (\"no viable alternative at input '(0) * millimeter,'\", \"missing TOP_SEMI at 'function'\", \"extraneous input ')' expecting {…, TOP_SEMI}\"). { … } in expression position is a map, so every top-level entry needs key : value, and a positional entry is a syntax error — but the checker reported only the unrelated undefined-symbol warning next to it. It now warns map literal at line 8 has an entry without 'key : value', on the same line the server pointed at. Because it is text-level, it needed its own false-positive gate against the whole mirror: the first version flagged cplane.fs's lambda body (x is number) returns boolean =>{ … }, which is why > is excluded from the expression-position set (no reading of FeatureScript puts a map literal to the right of >). After that exclusion all 265 vendored modules are clean, and the gate test asserts that class stays clean. Warning-level like every new rule: it is never the reason a deploy stops, and a source it flags still needs the server's own verdict."
+      },
+      {
+       "type": "para",
        "text": "Rules that save quota:"
       },
       {
@@ -1757,7 +1876,7 @@
    "page": "llm-experience-api",
    "category": "experience",
    "path": "onshape_docs/experience/rest-api.md",
-   "sha256": "330baaef332635482a343adc63c443982b665fd3b470b7c08b9aea76102c8598",
+   "sha256": "950f09f2795ac6b60f02720015304b6aed0cda873187b9bfa1e1dcc2aa1b0612",
    "title": "Verified experience: Onshape REST API",
    "sections": [
     {
@@ -1875,7 +1994,7 @@
          "depth": 0
         },
         {
-         "text": "**POST /partstudios/.../features/rollback declares its request body as a bare {\"type\": \"string\"}, which cannot be right for a position.** The real shape is in the operation's own description: { \"rollbackIndex\": integer }, with -1 meaning \"move the bar to the end of the list\". Trust the prose here, not the schema. onshape_rest_api_mode/feature_list.py builds the object and test_rest_feature_list pins both halves of that evidence.",
+         "text": "**POST /partstudios/.../features/rollback declares its request body as a bare {\"type\": \"string\"}, which cannot be right for a position.** The real shape is in the operation's own description: { \"rollbackIndex\": integer }, with -1 meaning \"move the bar to the end of the list\". Trust the prose here, not the schema. onshape_rest_api_mode/feature_list.py builds the object and test_rest_feature_list pins both halves of that evidence. Server-confirmed 2026-09-19: the object was accepted (200, BTSetFeatureRollbackResponse-1042), so the prose was right and the schema is the part to distrust.",
          "depth": 0
         },
         {
@@ -1883,7 +2002,7 @@
          "depth": 0
         },
         {
-         "text": "Feature List mutations have no domain response of their own. The four responses (BTFeatureDefinitionResponse-1617, BTFeatureApiBase-1430, BTSetFeatureRollbackResponse-1042, BTUpdateFeaturesResponse-1333) return versioning metadata and, for the batch/definition cases, the new featureStates. That is \"the server accepted this\", not \"the model changed as intended\" — read the Feature List afterwards.",
+         "text": "Feature List mutations have no domain response of their own. The four responses (BTFeatureDefinitionResponse-1617, BTFeatureApiBase-1430, BTSetFeatureRollbackResponse-1042, BTUpdateFeaturesResponse-1333) return versioning metadata and, for the batch/definition cases, the new featureStates. That is \"the server accepted this\", not \"the model changed as intended\" — read the Feature List afterwards. All four schemas are now server-confirmed (see the live-verification lessons below).",
          "depth": 0
         }
        ]
@@ -1935,6 +2054,42 @@
         {
          "text": "Batch verification is a fixed cost with declining returns. The remaining open questions after ~310 calls are narrow and version-specific; answer them on demand inside the task that needs them rather than spending another batch.",
          "depth": 0
+        },
+        {
+         "text": "**The four Feature-List mutations are server-confirmed (2026-09-19, 4 calls, all 200).** Each answered with exactly the schema the vendored spec declares: suppression → BTUpdateFeaturesResponse-1333 with `features[0].suppressed: true; in-place definition replace → BTFeatureDefinitionResponse-1617` with featureState.featureStatus: \"OK\" and the new name; rollback → BTSetFeatureRollbackResponse-1042; delete → BTFeatureApiBase-1430. The recorded bodies replay through the production parsers in test_rest_feature_list.LiveReplayTest, so the offline fixtures are now evidence rather than construction.",
+         "depth": 0
+        },
+        {
+         "text": "updateRollback answers with the resolved position, not the sentinel. A one-feature list asked for -1 came back \"rollbackIndex\": 1. Read the response as \"where the bar ended up\".",
+         "depth": 0
+        },
+        {
+         "text": "**rollbackBarIndex does not filter the Feature List read, and the documented default is fine.** A P3 run saw GET .../features answer `{\"rollbackIndex\": 0, \"features\": []} and then, after a page reload, {\"rollbackIndex\": 1, ...}`; the first write-up blamed the absent argument. A three-way probe on a long-committed element (absent / -1 / 0, one run, no reload) returned identical bodies — 2 features, rollbackIndex: 2 in all three. So rollbackIndex reports the element's real rollback-bar position, not an echo of the request, and the earlier empty body was a true statement about the element. Evidence: onshape_docs/verification/feature-list-read-probe-2026-09-20.json.",
+         "depth": 0
+        },
+        {
+         "text": "**A custom feature inserted through the browser is not in the workspace until the page is (re)loaded — reproduced, not inferred.** While it is pending, the UI shows the row with the edited selected classes and the model shows the part, but GET .../features truthfully answers \"features\": [] / \"rollbackIndex\": 0. A controlled run on one scratch Part Studio: after a clean insert (inserted: true, errored: false, regeneration waited ~7.5 s, part present) REST returned an empty list immediately **and again ~4 minutes later without a reload**; a single page reload flipped the DOM row to the plain ns-user-feature class and the next read returned the feature. On the same element, a REST-added feature was visible on the very next read with no reload, which rules out a read-side caching artefact. Evidence: onshape_docs/verification/browser-rest-handoff-2026-09-20.json. The lesson for the FS-first route: **never build a REST mutation on a feature the browser just created without reading the Feature List back first**, and treat a REST feature-count of 0 as authoritative over what the UI is showing.",
+         "depth": 0
+        },
+        {
+         "text": "addPartStudioFeature works with the same envelope as the other four. The fifth member of the family — the one operations.instantiate_feature has always targeted — was confirmed live: POST .../features with BTFeatureDefinitionCall-1406 naming feature type spiralRidge and the Feature Studio namespace returned 200, BTFeatureDefinitionResponse-1617, featureStatus: \"OK\" and a new featureId. Recorded in dev/tests/fixtures/onshape/feature-list/addPartStudioFeature/.",
+         "depth": 0
+        },
+        {
+         "text": "A custom-feature spec may declare no parameters at all. The spiralRidge source generated by onshape_browser_mode.modeling_transactions has an empty precondition and bakes the geometry values in as literals, so a feature instance of it carries \"parameters\": [] — which is why the Feature List read, the in-place replace and the REST add all round-trip an empty parameter array. Changing the geometry of such a feature means deploying a new FeatureScript version, not editing parameters.",
+         "depth": 0
+        },
+        {
+         "text": "A refusal is a 404 carrying the shared error envelope, and it is free. DELETE .../features/featureid/{unknown} answered {\"moreInfoUrl\": \"\", \"message\": \"Feature not found\", \"status\": 404, \"code\": 9999} with the HTTP status mirrored inside the body. The probe's own ledger delta was 0, confirming empirically that 4xx does not count against the annual limit. Note the envelope is not the operation's declared response schema, so a caller must branch on the HTTP status, not on the presence of expected fields; dev/tests/fixtures/onshape/feature-list/refusal-deletePartStudioFeature/ records it and pins that the success parser returns nothing for such a body.",
+         "depth": 0
+        },
+        {
+         "text": "A custom feature's serialized definition can carry \"parameters\": []. The row read back for a custom feature inserted with its spec defaults had empty parameters, empty parameterLibraries, and a namespace shaped e<featureStudioElementId>::m<microversionId>. Posting that definition back through updatePartStudioFeature renamed the feature in place and returned featureStatus: OK, so the empty array is accepted — and the namespace is what marks the row as custom rather than standard-library.",
+         "depth": 0
+        },
+        {
+         "text": "**Domain-verify a Feature List mutation with the browser, not another REST call.** The four responses only say \"accepted\". After the run's delete, a zero-REST-quota browser read of the Feature List showed 特征 (4) and 零件数 (0) — the model-level confirmation, at no quota cost.",
+         "depth": 0
         }
        ]
       }
@@ -1946,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "dd8b1896e07a8d2473eded0a85c9e46a808012452ce9833cc5ea08cdc3232633",
+   "sha256": "dd49ba851ae987db209669c303c22c9051bb1a4108cde77f8c894f3b193b1e09",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2362,6 +2517,18 @@
          "depth": 0
         },
         {
+         "text": "第四个信号：工作区是否真的收下了这个特征（2026-09-20 实测）。上面三个信号 全部成立，仍可能只是工作台本地状态：浏览器插入的自定义特征在页面 重新加载之前不会进入工作区，此时 REST GET .../features 对同一 element 返回空列表（同一分钟内重复读取仍为空，所以不是读取缓存；对照实验用 REST addPartStudioFeature 添加的特征立刻可见）。因此 actions.insert_custom_feature 在行与零件出现之后再重载一次页面，要求该行 在重载后仍然存在，才把 inserted 置为 true；结果里的 commit （verified / committed / reload / panel）单独记录这次确认，重载失败或 面板读不到时如实报 verified: false 且不假装成功。证据见 onshape_docs/verification/browser-rest-handoff-2026-09-20.json。 两个等待的预算按 element 里的自定义特征数放大（PARTSTUDIO_RELOAD_WAIT / PARTSTUDIO_REGENERATE_WAIT：30 s 底 + 每特征 8 s / 2 s，各自有上限），因为 重载会重新计算每一个特征：5 个特征的 Part Studio 实测生存等待用掉 18 431 ms / 固定 30 000 ms，固定预算会随文档增长而变薄，并且只会往\"已提交却 报未提交\"的方向失败。读不到特征数时退回原固定预算（不会变短）。",
+         "depth": 0
+        },
+        {
+         "text": "切标签后先等面板渲染，再读基线（2026-09-20 实测）。从 Feature Studio 切到 Part Studio 后立刻读特征树，会读到空面板：实测在已有 8 个自定义特征的文档上 budgets.customFeaturesRead: 0，于是 minimum = 0 + 1 = 1，恰好被屏幕上一个 旧行满足 —— 一次静默的假通过。所以 insert_custom_feature 在切标签后先等 「面板出现至少 1 行」（.features-title / .os-list-item，30 s）再等 「工作区自定义特征按钮可见」（PS_WORKSPACE_CUSTOM_FEATURE_BTN，30 s）， 两者都记进结果的 panelReady / toolbarReady；没有切标签时不花这两个等待。 另外没有任何工具能\"切换当前标签\"：只有带标签参数的复合事务会切 （browser_insert_custom_feature(part_studio_tab=)、 browser_deploy_and_apply_featurescript(feature_studio_tab=, part_studio_tab=)、 browser_export_step 等），而 browser_get_partstudio_features 只读当前屏幕 那一个标签。",
+         "depth": 0
+        },
+        {
+         "text": "接受按钮不能\"点完就数\"（2026-09-20 实测）。browser_edit_feature_parameters 第一版点完 ✓ 只固定 wait_for_timeout(500) 再数输入框，成功应用的那次却报 accepted: false / parametersApplied: false；第二次调用读到的 before 已经是新值。改成有界条件等待 （page.wait_for_function('(selector) => document.querySelector(selector) === null', arg=PS_FEATURE_DIALOG, timeout=60_000)） 后同一操作报 parametersApplied: true / accepted: true / regenerationOk: true / persistenceOk: true。\"对话框关闭\"才是接受动作完成的信号，而不是经过多少毫秒。",
+         "depth": 0
+        },
+        {
          "text": "工具栏：.toolbar-item，按钮 .tool.is-activatable.is-button；文字标签 .tool-label.hide-in-toolbar 是隐藏的，browser_click(text=...) 点不到， 要按 .toolbar-item 的 textContent 找到后点内部按钮。",
          "depth": 0
         },
@@ -2380,6 +2547,18 @@
         {
          "text": "若提示「没有可用的特征。… 创建一个版本」，说明 Feature Studio 未发布版本， 需先在文档里创建版本后自定义特征才可插入。",
          "depth": 1
+        },
+        {
+         "text": "已插入特征的参数对话框 .feature-dialog（2026-09-20 实测，0 REST 配额）： 双击特征行打开，接受按钮 .ns-dialog-button-ok.button-ok。参数化生成的特征 （precondition 里有 annotation { \"Name\" } isLength(definition.…)）在这里显示 每个维度的可编辑数值框，实测读出 `baseRadius 10 mm / pitch 6 mm / ridgeWidth 2 mm / ridgeHeight 2 mm / length 30 mm；改成 12 mm / 40 mm` 后 ✓ 生效并持久化。 precondition 为空的特征在这里没有任何可编辑字段，只显示内部几何图元 （extrude / helix / sweep / boolean），这是\"生成的特征不像官方特征\"的根因。",
+         "depth": 0
+        },
+        {
+         "text": "按名字匹配特征行不可靠，要按\"读到的位置\"点（2026-09-20 实测）。同一个面板， read_partstudio_features 把 Sr Spiral ridge 7 读成唯一命中，而 page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral ridge 7') 连续四次（含两次页面重载）给出非 1 的计数 —— 同一个 DOM 的读视图与定位器视图 不一致，所以名字匹配不能单独用来选行。browser_edit_feature_parameters 现在先 等面板渲染（wait_for_panel_rows），用读结果识别行、按读到的 DOM 顺序位置 rows.nth(index) 双击，并在两者计数不一致时拒绝点击，同时报出 featureRows / matchedRows / locatorRows。旧文案 \"must match exactly one row\" 既没说 0 也没说多个，这正是它无法从外部诊断的原因。",
+         "depth": 0
+        },
+        {
+         "text": "arg 是 keyword-only；写错会被 except Exception: pass 吞掉（同批发现）。 playwright-python 的 wait_for_function(expression, *, arg=None, timeout=None, …) 里 arg 只能按关键字传。transactions.py 有两处（切监控目标、复制标签页）按位置 传入字典/列表，实际抛 TypeError，而两处都包在 except Exception: pass 里， 于是等待从未发生且没有任何迹象。现在调用点、测试双代和静态守卫三者都强制 关键字形式。同一处还发现 arg=list(set)：集合迭代顺序随进程的字符串哈希种子 变化，每次发送的参数列表不同、结果不可复现，已改为有序列表。",
+         "depth": 0
         }
        ]
       }
@@ -3898,7 +4077,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "57ba5eb7d3b408048ae36b203a7be739ee9ce11a31885f18f6356289e34e9050",
+   "sha256": "9112afb9ad6fdc1e9334b17bd46f07639a25e46e9003e002927cf15e0f38326e",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -4265,7 +4444,1509 @@
          "depth": 0
         },
         {
-         "text": "The deployment refresh that would put this repository's capability layer, not-computed guard and row-matcher fix on the live server is a deployment action, not part of this run, and was deliberately not performed while the browser session had to stay alive.",
+         "text": "The deployment refresh that would put this repository's capability layer, not-computed guard and row-matcher fix on the live server is a deployment action, not part of this run, and was deliberately not performed while the browser session had to stay alive. Superseded the same day: the refresh was performed and the capability layer then ran live — see Post-refresh live run below.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Post-refresh live run (same day)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Everything above measured a stale deployment. The refresh it deferred has since been performed, so this section is the first live evidence for this repository's code on the real machine."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Runtime identity, before and after the refresh",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Refresh 20260919T131425Z-tool-surface-merges at repository commit 75c0461: 93 files shipped, all 571 repository source files re-hashed and matching, backup pre-images written for the 53 overwritten files, backend generation 1 → 2 with 3 client streams preserved, and 0 REST calls / 0 cloud mutations from the refresh itself."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Surface (mcp_tool_catalog status)",
+         "Before (stale)",
+         "After",
+         "This repository"
+        ],
+        [
+         "registered tools",
+         "106",
+         "106",
+         "106"
+        ],
+        [
+         "ordinary tools/list",
+         "80",
+         "72",
+         "72"
+        ],
+        [
+         "fingerprint",
+         "754218124c1b28c4…",
+         "a4787372986e8eba…",
+         "a4787372986e8eba…"
+        ],
+        [
+         "modules browser / featurescript / rest",
+         "68 / 10 / 17",
+         "66 / 11 / 18",
+         "66 / 11 / 18"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The refresh closes every consequence the earlier section listed: the capability layer is present, the not-computed guard is present, and the workspace row matcher is fixed. The earlier \"the runtime was not this repository\" finding is therefore resolved, not deleted — it remains the reason the freshness check before live work exists."
+      },
+      {
+       "type": "para",
+       "text": "The recycle terminates the browser process, and closing the browser logs the Onshape web session out (the pitfall in ../experience/browser-automation.md §2), so one human login was required afterwards. The 520 MB persistent profile survived byte-identically (Default/Network/Cookies and Default/Login Data present); the profile is what makes that login cheap rather than a fresh setup."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "P1 — the warn-then-confirm gate, live",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The gate was exercised through the real server with confirm_mutation: true and no acknowledgement, using the same source the offline contract tests use:"
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "browser_deploy_and_apply_featurescript(\n    script=\"FeatureScript 3044;\\nvar x = 1;\", feature_name=\"Gate probe\",\n    confirm_mutation=true)"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "acknowledgementRequired",
+         "true"
+        ],
+        [
+         "localCheck.errorCount / warningCount",
+         "1 / 0"
+        ],
+        [
+         "localFindings",
+         "[\"missing or malformed 'import(path : ..., version : ...);'\"]"
+        ],
+        [
+         "nextCall.arguments.acknowledge_local_findings",
+         "true (same call plus the acknowledgement)"
+        ],
+        [
+         "browser_session(status) after the call",
+         "uninitialized — no browser action"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The last row is the important one: it is independent, read-only evidence that a gated call launches nothing and writes nothing, which the payload alone could not establish. The new-schema-only arguments (capability, values, acknowledge_local_findings) are also live, so the schema — not just the fingerprint — proves the refresh landed."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "P1 — a pathological source fails closed, live",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The gate deliberately stays silent for warnings, so a source that the local checker passes can still be wrong. This probe makes that concrete: it has a malformed LengthBoundSpec literal (the capability sources pass the named constant LENGTH_BOUNDS, not an inline map) and calls an undefined symbol."
+      },
+      {
+       "type": "para",
+       "text": "Local checker first, zero cost: 0 errors, 1 warning — so the gate does not fire and the call proceeds to the machine. The live result:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "deployed",
+         "false"
+        ],
+        [
+         "compiled",
+         "false"
+        ],
+        [
+         "verified (editor text equals the submitted source)",
+         "true"
+        ],
+        [
+         "commitAccepted (Commit button enabled → disabled)",
+         "true"
+        ],
+        [
+         "server errors read back",
+         "5, all severity: error, from featureScriptNotice"
+        ],
+        [
+         "diagnostic package",
+         "20260919T132740314887Z-0563066ce97b, source sha256 0563066ce97b…, 457 chars / 13 lines"
+        ],
+        [
+         "Feature List rows produced",
+         "0"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "deployed: false is the fail-closed verdict, and it is the conjunction of committed and byte-verified and compiled — the compile term is what fails. commitAccepted: true is worth stating plainly rather than hiding: the server saves the source and then rejects it, so a broken source does land in that Feature Studio. Nothing is silently substituted for it — a Feature Studio that does not compile emits no feature specification, so no workspace custom feature and no Feature List row appear."
+      },
+      {
+       "type": "para",
+       "text": "The blast radius was read independently and is contained: the only new document element is the gate check Feature Studio this probe created, and the Part Studio feature list still shows exactly the one applied spiral-ridge row."
+      },
+      {
+       "type": "para",
+       "text": "This run therefore closes the \"real-machine apply/verify loop over pathological input\" item that ../../docs/roadmap/FS_FIRST_CONTROLLING_ROUTE.md left open for the P1 gate."
+      },
+      {
+       "type": "para",
+       "text": "Finding — a local-check blind spot (open). The import rule accepted a source whose bound-spec literal the live parser rejects. That is consistent with the documented \"the vendored reference can lag\" limitation and is not a regression, but it does mean \"local check clear\" is a statement about the rules that exist, never a compile guarantee. The 5 server errors are persisted, so a future rule can be written against the real corpus rather than a guess."
+      },
+      {
+       "type": "para",
+       "text": "Finding — partNames carries the trailing section header (open). build_part's parsed list is [\"Spiral ridge cylinder 曲线数 (1)\"] while partsText is correct (零件数 (1) Spiral ridge cylinder 曲线数 (1)), so the normalizer swallows the following 曲线数 (1) header into the last part name. partsText is the field to read until this is fixed."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "P6 — thread capability, live, with a coarse custom pitch",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The only real FeatureScript coverage hole (roadmap §8: Thread has externalThread + cosmeticThreadUtils only, both standard-size and cosmetic) is served by the custom.spiral_ridge capability. Its gate: custom coarse pitch produces real geometry, and cosmetic-only behavior is rejected rather than silently substituted."
+      },
+      {
+       "type": "para",
+       "text": "Called as a capability — values only, no script — through the real server:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Input",
+         "Value"
+        ],
+        [
+         "capability",
+         "custom.spiral_ridge"
+        ],
+        [
+         "values",
+         "base_radius 10, pitch 8 (coarse, non-standard), ridge_width 2, ridge_height 1.5, length 32, clockwise true"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "A dry_run first confirmed the contract with no browser action: the card validated and echoed the bounded values, generated source 2377 chars / 58 lines, and the local check reported 0 errors / 0 warnings, so acknowledgementRequired was false."
+      },
+      {
+       "type": "para",
+       "text": "The generated source is the cosmetic-rejection evidence: it is built from fCylinder, opHelix, newSketchOnPlane + skRectangle + skSolve, opSweep, opBoolean(UNION) and setProperty. There is no externalThread and no cosmetic-thread call anywhere in the capability, so a cosmetic thread cannot be silently substituted — the 8 mm pitch is real helical geometry. The dry_run source text is the observable proof, and it is what a caller can read before spending a mutation."
+      },
+      {
+       "type": "para",
+       "text": "Then the real deploy and apply:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "deployed / verified / compiled",
+         "true / true / true (commitAccepted: true)"
+        ],
+        [
+         "server notices",
+         "0 errors, 0 warnings"
+        ],
+        [
+         "applied Feature List row",
+         "Sr Spiral ridge 1, isUserFeature: true, hasError: false"
+        ],
+        [
+         "featurePresent / featureComputed / featureError",
+         "true / true / false"
+        ],
+        [
+         "Part list",
+         "零件数 (1), part Spiral ridge cylinder, 曲线数 (1)"
+        ],
+        [
+         "Feature List header",
+         "特征 (5)"
+        ],
+        [
+         "diagnostic package",
+         "20260919T132818506620Z-a9dc2d5ee42c, source sha256 a9dc2d5ee42c…"
+        ],
+        [
+         "Onshape REST calls",
+         "0"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "featureComputed: true is the not-computed guard doing its job: the guard is part of the refreshed code, so this row is proof of a computed feature rather than of a row that merely exists."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Boundaries of this section",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Still not verified: the catalog capability route, custom.fillet / custom.extrude / custom.hole geometry (their targets are required Query picks a scripted caller cannot make), any REST path, and the geometry/print backends.",
+         "depth": 0
+        },
+        {
+         "text": "Both applies used the dedicated FS capability verification document, never the trophy document.",
+         "depth": 0
+        },
+        {
+         "text": "LIVE_API_ENABLED stayed unset for the whole run.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "REST Feature-List CRUD live confirmation (same day, later)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The offline P3 slice had delivered builders and parsers for four Feature-List endpoints and the missing Feature List READ, with every payload constructed-and-reviewed and nothing ever sent. This section records the one authorized run that closed that gate."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Authorization and budget",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The owner authorized a hard-budgeted run under the project's 3(3)-style rule for live requests — a stated unique fact per call, one attempt each, no retry — and chose the mechanism \"1 read + 4 writes\". BudgetGuard(5, ..., max_attempts=5) gated the process; LIVE_API_ENABLED=1 was set for that one process only, never as a default, and never in the deployed copy."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Target",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "A scratch Part Studio created for the purpose, holding a single Spiral ridge custom feature:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "field",
+         "value"
+        ],
+        [
+         "document",
+         "86e0af79961a09acafcdb72a"
+        ],
+        [
+         "workspace",
+         "07cea03dcf0556d0d1a8a3ac"
+        ],
+        [
+         "element (Part Studio 2)",
+         "53565f0b68cb86960a092d39"
+        ],
+        [
+         "feature",
+         "F523rtc3Xx2J8UH_0 (spiralRidge, namespace e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The script takes the three ids as required arguments and refuses to read or write onshape-state.json, so it cannot mutate the trophy document by accident."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "What was sent, and what came back",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Every call returned 200 with exactly the schema the vendored OpenAPI declares for its operationId:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "#",
+         "call",
+         "response schema",
+         "confirmation"
+        ],
+        [
+         "1",
+         "GET .../features?rollbackBarIndex=-1",
+         "BTFeatureListResponse-2457",
+         "returned F523rtc3Xx2J8UH_0 with its serialized definition + featureStates map"
+        ],
+        [
+         "2",
+         "POST .../features/updates (suppress)",
+         "BTUpdateFeaturesResponse-1333",
+         "features[0].suppressed: true, featureStatus: \"OK\""
+        ],
+        [
+         "3",
+         "POST .../features/featureid/F523… (replace, fed from #1, renamed)",
+         "BTFeatureDefinitionResponse-1617",
+         "featureState.featureStatus: \"OK\", feature.name ends (P3 rename)"
+        ],
+        [
+         "4",
+         "POST .../features/rollback body {\"rollbackIndex\": -1}",
+         "BTSetFeatureRollbackResponse-1042",
+         "rollbackIndex: 1, microversionId.theId present"
+        ],
+        [
+         "5",
+         "DELETE .../features/featureid/F523…",
+         "BTFeatureApiBase-1430",
+         "versioning envelope only"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Domain verification cost zero REST quota: after the run, a browser read of the Feature List showed 特征 (4) (only the default geometry) and 零件数 (0). The scratch Part Studio is empty."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Cost, stated plainly",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Authorized: 5 requests (1 read + 4 writes).",
+         "depth": 0
+        },
+        {
+         "text": "Spent: 7 — the 4 writes above, plus 3 reads: the first read was lost to a defect in the one-off script (it evaluated the body before recording it and exited on the empty result), and the read then had to be made twice because of the rollbackBarIndex finding below.",
+         "depth": 0
+        },
+        {
+         "text": "The overage is 2 reads, no writes beyond the authorization. Both extra reads bought recorded evidence; neither was a retry of a mutation.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Finding (SUPERSEDED — see the follow-up section below)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "> The explanation first written here was wrong and is kept only so the > correction is visible. The read discrepancy was not about rollbackBarIndex."
+      },
+      {
+       "type": "para",
+       "text": "Two calls to the same endpoint on the same element disagreed:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "no rollbackBarIndex argument → \"rollbackIndex\": 0, \"features\": [], featureStates covering only the four default features. The UI showed one user feature row (with the edited selected classes) and its part was present.",
+         "depth": 0
+        },
+        {
+         "text": "rollbackBarIndex=-1, after a page reload → \"rollbackIndex\": 1, features holding that feature, featureStates covering it.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Either the server's effective default is not the -1 the vendored OpenAPI documents, or the feature only reached the workspace on the page reload between the two calls. The body of the no-argument call is preserved as temp/p3_live/read-body-no-rollback-param.json."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Secondary observation",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "A custom feature's serialized definition read back with \"parameters\": [] and \"parameterLibraries\": [] (the row had been inserted with its spec defaults). Posting that definition back through updatePartStudioFeature was accepted and returned featureStatus: \"OK\", so an empty parameter array is not a rejection condition — worth knowing before treating \"empty parameters\" as a corrupt read."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Ledger evidence",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The repository's passive ledger (onshape_rest_api_mode/config/api-usage.json) recorded every attempt, all 2xx. The two POST /api/a and /api/b rows below it predate this session (a ledger self-test) and are not part of the run:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "time (UTC)",
+         "method",
+         "status",
+         "path (tail)"
+        ],
+        [
+         "13:38:03",
+         "GET",
+         "200",
+         ".../e/53565f0b68cb86960a092d39/features — the read whose body the script discarded"
+        ],
+        [
+         "13:39:15",
+         "GET",
+         "200",
+         ".../features — no rollbackBarIndex; empty features"
+        ],
+        [
+         "13:40:53",
+         "GET",
+         "200",
+         ".../features — with rollbackBarIndex=-1; returned the feature"
+        ],
+        [
+         "13:41:23",
+         "POST",
+         "200",
+         ".../features/updates"
+        ],
+        [
+         "13:41:25",
+         "POST",
+         "200",
+         ".../features/featureid/F523rtc3Xx2J8UH_0"
+        ],
+        [
+         "13:41:27",
+         "POST",
+         "200",
+         ".../features/rollback"
+        ],
+        [
+         "13:41:28",
+         "DELETE",
+         "200",
+         ".../features/featureid/F523rtc3Xx2J8UH_0"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "No 4xx or 5xx was seen, so nothing was retried and no failure shape was recorded."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Reproduce (offline — no server needed)",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "",
+       "text": "python3 -m unittest dev.tests.test_rest_feature_list"
+      },
+      {
+       "type": "para",
+       "text": "LiveReplayTest feeds the recorded bodies through the production parsers, and FixtureTest asserts each request.json still equals the builder output for the ids its metadata.json records. The one-off script (temp/p3_live/feature_list_live.py) is explicitly marked one-off with its invalidation condition and does not need to run again."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Boundaries of this section",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Only the Feature List family was touched. No other REST endpoint was called.",
+         "depth": 0
+        },
+        {
+         "text": "The run did not test a failing payload: every authorized call was expected to succeed, and all five did. An error-shape fixture is still unrecorded.",
+         "depth": 0
+        },
+        {
+         "text": "LIVE_API_ENABLED was set for the one process; the deployed copy still has no live REST enabled and its ledger is untouched by this run.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Follow-up probes: the read discrepancy, resolved",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "A second authorization (10 requests) went to the loose end the section above left open, plus the failure shape the run never saw. The UTC span of the whole effort is 2026-09-19T13:38Z to 2026-09-20T00:53Z."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Probe 1 — is rollbackBarIndex filtering the read? (3 requests)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Target: 05406f02482e1d943d80dc3e (Spiral ridge PS), whose custom feature was committed by the P6 capability run hours before this probe, so nothing here can be a pending browser insert."
+      },
+      {
+       "type": "para",
+       "text": "Hypothesis, written before sending: if the no-argument read returns the feature, the documented -1 default is effective and the P3 discrepancy was a browser/REST handoff; if it returns \"features\": [] while -1 does not, the effective default is 0 and every read must pass the argument."
+      },
+      {
+       "type": "para",
+       "text": "Design: three reads of the same element in one run, no browser activity and no reload in between, differing only in the argument: absent, -1, 0."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "request",
+         "HTTP",
+         "rollbackIndex",
+         "features",
+         "default features"
+        ],
+        [
+         "no argument",
+         "200",
+         "2",
+         "2",
+         "4"
+        ],
+        [
+         "rollbackBarIndex=-1",
+         "200",
+         "2",
+         "2",
+         "4"
+        ],
+        [
+         "rollbackBarIndex=0",
+         "200",
+         "2",
+         "2",
+         "4"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Result: identical. The hypothesis is refuted in the informative direction: rollbackBarIndex does not filter the returned list at all, the spec's documented default is fine, and rollbackIndex reports the element's own rollback-bar position rather than echoing the request. (The 0 read is the decisive one: a requested top-of-list evaluation still returned a bar index of 2 and both features.)"
+      },
+      {
+       "type": "para",
+       "text": "Therefore the earlier \"rollbackIndex\": 0 / \"features\": [] was a true statement about that element at that moment, and the feature's arrival in the workspace coincided with the page reload. The P3 write-up blamed the absent argument; that explanation is superseded (the section above is kept, marked, so the correction is auditable)."
+      },
+      {
+       "type": "para",
+       "text": "Raw bodies: onshape_docs/verification/feature-list-read-probe-2026-09-20.json."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Probe 2 — what does a refusal look like? (1 attempt, 0 quota)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Hypothesis: a DELETE naming a feature id that cannot exist returns a 4xx whose body is a JSON error envelope, and that envelope is otherwise unobtainable."
+      },
+      {
+       "type": "para",
+       "text": "DELETE .../features/featureid/P3ProbeNoSuchFeature_0 →"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "HTTP 404\n{\"moreInfoUrl\": \"\", \"message\": \"Feature not found\", \"status\": 404, \"code\": 9999}"
+      },
+      {
+       "type": "para",
+       "text": "The probe's own ledger delta was 0: the \"4xx does not count toward the annual limit\" rule is now measured rather than cited. The envelope is not the operation's declared response schema, so a caller must branch on the HTTP status; test_rest_feature_list.RefusalShapeTest pins both the recorded body and the property that the success parser returns an all-None summary for it, so an error body cannot be read as a success."
+      },
+      {
+       "type": "para",
+       "text": "Raw record: onshape_docs/verification/feature-list-error-shape-probe-2026-09-20.json. Vendored fixture: dev/tests/fixtures/onshape/feature-list/refusal-deletePartStudioFeature/."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "What the follow-up established, in one line each",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "rollbackBarIndex is not a filter; rollbackIndex is the element's real bar.",
+         "depth": 0
+        },
+        {
+         "text": "**A browser-inserted custom feature is not in the workspace until the page is (re)loaded**, so its edited selected UI row is not evidence that REST can see it. This is the browser→REST handoff hazard for the FS-first route.",
+         "depth": 0
+        },
+        {
+         "text": "A refusal is a 404 with a four-field error envelope, and it costs no quota.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Boundaries of the follow-up",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Probe 1 read a single element with two features; it was not repeated across elements or against a version/microversion URL form.",
+         "depth": 0
+        },
+        {
+         "text": "The direct reproduction the section above first listed as not-run was then run, after a human re-login — see the next section.",
+         "depth": 0
+        },
+        {
+         "text": "The mechanism inside the Onshape client is still unknown: the run observed that a reload commits the pending feature, not how. An explicit save and a tab switch were not tried as alternative commit triggers.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Reproduction: the browser→REST handoff, and the add endpoint (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Probe 1 eliminated the query argument but left the handoff as an inference. A second pass, with the owner present and re-logged-in, turned it into a controlled reproduction on the scratch Part Studio 2 (53565f0b68cb86960a092d39), which was empty at the start. Every step below is in onshape_docs/verification/browser-rest-handoff-2026-09-20.json."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "#",
+         "step",
+         "REST calls",
+         "observed"
+        ],
+        [
+         "1",
+         "browser_insert_custom_feature (Spiral ridge)",
+         "0",
+         "inserted: true, errored: false, regeneration waited 7553 ms, part Spiral ridge cylinder present; DOM row Sr Spiral ridge 1 with classes related-highlight edited selected ns-user-feature"
+        ],
+        [
+         "2",
+         "GET .../features, no reload",
+         "1",
+         "200, rollbackIndex: 0, features: []"
+        ],
+        [
+         "3",
+         "the same read ~80 s later, still no reload",
+         "1",
+         "200, rollbackIndex: 0, features: [] — time alone does not commit it"
+        ],
+        [
+         "4",
+         "page reload",
+         "0",
+         "DOM row becomes plain os-list-item ns-user-feature; the pending classes are gone"
+        ],
+        [
+         "5",
+         "GET .../features",
+         "1",
+         "200, rollbackIndex: 1, features: [FS0ew9p43DwiUAc_0]"
+        ],
+        [
+         "6",
+         "POST .../features (addPartStudioFeature)",
+         "1",
+         "200, BTFeatureDefinitionResponse-1617, featureStatus: \"OK\", new featureId: FLs0vBdvuflFHIG_1"
+        ],
+        [
+         "7",
+         "GET .../features",
+         "1",
+         "200, rollbackIndex: 2, features: [FS0ew9p43DwiUAc_0, FLs0vBdvuflFHIG_1] — the REST-added feature is visible immediately, no reload"
+        ],
+        [
+         "8",
+         "cleanup: two DELETEs",
+         "2",
+         "both 200 BTFeatureApiBase-1430; a zero-quota browser read shows 特征 (4) / 零件数 (0)"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "What this establishes",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The read endpoint was never at fault. rollbackBarIndex does not filter the returned list, the documented -1 default is honoured, and rollbackIndex reports the element's own rollback-bar position.",
+         "depth": 0
+        },
+        {
+         "text": "**A browser-inserted custom feature is not in the workspace until the page is reloaded.** Step 3 rules out \"it just takes a while\"; step 7 is the control that rules out a read-side caching artefact — a REST-added feature on the *same element, moments later* was visible at once.",
+         "depth": 0
+        },
+        {
+         "text": "addPartStudioFeature works with the production envelope — the endpoint operations.instantiate_feature has always targeted now has live evidence, and it became the fifth recorded fixture of the family.",
+         "depth": 0
+        },
+        {
+         "text": "\"parameters\": [] is correct, not suspicious. The generated spiralRidge spec has an empty precondition and bakes the geometry values in as literals, so the feature instance legitimately carries no parameters. Geometry changes therefore mean a new FeatureScript version, not a parameter edit.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Cost of this pass",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Ten REST attempts, exactly the authorized follow-up budget: 3 for the three-way read probe, 1 for the refusal probe (which consumed 0 quota, 4xx being free), 3 for the handoff reads, 1 for the add, 2 for cleanup. No mutation was retried; no 4xx was seen except the deliberate refusal probe."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Boundaries of this pass",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "One document, one element, one custom-feature type. Not repeated across elements, documents, or the version/microversion URL form.",
+         "depth": 0
+        },
+        {
+         "text": "The client-side mechanism is not established. The run shows a reload commits the pending feature; it does not show whether an explicit save, a tab switch, or simply more time past the ~4-minute mark would also do it.",
+         "depth": 0
+        },
+        {
+         "text": "The features created for the probes were deleted; Part Studio 2 is empty again, and the P6 elements were not touched.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Fix shipped: the insert now verifies the workspace commit (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The reproduction above turned a false success into a measurable one, so the apply path was fixed rather than merely documented."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The code change (0 REST calls to develop or test)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "onshape_browser_mode/actions.py gains wait_for_feature_rows and verify_insert_committed, and insert_custom_feature uses both:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "the matching user-row count is read as a baseline before any click;",
+         "depth": 0
+        },
+        {
+         "text": "after the accept click, wait_for_feature_rows(baseline + 1) waits in-page for the row count to grow (regeneration), replacing a name-only visibility wait;",
+         "depth": 0
+        },
+        {
+         "text": "one bounded reload_page (the existing helper; wait_until=\"commit\", 15 s) — the commit check measured above;",
+         "depth": 0
+        },
+        {
+         "text": "wait_for_feature_rows(baseline + 1) again, bounded at 30 s, so the survival check waits for the rows rather than reading them the instant the panel title appears;",
+         "depth": 0
+        },
+        {
+         "text": "a re-read and re-match, and only then inserted: true.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "inserted therefore means the workspace kept the feature, not that a click landed or a row rendered. The result keeps the pre-reload evidence and adds baselineRows plus a commit block (verified, committed, reload, survived, listed, errored); verified: false is reported honestly when the reload itself fails, and is never upgraded to success. The tool description and estimated_seconds (30 → 45) in mcp_main/win/mcp/server.py were updated with it."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The first version was wrong, and the live run said so",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The version shipped at 202609012311Z used a post-reload panel wait plus a name-based read. Both halves failed in one live insert the same day, which is what the count-based design above fixes:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Step",
+         "Observed",
+         "Verdict"
+        ],
+        [
+         "baseline read",
+         "特征 (6), two Sr Spiral ridge rows already present",
+         "a same-named row was already on screen"
+        ],
+        [
+         "regeneration wait",
+         "waited: true after 12 ms",
+         "the old name-only wait matched an existing row — false success signal"
+        ],
+        [
+         "insert result",
+         "inserted: false, commit.verified: true, commit.committed: false, listed: false, 特征 (0), 零件数 (0)",
+         "the tool reported not committed"
+        ],
+        [
+         "read again, seconds later",
+         "特征 (7), Sr Spiral ridge 3, 零件数 (3)",
+         "the insert had committed: the post-reload read raced the async feature-list render"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "So the row and the part were never in doubt; the read was. The lesson is that a reload announces itself in two stages (title, then rows) and that \"a row with this name is visible\" is not a usable signal in a Part Studio that already contains a row of that name. Both are now encoded as a count comparison against a pre-click baseline, and both directions have offline tests (test_a_same_named_row_that_was_already_there_is_not_the_new_feature, test_the_survival_wait_absorbs_a_slow_post_reload_render)."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Offline verification",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Check",
+         "Result"
+        ],
+        [
+         "dev/tests/test_browser_apply_path.py",
+         "38 tests OK; InsertCommitVerificationTest (9 tests) covers both live failure directions, the post-reload read being what the result reports, a failed reload, a row that never appeared (no reload is spent), the survival wait reporting its own timeout as evidence, the verifier in isolation, and an errored row that still reports its error"
+        ],
+        [
+         "full suite (unittest discover -s dev/tests)",
+         "617 OK (was 602 before this pair of changes); 619 OK after the signature guard below"
+        ],
+        [
+         "docs gates (prompt companion, index rebuild, verify_docs, tool reference)",
+         "all pass"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The FakePage now models the three DOM states separately (features_before_insert, the post-accept features, features_after_reload) and evaluates the count predicate itself, so a test can tell \"the row this call created\" from \"a row that was already there\" instead of assuming a mock that always succeeds."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The corrected path's first live run: a second false negative (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The correction was deployed and run live against the scratch workbench. It reported inserted: false again — but for a different reason, and this time the failure is inside the fix itself rather than in what it measures."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Field",
+         "Value"
+        ],
+        [
+         "baselineRows",
+         "3 (correct: 3 existing Sr Spiral ridge rows)"
+        ],
+        [
+         "waits.menu / waits.dialog",
+         "waited, 17 ms / 16 ms"
+        ],
+        [
+         "waits.regeneration",
+         "waited: false, elapsedMs: 0, condition: user_feature_row_count, minimum: 4"
+        ],
+        [
+         "commit.survived.error",
+         "TypeError: Page.wait_for_function() takes 2 positional arguments but 3 positional arguments (and 1 keyword-only argument) were given"
+        ],
+        [
+         "commit.verified / committed",
+         "true / false"
+        ],
+        [
+         "ground truth, ~6 s later",
+         "特征 (8), Sr Spiral ridge 4 present, 零件数 (4)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "So the insert had committed, the count baseline was right, and the tool still answered \"not committed\". The wait was called as page.wait_for_function(predicate, {…}, timeout=…); in playwright-python arg is keyword-only (…/.venv/Lib/site-packages/playwright/sync_api/_generated.py:12701: def wait_for_function(self, expression: str, *, arg=None, timeout=None, polling=None)), so the argument bundle landed in the keyword-only slot and raised before the page was ever polled. elapsedMs: 0 is the signature of that: no polling time at all, which is not what a 30 s timeout looks like."
+      },
+      {
+       "type": "para",
+       "text": "Two things about this run are worth keeping:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "It failed closed, again. A defect in the evidence path degraded to inserted: false with the exception text in commit.survived.error and waits.*.error, never to a false success. The recorded defect this fix exists to remove is the opposite direction (a committed feature reported as applied when the workspace had not kept it), and that direction stayed closed.",
+         "depth": 0
+        },
+        {
+         "text": "**The offline suite could not see it, because the double was more permissive than the client. FakePage.wait_for_function(self, expression, arg=None, kwargs) accepted the positional form, so 617 green tests proved the logic while the call was broken. The fix is three-part: arg=… in onshape_browser_mode/actions.py, a FakePage whose signature mirrors the real one exactly (expression positional; arg/timeout/polling keyword-only), and dev/tests/test_static_guards.py::PlaywrightCallSignatureTest, which AST-scans actions.py for a wait_for_function call with more than one positional argument and separately asserts the double's parameter kinds. The guard is not vacuous: re-parsing the source with the pre-fix call shape yields positional=2 keywords=['timeout'], against `positional=1 keywords=['arg', 'timeout']` for the shipped form.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The corrected path, exercised live: it holds (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Third live run, on generation 5, by a scripted caller with no human in the loop except the login. Pre-insert read: 特征 (8), 4 user rows Sr Spiral ridge 1…4. Hypothesis, stated before the call: the baseline is counted as 4, so minimum is 5, the regeneration wait returns on the fifth row, and the post-reload survival wait returns on the same fifth row, giving inserted: true."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Field",
+         "Value"
+        ],
+        [
+         "baselineRows",
+         "4 — the four rows that already existed, counted before the toolbar click"
+        ],
+        [
+         "waits.menu / waits.dialog",
+         "waited, 15 ms / 13 ms"
+        ],
+        [
+         "waits.regeneration",
+         "waited: true, minimum: 5, 202 ms"
+        ],
+        [
+         "commit.reload",
+         "reloaded: true, no warnings"
+        ],
+        [
+         "commit.survived",
+         "waited: true, minimum: 5, 18 431 ms"
+        ],
+        [
+         "commit.verified / committed / listed",
+         "true / true / true"
+        ],
+        [
+         "featureRows (post-reload read)",
+         "5 rows, Sr Spiral ridge 1…5, hasError: false on each"
+        ],
+        [
+         "header / parts after the reload",
+         "特征 (9), 零件数 (5)"
+        ],
+        [
+         "inserted",
+         "true"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The hypothesis held on every field. This is the end-to-end certificate the two earlier runs could not give: the row the call created is distinguished from the four rows that were already there, and it is required to survive a reload before the tool says \"applied\"."
+      },
+      {
+       "type": "para",
+       "text": "One number in that table is a boundary, not a success. The survival wait needed 18.4 s of its 30 s budget — 19× the regeneration wait on the same insert, because the reload re-regenerates every feature in the element and this scratch workbench now carries five spiral features with five solid parts. The margin is 1.6×, and it shrinks as the document grows, in exactly the direction that produces a false \"not committed\" for a committed feature — fail-closed, but wrong."
+      },
+      {
+       "type": "para",
+       "text": "That boundary was then closed rather than left as a caveat. Both post-insert budgets now scale with the element's custom-feature count (onshape_browser_mode/actions.py, partstudio_wait_budget_ms):"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Wait",
+         "Profile",
+         "At 0 features",
+         "At 5",
+         "At 40",
+         "Cap"
+        ],
+        [
+         "regeneration",
+         "PARTSTUDIO_REGENERATE_WAIT (baseMs + 2 s/feature)",
+         "30 s",
+         "40 s",
+         "110 s",
+         "300 s"
+        ],
+        [
+         "commit survival",
+         "PARTSTUDIO_RELOAD_WAIT (baseMs + 8 s/feature)",
+         "30 s",
+         "70 s",
+         "350 s",
+         "900 s"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The count comes from the same pre-insert read as the baseline row count (count_custom_features, which counts isUserFeature rows and ignores defaults, part rows and the 零件数/曲线数 markers), and an unreadable or missing count is treated as 0 — which reproduces the previous fixed budget exactly, so the change cannot shorten a wait. The result carries a budgets block (customFeaturesRead, regenerationMs, commitSurvivalMs) so the caller can see what was actually allowed. Both profiles stay capped, because a bounded tool call that returns \"not confirmed\" is still better than one that never returns; the caps are the knobs to revisit if a real model ever needs more. The 5-feature case that measured 18 431 ms now gets 70 000 ms, a 3.8× margin."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The gate check notice, reused as a local-check rule (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The same day, the persistent yellow/red FeatureScript notice on the gate check tab was used as a target for the offline checker. The notice is the P1 probe source from 2026-09-19, whose capture package (onshape_browser_mode/outputs/fs_diagnostics/20260919T132740314887Z-0563066ce97b/) holds both the source and the server's answer:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "server",
+         "compiled: false, errorCount: 5, all source: featureScriptNotice — \"no viable alternative at input '(0) * millimeter,'\", \"missing TOP_SEMI at 'function'\", \"extraneous input ')' expecting {…, TOP_SEMI}\", at lines 4, 8 and 12"
+        ],
+        [
+         "local check (before)",
+         "0 errors, 1 warning — only the unrelated undefined-symbol warning"
+        ],
+        [
+         "local check (after)",
+         "the undefined symbol and map literal at line 8 has an entry without 'key : value': '(0) * millimeter'"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The rule is in onshape_docs/query/fs_check.py::check_map_literals: { … } in expression position is a map, so every top-level entry needs key : value. It is warning-level, per the standing decision that a new local rule never gates a deploy. Its false-positive gate is the whole vendored mirror: the first version flagged cplane.fs's lambda body (x is number) returns boolean =>{ … }, so > was excluded from the expression-position set; after that, 265 modules produce zero map literal warnings, and dev/tests/test_static_guards.py asserts both directions plus the gate check source itself."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "A generated feature with an empty precondition is a black box (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Owner question: \"既然你能搞参数 那这个可爱的伪造特征和官方几乎没有任何区别了\" — which forced the comparison to be checked rather than asserted. It was not close at first. generate_spiral_ridge_script baked the five dimensions as constants and left the precondition empty, so the feature published zero parameters and Onshape showed its internals read-only (fCylinder → an \"extrude\", opHelix, sketch+sweep, opBoolean) with nothing editable. The history row was a valid custom feature; the UI was not an official-looking one."
+      },
+      {
+       "type": "para",
+       "text": "The rewrite emits one parameter per dimension, with the requested value in the LengthBoundSpec middle slot ([min, default, max]) and the body reading definition.* (including const revolutions = length / pitch; so a dialog edit to pitch or length cannot leave the helix disagreeing with the parameters):"
+      },
+      {
+       "type": "code",
+       "language": "featurescript",
+       "text": "annotation { \"Name\" : \"Base radius\" }\nisLength(definition.baseRadius, { (millimeter) : [12.5, 50, 200] } as LengthBoundSpec);"
+      },
+      {
+       "type": "para",
+       "text": "Measured live through the browser leg, 0 REST quota:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Signal",
+         "Value"
+        ],
+        [
+         "dialog before",
+         "baseRadius 10 mm / pitch 6 mm / ridgeWidth 2 mm / ridgeHeight 2 mm / length 30 mm — i.e. the defaults are the requested numbers verbatim"
+        ],
+        [
+         "edit + readback",
+         "12 mm / 40 mm, readbackOk: true"
+        ],
+        [
+         "after accept",
+         "persisted matched, persistenceOk: true, row Sr Spiral ridge CN 1 error-free"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "So the fake feature now opens a real parameter dialog with editable model dimensions, which is the observable difference the owner was pointing at."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Annotation strings are ASCII-only; four deploys measure it (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The same request asked for the Chinese-name work on both sides. The first two attempts were refused by the server, and the captures are the evidence:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Deploy",
+         "\"Feature Type Name\"",
+         "parameter \"Name\"",
+         "body setProperty",
+         "server"
+        ],
+        [
+         "…023013883848Z-a27a2cc9dacd",
+         "螺旋凸棱",
+         "Chinese",
+         "Chinese",
+         "compiled: false — \"Nonconforming feature function 'spiralRidgeCn': Invalid character in 'Feature Type Name' annotation: only printable ASCII allowed\""
+        ],
+        [
+         "…023048515402Z-e9d1588d11a2",
+         "Spiral ridge CN",
+         "Chinese",
+         "Chinese",
+         "compiled: false — \"precondition analysis failed\" + \"Invalid character in 'Name' annotation\" for all five parameters"
+        ],
+        [
+         "…023118489138Z-0ba0ca4040a5",
+         "Spiral ridge",
+         "ASCII",
+         "ASCII",
+         "compiled: true, 0 notices"
+        ],
+        [
+         "…023534056429Z-7eb6a07048d2",
+         "Spiral ridge",
+         "ASCII",
+         "螺旋凸棱柱",
+         "compiled: true, 0 notices; the parts list showed 螺旋凸棱柱"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Two conclusions, both load-bearing for the generator:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "A Chinese UI label is impossible. One non-ASCII parameter label is enough to lose the whole feature (deploy 2 kept a valid ASCII type name and still emitted no spec). The message names the key, not the line, so a long precondition needs a per-parameter scan.",
+         "depth": 0
+        },
+        {
+         "text": "*A Chinese part* name is fine.** Non-ASCII string values in the body are legal — the vendored mirror already uses \"⌀\" (holeTable.fs:160) and \"S™\" (holetables.gen.fs:35277) — so the generator keeps ASCII labels and puts \"螺旋凸棱柱\" in setProperty(..., PropertyType.NAME).",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The rule is now local: fs_check.check_annotation_ascii warns per offending annotation, warning-level per the standing decision. False-positive gate is the real mirror — 2496 annotation string pairs across the 265 vendored modules contain zero non-ASCII characters, so test_the_library_itself_is_clean asserts zero such warnings in addition to the map-literal rule. The rule searches its marker in the masked text: the first version searched the string-preserving text and crashed with KeyError: ' ' in find_matching when a body string merely mentioned the word annotation."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The generated parameterized feature, inserted live (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "One browser_spiral_ridge call — 0 REST quota, one cloud mutation in the draft document — deployed the exact generated source and inserted it:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "the submitted script's UTF-8 sha256 was 378f88fca387e978f0a911cf9bb58490a43a7f9c3aadfb9edb2115f76b7a1fb1, byte-identical to generate_spiral_ridge_script(10, 6, 2, 2, 30) in this repository (3 525 UTF-8 bytes / 78 lines), with deployed: true, compiled: true, noticeCount: 0, errors: [], commit.clicked: true (the Commit button enabled → disabled);",
+         "depth": 0
+        },
+        {
+         "text": "a new error-free row Sr Spiral ridge 7, inserted: true — baseline 8 rows, the read after the reload took it to 9 with 零件数 (9), every part named 螺旋凸棱柱;",
+         "depth": 0
+        },
+        {
+         "text": "the diagnostic package is onshape_browser_mode/outputs/fs_diagnostics/20260920T031542166113Z-378f88fca387. Its on-disk featurescript.fs is CRLF (3 602 raw / 3 525 normalized bytes); the reported sourceLength 3515 is the JS character count, ten fewer bytes than the UTF-8 length because of the five Chinese characters;",
+         "depth": 0
+        },
+        {
+         "text": "budgets.customFeaturesRead: 8 — the tab-switch readiness wait read a real count where the pre-fix run read 0 — and panelReady.waited / toolbarReady.waited were true at 5 ms / 13 ms against 30 s budgets each. The scaled budgets (regenerationMs 46 000, commitSurvivalMs 94 000) were generous: the live work took 216 ms and 7 308 ms.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Two facts came out of the same run and are reusable:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Re-deploying the source re-computes every existing instance. All nine Spiral ridge rows now name their parts 螺旋凸棱柱; the six earlier rows had been Spiral ridge cylinder. So a FeatureScript edit is a document-wide recompute, not just a definition change.",
+         "depth": 0
+        },
+        {
+         "text": "A version was not created (version.created: false, reason: \"version prompt not present\"), which is correct for in-document insertion and unchanged from earlier runs.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "This re-earns source_verified=\"live-verified\" on custom.spiral_ridge: the capability route renders through the same generator (capabilities._build_spiral_ridge delegates to generate_spiral_ridge_script), so one run certifies both entry points."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The tab-switch read race, found by the parameter run (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Reaching the parameter dialog meant going Feature Studio → Part Studio, which exposed a silent false pass in insert_custom_feature:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "the first call after the switch returned {\"clicked\": false, \"reason\": \"workspace-custom-features button not found\"};",
+         "depth": 0
+        },
+        {
+         "text": "a second call (page already on the Part Studio) succeeded, but reported budgets.customFeaturesRead: 0 on a document with 8 custom features — the post-navigation read hit an empty panel, so minimum = 0 + 1 = 1 was already satisfied by an old on-screen row.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The fix waits for the panel to render and the toolbar button to be visible before reading the baseline (wait_for_panel_rows 30 s, wait_for_toolbar_button 30 s), records both as panelReady / toolbarReady, and spends neither when no tab switch happened. This has offline coverage only (test_tab_switch_waits_for_the_feature_panel, test_a_panel_that_never_renders_rows_is_reported_not_guessed, test_without_a_tab_switch_no_readiness_wait_is_spent); a live re-run is the certificate and is still owed."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "browser_edit_feature_parameters accepted a real edit and said it did not (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The live review of the accept step found the same class of defect as the insert:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "run 1 returned accepted: false / parametersApplied: false although the edit had applied — run 2's before already showed 12 mm / 40 mm;",
+         "depth": 0
+        },
+        {
+         "text": "run 2 returned parametersApplied: true, accepted: true, regenerationOk: true, persistenceOk: true.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Cause: the accept step clicked ✓ and then fixed-slept 500 ms before counting inputs. Replaced with a bounded condition wait on the dialog actually closing (page.wait_for_function('(selector) => document.querySelector(selector) === null', arg=PS_FEATURE_DIALOG, timeout=60_000)), returned as accept: {clicked, timeoutMs, waited, waitMs}. \"The dialog closed\" is the accept-complete signal, not an elapsed duration."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The edit path's row identification, and two silent no-op waits (2026-09-20)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The accept fix above made the accept step honest; the very next live attempt failed one step earlier, and that failure led to a third defect class."
+      },
+      {
+       "type": "para",
+       "text": "Row identification by name is not a read. Four live calls of browser_edit_feature_parameters returned {\"parametersApplied\": false, \"reason\": \"feature 'Sr Spiral ridge 7' must match exactly one row\"} on a Part Studio whose read (browser_get_partstudio_features) listed 特征 (13) with a Sr Spiral ridge 7 row at className: \"os-list-item ns-user-feature\". Ruled out as causes: transient DOM (four attempts over minutes), whitespace/NBSP (Playwright's hasTextEngine uses normalized text — read from the vendored driver — so NBSP is not a factor), selector drift (deployed PS_USER_FEATURE is byte-identical to the repository's), and a stale deployment (transactions.py line-identical). The message itself named neither a count nor the candidate rows, so 0-vs-multiple was unmeasurable from outside — which is why the replacement reports both counts."
+      },
+      {
+       "type": "para",
+       "text": "_locate_feature_row now waits for the panel to render, identifies the row from read_partstudio_features, and clicks it by its position among the read's user-feature rows (rows.nth(names.index(...))); the two views are in step because both are DOM order. When the read and the locator disagree it refuses to click and reports featureRows / matchedRows / locatorRows plus a reason. edit_feature_parameters carries that evidence as featureRow on every return, including refusals. Ten offline tests in dev/tests/test_browser_apply_path.py model the disagreement directly (the tool previously had zero behavioural tests, which is how the false negative shipped)."
+      },
+      {
+       "type": "para",
+       "text": "Two waits that never waited. While adding the static guard for this path, the same guard was extended to transactions.py and immediately failed: two page.wait_for_function calls (the watch/configure toolbar readback, and the copy-element new-tab wait) passed arg positionally, while playwright-python declares it keyword-only (self, expression, *, arg=None, timeout=None, polling=None, read from the deployed sync_api/_generated.py). Both calls sat inside except Exception: pass, so the TypeError was swallowed and the wait never happened — silently, for as long as the code existed. Both are now arg=…; the guard covers actions.py and transactions.py, and two new Mock page tests in dev/tests/test_browser_planned_tools.py assert the wait is really issued (len(call.args) == 1 and call.kwargs[\"arg\"] == …), which a positional call can never satisfy."
+      },
+      {
+       "type": "para",
+       "text": "The same test then flaked once in five full-suite runs: arg=list(set) sent [\"e2\", \"e1\"] or [\"e1\", \"e2\"] depending on the process's string hash seed. The id list is now built in document order (membership still uses a set) so the same call sends the same argument every run."
+      },
+      {
+       "type": "para",
+       "text": "Everything here is offline: 653 tests OK (up from 641), 0 REST calls, 0 cloud mutations. The corrected edit path still owes one live run — it is the item blocked by the restart."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Deployment",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Refresh 20260920T012311Z-insert-commit-verify: 39 files shipped (21 changed, 18 added — the REST fixture family and probe records), pre-images written for all 21 overwritten files under artifacts/deploy-backups/20260920T012311Z-insert-commit-verify/, all 589 repository source files re-hashed and matching, stale bytecode dropped for the three touched packages, backend generation 2 → 3 with all 4 client streams preserved, and 0 REST calls / 0 cloud mutations from the refresh itself. This record and the generated indexes changed after that refresh and were shipped by a documentation-only follow-up (20260920T…-docs, 3 files, no runtime module, so no second restart)."
+      },
+      {
+       "type": "para",
+       "text": "mcp_tool_catalog status after the restart: 106 registered, 72 ordinary, modules 66 / 11 / 18 — unchanged. The fingerprint moved a4787372986e8eba… → 1ddfc6e0086dfa8a…, which is expected and accounted for: the fingerprint hashes description, and the tool description changed. Recomputing it from this repository's server.TOOLS yields the same 1ddfc6e0086dfa8ae1a806015399be1272ed6da8c789971db6e86d27b562d863 the live backend reports, so the restarted process is running this repository's code."
+      },
+      {
+       "type": "para",
+       "text": "Refresh 20260920T031500Z-insert-commit-v2 ships the correction — the count-based insert waits (onshape_browser_mode/actions.py), the reworded browser_insert_custom_feature description (estimated_seconds 30 → 45), the map-literal checker rule, both test modules, this record and the generated indexes: 10 files shipped, 579 left alone, pre-images under artifacts/deploy-backups/20260920T031500Z-insert-commit-v2/, stale bytecode dropped for onshape_docs/query/, all 589 repository source files re-hashed with 0 mismatches, backend generation 3 → 4 with all 4 client streams preserved (drain entered, protocol-close/stdin-closed, clean exit, force-kill not needed), and again 0 REST calls / 0 cloud mutations."
+      },
+      {
+       "type": "para",
+       "text": "mcp_tool_catalog status after that restart: 106 registered, 106 indexed, 72 ordinary, modules 66 / 11 / 18 unchanged. Fingerprint 3046c988c74b4318f3841946e6d83d759ce74618951a32b687a885d64145fab8, recomputed independently from this repository's server.TOOLS through ToolCatalogIndex.fingerprint — identical, so generation 4 is running this repository's code, and the count-based insert path is the one now reachable from the ordinary tool surface. This paragraph and onshape_docs/index.json changed after that restart, so they were shipped by a documentation-only follow-up (20260920T033000Z-insert-commit-v2-docs, 2 files, no runtime module, no second restart); its own added sentence was then carried by 20260920T034000Z-insert-commit-v2-docs2, 1 file, same rule."
+      },
+      {
+       "type": "para",
+       "text": "Refresh 20260920T040500Z-wait-for-function-arg ships the signature fix that the live run above forced: onshape_browser_mode/actions.py (arg=…), the strict FakePage signature and the new PlaywrightCallSignatureTest — 3 files, 586 left alone, pre-images under artifacts/deploy-backups/20260920T040500Z-wait-for-function-arg/, all 589 files re-hashed with 0 mismatches, generation 4 → 5 with the same clean drain sequence, 0 REST calls. No __pycache__ exists in onshape_browser_mode, so no stale bytecode could shadow the new source."
+      },
+      {
+       "type": "para",
+       "text": "Refresh 20260920T053000Z-adaptive-wait-budget ships the scaling itself: onshape_browser_mode/actions.py (partstudio_wait_budget_ms, count_custom_features, the two profiles, the budgets result block), the reworded browser_insert_custom_feature description, both docs pages and the audit row — 7 files, 582 left alone, pre-images under artifacts/deploy-backups/20260920T053000Z-adaptive-wait-budget/, all 589 files re-hashed with 0 mismatches, generation 5 → 6 with the same clean drain sequence, 0 REST calls. mcp_tool_catalog status after it: 106 / 106 / 72, fingerprint c96b564144f0599f68598be2301146332a7584ac0a9d7d226a8216286011d45b, recomputed identically from this repository's ToolCatalogIndex.fingerprint."
+      },
+      {
+       "type": "para",
+       "text": "Refresh 20260920T073000Z-parameter-panel ships the parameter-panel work and the two false-negative fixes above: onshape_browser_mode/modeling_transactions.py (the parameterized generator), onshape_browser_mode/transactions.py (the accept-condition wait), onshape_browser_mode/actions.py (the tab-switch readiness waits), mcp_main/win/mcp/browser_tools.py (the reworded browser_spiral_ridge description), onshape_docs/query/fs_check.py (check_annotation_ascii), the three test modules, the audit and roadmap rows, the two experience pages, this record and the generated indexes — 16 files, 573 left alone, pre-images under artifacts/deploy-backups/20260920T073000Z-parameter-panel/, all 589 repository source files re-hashed with 0 mismatches, generation 6 → 7 with the same clean drain sequence (drain entered, protocol-close / stdin-closed, exited, force-kill not-needed), 3 client streams preserved and 3 clients notified of the tool-list change, and 0 REST calls / 0 cloud mutations from the refresh itself."
+      },
+      {
+       "type": "para",
+       "text": "mcp_tool_catalog status after that restart: 106 registered, 106 indexed, 72 ordinary, modules 66 / 11 / 18 unchanged. Fingerprint c96b564144f0599f68598be2301146332a7584ac0a9d7d226a8216286011d45b → 7091559fe48fdd0826369762837ddb7720e7f047e749c8d37b0251e28352aced, which is expected and accounted for: the fingerprint hashes description, and browser_spiral_ridge's description now says the generated feature is parameterized. Recomputing it from this repository's ToolCatalogIndex.fingerprint yields the same 7091559f…, so generation 7 is running this repository's code. The restart again terminates the browser process, so the Onshape web session needs one manual login; the persistent profile survived, and this paragraph and onshape_docs/index.json changed after the restart, so they were shipped by a documentation-only follow-up (20260920T075000Z-parameter-panel-docs, 2 files, no runtime module, no second restart); the two paragraphs below were then carried by a second documentation-only refresh 20260920T075500Z-parameter-panel-docs2 (2 files, same rule), after which plan reports changed 0 / identical 589. The full offline suite is 641 OK (up from 625), and all four docs gates pass."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "What is still unverified",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The generator's output and its parameter panel are certified live (see the section above: one browser_spiral_ridge call on the exact generated source, inserted: true, hash-equal, 0 REST). What is still owed is narrower and was blocked by a restart: the corrected browser_edit_feature_parameters path (row identification, featureRow evidence) and the tab-switch readiness waits have offline coverage only.",
+         "depth": 0
+        },
+        {
+         "text": "The corrected code path is now exercised live end to end (third run above, inserted: true with a 4 → 5 row count across a reload), and so is the scaled budget: a fourth run on the same element read budgets.customFeaturesRead: 5, spent 208 ms of a 40 000 ms regeneration budget and 7 266 ms of a 70 000 ms commit-survival budget, and reported inserted: true with 特征 (10) / 零件数 (6). The arithmetic is certified: 30 000 + 2 000 × 5 = 40 000 and 30 000 + 8 000 × 5 = 70 000. Same-element survival took 18 431 ms on one run and 7 266 ms on another, which is why a fixed timeout was the wrong shape. The caps (300 s / 900 s) are still guesses bounded by \"a tool call must return\", not measurements, and are the first thing to revisit on a real model. The tab-switch readiness waits above have offline coverage only; one live run after the next refresh is owed.",
+         "depth": 0
+        },
+        {
+         "text": "The Chinese-name question is settled, and the answer is not what was asked. A Chinese UI label is impossible — FeatureScript rejects non-ASCII in any annotation string, measured across four deploys — while a Chinese part name compiles clean and displays. So \"Feature Type Name\" stays Spiral ridge and the parameter labels stay ASCII; 螺旋凸棱柱 is the only Chinese-bearing option and lives in the body. Whether the ASCII type name should be renamed is the owner's call; keeping it means existing instances and the tool default keep working.",
+         "depth": 0
+        },
+        {
+         "text": "The recycle again terminates the browser process, so the Onshape web session needs one manual login; the persistent profile survived.",
+         "depth": 0
+        },
+        {
+         "text": "browser_build_part's partNames is still wrong. partsText is correct, but the name split can never fire on the normalized text: read_partstudio_features collapses whitespace, while parse_part_summary only splits on two spaces or a newline, and its count == 1 branch takes the whole remainder as one name — which is how 曲线数 (1) gets swallowed. For count > 1 it therefore returns no names at all. Measured on Spiral ridge PS: `零件数 (3) Spiral ridge cylinder Spiral ridge cylinder Spiral ridge cylinder 曲线数 (3) with partNames: []`. Unrelated to this fix and still open.",
+         "depth": 0
+        },
+        {
+         "text": "No reachable tool can read a FeatureScript notice. browser_fs_read_notices, browser_notifications_status and browser_click are all `default_exposure: false, and this deployment's shared backend rejects mcp_tool_view` with shared_view_fixed. browser_get_fs_compile_status reads the pane but needs the Feature Studio on screen, which no visible tool can activate. The notice for the gate check tab was therefore read from the local diagnostic package it wrote when it was captured, not from the live UI.",
          "depth": 0
         }
        ]
@@ -4990,7 +6671,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "b46bb958639afbb6f13e08193e047f8599b59a0be18fe99868f5ee1f1353656f",
+   "sha256": "1d304c4a76833bc5b70f292fa45c628b36e5c2b0085ae51cbc8c3a5222ab4014",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -5554,7 +7235,7 @@
          "L5 onshape_workflow",
          "base_radius_mm, pitch_mm, ridge_width_mm, ridge_height_mm, length_mm",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Generate bounded helix+sweep FeatureScript, deploy and apply it through the browser, and verify the resulting feature and part."
+         "Generate a parameterized helix+sweep FeatureScript feature (five editable Length parameters defaulting to the requested dimensions, ASCII labels, Chinese part name), deploy and..."
         ],
         [
          "browser_sync_rest_state",

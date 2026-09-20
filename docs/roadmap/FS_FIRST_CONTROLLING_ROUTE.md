@@ -120,13 +120,13 @@ queries the *target* body; bodies that merely share a face can already be merged
 
 | # | Gap | Evidence | Blocked by |
 |---|---|---|---|
-| G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI — **handlers delivered offline in P3; server confirmation still open** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; see `onshape_rest_api_mode/feature_list.py` and `test_rest_feature_list` | quota (D2) for the live half |
+| G1 | REST Feature-List CRUD: `updatePartStudioFeature`, `deletePartStudioFeature`, `updateRollback`, `updateFeatures` exist in the vendored OpenAPI — **CLOSED 2026-09-19: handlers delivered offline in P3 and all four confirmed live (200), plus the previously missing Feature List READ** | 248 paths in `onshape_docs/reference/raw/onshape-api/openapi.json`; see `onshape_rest_api_mode/feature_list.py` and `test_rest_feature_list`; recorded bodies in `dev/tests/fixtures/onshape/feature-list/` replay in `LiveReplayTest` | none (live half spent: 4 writes + the reads the run needed) |
 | G2 | Browser leg stability under heavy iteration | D3; `browser-modeling.md` records the `not-computed` / part-count-0 failure mode and selector fragility | none (quota-free) |
-| G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof". The reuse survey and the offline/machine split now live in `architecture/FS_VALIDATION_STRATEGY.md`: no offline reusable FS analyzer was found, so the structural checker stays and an external one would be a detected candidate, never an installed dependency | none |
+| G3 | Local FS validation depth | `onshape_docs/scripts/fs_local_check.py` is structural (brackets, header, `defineFeature` shape, dangling annotations, symbol presence, and since 2026-09-20 map-literal entries without `key : value` **and non-ASCII annotation string values** — the gate the live server enforced across four deploys; see `onshape_docs/query/fs_check.py::check_annotation_ascii`); `FS_HYBRID_COMPILER_INTEGRATION.md` states it is "not a parser, type checker, or lowering proof". The reuse survey and the offline/machine split now live in `architecture/FS_VALIDATION_STRATEGY.md`: no offline reusable FS analyzer was found, so the structural checker stays and an external one would be a detected candidate, never an installed dependency | none |
 | G4 | Business capability layer (`cad.*` cards) with a cross-backend contract | **Browser half delivered in P4**: `onshape_browser_mode/capabilities.py` (cards + bounded search) behind `browser_discover_tools`; the cross-backend contract is still open | G1–G3 |
-| G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | **Offline character benchmark delivered in P4** (`test_capability_retrieval`); no model-in-the-loop token measurement | G4 |
+| G5 | Token / retrieval benchmark (capability card vs docs search vs full docs) | **Offline character benchmark delivered in P4** (`test_capability_retrieval`), **extended 2026-09-19** to a three-route size benchmark with a documented token *estimate* (`dev/tools/context_cost.py`, raw output in `onshape_docs/verification/context-cost-2026-09-19.json`): 209 estimated tokens for the actionable card plan against 1106 for the reference search and 1735 for the full guide page. A true tokenizer measurement is still not claimed; the only in-the-loop data point is the P6 capability run | G4 |
 | G6 | Surface audit (`Keep` / `Merge` / `Internal-only` / `Capability` / `Remove`) over the then-108-tool registry, now 106 | **Delivered in P5**: `architecture/TOOL_SURFACE_AUDIT.md`, gated by `test_tool_surface_audit`; candidates were already annotated in the generated reference. Follow-ups executed 2026-09-19: the two `semantically_invalid` print stubs were archived (see `history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md`) and the two high-risk names were reclassified `Internal-only`, so `Remove` is 0; then all eight `Merge` rows were executed as compatibility wrappers, so `Merge` is 0 and the ordinary `tools/list` is 72 | none |
-| G7 | Thread geometry is the **only** real FS coverage hole | §8; `custom.spiral_ridge` is the accepted workaround, still `structural-only` for the general twist | none |
+| G7 | Thread geometry is the **only** real FS coverage hole | §8; `custom.spiral_ridge` is the accepted workaround and **passed its live gate 2026-09-19** (coarse 8 mm pitch, real geometry, 0 REST calls; `onshape_docs/verification/capability-live-run-2026-09-19.md`); the general twist surface is still not claimed | none |
 | G8 | Route consolidation | `FS_HYBRID_COMPILER_INTEGRATION.md` and the external plan were parallel | closed by this page |
 
 `browser_wall_thickness_report` is superseded by the L6 FDM package but remains a
@@ -254,7 +254,9 @@ accepted workaround is the `browser_spiral_ridge` generation path.
   fixture destination, and a stop condition; 429 is never retried, and
   POST/PATCH/DELETE are never retried on 5xx or timeout.
 - New REST operations under G1 are designed, dry-run-verified, and fixture-backed
-  offline first. Only a genuinely unavailable fact justifies a live call.
+  offline first. Only a genuinely unavailable fact justifies a live call. G1's
+  four mutations plus the Feature List read passed that gate and are closed; their
+  recorded bodies now answer offline what used to need the server.
 
 ## 10. Reconciliation with existing documents
 
@@ -305,8 +307,14 @@ Delivered so far, all offline:
   `not-computed` row can no longer be reported as a successful build just because
   other features supplied geometry.
 
-Still open for the P1 gate: the real-machine apply/verify loop over pathological
-inputs. That needs the operator present and is not claimed as done.
+**Closed 2026-09-19:** the real-machine apply/verify loop over pathological input
+ran after the deployment refresh — a source the local checker passes (0 errors,
+1 warning) was rejected by the live compiler with 5 persisted errors,
+`deployed: false`, and 0 Feature List rows. Live evidence and the two open
+findings it produced are in
+[`onshape_docs/verification/capability-live-run-2026-09-19.md`](../../onshape_docs/verification/capability-live-run-2026-09-19.md)
+§ Post-refresh live run. The warn-then-confirm gate itself was also exercised
+live there, with the independent "no browser action" check.
 
 **P2 — Whole-feature Custom capability template.** Generalize the
 `browser_spiral_ridge` precedent into a data-driven contract; land the first
@@ -390,6 +398,55 @@ constructed-and-reviewed, not server-confirmed. The first authorized call should
 be a single suppression (1 request, cheap, reversible) with the response captured
 into the existing fixture directories.
 
+**P3 live half — CLOSED 2026-09-19.** The owner authorized one hard-budgeted run,
+and it did what the paragraph above planned, in that order:
+
+- **All four mutations were confirmed live, each 200 with the schema the spec
+  declares.** Suppression (`BTUpdateFeaturesResponse-1333`, `suppressed: true`),
+  in-place definition replace fed from the definition read back
+  (`BTFeatureDefinitionResponse-1617`, `featureStatus: "OK"`, renamed row),
+  rollback with the described `{ "rollbackIndex": -1 }` body
+  (`BTSetFeatureRollbackResponse-1042`), delete (`BTFeatureApiBase-1430`).
+- **The Feature List READ was captured too**, which the offline slice had left as
+  the one endpoint of the family with no handler and no fixture. It returned the
+  real `featureId`, the serialized definition, and the `featureStates` map.
+- **Domain verification was free**: after the delete, the browser Feature List
+  (0 REST quota) showed `特征 (4)` / `零件数 (0)`, and the scratch Part Studio was
+  left empty.
+- **Fixtures flipped from constructed to recorded.** Each
+  `dev/tests/fixtures/onshape/feature-list/*/metadata.json` now says
+  `"liveExecuted": true` with its status, time and target; `FixtureTest` is
+  state-driven (a constructed fixture must still say so; a live one must carry a
+  real status, a real time, and a builder-matching request for the ids it
+  records) and the new `LiveReplayTest` pushes the real bodies through the
+  production parsers.
+- **The read discrepancy is resolved, reproduced, and the answer is the browser
+  handoff.** The run first blamed an absent `rollbackBarIndex` for an empty
+  `features` array. A three-way probe on a long-committed element (absent / `-1` /
+  `0`, one run, no reload) returned identical bodies, so the argument does not
+  filter the read and `rollbackIndex` is the element's real bar position. A
+  controlled reproduction then showed the real cause: after a clean browser insert
+  REST reported an empty list immediately **and ~4 minutes later without a
+  reload**, while a page reload made the feature appear — and a REST-added feature
+  on the same element appeared with no reload at all. **A browser-inserted custom
+  feature is not in the workspace until the page is reloaded**, so anything that
+  builds a REST mutation on a feature the browser just created must read the
+  Feature List back first. Evidence:
+  `onshape_docs/verification/browser-rest-handoff-2026-09-20.json`.
+- **The family is complete: `addPartStudioFeature` confirmed too.** The endpoint
+  `operations.instantiate_feature` has always targeted answered 200 /
+  `BTFeatureDefinitionResponse-1617` / `featureStatus: "OK"` with a new
+  `featureId`, using the same `BTFeatureDefinitionCall-1406` envelope as add.
+- **One refusal shape is recorded too.** A `DELETE` naming an impossible feature id
+  returned 404 with `{"moreInfoUrl", "message", "status", "code"}`, at a measured
+  quota cost of 0 — the family's success fixtures said nothing about failure.
+- **Explained, not a defect:** `"parameters": []` is correct for this feature —
+  the generated `spiralRidge` spec declares no parameters and bakes the geometry
+  values in as literals, so changing the geometry means deploying a new
+  FeatureScript version rather than editing parameters.
+- Cost: 4 mutations (as authorized) plus the reads the run needed — the run's own
+  accounting is in `onshape_docs/verification/capability-live-run-2026-09-19.md`.
+
 **P4 — Capability card layer + retrieval benchmark (G4, G5).** Above the fixed
 catalog; benchmark card hit vs docs search vs full docs on Extrude, Thread, and
 one complex long-tail feature.
@@ -422,10 +479,38 @@ asserts that a prose query ("round the edges of this part") resolves to
 filters, that the card payload contains no source, and that resolving a card
 touches no function entry, library source or guide page.
 
-Still open for the P4 gate: the benchmark is a character measurement plus a
-mock-based expansion check, not a token measurement with a model in the loop, and
-it cannot show that a caller *would* stop reading after the card. The
-"one capability call = one card" claim is proven for the offline route only.
+Still open for the P4 gate: it cannot show that a caller *would* stop reading
+after the card. The "one capability call = one card" claim is proven for the
+offline route only.
+
+**Measured 2026-09-19** by `dev/tools/context_cost.py`, which prints the same
+three routes with a documented token *estimate* on top of the character count
+(one token per CJK code point, four characters per token otherwise — an
+estimate, because no tokenizer is available offline and adding one is a
+dependency decision this project has not made):
+
+| Route | chars | est. tokens |
+|---|---|---|
+| capability card, bounded search envelope | 1963 | 495 |
+| capability card, plan only — all a caller needs to act | 827 | 209 |
+| FeatureScript reference search | 4422 | 1106 |
+| full guide page (`modeling`) | 6938 | 1735 |
+| `圆角` → reference search | 2 | 1 (finds nothing) |
+
+Raw output: `onshape_docs/verification/context-cost-2026-09-19.json`. The
+actionable context for a capability call is the 209-token plan, not the
+495-token search envelope: the generated source (a further 259 tokens) is built
+on the server and never has to reach a caller, which is the specific saving the
+capability contract exists to produce.
+
+Still open, and stated as such rather than papered over: the token column is an
+estimate, so "no model-in-the-loop token measurement" is narrowed, not closed.
+The in-the-loop *sufficiency* half has exactly one live data point — the P6
+capability run, where the card alone was enough to produce a call that worked on
+the real machine first try (see
+[`onshape_docs/verification/capability-live-run-2026-09-19.md`](../../onshape_docs/verification/capability-live-run-2026-09-19.md)).
+A real measurement needs a tokenizer or a client that reports usage, and neither
+is available here.
 
 **P5 — Tool surface audit (G6).** Produce `Keep` / `Merge` / `Internal-only` /
 `Capability` / `Remove` for all **108** tools. Classification only; no mass
@@ -463,10 +548,22 @@ The audit phase itself was classification only; the archive and the merges above
 are the follow-ups since executed, so the generated reference, the runtime prompt
 and the ordinary `tools/list` changed with them.
 
-**P6 — Thread capability (G7).** First true capability-card proof, on the only
-real coverage hole.
+**P6 — Thread capability (G7). Delivered 2026-09-19.** First true
+capability-card proof, on the only real coverage hole.
 *Gate:* custom coarse pitch produces real geometry; cosmetic-only behavior is
 rejected rather than silently substituted.
+*Result:* `custom.spiral_ridge` was called as a capability (bounded values only,
+no script) at a coarse non-standard 8 mm pitch. It generated 2377 chars of
+`fCylinder` + `opHelix` + `opSweep` + `opBoolean` source — no `externalThread`
+and no cosmetic-thread call exists in the capability, so there is nothing to
+substitute — compiled with 0 notices and applied to a computed Feature List row
+with one solid body, at **0 REST calls**. A `dry_run` first showed the same
+source text so the caller can reject a cosmetic implementation before mutating.
+Evidence: `onshape_docs/verification/capability-live-run-2026-09-19.md`
+§ Post-refresh live run.
+*Scope limit:* only the self-contained capability is fully agent-invocable;
+`custom.fillet` / `custom.extrude` / `custom.hole` still need a human geometry
+pick, which that record documents.
 
 **Deferred (D5):** native lowering of FS features to toolbar transactions, sketch
 compiler, custom-island extraction, cross-backend FreeCAD implementation,

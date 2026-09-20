@@ -110,7 +110,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_get_partstudio_features` | `Keep` | - | Feature tree and part list read; the domain-state check that distinguishes a listed feature from computed geometry. |
 | `browser_group_instances` | `Internal-only` | - | Multi-select plus the group-gesture; the same context dependence as the fix gesture. |
 | `browser_insert_assembly_instances` | `Keep` | - | Inserts named sources into an Assembly; usable on its own and the building block of the assemble workflow. |
-| `browser_insert_custom_feature` | `Keep` | - | The apply operation, now waiting on real conditions and reporting whether the feature is listed instead of whether a click landed. |
+| `browser_insert_custom_feature` | `Keep` | - | The apply operation, now waiting on real conditions and reporting whether the workspace kept the feature after a confirming reload, instead of whether a click or a row landed. Both waits scale with the element's custom-feature count, because the confirming reload re-evaluates every feature. |
 | `browser_inspect` | `Internal-only` | - | Composition primitive: composed tools and a supervisor use it to locate elements. Its semantics record already marks it default-hidden and explicit-level-required. |
 | `browser_invoke_discovered` | `Internal-only` | - | Deprecated compatibility wrapper kept for older callers; any registered tool is callable by the exact name `mcp_tool_catalog` returns, so this envelope adds a hop and no capability. Hidden so discovery is not mistaken for an execution route; reachable by exact name. |
 | `browser_notifications_status` | `Internal-only` | - | Notification badge read; diagnostic plumbing used when a flow seems stuck. |
@@ -128,7 +128,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_session` | `Keep` | - | Session lifecycle prerequisite for every browser tool; the human-in-the-loop login step lives here. |
 | `browser_set_panel_filter` | `Internal-only` | - | Left-panel filter that prepares a selection step; exposing it invites filters that nothing then uses. |
 | `browser_share_document` | `Internal-only` | - | Sharing dialog inventory; an access-control step that a human should confirm, not a modeling tool. |
-| `browser_spiral_ridge` | `Capability` | - | Generate, deploy and apply a whole helical feature; it is the accepted Thread workaround and the first real capability-card proof (P6). |
+| `browser_spiral_ridge` | `Capability` | - | Generate, deploy and apply a whole helical feature; it is the accepted Thread workaround and the first real capability-card proof (P6). Since 2026-09-20 the generated source declares the five dimensions as editable precondition parameters (ASCII labels, `LengthBoundSpec` defaulting to the requested value) instead of baking them, so the inserted feature opens a real parameter dialog and the part carries the Chinese name `螺旋凸棱柱`. |
 | `browser_sync_rest_state` | `Keep` | - | The explicit cache-refresh action the REST policy requires; without it, state refresh would have to be implicit, which the quota rules forbid. |
 | `browser_toggle_left_panel` | `Internal-only` | - | Layout affordance; it affects the screenshot a workflow takes, not the model. |
 | `browser_type` | `Internal-only` | - | Composition primitive for text entry; dialog tools own field targeting and verification. |

@@ -1,0 +1,79 @@
+{
+  "estimator": {
+    "method": "1 token per CJK code point, 4 characters per token otherwise",
+    "kind": "estimate, not a tokenizer measurement"
+  },
+  "measurements": [
+    {
+      "query": "fillet the edges of a picked face",
+      "limit": 3,
+      "routes": {
+        "card": {
+          "chars": 1963,
+          "estimatedTokens": 495,
+          "matchedCapabilities": [
+            "custom.fillet",
+            "custom.hole"
+          ],
+          "planOnly": {
+            "chars": 827,
+            "estimatedTokens": 209
+          },
+          "generatedSource": {
+            "chars": 1035,
+            "estimatedTokens": 259
+          }
+        },
+        "reference-search": {
+          "chars": 4422,
+          "estimatedTokens": 1106,
+          "hitCount": 15,
+          "names": [
+            "fillet",
+            "evFilletRadius",
+            "modifyFillet",
+            "qFarthestAlong",
+            "qNthElement"
+          ]
+        },
+        "full-docs": {
+          "chars": 6938,
+          "estimatedTokens": 1735,
+          "page": "modeling"
+        }
+      }
+    },
+    {
+      "query": "圆角",
+      "limit": 3,
+      "routes": {
+        "card": {
+          "chars": 767,
+          "estimatedTokens": 195,
+          "matchedCapabilities": [
+            "custom.fillet"
+          ],
+          "planOnly": {
+            "chars": 827,
+            "estimatedTokens": 209
+          },
+          "generatedSource": {
+            "chars": 1035,
+            "estimatedTokens": 259
+          }
+        },
+        "reference-search": {
+          "chars": 2,
+          "estimatedTokens": 1,
+          "hitCount": 0,
+          "names": []
+        },
+        "full-docs": {
+          "chars": 6938,
+          "estimatedTokens": 1735,
+          "page": "modeling"
+        }
+      }
+    }
+  ]
+}
