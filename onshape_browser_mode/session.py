@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from onshape_browser_mode.settings import BrowserConfig, load_browser_config
 from onshape_browser_mode.errors import BrowserLaunchError, PlaywrightNotInstalled
@@ -29,6 +31,230 @@ def _is_onshape_app_url(url: str | None) -> bool:
     if "about:blank" in lowered or "cad.onshape.com" not in lowered:
         return False
     return "/signin" not in lowered and "login.onshape.com" not in lowered
+
+
+# A browser-internal downloads page is not an Onshape page and never answers a
+# page-level RPC. Measured live 2026-09-20: after ``browser_export_step``, Edge
+# ends up on ``edge://downloads-hub/`` and a ``page.evaluate(...)`` on that
+# target sits there until the MCP call fails with ``downstream_timeout`` (~32 s),
+# while the target lingers in "closing" state; every later page-level tool call
+# fails the same way until the target is closed. Such a page must never become
+# the working page and must never be probed, so the only safe action is to close
+# it, best-effort, and keep looking for the Onshape app page.
+_NOISE_PAGE_SCHEMES = frozenset({"edge", "chrome"})
+_NOISE_PAGE_PREFIX = "downloads"
+
+
+def _is_browser_internal_noise_url(url: str | None) -> bool:
+    """True for ``edge://downloads-hub/``, ``edge://downloads/`` and chrome peers.
+
+    Chromium internal URLs carry the page name in the authority
+    (``urlsplit("edge://downloads-hub/").netloc == "downloads-hub"`` and its path
+    is just ``/``), so the authority is checked first and the path is only the
+    fallback shape.
+    """
+    if not isinstance(url, str) or not url:
+        return False
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError:
+        return False
+    if parts.scheme.lower() not in _NOISE_PAGE_SCHEMES:
+        return False
+    segment = (parts.netloc or parts.path or "").strip("/").lower().split("/", 1)[0]
+    return segment.startswith(_NOISE_PAGE_PREFIX)
+
+
+def _safe_page_url(page: Any) -> str | None:
+    """Read a page URL without raising; a failed read proves nothing about liveness."""
+    try:
+        url = page.url
+    except Exception:
+        return None
+    return url if isinstance(url, str) else None
+
+
+# Chromium's own pages live on these schemes (a normal page is http(s) or
+# about:blank). They are never handed to browser_common's page cleanup, because
+# that cleanup closes every page it is given and closing an internal target is
+# the one call that never returns.
+_BROWSER_INTERNAL_SCHEMES = frozenset({"edge", "chrome", "devtools", "brave", "vivaldi", "opera"})
+
+
+def _is_browser_internal_url(url: str | None) -> bool:
+    """True for any browser-internal URL (``edge://``, ``chrome://``, ...).
+
+    ``about:blank`` is deliberately NOT internal: a temporary popup starts there
+    and must stay closable by the shared page cleanup.
+    """
+    if not isinstance(url, str) or not url:
+        return False
+    try:
+        scheme = urlsplit(url.strip()).scheme.lower()
+    except ValueError:
+        return False
+    return scheme in _BROWSER_INTERNAL_SCHEMES
+
+
+def _resident_cdp_port() -> int | None:
+    """The resident browser's loopback DevTools port, when residency is enabled.
+
+    Gated on ``resident`` on purpose: ``resident_port`` has a default value, so
+    without this check a non-resident deployment would still send DevTools close
+    requests to whatever unrelated process happens to listen on that port.
+    """
+    try:
+        browser = load_browser_config().browser
+        if not getattr(browser, "resident", False):
+            return None
+        port = getattr(browser, "resident_port", None)
+    except Exception:
+        return None
+    return port if isinstance(port, int) and port > 0 else None
+
+
+def _devtools_http(port: int, path: str, timeout: float) -> str:
+    """One loopback DevTools HTTP call, bounded by a socket timeout."""
+    with urllib.request.urlopen(  # noqa: S310 - loopback DevTools endpoint only
+        f"http://127.0.0.1:{port}{path}", timeout=timeout
+    ) as response:
+        return response.read().decode("utf-8", "replace")
+
+
+def _devtools_page_targets(port: int, timeout: float) -> list[dict[str, Any]] | None:
+    """Page targets listed by the loopback DevTools endpoint; None when unreachable.
+
+    ``None`` and ``[]`` mean different things and callers must not conflate them:
+    an unreachable endpoint proves nothing about which targets exist.
+    """
+    try:
+        targets = json.loads(_devtools_http(port, "/json/list", timeout))
+    except Exception:
+        return None
+    if not isinstance(targets, list):
+        return None
+    return [
+        target
+        for target in targets
+        if isinstance(target, dict) and target.get("type") == "page"
+    ]
+
+
+def _browser_internal_targets(port: int, timeout: float) -> list[dict[str, Any]] | None:
+    """Browser-internal page targets currently listed; None when unreachable."""
+    targets = _devtools_page_targets(port, timeout)
+    if targets is None:
+        return None
+    return [target for target in targets if _is_browser_internal_url(target.get("url"))]
+
+
+def _close_browser_internal_page(page: Any, *, timeout: float = 2.0) -> bool:
+    """Ask the browser to close one internal target WITHOUT touching Playwright.
+
+    Measured live 2026-09-20: ``page.close()`` on Edge's ``edge://downloads-hub/``
+    target never returns. The target stays in DevTools' "closing" state, so
+    ``browser_common``'s cleanup - which closes every page it is handed - turns
+    that page into a transport timeout (``downstream_timeout`` after ~32 s) and
+    every later page-level call meets the same wedged target. This helper
+    therefore never calls into Playwright: it asks the resident browser's own
+    loopback DevTools endpoint to close the target, bounded by a socket timeout.
+
+    Returns True only when the close request was ACCEPTED. That is deliberately
+    weaker than "the page is gone": measured live 2026-09-20, Edge accepts the
+    close of ``edge://downloads-hub/`` and keeps the target listed anyway, so a
+    caller that needs the stronger fact must read it with
+    ``_browser_internal_pages_remaining``.
+    """
+    port = _resident_cdp_port()
+    url = _safe_page_url(page)
+    if port is None or not url:
+        return False
+    targets = _browser_internal_targets(port, timeout)
+    if targets is None:
+        return False
+    for target in targets:
+        if target.get("url") != url:
+            continue
+        try:
+            _devtools_http(port, "/json/close/" + str(target.get("id", "")), timeout)
+        except Exception:
+            return False
+        return True
+    return False
+
+
+def _browser_internal_pages_remaining(*, timeout: float = 2.0) -> int | None:
+    """How many browser-internal page targets are still listed, or None if unknown.
+
+    An accepted close is not removal (measured live 2026-09-20 for Edge's
+    ``edge://downloads-hub/``, which stays listed as "Target is closing"). This
+    exists so callers can report what is observable instead of claiming a page was
+    closed. ``None`` means the DevTools endpoint could not be reached.
+    """
+    port = _resident_cdp_port()
+    if port is None:
+        return None
+    targets = _browser_internal_targets(port, timeout)
+    return None if targets is None else len(targets)
+
+
+def _close_browser_internal_pages(pages: Any, **kwargs: Any) -> int:
+    """Request a close for every browser-internal page in ``pages``.
+
+    Returns the number of ACCEPTED close requests, not the number of pages that
+    disappeared; a browser with no reachable DevTools endpoint reports 0 and every
+    failure stays silent, because leaving a stray internal tab open is harmless
+    while blocking on one is not.
+    """
+    closed = 0
+    for page in pages:
+        if _is_browser_internal_url(_safe_page_url(page)) and _close_browser_internal_page(page, **kwargs):
+            closed += 1
+    return closed
+
+
+def _cleanup_candidates(pages: Any) -> list[Any]:
+    """The pages browser_common's cleanup may close: never a browser-internal one.
+
+    ``SyncSession.reconcile_pages`` closes every page it is handed, so handing it
+    ``context.pages`` verbatim is what wedged every page-level tool call. A page
+    whose URL cannot be read is filtered out as well: for a routine whose only job
+    is to close pages, "cannot tell" has to mean "leave it alone", while the
+    selection paths below keep such a page as a fallback candidate.
+    """
+    candidates: list[Any] = []
+    for page in pages:
+        url = _safe_page_url(page)
+        if not isinstance(url, str) or not url:
+            continue
+        if _is_browser_internal_url(url):
+            continue
+        candidates.append(page)
+    return candidates
+
+
+def _dismiss_browser_internal_pages(pages: Any) -> list[Any]:
+    """Live usable pages in order, closing browser-internal noise as it is found.
+
+    A page whose liveness cannot be read is skipped: a read error is not proof of
+    closure, but it is not a usable candidate either. A page whose URL cannot be
+    read is kept, because an unreadable URL is not proof of a noise page. Noise
+    pages are dropped and never probed: the browser is asked to close them through
+    its own loopback DevTools endpoint, never through Playwright, whose close()
+    on such a target does not return.
+    """
+    usable: list[Any] = []
+    for page in pages:
+        try:
+            if page.is_closed():
+                continue
+        except Exception:
+            continue
+        if _is_browser_internal_noise_url(_safe_page_url(page)):
+            _close_browser_internal_page(page)
+            continue
+        usable.append(page)
+    return usable
 
 
 def _browser_launch_error_message(
@@ -189,11 +415,39 @@ class BrowserSession:
         from browser_common import PageCleanupError
         if keep_page is not self.page:
             self.adopt_page(keep_page)
-        report = self._resources.reconcile_pages(list(context.pages or []))
+        # browser_common's cleanup CLOSES every page it is handed, and closing a
+        # browser-internal target through Playwright never returns (measured live
+        # 2026-09-20). Handing it the raw context.pages was what made every
+        # page-level tool call time out while a stray edge://downloads-hub/
+        # target existed, so internal pages are filtered out here and left to the
+        # bounded DevTools request in _close_browser_internal_page.
+        report = self._resources.reconcile_pages(_cleanup_candidates(list(context.pages or [])))
         if not report.complete:
             raise PageCleanupError(report)
 
+    def _fallback_page(self, *, excluding: Any = None) -> Any:
+        """First usable page in the owner's context, preferring the Onshape app."""
+        context = self.context
+        if context is None:
+            return None
+        usable = [
+            page for page in _dismiss_browser_internal_pages(list(context.pages or []))
+            if page is not excluding
+        ]
+        preferred = [page for page in usable if _is_onshape_app_url(_safe_page_url(page))]
+        return (preferred or usable or [None])[0]
+
     def _prepare_page(self, page: Any):
+        if _is_browser_internal_noise_url(_safe_page_url(page)):
+            # Defensive: a downloads/hub target must never become the working
+            # page. Close it and continue to a real page instead of probing it.
+            _close_browser_internal_page(page)
+            page = self._fallback_page(excluding=page)
+            if page is None:
+                raise BrowserLaunchError(
+                    "Only browser-internal pages are open, so no Onshape page can "
+                    "be adopted. Reopen the Onshape tab and retry."
+                )
         self.adopt_page(page)
         self._enforce_single_working_page(page)
         try:
@@ -212,6 +466,11 @@ class BrowserSession:
             state = self._resources.snapshot().state
             if self._temporary_depth:
                 current = self.page
+                if current is not None and _is_browser_internal_noise_url(_safe_page_url(current)):
+                    # Never adopt a downloads target inside a temporary workflow;
+                    # selecting a scope-owned popup instead would move ownership.
+                    _close_browser_internal_page(current)
+                    current = None
                 if current is None:
                     raise BrowserLaunchError(
                         "Working page unavailable during a temporary workflow; "
@@ -234,20 +493,11 @@ class BrowserSession:
             # Reuse the current app page first. Do not replace it with a temporary
             # app popup merely because that popup occurs earlier in context.pages.
             ordered = ([current] if current is not None else []) + [p for p in pages if p is not current]
-            live_pages = []
-            for page in ordered:
-                try:
-                    if not page.is_closed():
-                        live_pages.append(page)
-                except Exception:
-                    continue
-            preferred = []
-            for candidate in live_pages:
-                try:
-                    if _is_onshape_app_url(candidate.url):
-                        preferred.append(candidate)
-                except Exception:
-                    continue
+            live_pages = _dismiss_browser_internal_pages(ordered)
+            preferred = [
+                candidate for candidate in live_pages
+                if _is_onshape_app_url(_safe_page_url(candidate))
+            ]
             candidates = preferred + [
                 p for p in live_pages if all(p is not preferred_page for preferred_page in preferred)
             ]
@@ -303,14 +553,19 @@ class BrowserSession:
             ) from last_exc
         # Keep legacy business preference; shared selection only supplies a live
         # fallback, and never embeds site-specific matching in the common library.
-        for restored in list(self.context.pages or []):
-            try:
-                if not restored.is_closed() and _is_onshape_app_url(restored.url):
-                    page = restored
-                    break
-            except Exception:
-                continue
-        return self._prepare_page(page)
+        # A browser-internal downloads page is closed here instead of adopted:
+        # probing it with evaluate() is what wedges the page channel, and the
+        # owner's restored-page fallback may well have selected it.
+        live_pages = _dismiss_browser_internal_pages(list(self.context.pages or []))
+        chosen = next(
+            (restored for restored in live_pages if _is_onshape_app_url(_safe_page_url(restored))),
+            None,
+        )
+        if chosen is None and any(restored is page for restored in live_pages):
+            chosen = page
+        if chosen is None:
+            chosen = live_pages[0] if live_pages else self.context.new_page()
+        return self._prepare_page(chosen)
 
     def release(self) -> dict[str, Any]:
         """Release this process's browser/profile ownership without starting it."""
@@ -372,8 +627,19 @@ class BrowserSession:
             from browser_common import ExecutionContextError
             try:
                 probe = current
+                if _is_browser_internal_noise_url(_safe_page_url(probe)):
+                    # A downloads page never answers a page-level read; probing it
+                    # here would time out and prove nothing about the login state.
+                    probe = None
                 if probe is None:
-                    probe = next((p for p in context.pages if not p.is_closed()), None)
+                    probe = next(
+                        (
+                            p for p in context.pages
+                            if not p.is_closed()
+                            and not _is_browser_internal_noise_url(_safe_page_url(p))
+                        ),
+                        None,
+                    )
                 if probe is not None:
                     # Sync Playwright URL/pages/closed properties only read caches.
                     # One native read pumps pending manual-navigation events.
@@ -396,6 +662,10 @@ class BrowserSession:
                     url = page.url
                 except Exception:
                     pages_seen.append({"closed": True})
+                    continue
+                if _is_browser_internal_noise_url(url):
+                    # Reported so the wedge is diagnosable; never a probe target.
+                    pages_seen.append({"url": url, "browserInternal": True})
                     continue
                 pages_seen.append({"url": url})
                 if _is_onshape_app_url(url):

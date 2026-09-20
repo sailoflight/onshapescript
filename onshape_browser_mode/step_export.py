@@ -19,6 +19,45 @@ def _identifier(value: str, label: str) -> str:
     return value
 
 
+def _close_internal_download_pages(page: Any) -> int:
+    """Request a close for browser-internal downloads pages this download left open.
+
+    Edge opens ``edge://downloads-hub/`` as its own target once a download is
+    saved. A page-level probe on that target times out and keeps the shared page
+    channel busy for every later tool call, so the export must not leave one
+    behind. Guarded and zero-quota: a missing context or a native failure is not
+    an export failure.
+
+    Returns the number of ACCEPTED close requests, not of pages that disappeared;
+    ``_internal_pages_remaining`` reports the observable half of that question.
+    """
+    try:
+        pages = list(page.context.pages or [])
+    except Exception:
+        return 0
+    from onshape_browser_mode.session import _close_browser_internal_pages
+
+    try:
+        return _close_browser_internal_pages(pages)
+    except Exception:
+        return 0
+
+
+def _internal_pages_remaining() -> int | None:
+    """Browser-internal page targets still listed after a close was requested.
+
+    ``None`` means the count was not determined: the browser's DevTools endpoint
+    could not be reached (or the caller had nothing to re-check). Guarded:
+    probing must never fail an export.
+    """
+    from onshape_browser_mode.session import _browser_internal_pages_remaining
+
+    try:
+        return _browser_internal_pages_remaining()
+    except Exception:
+        return None
+
+
 def plan_browser_step_export(
     *,
     source_tab: str,
@@ -189,6 +228,13 @@ def export_browser_step(
     staging.mkdir(parents=True)
     destination = staging / "model.step"
     download.save_as(str(destination))
+    internal_pages_close_requested = _close_internal_download_pages(page)
+    # Only a requested close needs re-checking. With nothing requested the count is
+    # not this export's question, and probing anyway would add an unrelated
+    # DevTools call (and an environment dependency) to every export.
+    internal_pages_remaining = (
+        _internal_pages_remaining() if internal_pages_close_requested else None
+    )
     dialog.wait_for(state="hidden", timeout=30_000)
     registered = register_downloaded_browser_step(
         export_id=export_id,
@@ -204,6 +250,11 @@ def export_browser_step(
         "browserActionPerformed": True,
         "sourceTab": source_tab,
         "suggestedFilename": suggested,
+        # An accepted close is not proof of removal (measured live 2026-09-20:
+        # Edge keeps edge://downloads-hub/ listed as "Target is closing"), so the
+        # two facts are reported separately instead of one "closed" count.
+        "browserInternalPagesCloseRequested": internal_pages_close_requested,
+        "browserInternalPagesRemaining": internal_pages_remaining,
         **registered,
         "configuration": plan["configuration"],
         "apiRequests": 0,

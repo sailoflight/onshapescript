@@ -514,13 +514,30 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - `launch_persistent_context` 命令行末尾固定带 `about:blank`，这是正常启动页；
   是否恢复上次标签取决于上次是否强杀（崩溃恢复）。
 - 中文 Windows 下 Python stdout 默认 GBK；MCP 协议读写必须走 UTF-8 字节流。
-- **`edge://downloads-hub/` 会卡死页面级调用（实测 2026-09-20）**：STEP 导出之后 Edge
-  会多出一个下载中心标签页；只要它在，`browser_get_page_tabs`、参数读写等页面级调用一律以
-  `MCP error -32001: downstream_timeout` 结束（约 32 s），而 `browser_session(status)`、
-  `onshape_api_quota`、`bridge_control` 仍然可用。用 CDP HTTP 关掉它即可恢复：
-  `/json/list` 里找 `url` 含 `downloads-hub` 的 target，再
-  `curl http://127.0.0.1:9333/json/close/<targetId>`；返回 `Target is closing` 之后目标
-  可能还在列表里停留一会儿，页面调用要等它真正消失才恢复，**不需要重启节点**。
+- **`edge://downloads-hub/` 曾卡死所有页面级调用（实测并修复 2026-09-20）**：STEP 导出
+  之后 Edge 会多出一个下载中心 target。曾经的症状是 `browser_get_page_tabs`、参数读写等
+  页面级调用一律以 `MCP error -32001: downstream_timeout`（约 32 s）结束，而
+  `browser_session(status)`、`onshape_api_quota`、`bridge_control` 仍可用。
+  根因链（不是"标签页太多"）：页级事务先跑 `_enforce_single_working_page` →
+  `SyncSession.reconcile_pages(context.pages)` → 共享库对**交给它的每一个页面**调用
+  `page.close()` → 而对 `edge://downloads-hub/` 调 `page.close()` **永不返回**，这个
+  target 于是永久占住页面通道。
+  已落地的修法（`onshape_browser_mode/session.py`）：浏览器内部页面
+  （`edge://`、`chrome://`、`devtools://` 等）**绝不进入** `reconcile_pages` 的清单，也
+  **绝不用 Playwright 关闭**；关闭改走常驻浏览器自己的回环 DevTools
+  （`/json/list` 匹配 url → `/json/close/<targetId>`），受 2 s socket 超时限制。
+  `browser_export_step` 在 `save_as` 之后同样只会请求关闭此类页面，因此导出自身不再制造
+  这个坑。
+  **两个必须分清的事实**：`/json/close/<id>` 被接受 ≠ 目标消失。实测 Edge 会对
+  `edge://downloads-hub/` 接受关闭请求，而该 target 仍以 "Target is closing" 留在
+  `/json/list` 里（CDP 关不掉、激活后再关也关不掉），**且这不影响可用性**：修复后
+  `browser_get_page_tabs` 在该 target 仍在列表中的情况下照常秒回。所以
+  `browser_export_step` 分开报告 `browserInternalPagesCloseRequested`（被接受的关闭请求数）
+  与 `browserInternalPagesRemaining`（仍然在列的内部页面数，未探测/不可达时为 `null`），
+  不把"请求被接受"说成"页面已关闭"。
+  回环 DevTools 端口只在 `browser.resident = true` 时才使用：
+  `resident_port` 有默认值，无此门禁时非常驻部署会向恰好监听该端口的**无关进程**发关闭请求。
+  曾经的临时绕过手段（手工 `curl /json/close/<id>`）已不再需要，也**不要**为此重启节点。
 - **页面通道卡住时透明重启会被拒**：卡住的页面请求在服务端仍算 active，重启返回
   `control_failed: active_requests: transparent restart requires an idle shared backend`。
   先清掉卡住页面的来源（上一条），而不是反复重试重启。

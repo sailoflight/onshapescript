@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from onshape_browser_mode import selectors
 from onshape_browser_mode.project import run_project
@@ -77,10 +78,38 @@ class DownloadContext:
         return False
 
 
+class FakePageHandle:
+    """A page target in the export context, e.g. Edge's downloads-hub page."""
+
+    def __init__(self, url):
+        self.url = url
+        self.closed = False
+        self.close_calls = 0
+
+    def is_closed(self):
+        return self.closed
+
+    def close(self):
+        self.close_calls += 1
+        self.closed = True
+
+
+class FakeContext:
+    def __init__(self, pages=()):
+        self.pages = list(pages)
+
+
+class ExplodingContext:
+    @property
+    def pages(self):
+        raise RuntimeError("no native context")
+
+
 class FakePage:
-    def __init__(self, download=None):
+    def __init__(self, download=None, context=None):
         self.url = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element1"
         self.download = download or FakeDownload()
+        self.context = context if context is not None else FakeContext()
         self.locators = {
             selectors.TAB_BAR_TAB: FakeLocator(),
             selectors.TAB_CONTEXT_MENU_ITEM: FakeLocator(),
@@ -157,6 +186,63 @@ class BrowserStepExportTest(unittest.TestCase):
         self.assertEqual(manifest["artifact"]["source"]["mode"], "browser")
         self.assertEqual(manifest["artifact"]["units"], "mm")
         self.assertEqual(manifest["artifact"]["path"], "model.step")
+
+    def test_export_closes_browser_internal_downloads_page(self):
+        calls = []
+
+        def fake_devtools(port, path, timeout):
+            calls.append(path)
+            if path == "/json/list":
+                return json.dumps([{"type": "page", "id": "T1", "url": "edge://downloads-hub/"}])
+            return "Target is closing"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            internal = FakePageHandle("edge://downloads-hub/")
+            app = FakePageHandle("https://cad.onshape.com/documents/doc1/w/workspace1/e/element1")
+            page = FakePage(context=FakeContext([internal, app]))
+            with mock.patch(
+                "onshape_browser_mode.session._resident_cdp_port", return_value=9333
+            ), mock.patch("onshape_browser_mode.session._devtools_http", side_effect=fake_devtools):
+                result = export_browser_step(
+                    page,
+                    source_tab="Part Studio 1",
+                    export_id="export1",
+                    document_id="doc1",
+                    workspace_id="workspace1",
+                    element_id="element1",
+                    output_root=root,
+                )
+        self.assertTrue(result["exported"])
+        self.assertEqual(result["browserInternalPagesCloseRequested"], 1)
+        # The fake lists the hub on every /json/list, which is what Edge really
+        # does even after accepting the close: an accepted request is reported
+        # as a request, never as a removed page.
+        self.assertEqual(result["browserInternalPagesRemaining"], 1)
+        self.assertIn("/json/close/T1", calls)
+        # Playwright's close() on that target never returns, so it is never called.
+        self.assertEqual(internal.close_calls, 0)
+        self.assertFalse(internal.closed)
+        self.assertFalse(app.closed)
+
+    def test_export_tolerates_an_unreadable_page_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = FakePage(context=ExplodingContext())
+            result = export_browser_step(
+                page,
+                source_tab="Part Studio 1",
+                export_id="export1",
+                document_id="doc1",
+                workspace_id="workspace1",
+                element_id="element1",
+                output_root=root,
+            )
+        self.assertTrue(result["exported"])
+        self.assertEqual(result["browserInternalPagesCloseRequested"], 0)
+        # No readable context means no page list to inspect, so the export makes
+        # no DevTools call at all and reports the target count as unknown.
+        self.assertIsNone(result["browserInternalPagesRemaining"])
 
     def test_non_step_download_fails_before_creating_staging(self):
         with tempfile.TemporaryDirectory() as tmp:
