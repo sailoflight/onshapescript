@@ -359,3 +359,58 @@ Rules that save quota:
   `value`-typed params, not `5`, so structural predicates (is2dDirection,
   isLengthVector, …) don't deref the dummy at runtime.
 
+## Composing a thin feature from the standard library (live, browser leg, 0 REST quota)
+
+A "thin" feature carries no geometry math of its own: it exposes a few numbers and
+calls the SAME standard-library routine Onshape's own toolbar feature calls. The
+point is the feature tree — a two-to-five number row a human edits like a native
+modeling step, instead of a fat domain feature that hides the whole model.
+Measured 2026-09-20 on `dev/fixtures-capture/thin-native-features.fs`
+(`Thin Sketch Rectangle`, `Thin Extrude`).
+
+**Calling a feature from inside a feature is upstream practice, not a trick.**
+`sketch.fs`'s own module docstring gives the canonical form —
+`newSketch`/`newSketchOnPlane` → `skRectangle` → `skSolve` →
+`extrude(context, id + "extrude1", { "entities" : qSketchRegion(id + "sketch1"), … })`
+— and `cylinderCast.fs:245` and `sectionpart.fs:1005` really do call
+`extrude(context, id, definition)` from inside another feature. So a thin wrapper
+is a composition the standard library already relies on.
+
+**A type in a precondition is part of the module interface, so it needs an
+`export import`.** A plain `import` of the defining module is not enough, and the
+message names the parameter, not the import:
+
+| Server message | Cause | Fix |
+|---|---|---|
+| `definition.operation: Enum used as parameter type must be exported` | `definition.operation is NewBodyOperationType` in the precondition, with `tool.fs` (where `tool.fs:66` declares `export enum NewBodyOperationType`) merely imported | `export import(path : "onshape/std/tool.fs", …)` — the same reason `extrude.fs` re-exports `tool.fs` in its own "Imports used in interface" block. A type used only in the *body* needs no export import |
+| `Cannot assign to constant extrusion.` | a FeatureScript map bound with `const` rejects a field assignment, so `extrusion.hasDraft = true` after the literal fails | build the map in one expression, with the conditional entry computed as a value. Passing the draft keys unconditionally is safe because `draftAngle` is `@requiredif {hasDraft is true}` (`extrude.fs:102`) and the documented default is `hasDraft: false` (`extrude.fs:410`) |
+| `Nonconforming feature function 'thinExtrude': precondition analysis failed` | secondary: the precondition itself was rejected, so the whole feature loses its spec | fix the primary diagnostic |
+
+**A bound spec's second element is the dialog default, not the midpoint.** A
+sketch plane origin declared with the *size* spec
+`{ (millimeter) : [0.1, 84, 5000] }` therefore opened every new sketch at
+`(84, 84, 84)` — verified by reading the inserted row back with
+`browser_read_feature_parameters`, which returned `"origin_x": "84 mm",
+"origin_y": "84 mm", "origin_z": "84 mm"` plus `"width": "84 mm"`. Give a
+quantity that must default to zero its own symmetric spec, e.g.
+`{ (millimeter) : [-10000, 0, 10000] }`. This is invisible in the model until
+something measures it: the extrude still succeeded and still produced a part.
+
+**Read the compile verdict from `compiled`, not from the click.** A rejected
+deploy still reports `commitAccepted: true`, `verified: true` and a matching
+`verifiedLength`, because the Commit button really was clicked and the editor
+really was written — only the server's diagnostics disagree. Every iteration in
+this loop spent 0 REST quota and returned the server's own `row`/`col`/`message`,
+and the accepted attempt also wrote a diagnostic package (source + compile result)
+under `onshape_browser_mode/outputs/fs_diagnostics/<captureId>/`.
+
+**A new feature in the workspace dropdown needs no document version.** Both thin
+features were offered by the custom-feature toolbar dropdown of a scratch Part
+Studio immediately after the Feature Studio commit, and
+`browser_insert_custom_feature` accepted each row and confirmed it survived a
+reload (`commit.verified: true`, `committed: true`). The pair produced a real
+solid (`零件数 (1) Part 1`), so a human can add and edit these rows exactly like a
+native step. The ASCII rule above still applies: a localised custom feature is
+impossible because `"Feature Type Name"` and every parameter `"Name"` must be
+printable ASCII.
+
