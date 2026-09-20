@@ -8176,7 +8176,7 @@
    "page": "downloads-hub-nonblocking-verification",
    "category": "verification",
    "path": "onshape_docs/verification/downloads-hub-nonblocking-2026-09-20.md",
-   "sha256": "e95d7eeae4179bb8a748fafd048a9be08503ca0019c384cad7226660592582c8",
+   "sha256": "0b2ae3daa6c13213293ec098533060779a7a8225f0fb8bda458329fe11cb1c63",
    "title": "下载中心 target 卡死页面通道：根因与修复验收（2026-09-20）",
    "sections": [
     {
@@ -8292,6 +8292,16 @@
       {
        "type": "para",
        "text": "同类审计（同一缺陷是否还有别的入口）：grep -rn \"\\.close()\" onshape_browser_mode/ 在 本模块内没有任何 page.close() 调用点，唯一把页面清单交给 SyncSession.reconcile_pages 的位置就是上面已过滤的那一处；登录探测与 browser_session(status) 只是跳过内部页面（不探测、不关闭），并在状态里以 {\"url\": ..., \"browserInternal\": true} 标出，便于卡顿时定位。即该缺陷类在本模块内已收敛。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 验收",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "离线套件证明仓库里的这份代码，实机调用证明部署到 Windows 后的那份代码；两者用同一套 哈希一致的源文件（deploy.py verify 报 mismatched: []）。"
       }
      ]
     },

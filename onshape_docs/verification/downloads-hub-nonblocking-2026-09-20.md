@@ -61,6 +61,9 @@ MCP error -32001: downstream_timeout     # 约 32 s 后返回
 
 ## 4. 验收
 
+离线套件证明仓库里的这份代码，实机调用证明部署到 Windows 后的那份代码；两者用同一套
+哈希一致的源文件（`deploy.py verify` 报 `mismatched: []`）。
+
 ### 4.1 离线
 
 - `dev/tests/test_browser_internal_pages.py`（内部页面分类、清理清单、DevTools 门禁与探测）、
