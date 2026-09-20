@@ -2815,7 +2815,7 @@ TOOLS: list[dict[str, Any]] = [
             "max_requests": 0,
             "estimated_api_requests": 0,
             "max_api_requests": 0,
-            "estimated_seconds": 30,
+            "estimated_seconds": 45,
             "requires_browser_session": True,
             "mutating": True,
             "cacheable": False,
@@ -2824,6 +2824,15 @@ TOOLS: list[dict[str, Any]] = [
             "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO "
             "Onshape API quota. Optionally switches to the given Part Studio tab, opens the workspace custom-feature "
             "toolbar dropdown, selects the exact named feature, then accepts its parameter dialog so the row computes. "
+            "It counts the matching feature rows before the click and requires one more after regeneration and again after one "
+            "bounded page reload, because a browser-inserted feature is not committed to the workspace until a reload and a "
+            "same-named row already on screen is not this insert; the returned `inserted` means the workspace kept the feature, "
+            "and `baselineRows` plus the `commit` block report that check (`verified`, `committed`) separately from the rows "
+            "seen before the reload. Both waits scale with the element's custom-feature count (30 s floor, plus 2 s per "
+            "feature for regeneration and 8 s per feature for the reload, capped), because a reload re-evaluates every "
+            "feature: on a 5-feature Part Studio the survival wait needed 18.4 s of a fixed 30 s budget, so a fixed "
+            "budget would call a committed feature missing as the document grows. The returned `budgets` block reports the "
+            "count it read and both computed budgets. "
             "This mutates the document (adds a feature instance), so it requires confirm_mutation=true. Returns the "
             "resulting feature-tree/part-list state; the separate 添加自定义特征 picker is not used because it may "
             "leave a not-computed row."

@@ -495,9 +495,35 @@ def generate_spiral_ridge_script(
     length_mm: float,
     clockwise: bool,
 ) -> str:
-    """Generate a bounded FeatureScript helix+sweep feature with no raw code input."""
-    revolutions = length_mm / pitch_mm
+    """Generate a bounded, PARAMETERIZED FeatureScript helix+sweep feature.
+
+    No raw code is accepted: the five dimensions are the tool's own numbers. They
+    are emitted as precondition parameters rather than baked constants, because a
+    feature with an empty precondition is a black box in the UI — measured live
+    2026-09-20: the earlier version declared zero parameters, so Onshape showed
+    the internal cylinder/helix/sweep with no editable field. The requested value
+    becomes the parameter default and sits inside a range around it.
+
+    Labels are ASCII, and so is the feature type name: FeatureScript rejects
+    non-ASCII inside ANY annotation string. Measured live 2026-09-20 with two
+    deploys through the browser leg (0 REST quota each):
+    ``Invalid character in 'Feature Type Name' annotation: only printable ASCII
+    allowed`` and the same for ``'Name'``. Non-ASCII *values* are fine — the same
+    source compiled clean with a Chinese body name, and the parts list showed it.
+
+    ``clockwise`` stays baked: this generator has no boolean-parameter emission.
+    """
     clockwise_literal = "true" if clockwise else "false"
+
+    def bounds(value: float, low_ratio: float, high_ratio: float) -> str:
+        """One ``LengthBoundSpec`` literal: a range that always contains value."""
+        low = value * low_ratio
+        high = value * high_ratio
+        return (
+            f"{{ (millimeter) : [{low:.9g}, {value:.9g}, {high:.9g}] }}"
+            " as LengthBoundSpec"
+        )
+
     return f'''FeatureScript 3044;
 import(path : "onshape/std/geometry.fs", version : "3044.0");
 
@@ -505,13 +531,30 @@ annotation {{ "Feature Type Name" : "Spiral ridge" }}
 export const spiralRidge = defineFeature(function(context is Context, id is Id, definition is map)
     precondition
     {{
+        annotation {{ "Name" : "Base radius" }}
+        isLength(definition.baseRadius, {bounds(base_radius_mm, 0.25, 4)});
+
+        annotation {{ "Name" : "Pitch" }}
+        isLength(definition.pitch, {bounds(pitch_mm, 0.25, 4)});
+
+        annotation {{ "Name" : "Ridge width" }}
+        isLength(definition.ridgeWidth, {bounds(ridge_width_mm, 0.25, 8)});
+
+        annotation {{ "Name" : "Ridge height" }}
+        isLength(definition.ridgeHeight, {bounds(ridge_height_mm, 0.25, 8)});
+
+        annotation {{ "Name" : "Length" }}
+        isLength(definition.length, {bounds(length_mm, 0.1, 20)});
     }}
     {{
-        const baseRadius = {base_radius_mm:.9g} * millimeter;
-        const pitch = {pitch_mm:.9g} * millimeter;
-        const ridgeWidth = {ridge_width_mm:.9g} * millimeter;
-        const ridgeHeight = {ridge_height_mm:.9g} * millimeter;
-        const length = {length_mm:.9g} * millimeter;
+        const baseRadius = definition.baseRadius;
+        const pitch = definition.pitch;
+        const ridgeWidth = definition.ridgeWidth;
+        const ridgeHeight = definition.ridgeHeight;
+        const length = definition.length;
+        // Unitless: a length divided by a length. Kept derived so the parameter
+        // dialog can change pitch or length without the script disagreeing.
+        const revolutions = length / pitch;
         const baseId = id + "base";
         fCylinder(context, baseId, {{
                 "bottomCenter" : vector(0, 0, 0) * millimeter,
@@ -524,7 +567,7 @@ export const spiralRidge = defineFeature(function(context is Context, id is Id, 
                 "direction" : vector(0, 0, 1),
                 "axisStart" : vector(0, 0, 0) * millimeter,
                 "startPoint" : startPoint,
-                "interval" : [0, {revolutions:.12g}],
+                "interval" : [0, revolutions],
                 "clockwise" : {clockwise_literal},
                 "helicalPitch" : pitch,
                 "spiralPitch" : 0 * millimeter
@@ -549,10 +592,13 @@ export const spiralRidge = defineFeature(function(context is Context, id is Id, 
                 "operationType" : BooleanOperationType.UNION,
                 "keepTools" : false
         }});
+        // Body/part NAME is a string VALUE, not an annotation, so it may be
+        // non-ASCII (compiled and verified live 2026-09-20). This is the only
+        // place a Chinese name can appear on a generated FeatureScript feature.
         setProperty(context, {{
                 "entities" : qCreatedBy(baseId, EntityType.BODY),
                 "propertyType" : PropertyType.NAME,
-                "value" : "Spiral ridge cylinder"
+                "value" : "螺旋凸棱柱"
         }});
     }});
 '''

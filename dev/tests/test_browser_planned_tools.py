@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import struct
 import tempfile
 import unittest
@@ -13,7 +14,7 @@ from unittest import mock
 
 from mcp_main.win.mcp import browser_tools, server
 from onshape_browser_mode import modeling_transactions, project, selectors, semantic, transactions
-from onshape_docs.query.fs_check import check_file
+from onshape_docs.query.fs_check import check_file, findings_requiring_acknowledgement
 
 
 PLANNED_NAMES = {
@@ -332,6 +333,76 @@ class TransactionAcceptanceTest(unittest.TestCase):
         self.assertEqual(parsed[1], {"value": 47.0, "unit": "deg"})
         self.assertEqual(parsed[2], {"value": 0.1, "unit": "in"})
 
+    def test_the_watch_switch_waits_on_the_toolbar_readback(self):
+        """The wait must be ISSUED, not silently skipped.
+
+        This call site passed its argument positionally, which playwright-python
+        rejects because ``arg`` is keyword-only; the raise was swallowed by the
+        surrounding ``except Exception: pass``, so the wait never happened and
+        nothing said so. With a Mock page a positional call still "works", which
+        is why the assertion is on ``kwargs["arg"]``: it can only pass when the
+        argument really is passed by keyword.
+        """
+        page = mock.Mock()
+        root, current, opener, items, target = (mock.Mock() for _ in range(5))
+        for widget in (root, current, opener, items):
+            widget.count.return_value = 1
+        root.first = root
+        current.first = current
+        opener.first = opener
+        items.first = items
+        items.nth.return_value = items
+        current.first.inner_text.side_effect = ["监控 Part Studio 1", "监控 PS-Part 1"]
+        page.locator.side_effect = lambda selector: {
+            selectors.FS_WATCH_CONFIG_MENU: root,
+            selectors.FS_WATCH_CONFIG_CURRENT: current,
+            selectors.FS_WATCH_CONFIG_OPEN: opener,
+            selectors.FS_WATCH_CONFIG_ITEM: items,
+        }[selector]
+        with mock.patch.object(transactions, "_exact_text", return_value=target), \
+             mock.patch.object(
+                 transactions.actions, "read_featurescript_compile_status",
+                 return_value={"compiled": True},
+             ):
+            result = transactions.fs_watch_part_studio(page, "PS-Part 1", mode="watch")
+        self.assertTrue(result["watchConfigured"])
+        self.assertTrue(result["changed"])
+        page.wait_for_function.assert_called_once()
+        call = page.wait_for_function.call_args
+        self.assertEqual(
+            len(call.args),
+            1,
+            "a positional argument means playwright raises TypeError into the swallow",
+        )
+        self.assertEqual(
+            call.kwargs["arg"],
+            {"selector": selectors.FS_WATCH_CONFIG_CURRENT, "desired": "监控 PS-Part 1"},
+        )
+
+    def test_duplicating_an_element_waits_for_exactly_one_new_tab(self):
+        """Same defect, second call site: the new-tab wait is really issued."""
+        page = mock.Mock()
+        before = {
+            "tabs": [{"id": "e1", "name": "Part Studio 1"}, {"id": "e2", "name": "Feature Studio 1"}],
+            "hasDocumentTabsToolButton": True,
+        }
+        after = {
+            "tabs": before["tabs"] + [{"id": "e3", "name": "Part Studio 1"}],
+            "hasDocumentTabsToolButton": True,
+        }
+        page.evaluate.side_effect = [before, after]
+        page.locator.return_value.count.return_value = 0
+        menu_item = mock.Mock()
+        with mock.patch.object(
+            transactions, "element_context_menu", return_value={"contextMenuOpened": True}
+        ), mock.patch.object(transactions, "_exact_text", return_value=menu_item):
+            result = transactions.duplicate_element(page, element_id="e1")
+        self.assertTrue(result["duplicated"])
+        page.wait_for_function.assert_called_once()
+        call = page.wait_for_function.call_args
+        self.assertEqual(len(call.args), 1, "only the expression may be positional")
+        self.assertEqual(call.kwargs["arg"], ["e1", "e2"])
+
     def test_spiral_rejects_self_intersecting_profile_before_session(self):
         args = dict(MUTATING_CALLS["browser_spiral_ridge"])
         args["ridge_width_mm"] = args["pitch_mm"]
@@ -355,6 +426,147 @@ class TransactionAcceptanceTest(unittest.TestCase):
             path.write_text(source, encoding="utf-8")
             checked = check_file(path)
         self.assertEqual(checked.errors, [])
+
+
+class SpiralRidgeGeneratorTest(unittest.TestCase):
+    """The generated feature must be editable, not a black box.
+
+    Measured live 2026-09-20 (browser leg, 0 REST quota): the first generated
+    spiral published an EMPTY precondition, so Onshape showed its internals
+    (fCylinder -> an "extrude", opHelix, sketch+sweep, opBoolean) read-only with
+    no editable field at all — visually nothing like an official feature. The
+    same session measured the fix: a precondition that declares five
+    ``annotation { "Name" … } isLength(definition.…, LengthBoundSpec)``
+    parameters makes the custom feature open a real parameter dialog with
+    ``Base radius 10 mm / Pitch 6 mm / Ridge width 2 mm / Ridge height 2 mm /
+    Length 30 mm``, and editing two of them applied and persisted.
+
+    The other measured half is the naming gate: FeatureScript refuses non-ASCII
+    inside ANY annotation string ('Feature Type Name' on the first deploy, every
+    ``'Name'`` label on the second), while a non-ASCII ``setProperty`` string
+    VALUE compiled clean and displayed as ``螺旋凸棱柱`` in the parts list. So the
+    labels are ASCII and the Chinese name lives in the body, and only there.
+    """
+
+    #: One row of the measured live dialog, in creation order.
+    PARAMETERS = (
+        ("Base radius", "baseRadius", 50.0),
+        ("Pitch", "pitch", 12.7),
+        ("Ridge width", "ridgeWidth", 3.0),
+        ("Ridge height", "ridgeHeight", 2.0),
+        ("Length", "length", 75.0),
+    )
+
+    _SIGNATURE = re.compile(
+        r'annotation \{ "Name" : "([^"]+)" \}\s*\n'
+        r"\s*isLength\(definition\.(\w+), \{ \(millimeter\) : "
+        r"\[([-\d.e+]+), ([-\d.e+]+), ([-\d.e+]+)\] \} as LengthBoundSpec\);"
+    )
+
+    @classmethod
+    def _source(cls, **overrides):
+        values = {
+            "base_radius_mm": 50,
+            "pitch_mm": 12.7,
+            "ridge_width_mm": 3,
+            "ridge_height_mm": 2,
+            "length_mm": 75,
+            "clockwise": True,
+        }
+        values.update(overrides)
+        return modeling_transactions.generate_spiral_ridge_script(**values)
+
+    def test_the_requested_dimensions_become_the_parameter_defaults(self):
+        """The default of each parameter is the number the caller asked for."""
+        found = self._SIGNATURE.findall(self._source())
+        self.assertEqual(
+            [(label, name) for label, name, *_ in found],
+            [(label, name) for label, name, _ in self.PARAMETERS],
+            "the precondition must declare one isLength parameter per dimension",
+        )
+        for (label, name, requested), (_, _, low, default, high) in zip(self.PARAMETERS, found):
+            with self.subTest(parameter=name):
+                self.assertEqual(float(default), requested)
+                self.assertLessEqual(float(low), requested)
+                self.assertGreaterEqual(float(high), requested)
+
+    def test_the_body_recomputes_from_the_parameters_not_from_baked_numbers(self):
+        """A baked constant would make the dialog disagree with the geometry."""
+        source = self._source()
+        self.assertIn("const baseRadius = definition.baseRadius;", source)
+        self.assertIn("const length = definition.length;", source)
+        body = source.split("    }\n    {\n", 1)[1]
+        self.assertIn('"radius" : baseRadius', body)
+        self.assertIn('"helicalPitch" : pitch', body)
+        self.assertIn("const revolutions = length / pitch;", body)
+        for baked in ("50", "12.7", "75"):
+            with self.subTest(constant=baked):
+                self.assertNotIn(baked, body, "the requested number leaked into the body")
+        # The revolution count is the one value the old generator pre-computed in
+        # Python; it must stay a FeatureScript expression, or a dialog edit to
+        # pitch/length would leave the helix disagreeing with the parameters.
+        self.assertNotIn(repr(75 / 12.7), source)
+        self.assertNotIn(f"{75 / 12.7:.6f}", source)
+
+    def test_every_annotation_value_is_printable_ascii(self):
+        """The exact gate the live server enforced on two deploys."""
+        source = self._source()
+        annotations = re.findall(r"annotation \{\s*\"([^\"]+)\"\s*:\s*\"([^\"]*)\"\s*\}", source)
+        self.assertEqual(len(annotations), 6, "one type name plus five parameter labels")
+        for key, value in annotations:
+            with self.subTest(key=key):
+                self.assertTrue(value, "an empty label is not a label")
+                self.assertTrue(
+                    all(0x20 <= ord(char) <= 0x7E for char in value),
+                    f"annotation {key!r} value {value!r} is not printable ASCII",
+                )
+
+    def test_the_chinese_part_name_is_a_body_value_never_an_annotation(self):
+        source = self._source()
+        self.assertIn('"value" : "螺旋凸棱柱"', source)
+        self.assertNotIn("螺旋", source.split("const baseId", 1)[0])
+        result = check_file(self._write(source)).as_result()
+        self.assertEqual([w for w in result["warnings"] if "non-ASCII" in w], [])
+
+    def test_the_feature_type_name_is_the_stable_ascii_one_instances_use(self):
+        self.assertIn(
+            'annotation { "Feature Type Name" : "Spiral ridge" }', self._source()
+        )
+
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self._scratch = Path(scratch.name)
+
+    def _write(self, source):
+        path = self._scratch / "spiralRidge.fs"
+        path.write_text(source, encoding="utf-8")
+        return path
+
+    def test_the_generated_script_needs_no_second_confirmation(self):
+        """A clean generated source must not trip the acknowledgement gate."""
+        checked = check_file(self._write(self._source()))
+        result = checked.as_result()
+        self.assertEqual(result["errorCount"], 0)
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(findings_requiring_acknowledgement(result), [])
+
+    def test_an_off_centre_bound_range_still_contains_its_default(self):
+        """Callers may pass extremes; the range is derived, never hand-tuned."""
+        for label, name, definition_id, requested in (
+            ("tiny", "base_radius_mm", "baseRadius", 0.1),
+            ("huge", "base_radius_mm", "baseRadius", 10_000.0),
+            ("long", "length_mm", "length", 100_000.0),
+        ):
+            with self.subTest(case=label):
+                found = {
+                    row[1]: row for row in self._SIGNATURE.findall(self._source(**{name: requested}))
+                }
+                self.assertIn(definition_id, found)
+                _, _, low, default, high = found[definition_id]
+                self.assertEqual(float(default), requested)
+                self.assertLessEqual(float(low), requested)
+                self.assertGreaterEqual(float(high), requested)
 
 
 if __name__ == "__main__":

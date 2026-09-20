@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from typing import Any
 
 from onshape_browser_mode import actions, selectors
 
+
+#: Bounded wait for a Parameter dialog to close after its accept button is
+#: clicked. Accepting re-evaluates the model, so the close is a function of how
+#: much geometry the element holds, not a fixed latency: measured live
+#: 2026-09-20, a 7-feature Part Studio took longer than the old fixed 500 ms.
+PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000
 
 DOC_NAME = selectors.DOC_NAME
 DOC_MENU = selectors.DOC_MENU
@@ -319,6 +326,61 @@ def _dialog_values(page: Any) -> dict[str, str]:
     return result if isinstance(result, dict) else {}
 
 
+def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[str, Any]]:
+    """Locate exactly one custom-feature row, identified by a READ of the panel.
+
+    The read is the document; a ``has_text`` locator is a re-query of it, and the
+    two can disagree. Measured live 2026-09-20: on a Part Studio whose read
+    listed nine user-feature rows, ``page.locator('.os-list-item.ns-user-feature')
+    .filter(has_text='Sr Spiral ridge 7')`` reported a count other than one for
+    the row that read returned as its single match — deterministically, across
+    four attempts and two page reloads. The old message ("must match exactly one
+    row") could not say whether that was zero or several, so the tool was neither
+    usable nor diagnosable.
+
+    So: wait for the panel to render, identify the row from the read, click it by
+    its POSITION among the read's user-feature rows (a locator ``nth`` cannot
+    select a different row than the one the read named, because both are DOM
+    order), and report both counts whenever they disagree instead of clicking
+    something unknown.
+    """
+    panel_ready = actions.wait_for_panel_rows(page, actions.PARTSTUDIO_PANEL_READY_TIMEOUT_MS)
+    read = actions.read_partstudio_features(page)
+    names = actions.user_feature_names(read)
+    state = actions.feature_state(read, feature_name)
+    evidence: dict[str, Any] = {
+        "panelReady": panel_ready,
+        "featureRows": names,
+        "matchedRows": state["names"],
+        "locatorRows": None,
+    }
+    if not names:
+        reason = (
+            f"no custom-feature row is on screen (feature list header "
+            f"{read.get('headerText', '')!r})"
+        )
+        if not panel_ready.get("waited"):
+            reason += f"; the panel never rendered rows: {panel_ready.get('error', '')}"
+        evidence["reason"] = reason
+        return None, evidence
+    if len(state["names"]) != 1:
+        evidence["reason"] = (
+            f"feature {feature_name!r} matched {len(state['names'])} of "
+            f"{len(names)} custom-feature rows: {state['names']}"
+        )
+        return None, evidence
+    rows = page.locator(selectors.PS_USER_FEATURE)
+    located = rows.count()
+    evidence["locatorRows"] = located
+    if located != len(names):
+        evidence["reason"] = (
+            f"the read lists {len(names)} custom-feature rows but the row locator "
+            f"sees {located}; refusing to click a row that may be a different one"
+        )
+        return None, evidence
+    return rows.nth(names.index(state["names"][0])), evidence
+
+
 def edit_feature_parameters(
     page: Any,
     feature_name: str,
@@ -326,16 +388,32 @@ def edit_feature_parameters(
     *,
     accept: bool = True,
 ) -> dict[str, Any]:
-    """Open a custom feature dialog, update named fields, and optionally accept."""
-    row = page.locator(selectors.PS_USER_FEATURE).filter(has_text=feature_name)
-    if row.count() != 1:
-        return {"parametersApplied": False, "reason": f"feature {feature_name!r} must match exactly one row"}
-    row.first.dblclick()
+    """Open a custom feature dialog, update named fields, and optionally accept.
+
+    Every return carries ``featureRow``: the read-identified row evidence
+    (``panelReady``, ``featureRows``, ``matchedRows``, ``locatorRows``). A refusal
+    without a click reports which rows existed and which ones the name matched, so
+    an unusable row name is diagnosable from the result alone.
+    """
+    row, evidence = _locate_feature_row(page, feature_name)
+    if row is None:
+        return {
+            "parametersApplied": False,
+            "featureName": feature_name,
+            "featureRow": evidence,
+            "reason": evidence.get("reason", ""),
+        }
+    row.dblclick()
     dialog = page.locator(selectors.PS_FEATURE_DIALOG).first
     try:
         dialog.wait_for(state="visible", timeout=10_000)
     except Exception as exc:  # noqa: BLE001
-        return {"parametersApplied": False, "reason": f"feature dialog did not open: {exc}"}
+        return {
+            "parametersApplied": False,
+            "featureName": feature_name,
+            "featureRow": evidence,
+            "reason": f"feature dialog did not open: {exc}",
+        }
     before = _dialog_values(page)
     missing = []
     updated = []
@@ -362,24 +440,45 @@ def edit_feature_parameters(
     desired = {key: str(value).lower() if isinstance(value, bool) else str(value) for key, value in parameters.items()}
     readback_ok = all(str(after.get(key, "")).lower() == value.lower() for key, value in desired.items())
     accepted = False
+    accept_evidence: dict[str, Any] = {}
     if accept and not missing and readback_ok:
         button = dialog.locator(selectors.PS_FEATURE_DIALOG_ACCEPT)
         if button.count() == 0:
             button = page.locator(selectors.PS_FEATURE_DIALOG_ACCEPT)
+        accept_evidence = {"clicked": False, "waitMs": 0}
         if button.count() > 0:
             button.first.click()
-            page.wait_for_timeout(500)
-            accepted = page.locator(selectors.PS_FEATURE_DIALOG).count() == 0
-    feature_state = actions.read_partstudio_features(page) if accepted else {"features": []}
-    matching_features = [
-        item for item in feature_state.get("features", [])
-        if feature_name.lower() in str(item.get("name", "")).lower()
-    ]
-    regeneration_ok = len(matching_features) == 1 and not matching_features[0].get("hasError")
+            accept_evidence["clicked"] = True
+            # The dialog closes only after the model has been re-evaluated, and a
+            # real Part Studio takes seconds to do that. A fixed sleep here
+            # misreports a successful edit as a failure: measured live 2026-09-20
+            # on a 7-feature element, a 500 ms sleep + count check returned
+            # `accepted: false` for an edit that HAD been applied (the next run
+            # opened the dialog on the new values). Wait on the condition instead,
+            # bounded, and report how long it took.
+            accept_evidence["timeoutMs"] = PS_DIALOG_CLOSE_TIMEOUT_MS
+            started = time.monotonic()
+            try:
+                page.wait_for_function(
+                    "(selector) => document.querySelector(selector) === null",
+                    arg=selectors.PS_FEATURE_DIALOG,
+                    timeout=PS_DIALOG_CLOSE_TIMEOUT_MS,
+                )
+                accepted = True
+            except Exception:  # noqa: BLE001 - a timeout is evidence, not a crash
+                accepted = page.locator(selectors.PS_FEATURE_DIALOG).count() == 0
+            accept_evidence["waited"] = accepted
+            accept_evidence["waitMs"] = round((time.monotonic() - started) * 1000)
+    after_state = actions.feature_state(
+        actions.read_partstudio_features(page) if accepted else {"features": []},
+        feature_name,
+    )
+    matching_features = after_state["rows"]
+    regeneration_ok = len(matching_features) == 1 and not after_state["errored"]
     persisted = {}
     persistence_ok = False
     if accepted and regeneration_ok:
-        row.first.dblclick()
+        row.dblclick()
         reopened = page.locator(selectors.PS_FEATURE_DIALOG).first
         try:
             reopened.wait_for(state="visible", timeout=5_000)
@@ -398,10 +497,12 @@ def edit_feature_parameters(
         "after": after,
         "readbackOk": readback_ok,
         "accepted": accepted,
+        "accept": accept_evidence,
         "regenerationOk": regeneration_ok,
         "persisted": persisted,
         "persistenceOk": persistence_ok,
         "featureState": matching_features,
+        "featureRow": evidence,
     }
 
 
@@ -451,7 +552,7 @@ def fs_watch_part_studio(
     try:
         page.wait_for_function(
             "(args) => { const el = document.querySelector(args.selector); return !!el && (el.innerText || el.textContent || '').trim() === args.desired; }",
-            {"selector": selectors.FS_WATCH_CONFIG_CURRENT, "desired": desired},
+            arg={"selector": selectors.FS_WATCH_CONFIG_CURRENT, "desired": desired},
             timeout=10_000,
         )
     except Exception:
@@ -657,7 +758,11 @@ def duplicate_element(
         accept = dialog.first.locator(selectors.DIALOG_ACCEPT)
         if accept.count() > 0:
             accept.first.click()
-    before_ids = {item.get("id") for item in before if item.get("id")}
+    # An ordered list, not a set: a set's iteration order is randomised per
+    # process (string hash seed), so the same call would send a different
+    # argument list on different runs and make the result unreproducible.
+    before_ids = [str(item.get("id")) for item in before if item.get("id")]
+    before_id_set = set(before_ids)
     try:
         page.wait_for_function(
             """
@@ -665,13 +770,13 @@ def duplicate_element(
               .map(el => el.getAttribute('data-id')).filter(Boolean)
               .filter(id => !ids.includes(id)).length === 1
             """,
-            list(before_ids),
+            arg=list(before_ids),
             timeout=10_000,
         )
     except Exception:
         pass
     after = actions.list_document_tabs(page).get("tabs", [])
-    created = [item for item in after if item.get("id") and item.get("id") not in before_ids]
+    created = [item for item in after if item.get("id") and item.get("id") not in before_id_set]
     source_still_present = any(
         item.get("id") == element_id for item in after
     ) if element_id else any(item.get("name") == element_name for item in after)

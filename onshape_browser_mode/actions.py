@@ -12,6 +12,7 @@ All functions take a Playwright sync `page` object obtained from
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 
 from onshape_browser_mode import diagnostics, interaction
@@ -35,6 +36,8 @@ from onshape_browser_mode.selectors import (
     FS_NOTICE_TABLE,
     FS_NOTICE_TOGGLE,
     PARTSTUDIO_FEATURE_ITEM,
+    PS_FEATURES_HEADER,
+    PS_WORKSPACE_CUSTOM_FEATURE_BTN,
     TIMEOUT_RECONNECT_LINK,
 )
 
@@ -53,7 +56,63 @@ _ACE_GET_EDITOR_JS = """
 #: browser-automation.md for the recorded UI sequence.
 CUSTOM_FEATURE_MENU_TIMEOUT_MS = 8_000
 FEATURE_DIALOG_TIMEOUT_MS = 15_000
-PARTSTUDIO_REGENERATE_TIMEOUT_MS = 30_000
+
+#: Floor of both post-insert wait budgets, and the whole budget when the custom
+#: feature count cannot be read. A reload discards the workbench, so the
+#: post-reload read happens only after the feature rows are back; a short default
+#: would race the document load and report a committed feature as missing
+#: (measured live 2026-09-20: the panel title was already visible with an empty
+#: list, and the rows arrived ~1 s later).
+PARTSTUDIO_RELOAD_TIMEOUT_MS = 30_000
+
+#: Post-insert wait budgets scale with the number of custom features in the
+#: element, because a post-insert recompute costs roughly a fixed part plus a part
+#: proportional to how many features must be re-evaluated. Measured live
+#: 2026-09-20 on a Part Studio with 5 spiral features and 5 solid parts: the
+#: in-place regeneration returned after 202 ms, but the survival wait after the
+#: commit-verify reload needed 18 431 ms of its 30 000 ms budget. A fixed budget
+#: therefore gets *thinner* as the document grows, and the direction it fails in
+#: is a committed feature reported as missing. Both profiles keep today's fixed
+#: value as their floor (a feature count of 0 is exactly the old behaviour), add
+#: a per-feature allowance, and stay capped so a tool call still returns.
+PARTSTUDIO_REGENERATE_WAIT = {"baseMs": 30_000, "perFeatureMs": 2_000, "maxMs": 300_000}
+PARTSTUDIO_RELOAD_WAIT = {"baseMs": 30_000, "perFeatureMs": 8_000, "maxMs": 900_000}
+
+#: Readiness waits used only after this module switches to another Part Studio tab.
+#: A switched-to workbench renders in stages (title, then rows, then toolbar), and
+#: both the baseline read and the toolbar click are wrong if they run too early:
+#: measured live 2026-09-20, a switch from a Feature Studio gave
+#: "workspace-custom-features button not found" and a baseline of 0 rows on a Part
+#: Studio holding 8 custom features. Fixed, because they bound a *render*, not a
+#: model recompute.
+PARTSTUDIO_PANEL_READY_TIMEOUT_MS = 30_000
+PARTSTUDIO_TOOLBAR_TIMEOUT_MS = 30_000
+
+#: In-page readiness predicate: at least ``minimum`` Feature List rows exist.
+_PANEL_ROW_COUNT_PREDICATE = """
+({selector, minimum}) => document.querySelectorAll(selector).length >= minimum
+"""
+
+#: In-page predicate for both insert waits: visible user-feature rows whose text
+#: contains the feature name, with the same matching rule as ``feature_state``
+#: (the ``ns-user-feature`` class plus a substring name match). It waits for a
+#: COUNT rather than for one named row, because a name-only wait cannot tell the
+#: row this call creates from a same-named row that was already in the Part
+#: Studio: measured live 2026-09-20, a Part Studio already holding two
+#: ``Spiral ridge`` rows satisfied the old name-only regeneration wait in 12 ms.
+#: ``minimum`` is therefore the pre-insert baseline plus one.
+_ROW_COUNT_PREDICATE = """
+({selector, text, minimum}) => {
+  const wanted = (text || '').trim().toLowerCase();
+  const matched = Array.from(document.querySelectorAll(selector)).filter(el => {
+    const cls = String(el.className || '');
+    if (!cls.includes('ns-user-feature')) return false;
+    if (!wanted) return true;
+    return (el.innerText || el.textContent || '').toLowerCase().includes(wanted);
+  });
+  return matched.length >= minimum;
+}
+"""
 
 #: Notice-pane collector. One notice table can carry several message paragraphs;
 #: all of them are returned in ``messages`` (``text`` keeps the first one for
@@ -857,6 +916,32 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     )
 
 
+def user_feature_names(features: Any) -> list[str]:
+    """The custom-feature row names of a read feature list, in DOM order.
+
+    This is the read-side identity of a row. Callers that must CLICK one row
+    should identify it here and then click by this list's position, because
+    `read_partstudio_features` reflects the document while a Playwright
+    ``.filter(has_text=…)`` locator re-queries it: measured live 2026-09-20,
+    ``page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral
+    ridge 7')`` reported a count other than one for a row this function returned
+    as the single match, so name matching alone cannot be trusted to select a
+    row. Position derived from the same read keeps the two views in step, and a
+    caller that is handed both counts can see a disagreement instead of
+    guessing.
+    """
+    if not isinstance(features, dict):
+        return []
+    items = features.get("features")
+    if not isinstance(items, list):
+        return []
+    return [
+        str(item.get("name", ""))
+        for item in items
+        if isinstance(item, dict) and item.get("isUserFeature")
+    ]
+
+
 def feature_state(features: Any, feature_name: str) -> dict[str, Any]:
     """Presence AND computedness of a named user feature in a read feature list.
 
@@ -1088,6 +1173,216 @@ def feature_label(item: Any) -> str:
     return lines[-1] if lines else ""
 
 
+def partstudio_wait_budget_ms(profile: dict[str, int], feature_count: Any) -> int:
+    """Scale one post-insert wait budget with the element's custom-feature count.
+
+    ``baseMs + perFeatureMs * count``, clamped to ``maxMs``. A missing or
+    unreadable count (the read can land while the panel is mid-render) is treated
+    as 0, which reproduces the previous fixed budget exactly rather than silently
+    shortening it.
+    """
+    try:
+        count = max(0, int(feature_count))
+    except (TypeError, ValueError):
+        count = 0
+    budget = int(profile["baseMs"]) + int(profile["perFeatureMs"]) * count
+    return min(int(profile["maxMs"]), budget)
+
+
+def count_custom_features(features: Any) -> int:
+    """Custom features in a read Feature List — the reload's recompute load.
+
+    The post-insert cost is dominated by re-evaluating the element's user
+    features, so that is what the adaptive budgets scale on, not the number of
+    rows matching one feature name.
+    """
+    if not isinstance(features, dict):
+        return 0
+    items = features.get("features")
+    if not isinstance(items, list):
+        return 0
+    return sum(
+        1
+        for item in items
+        if isinstance(item, dict) and item.get("isUserFeature")
+    )
+
+
+def wait_for_panel_rows(
+    page: Any,
+    timeout_ms: int,
+    *,
+    minimum: int = 1,
+) -> dict[str, Any]:
+    """Wait until the Feature List has rendered at least ``minimum`` rows.
+
+    Used after a tab switch, where the panel title is visible before its rows.
+    Failure is reported, never raised: the caller still has to attempt its click
+    and can decide with the evidence in hand.
+    """
+    started = time.monotonic()
+    try:
+        page.wait_for_function(
+            _PANEL_ROW_COUNT_PREDICATE,
+            arg={"selector": PARTSTUDIO_FEATURE_ITEM, "minimum": minimum},
+            timeout=timeout_ms,
+        )
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "partstudio_row_count",
+        "minimum": minimum,
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
+
+
+def wait_for_toolbar_button(
+    page: Any,
+    selector: str,
+    timeout_ms: int,
+) -> dict[str, Any]:
+    """Wait until one toolbar button matching ``selector`` is visible."""
+    started = time.monotonic()
+    try:
+        page.locator(selector).first.wait_for(state="visible", timeout=timeout_ms)
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "toolbar_button_visible",
+        "selector": selector,
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
+
+
+def wait_for_feature_rows(
+    page: Any,
+    feature_name: str,
+    minimum: int,
+    timeout_ms: int,
+) -> dict[str, Any]:
+    """Wait (bounded, inside the page) until ``minimum`` matching rows exist.
+
+    The predicate counts user-feature rows, so the wait is immune to the two
+    false signals a name-only wait produces: a same-named row that was already
+    there (it satisfies a "row with this name is visible" wait immediately) and a
+    workbench that renders its title before its rows (a read straight after a
+    reload can see an empty list). Both were measured live on 2026-09-20.
+    """
+    started = time.monotonic()
+    try:
+        page.wait_for_function(
+            _ROW_COUNT_PREDICATE,
+            arg={
+                "selector": PARTSTUDIO_FEATURE_ITEM,
+                "text": feature_name,
+                "minimum": minimum,
+            },
+            timeout=timeout_ms,
+        )
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "user_feature_row_count",
+        "minimum": minimum,
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
+
+
+def verify_insert_committed(
+    page: Any,
+    feature_name: str,
+    *,
+    minimum: int = 1,
+    appeared: bool = False,
+    timeout_ms: int = PARTSTUDIO_RELOAD_TIMEOUT_MS,
+) -> dict[str, Any]:
+    """Reload the workbench and require the new feature row to survive it.
+
+    A visible Feature List row is NOT proof that the workspace owns the feature.
+    Measured live 2026-09-20 (see
+    ``onshape_docs/verification/browser-rest-handoff-2026-09-20.json``): a
+    browser-inserted custom feature reported its row, its part and a clean
+    regeneration, yet the REST feature list of the same element still returned
+    no features minutes later; only a page reload made the row appear there. A
+    REST-added feature was visible immediately, which rules out a read-side
+    cache: the browser insert is simply not committed to the workspace until the
+    page is reloaded.
+
+    One bounded reload is therefore the cheapest reliable commit check, and it
+    spends 0 API quota. ``minimum`` is the pre-insert matching-row count plus one,
+    so the check asks "is the row this call created there", not "is a row with
+    this name visible". ``verified`` says the reload ran; ``committed`` says the
+    row survived it. An insert that never appeared, or a reload that failed, is
+    reported ``verified: False`` and never as inserted — the recorded defect was
+    exactly a false positive in this direction. ``timeout_ms`` is the caller's
+    budget, normally the adaptive one from ``partstudio_wait_budget_ms``.
+    """
+    if not appeared:
+        return {
+            "verified": False,
+            "committed": False,
+            "reload": None,
+            "survived": None,
+            "features": None,
+            "listed": False,
+            "errored": False,
+            "featureRows": [],
+            "reason": (
+                f"the custom feature {feature_name!r} never appeared in the "
+                "Feature List, so there was nothing to confirm"
+            ),
+        }
+    reload_result = reload_page(page)
+    survived = None
+    if reload_result.get("reloaded"):
+        survived = wait_for_feature_rows(
+            page, feature_name, minimum, timeout_ms
+        )
+    verified = bool(reload_result.get("reloaded"))
+    # A best-effort read even when the row never came back: the returned lists are
+    # evidence for the caller, while the wait above stays the gate.
+    features = read_partstudio_features(page)
+    state = feature_state(features, feature_name)
+    committed = verified and bool((survived or {}).get("waited")) and state["listed"]
+    if committed:
+        reason = ""
+    elif not verified:
+        reason = (
+            "the page reload needed to confirm the insert did not complete, so "
+            "the workspace state is unverified and the insert is not reported "
+            "as applied"
+        )
+    else:
+        reason = (
+            f"the feature {feature_name!r} did not survive the confirming page "
+            "reload: the workspace did not keep it, so the insert was not "
+            "committed"
+        )
+    return {
+        "verified": verified,
+        "committed": committed,
+        "reload": reload_result,
+        "survived": survived,
+        "features": features,
+        "listed": state["listed"],
+        "errored": state["errored"],
+        "featureRows": state["rows"],
+        "reason": reason,
+    }
+
+
 def insert_custom_feature(
     page: Any,
     feature_name: str,
@@ -1100,6 +1395,12 @@ def insert_custom_feature(
     custom features; clicking the feature applies it and opens its parameter
     dialog; clicking the checkmark (button-ok) accepts and computes the model.
     The 添加自定义特征 picker alone only inserts a not-computed row.
+
+    ``inserted`` means the workspace kept the feature, not that a click landed:
+    the pre-click matching-row count is read first, both waits require that count
+    to grow, and after the row and the part appear the page is reloaded once and
+    the count must survive that reload (see ``verify_insert_committed`` for the
+    measured reason).
     """
     if part_studio_tab:
         tabs = list_document_tabs(page).get("tabs", [])
@@ -1114,11 +1415,42 @@ def insert_custom_feature(
         try:
             dismiss_stale_context_menu(page)
             tab.first.click()
-            page.locator(".features-title").first.wait_for(state="visible", timeout=30_000)
+            page.locator(PS_FEATURES_HEADER).first.wait_for(state="visible", timeout=30_000)
         except Exception as exc:  # noqa: BLE001 - structured missing/unready tab
             return {"inserted": False, "reason": f"part studio tab did not become ready: {exc}"}
+        # A switched-to Part Studio renders in stages: the Feature List title
+        # appears before its rows, and the toolbar later still. Measured live
+        # 2026-09-20, switching from a Feature Studio produced both a
+        # "workspace-custom-features button not found" click and a baseline read
+        # of 0 rows on a Part Studio holding 8 custom features — the second one
+        # silently degrades ``minimum`` to 1 and re-opens the false-positive the
+        # count check exists to close. Wait for the rows and the toolbar button
+        # before either is used.
+        panel_ready = wait_for_panel_rows(page, PARTSTUDIO_PANEL_READY_TIMEOUT_MS)
+        toolbar_ready = wait_for_toolbar_button(
+            page, PS_WORKSPACE_CUSTOM_FEATURE_BTN, PARTSTUDIO_TOOLBAR_TIMEOUT_MS
+        )
+    else:
+        panel_ready = None
+        toolbar_ready = None
 
     # 1. Click the toolbar button titled 此工作区中的自定义特征.
+    #    Baseline BEFORE any click: a same-named row that is already in the Part
+    #    Studio must not be mistaken for the one this call creates, so both waits
+    #    below require the matching row count to grow past this number (measured
+    #    live 2026-09-20: two `Spiral ridge` rows already existed and satisfied a
+    #    name-only regeneration wait in 12 ms).
+    baseline_read = read_partstudio_features(page)
+    baseline = len(feature_state(baseline_read, feature_name)["rows"])
+    minimum = baseline + 1
+    # Both waits scale with the element's recompute load: a fixed budget gets
+    # thinner as the document grows, and it fails by calling a committed feature
+    # missing (measured live 2026-09-20, see PARTSTUDIO_RELOAD_WAIT).
+    custom_features = count_custom_features(baseline_read)
+    regenerate_budget = partstudio_wait_budget_ms(
+        PARTSTUDIO_REGENERATE_WAIT, custom_features
+    )
+    survival_budget = partstudio_wait_budget_ms(PARTSTUDIO_RELOAD_WAIT, custom_features)
     clicked = page.evaluate(
         """
         () => {
@@ -1195,25 +1527,51 @@ def insert_custom_feature(
         }
         """ % FEATURE_DIALOG_OK
     )
-    # Regeneration is asynchronous: wait for this feature to appear in the tree
-    # instead of sleeping a fixed 15s and reading whatever is on screen.
-    regenerated = interaction.wait_for_condition(
-        page,
-        condition="visible",
-        selector=PARTSTUDIO_FEATURE_ITEM,
-        text=feature_name,
-        timeout_ms=PARTSTUDIO_REGENERATE_TIMEOUT_MS,
+    # Regeneration is asynchronous: wait for the row COUNT to pass the baseline
+    # instead of sleeping a fixed 15s, and instead of waiting for one row whose
+    # name may already be on screen.
+    regenerated = wait_for_feature_rows(
+        page, feature_name, minimum, regenerate_budget
     )
 
     features = read_partstudio_features(page)
     state = feature_state(features, feature_name)
+    accepted_ok = bool(accepted.get("clicked"))
+
+    # A row in the workbench is not a workspace commit (verify_insert_committed):
+    # reload once and require the row to survive, then report that read.
+    commit = verify_insert_committed(
+        page,
+        feature_name,
+        minimum=minimum,
+        appeared=accepted_ok and state["listed"],
+        timeout_ms=survival_budget,
+    )
+    if isinstance(commit.get("features"), dict):
+        features = commit["features"]
+        state = feature_state(features, feature_name)
+
     result = {
-        "inserted": bool(accepted.get("clicked")) and state["listed"],
+        "inserted": accepted_ok and bool(commit["committed"]),
         "accepted": accepted,
         "listed": state["listed"],
         "errored": state["errored"],
         "featureRows": state["rows"],
-        "waits": {"menu": opened, "dialog": dialog, "regeneration": regenerated},
+        "baselineRows": baseline,
+        "commit": {key: value for key, value in commit.items() if key != "features"},
+        "waits": {
+            "menu": opened,
+            "dialog": dialog,
+            "regeneration": regenerated,
+            "commitSurvival": commit.get("survived"),
+        },
+        "panelReady": panel_ready,
+        "toolbarReady": toolbar_ready,
+        "budgets": {
+            "customFeaturesRead": custom_features,
+            "regenerationMs": regenerate_budget,
+            "commitSurvivalMs": survival_budget,
+        },
         "features": features,
         "pageUrl": page.url,
     }
@@ -1225,6 +1583,13 @@ def insert_custom_feature(
             "the Feature List row for the feature reports an unresolved error "
             "(not computed); re-read the Part Studio before assuming failure"
         )
+    elif not accepted_ok:
+        result["reason"] = (
+            "the parameter dialog's accept click did not land, so no feature "
+            "was created"
+        )
+    elif not commit["committed"]:
+        result["reason"] = str(commit.get("reason") or "")
     return result
 
 

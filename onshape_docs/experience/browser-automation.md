@@ -194,6 +194,40 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `featureComputed`、`featureError`），未通过时给出 `reason`；`errored` 是 UI 信号
   而不是领域结论，重新生成期间也可能短暂出现，因此只报告、不重试接受按钮
   （第二次点击会再加一个特征，而不是修好这一个）。
+- **第四个信号：工作区是否真的收下了这个特征（2026-09-20 实测）**。上面三个信号
+  全部成立，仍可能只是**工作台本地状态**：浏览器插入的自定义特征在页面
+  **重新加载之前不会进入工作区**，此时 REST `GET .../features` 对同一 element
+  返回空列表（同一分钟内重复读取仍为空，所以不是读取缓存；对照实验用 REST
+  `addPartStudioFeature` 添加的特征立刻可见）。因此
+  `actions.insert_custom_feature` 在行与零件出现之后**再重载一次页面**，要求该行
+  在重载后仍然存在，才把 `inserted` 置为 true；结果里的 `commit`
+  （`verified` / `committed` / `reload` / `panel`）单独记录这次确认，重载失败或
+  面板读不到时如实报 `verified: false` 且不假装成功。证据见
+  `onshape_docs/verification/browser-rest-handoff-2026-09-20.json`。
+  两个等待的预算按 element 里的**自定义特征数**放大（`PARTSTUDIO_RELOAD_WAIT` /
+  `PARTSTUDIO_REGENERATE_WAIT`：30 s 底 + 每特征 8 s / 2 s，各自有上限），因为
+  重载会重新计算**每一个**特征：5 个特征的 Part Studio 实测生存等待用掉
+  18 431 ms / 固定 30 000 ms，固定预算会随文档增长而变薄，并且只会往"已提交却
+  报未提交"的方向失败。读不到特征数时退回原固定预算（不会变短）。
+- **切标签后先等面板渲染，再读基线（2026-09-20 实测）**。从 Feature Studio 切到
+  Part Studio 后立刻读特征树，会读到**空面板**：实测在已有 8 个自定义特征的文档上
+  `budgets.customFeaturesRead: 0`，于是 `minimum = 0 + 1 = 1`，恰好被屏幕上一个
+  旧行满足 —— 一次静默的假通过。所以 `insert_custom_feature` 在切标签后先等
+  「面板出现至少 1 行」（`.features-title` / `.os-list-item`，30 s）再等
+  「工作区自定义特征按钮可见」（`PS_WORKSPACE_CUSTOM_FEATURE_BTN`，30 s），
+  两者都记进结果的 `panelReady` / `toolbarReady`；没有切标签时不花这两个等待。
+  另外**没有任何工具能"切换当前标签"**：只有带标签参数的复合事务会切
+  （`browser_insert_custom_feature(part_studio_tab=)`、
+  `browser_deploy_and_apply_featurescript(feature_studio_tab=, part_studio_tab=)`、
+  `browser_export_step` 等），而 `browser_get_partstudio_features` 只读**当前屏幕**
+  那一个标签。
+- **接受按钮不能"点完就数"（2026-09-20 实测）**。`browser_edit_feature_parameters`
+  第一版点完 ✓ 只固定 `wait_for_timeout(500)` 再数输入框，成功应用的那次却报
+  `accepted: false` / `parametersApplied: false`；第二次调用读到的 `before`
+  已经是新值。改成有界条件等待
+  （`page.wait_for_function('(selector) => document.querySelector(selector) === null', arg=PS_FEATURE_DIALOG, timeout=60_000)`）
+  后同一操作报 `parametersApplied: true` / `accepted: true` / `regenerationOk: true`
+  / `persistenceOk: true`。**"对话框关闭"才是接受动作完成的信号**，而不是经过多少毫秒。
 - 工具栏：`.toolbar-item`，按钮 `.tool.is-activatable.is-button`；文字标签
   `.tool-label.hide-in-toolbar` 是**隐藏的**，`browser_click(text=...)` 点不到，
   要按 `.toolbar-item` 的 textContent 找到后点内部按钮。
@@ -202,6 +236,29 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   - 文档名 `.select-item-dialog-document-name`；
   - 若提示「没有可用的特征。… 创建一个版本」，说明 Feature Studio 未发布版本，
     需先在文档里创建版本后自定义特征才可插入。
+- **已插入特征的参数对话框 `.feature-dialog`**（2026-09-20 实测，0 REST 配额）：
+  双击特征行打开，接受按钮 `.ns-dialog-button-ok.button-ok`。参数化生成的特征
+  （precondition 里有 `annotation { "Name" } isLength(definition.…)`）在这里显示
+  每个维度的可编辑数值框，实测读出 `baseRadius 10 mm / pitch 6 mm / ridgeWidth 2 mm
+  / ridgeHeight 2 mm / length 30 mm`；改成 `12 mm` / `40 mm` 后 ✓ 生效并持久化。
+  precondition 为空的特征在这里**没有任何可编辑字段**，只显示内部几何图元
+  （extrude / helix / sweep / boolean），这是"生成的特征不像官方特征"的根因。
+- **按名字匹配特征行不可靠，要按"读到的位置"点（2026-09-20 实测）**。同一个面板，
+  `read_partstudio_features` 把 `Sr Spiral ridge 7` 读成唯一命中，而
+  `page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral ridge 7')`
+  连续四次（含两次页面重载）给出非 1 的计数 —— 同一个 DOM 的读视图与定位器视图
+  不一致，所以名字匹配不能单独用来选行。`browser_edit_feature_parameters` 现在先
+  等面板渲染（`wait_for_panel_rows`），用读结果识别行、按**读到的 DOM 顺序位置**
+  `rows.nth(index)` 双击，并在两者计数不一致时拒绝点击，同时报出
+  `featureRows` / `matchedRows` / `locatorRows`。旧文案 "must match exactly one row"
+  既没说 0 也没说多个，这正是它无法从外部诊断的原因。
+- **`arg` 是 keyword-only；写错会被 `except Exception: pass` 吞掉（同批发现）**。
+  playwright-python 的 `wait_for_function(expression, *, arg=None, timeout=None, …)`
+  里 `arg` 只能按关键字传。`transactions.py` 有两处（切监控目标、复制标签页）按位置
+  传入字典/列表，实际抛 `TypeError`，而两处都包在 `except Exception: pass` 里，
+  于是**等待从未发生且没有任何迹象**。现在调用点、测试双代和静态守卫三者都强制
+  关键字形式。同一处还发现 `arg=list(set)`：集合迭代顺序随进程的字符串哈希种子
+  变化，每次发送的参数列表不同、结果不可复现，已改为有序列表。
 
 ## 5. 选择器优先级（写自动化时）
 
