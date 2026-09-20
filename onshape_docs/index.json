@@ -2101,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "504eda4b53de1c610f0b5991dc80c4021bf33a711881fea837e067ec9d9e2248",
+   "sha256": "53c8656253eec6ca1883770bf2721174c3676a20e03978f53eacbaee299f4e5a",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2545,6 +2545,14 @@
       {
        "type": "list",
        "items": [
+        {
+         "text": "第二段自己带恢复路径，判据按\"有没有恢复过\"分级（2026-09-20 落地）。 browser_verify_feature_parameters 不再用单一长超时去等面板关闭：它先做一次 短探测（dialog_timeout_ms，默认 3 s），面板已关就直接读回；面板还开着且 allow_reload=True（默认）就只做一次有界重载，然后在全新页面上重新探测、 重新打开特征行读回值，结果里带 recoveredBy: \"page_reload\" 与 recovery 字段。 判决分级是硬要求：恢复重载之后仍读不到才允许 parametersApplied: null + retryVerify: true（并明说\"raced the commit\"），而没有走过恢复路径就长时间 读不到时给的是确定性的 parametersApplied: false，不是 null。理由很实际： 一类\"我没有证据\"必须能被上层重试，另一类\"证据显示没生效\"不能靠重试蒙过去； 把两者都写成 null 就是让调用方无法区分。行状态读回显示特征没有重新生成干净时， 同样给确定性的 false（此前那个分支会漏成空洞的 null）。 注意这与\"重载 ≠ 回滚\"这条并存：重载丢掉的是客户端 UI 状态，不是服务端提交， 所以重载后读回的新值恰恰是提交证据，而不是把编辑抹掉。",
+         "depth": 0
+        },
+        {
+         "text": "要知道特征当前参数值，必须用只读探针，不能\"填一个值试试\"（2026-09-20 落地）。 新增 browser_read_feature_parameters(feature_name, allow_reload=False)：双击特征行 打开对话框、读值、无条件按 Escape 取消，全程不填不改，所以它是 mutating=False。返回 read / parameters / parameterCount / featureRow， 读不到时给 retryable 与原因。它存在的直接原因是一个被实现挡住的取巧： 想用 browser_edit_feature_parameters(parameters={}) 做\"零改动读回\"是不可能的， handler 会以 ValueError(\"parameters must be a non-empty object\") 拒绝——**这个拒绝 是对的**，保留它，不要为了省一个工具而放宽。默认 allow_reload=False 也是刻意的： 第一段刚点完 ✓ 时，一次重载会把面板扔掉并白白多花一次页面加载；只有第二段在 面板卡住时才值得付这个代价（所以 verify 的默认是 True，read 的默认是 False）。",
+         "depth": 0
+        },
         {
          "text": "工具栏：.toolbar-item，按钮 .tool.is-activatable.is-button；文字标签 .tool-label.hide-in-toolbar 是隐藏的，browser_click(text=...) 点不到， 要按 .toolbar-item 的 textContent 找到后点内部按钮。",
          "depth": 0
@@ -7474,7 +7482,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "1d6563e39258f8292ca73afe16d9ff8d182dbbeb5dd9c052b6887ada6bd1d480",
+   "sha256": "6b8a4a19257d1999448d6dcb5f3396c607a104f807c811899915980055175ced",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -7495,7 +7503,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 108",
+         "text": "Registered tools: 109",
          "depth": 0
         },
         {
@@ -7507,11 +7515,11 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=68, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
+         "text": "Capability counts: browser=69, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
          "depth": 0
         },
         {
-         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=26, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=2",
+         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=26, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
          "depth": 0
         }
        ]
@@ -7961,6 +7969,14 @@
          "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota."
         ],
         [
+         "browser_read_feature_parameters",
+         "browser",
+         "unclassified",
+         "feature_name",
+         "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
+         "Read one custom feature's current parameter values without changing the model: open the row's parameter dialog, read its named fields, and cancel it with Escape. Zero REST API q..."
+        ],
+        [
          "browser_read_featurescript",
          "browser",
          "L4 onshape_transaction",
@@ -8078,7 +8094,7 @@
          "unclassified",
          "feature_name, parameters",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that the reopened dialog shows the requested values. It never gu..."
+         "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that a freshly reopened dialog shows the requested values. It ne..."
         ],
         [
          "browser_view_orientation",

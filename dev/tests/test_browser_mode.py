@@ -1385,9 +1385,11 @@ class BrowserMetadataTest(unittest.TestCase):
 
     def test_tool_count_unchanged(self) -> None:
         # 106 since the two print-analysis stubs were archived on 2026-09-19
-        # (docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md). This number is a
-        # tripwire: it must only move when a tool is deliberately added or removed.
-        self.assertEqual(len(server.TOOLS), 108)
+        # (docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md); 109 since the
+        # read-only browser_read_feature_parameters probe was added on 2026-09-20.
+        # This number is a tripwire: it must only move when a tool is deliberately
+        # added or removed.
+        self.assertEqual(len(server.TOOLS), 109)
 
 
 if __name__ == "__main__":

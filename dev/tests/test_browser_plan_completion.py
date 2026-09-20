@@ -960,7 +960,7 @@ class HandlerCompositionTest(unittest.TestCase):
 class PlannedMetadataTest(unittest.TestCase):
     def test_registry_and_cost_contract(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
-        self.assertEqual(len(by_name), 108)
+        self.assertEqual(len(by_name), 109)
         before = len(server.TOOLS)
         browser_tools.install(server.TOOLS, server.HANDLERS)
         self.assertEqual(len(server.TOOLS), before)
@@ -984,10 +984,12 @@ class PlannedMetadataTest(unittest.TestCase):
                 "browser_wall_thickness_report", "browser_wait",
                 "browser_capture_screenshot", "browser_discover_tools",
                 "browser_geometry_status",
-                # Selecting an existing tab and confirming an accepted edit are UI
-                # gestures that write nothing: they must stay read-only so a caller
-                # can select a target and verify a result without a mutation gate.
+                # Selecting an existing tab, confirming an accepted edit, and reading a
+                # feature's current values are UI gestures that write nothing: they must
+                # stay read-only so a caller can select a target, verify a result and
+                # read state back without a mutation gate.
                 "browser_activate_tab", "browser_verify_feature_parameters",
+                "browser_read_feature_parameters",
             }:
                 self.assertNotIn("confirm_mutation", by_name[name]["inputSchema"]["properties"])
                 self.assertTrue(by_name[name]["annotations"]["readOnlyHint"])

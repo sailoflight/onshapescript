@@ -61,12 +61,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 61 |
+| `Keep` | 62 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **108** |
+| **total** | **109** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -96,7 +96,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_eval` | `Internal-only` | - | Arbitrary JavaScript in the page. Reachable at an explicit level for diagnosis, but never a default choice: it would bypass every typed wrapper. |
 | `browser_export_step` | `Keep` | - | Deliverable export through the UI at zero REST quota, with explicit tab targeting. |
 | `browser_activate_tab` | `Keep` | - | Makes one existing tab active and waits for its content, which every read tool and `browser_edit_feature_parameters` depend on because they act on whatever tab is active; no other tool could select one. |
-| `browser_verify_feature_parameters` | `Keep` | - | Second stage of the parameter edit: confirms regeneration and persisted values after the apply stage returns, because one stage cannot both commit and confirm inside a 60 s transport budget. |
+| `browser_verify_feature_parameters` | `Keep` | - | Second stage of the parameter edit: confirms regeneration and persisted values after the apply stage returns. An accept that changes a parameter commits while the accepted panel can stay open past any transport budget (measured live: still present 95 s after the accept, where a no-op accept closed in 4-5 ms), so panel removal is not a verdict and the stage recovers with one bounded reload. |
 | `browser_fix_instances` | `Internal-only` | - | Multi-select plus the fixed-gesture; meaningful only inside the assembly workflow that establishes the selection context. |
 | `browser_fs_capture_diagnostic` | `Internal-only` | - | Persists full source plus diagnostics for offline analysis. Experimental, default-hidden, and called by the diagnostic loop rather than chosen on its own. |
 | `browser_fs_goto_definition` | `Internal-only` | - | Editor navigation micro-command; part of the authoring flow, not a task a caller should start from. |
@@ -120,6 +120,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_open_document` | `Keep` | - | Smallest useful navigation step; everything else assumes a specific document is open. |
 | `browser_open_insert_feature_dialog` | `Internal-only` | - | The dialog-open step inside browser_insert_custom_feature; separate exposure invites half-finished sequences. |
 | `browser_press_key` | `Internal-only` | - | Composition primitive for keyboard input; typed tools own the trusted-event details. |
+| `browser_read_feature_parameters` | `Keep` | - | Reads one custom feature's current parameter values and cancels the dialog, so it writes nothing. It is the read-back the second stage needs, and the only way to answer "what does this feature currently hold" without changing it — filling a value to find out is exactly what must stay impossible. |
 | `browser_read_featurescript` | `Keep` | - | Reads the editor buffer, which is the only way to see unsaved source that never reached the server. |
 | `browser_read_selection_preview` | `Internal-only` | - | Reads a panel selection or preview card; meaningful only inside a flow that then acts on the selection. |
 | `browser_reconnect` | `Internal-only` | - | Deprecated compatibility wrapper kept for older callers; `browser_session(action='reconnect')` owns the same timeout recovery transition. Hidden so session recovery has one entry point; reachable by exact name. |

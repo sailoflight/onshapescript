@@ -1114,6 +1114,8 @@ class FakeDialogPage:
         panel_renders: bool = True,
         dialog_opens: bool = True,
         dialog_closes: bool = True,
+        dialog_already_open: bool = False,
+        reload_fails: bool = False,
         parameter_fields: tuple[str, ...] = ("baseRadius",),
         locator_sees_parameter: bool = True,
     ) -> None:
@@ -1138,10 +1140,13 @@ class FakeDialogPage:
         self.panel_renders = panel_renders
         self.dialog_opens = dialog_opens
         self.dialog_closes = dialog_closes
+        self.reload_fails = reload_fails
         self.parameter_fields = tuple(parameter_fields)
         self.locator_sees_parameter = locator_sees_parameter
         self.dialog_values = {field: "10 mm" for field in self.parameter_fields}
-        self.dialog_visible = False
+        #: A panel that is on screen before the call models the measured state after an
+        #: accept that changed a parameter: committed, and still open.
+        self.dialog_visible = dialog_already_open
         self.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
         self.dblclicks: list[int] = []
         self.fills: list[dict] = []
@@ -1151,6 +1156,8 @@ class FakeDialogPage:
         #: A fixed sleep here would misreport a successful edit as a failure, so
         #: every sleep is recorded and the accept test asserts this stays empty.
         self.timeouts: list[int] = []
+        self.reloads: list[dict] = []
+        self.load_states: list[str] = []
         self.keyboard = mock.Mock()
 
     def evaluate(self, expression: str, arg: object = None) -> dict:
@@ -1166,6 +1173,11 @@ class FakeDialogPage:
                           polling: object = None) -> bool:
         self.wait_calls.append({"expression": expression, "arg": arg, "timeout": timeout})
         if arg == selectors.PS_FEATURE_DIALOG:
+            # A condition poll returns immediately when the condition already holds.
+            # Only a dialog that IS on screen and never closes is a timeout: modelling
+            # the opposite would make the recovery reload look like a failure.
+            if not self.dialog_visible:
+                return True
             if not self.dialog_closes:
                 raise TimeoutError("dialog stayed open")
             self.dialog_visible = False
@@ -1178,6 +1190,23 @@ class FakeDialogPage:
 
     def wait_for_timeout(self, milliseconds: int) -> None:
         self.timeouts.append(milliseconds)
+
+    def reload(self, **kwargs: object) -> None:
+        """Model the measured recovery reload.
+
+        Live 2026-09-20 a bounded reload discarded the still-open accepted panel and
+        did NOT revert the committed value, so the double drops the panel and keeps
+        ``dialog_values`` as they are. It must never be modelled as a rollback.
+        ``reload_fails`` models a navigation that does not complete.
+        """
+        self.reloads.append(dict(kwargs))
+        if self.reload_fails:
+            raise RuntimeError("navigation refused")
+        self.dialog_visible = False
+
+    def wait_for_load_state(self, state: str = "load", **kwargs: object) -> bool:
+        self.load_states.append(state)
+        return True
 
     def locator(self, selector: str) -> FakeDialogLocator:
         return FakeDialogLocator(self, selector)
@@ -1385,22 +1414,26 @@ class EditFeatureParametersTest(unittest.TestCase):
 class VerifyFeatureParametersTest(unittest.TestCase):
     """The second stage answers "did the accepted edit stick", and never guesses.
 
-    The apply stage cannot both commit and confirm inside a transport budget
-    (measured live 2026-09-20: 61.7 s on an 11-user-feature element against a 60 s
-    relay limit). This stage therefore has a smaller dialog budget and reports
-    `parametersApplied: null` with `retryVerify: true` while the model is still
-    re-evaluating, because the row list at that moment can still be the pre-accept
-    DOM — reading it and claiming regeneration would be a fabrication.
+    The fourth live step (2026-09-20) measured the panel's removal as a bimodal
+    signal on one feature, with the accept's own before/after as the only variable:
+    an accept that changed nothing satisfied the close condition in 4-5 ms, and one
+    that changed a parameter had already committed while the panel was still present
+    95 s later. So the condition is only a short probe, and the stage then recovers
+    with one bounded page reload — the same commit check this repository already uses
+    for the insert path. That reload discards the panel without reverting the commit,
+    so it is never a rollback. A non-verdict reached after it is
+    ``parametersApplied: None`` with ``retryVerify: true``, never a failure, because
+    the reload may have raced the commit.
     """
 
     TARGET = "Sr Spiral ridge 7"
 
-    def _apply_then_verify(self, page: FakeDialogPage) -> tuple[dict, dict]:
+    def _apply_then_verify(self, page: FakeDialogPage, **kwargs) -> tuple[dict, dict]:
         applied = transactions.edit_feature_parameters(
             page, self.TARGET, {"baseRadius": "12 mm"}
         )
         verified = transactions.verify_feature_parameters(
-            page, self.TARGET, {"baseRadius": "12 mm"}
+            page, self.TARGET, {"baseRadius": "12 mm"}, **kwargs
         )
         return applied, verified
 
@@ -1419,10 +1452,11 @@ class VerifyFeatureParametersTest(unittest.TestCase):
             [row.get("name") for row in verified["featureState"]], [self.TARGET]
         )
         self.assertNotIn("retryVerify", verified)
+        self.assertEqual(page.reloads, [], "a closed panel needs no recovery reload")
 
-    def test_a_dialog_that_has_not_closed_yet_is_unknown_not_failed(self):
+    def test_a_panel_that_stays_open_without_reload_is_unknown_not_failed(self):
         page = FakeDialogPage(dialog_closes=False)
-        _applied, verified = self._apply_then_verify(page)
+        _applied, verified = self._apply_then_verify(page, allow_reload=False)
         self.assertFalse(verified["verified"])
         self.assertIsNone(
             verified["parametersApplied"],
@@ -1432,13 +1466,73 @@ class VerifyFeatureParametersTest(unittest.TestCase):
         self.assertTrue(verified["retryVerify"])
         self.assertFalse(verified["dialogClosed"]["waited"])
         self.assertEqual(verified["featureState"], [], "no row list is read while the dialog is open")
+        self.assertEqual(page.reloads, [], "allow_reload=False must never navigate")
+
+    def test_the_measured_stuck_panel_is_recovered_by_one_reload(self):
+        """The measured live case: the accept committed and the panel stayed open.
+
+        Live 2026-09-20 a parameter change had committed while `.feature-dialog` was
+        still present 95 s later, so the close probe is not a verdict. One bounded
+        reload discards the panel without reverting the value, and the stage can then
+        read the persisted values and answer.
+        """
+        page = FakeDialogPage(dialog_closes=False)
+        applied, verified = self._apply_then_verify(page)
+        self.assertTrue(applied["pendingVerification"])
+        self.assertEqual(len(page.reloads), 1, "exactly one bounded recovery reload")
+        self.assertEqual(verified["recoveredBy"], "page_reload")
+        self.assertTrue(verified["verified"])
+        self.assertTrue(verified["parametersApplied"])
+        self.assertTrue(verified["persistenceOk"])
+        self.assertEqual(verified["persisted"], {"baseRadius": "12 mm"})
+        self.assertNotIn("retryVerify", verified)
+
+    def test_a_read_back_right_after_the_recovery_reload_is_not_a_failure(self):
+        """The recovery reload can race the commit, so a mismatch stays unknown.
+
+        It is issued seconds after the accept, so the value it reads is the one that
+        had persisted when the fresh page loaded. Reporting that as
+        `parametersApplied: false` would be exactly the false negative this pass
+        exists to remove; it is `None` + `retryVerify` instead.
+        """
+        page = FakeDialogPage(dialog_closes=False)
+        applied = transactions.edit_feature_parameters(
+            page, self.TARGET, {"baseRadius": "12 mm"}
+        )
+        self.assertTrue(applied["readbackOk"])
+        page.dialog_values["baseRadius"] = "10 mm"
+        verified = transactions.verify_feature_parameters(
+            page, self.TARGET, {"baseRadius": "12 mm"}
+        )
+        self.assertEqual(verified["recoveredBy"], "page_reload")
+        self.assertFalse(verified["verified"])
+        self.assertIsNone(
+            verified["parametersApplied"],
+            "a read taken right after the recovery reload may have raced the commit",
+        )
+        self.assertTrue(verified["retryVerify"])
+        self.assertFalse(verified["persistenceOk"])
+        self.assertIn("raced the commit", verified["reason"])
+
+    def test_a_recovery_reload_that_does_not_complete_is_unverified(self):
+        page = FakeDialogPage(dialog_closes=False, reload_fails=True)
+        _applied, verified = self._apply_then_verify(page)
+        self.assertFalse(verified["verified"])
+        self.assertIsNone(verified["parametersApplied"])
+        self.assertTrue(verified["retryVerify"])
+        self.assertFalse(verified["recovery"]["reloaded"])
+        self.assertIn("did not complete", verified["reason"])
 
     def test_a_row_that_did_not_regenerate_cleanly_is_not_confirmed(self):
         page = FakeDialogPage()
         page.read_features = {"headerText": "", "features": [], "partsText": "", "partItems": []}
         _applied, verified = self._apply_then_verify(page)
         self.assertFalse(verified["verified"])
-        self.assertFalse(verified["parametersApplied"])
+        self.assertIs(
+            verified["parametersApplied"],
+            False,
+            "a cleanly read row list that has no matching row is a definitive failure",
+        )
         self.assertFalse(verified["regenerationOk"])
         self.assertFalse(verified["persistenceOk"])
         self.assertIn("did not regenerate cleanly", verified["reason"])
@@ -1450,16 +1544,74 @@ class VerifyFeatureParametersTest(unittest.TestCase):
         )
         self.assertTrue(applied["readbackOk"])
         # The dialog read back 12 mm, but the persisted value is something else: the
-        # stage must report that, not the readback it already saw.
+        # stage must report that, not the readback it already saw. The panel closed by
+        # itself here, so no recovery reload raced the commit and the verdict is
+        # definitive.
         page.dialog_values["baseRadius"] = "10 mm"
         verified = transactions.verify_feature_parameters(
             page, self.TARGET, {"baseRadius": "12 mm"}
         )
         self.assertFalse(verified["verified"])
-        self.assertFalse(verified["parametersApplied"])
+        self.assertIs(verified["parametersApplied"], False)
         self.assertTrue(verified["regenerationOk"])
         self.assertFalse(verified["persistenceOk"])
         self.assertIn("persisted=", verified["reason"])
+        self.assertNotIn("recoveredBy", verified)
+
+
+class ReadFeatureParametersTest(unittest.TestCase):
+    """Reading a feature's values must not write anything.
+
+    The read opens the row's parameter dialog, reads its named fields and cancels it,
+    so `fills` and `accept_clicks` must both stay empty. It also refuses to read a
+    dialog that is already open, because such a dialog shows what was last TYPED and
+    this tool cannot tell that apart from what is persisted.
+    """
+
+    TARGET = "Sr Spiral ridge 7"
+
+    def test_it_reads_the_values_and_cancels_without_writing(self):
+        page = FakeDialogPage()
+        result = transactions.read_feature_parameters(page, self.TARGET)
+        self.assertTrue(result["read"])
+        self.assertEqual(result["parameters"], {"baseRadius": "10 mm"})
+        self.assertEqual(result["parameterCount"], 1)
+        self.assertEqual(result["featureName"], self.TARGET)
+        self.assertEqual(page.fills, [], "a read must never fill a parameter")
+        self.assertEqual(page.accept_clicks, [], "a read must never accept a dialog")
+        page.keyboard.press.assert_called_with("Escape")
+        self.assertEqual(page.reloads, [], "reading must not navigate")
+
+    def test_an_already_open_dialog_is_refused_rather_than_read(self):
+        page = FakeDialogPage(dialog_closes=False, dialog_already_open=True)
+        result = transactions.read_feature_parameters(page, self.TARGET)
+        self.assertFalse(result["read"])
+        self.assertEqual(result["parameters"], {})
+        self.assertTrue(result["retryable"])
+        self.assertEqual(page.dblclicks, [], "nothing is opened while a panel is on screen")
+        self.assertEqual(page.fills, [])
+        self.assertEqual(page.reloads, [], "the default refuses to navigate")
+        self.assertIn("already open", result["reason"])
+
+    def test_allow_reload_recovers_the_open_panel_before_reading(self):
+        page = FakeDialogPage(dialog_closes=False, dialog_already_open=True)
+        result = transactions.read_feature_parameters(
+            page, self.TARGET, allow_reload=True
+        )
+        self.assertEqual(len(page.reloads), 1)
+        self.assertEqual(result["recovery"]["reloaded"], True)
+        self.assertTrue(result["read"])
+        self.assertEqual(result["parameters"], {"baseRadius": "10 mm"})
+        self.assertEqual(page.fills, [])
+        self.assertEqual(page.accept_clicks, [])
+
+    def test_a_row_that_cannot_be_located_reads_nothing_and_says_so(self):
+        page = FakeDialogPage(rows=("Sr Spiral ridge 1",))
+        result = transactions.read_feature_parameters(page, self.TARGET)
+        self.assertFalse(result["read"])
+        self.assertEqual(result["parameters"], {})
+        self.assertEqual(page.dblclicks, [])
+        self.assertIn("matched", result["reason"])
 
 
     def test_the_row_is_never_identified_by_a_text_filter(self):

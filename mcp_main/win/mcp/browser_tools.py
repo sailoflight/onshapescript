@@ -336,13 +336,30 @@ def browser_verify_feature_parameters(arguments: dict[str, Any]) -> dict[str, An
     if dialog_timeout_ms is not None:
         if not isinstance(dialog_timeout_ms, int) or not 1 <= dialog_timeout_ms <= 60_000:
             raise ValueError("dialog_timeout_ms must be an integer from 1 to 60000")
+    options: dict[str, Any] = {}
+    if dialog_timeout_ms is not None:
+        options["dialog_timeout_ms"] = dialog_timeout_ms
+    if "allow_reload" in arguments:
+        allow_reload = arguments.get("allow_reload")
+        if not isinstance(allow_reload, bool):
+            raise ValueError("allow_reload must be a boolean")
+        options["allow_reload"] = allow_reload
     page, _ = _page()
     from onshape_browser_mode.transactions import verify_feature_parameters
-    return verify_feature_parameters(
-        page,
-        feature_name.strip(),
-        parameters,
-        **({"dialog_timeout_ms": dialog_timeout_ms} if dialog_timeout_ms is not None else {}),
+    return verify_feature_parameters(page, feature_name.strip(), parameters, **options)
+
+
+def browser_read_feature_parameters(arguments: dict[str, Any]) -> dict[str, Any]:
+    feature_name = arguments.get("feature_name", "")
+    if not isinstance(feature_name, str) or not feature_name.strip():
+        raise ValueError("feature_name is required")
+    allow_reload = arguments.get("allow_reload", False)
+    if not isinstance(allow_reload, bool):
+        raise ValueError("allow_reload must be a boolean")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import read_feature_parameters
+    return read_feature_parameters(
+        page, feature_name.strip(), allow_reload=allow_reload
     )
 
 
@@ -1301,8 +1318,9 @@ BROWSER_TOOLS = [
     _tool("browser_fs_insert_snippet", "Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_fs_insert_parameter", "Insert the verified Length parameter template at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_fs_toggle_fold", "Fold, unfold, or toggle a FeatureScript Ace fold and return the resulting folded ranges.", {"action": {"type": "string", "enum": ["toggle", "fold", "unfold"], "default": "toggle"}, "row": {"type": "integer", "minimum": 0}}, mutating=False, seconds=5),
-    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback, and accept. By default it returns as soon as the accept button is clicked, with applyState='pending_verification' and parametersApplied=null, because accepting re-evaluates the model before the dialog reports closed and a one-shot wait can outlive the transport limit (measured live: 61.7 s on an 11-feature element against a 60 s relay limit). Confirm it with browser_verify_feature_parameters; pass wait_for_regeneration=true to keep the original one-shot wait-and-verify behaviour.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "wait_for_regeneration": {"type": "boolean", "default": False, "description": "Keep the apply call waiting for the dialog to close and verify persistence in the same call. Only use it when the transport budget is known to allow a wait that scales with the element's feature count."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
-    _tool("browser_verify_feature_parameters", "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that the reopened dialog shows the requested values. It never guesses — if the dialog has not reported closed within its bounded budget it returns parametersApplied=null with retryVerify=true, because the row list may still be the pre-accept DOM. Zero REST API quota.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "dialog_timeout_ms": {"type": "integer", "minimum": 1, "maximum": 60000, "description": "Bounded wait for the accepted dialog to report closed; defaults to 25000 ms."}}, mutating=False, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback, and accept. By default it returns as soon as the accept button is clicked, with applyState='pending_verification' and parametersApplied=null, never false, because that click IS the commit and waiting for the panel to close can outlive the transport limit (measured live: a one-shot call reached 61.7 s against a 60 s relay limit). The panel's closure is not a completion signal for an edit that changes a parameter: measured live 2026-09-20, such an edit had committed while the panel was still present 95 s later, where an accept that changed nothing closed it in 4-5 ms. Confirm it with browser_verify_feature_parameters; pass wait_for_regeneration=true to keep the one-shot wait-and-verify behaviour.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "wait_for_regeneration": {"type": "boolean", "default": False, "description": "Keep the apply call waiting for the dialog to close and verify persistence in the same call. Only use it when the transport budget is known to allow a wait that scales with the element's feature count."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_verify_feature_parameters", "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that a freshly reopened dialog shows the requested values. It never guesses. The accepted panel's removal is NOT the completion signal (measured live 2026-09-20: an edit that changed a parameter had committed while the panel was still present 95 s later, where an accept that changed nothing closed it in 4-5 ms), so the condition is probed briefly and then, by default, recovered by one bounded page reload. That reload discards the open panel without reverting the commit (measured), yields a row list that cannot be the pre-accept DOM, and spends 0 API quota. A non-verdict reached after that reload is returned as parametersApplied=null with retryVerify=true, never as a failure, because the reload may have raced the commit. Pass allow_reload=false to refuse the navigation and keep the previous 'call again' behaviour. Zero REST API quota.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "dialog_timeout_ms": {"type": "integer", "minimum": 1, "maximum": 60000, "description": "Bounded probe for the accepted dialog to report closed; defaults to 3000 ms because the measured latency is bimodal (4-5 ms when nothing changed, beyond every budget when a parameter did)."}, "allow_reload": {"type": "boolean", "default": True, "description": "Allow the recovery page reload when the accepted panel is still open. Set false when the caller's page must not be navigated; the result then stays parametersApplied=null with retryVerify=true."}}, mutating=False, seconds=45, required=["feature_name", "parameters"]),
+    _tool("browser_read_feature_parameters", "Read one custom feature's current parameter values without changing the model: open the row's parameter dialog, read its named fields, and cancel it with Escape. Zero REST API quota and no cloud mutation. It reads only from a dialog it opened itself, because a dialog's fields show what was last typed rather than what is persisted. When a parameter dialog is already open it reads nothing and says so — an accept that changes a parameter can leave the panel open long after committing — so clear it first, pass allow_reload=true to let this tool perform the same bounded recovery reload browser_verify_feature_parameters uses, or call that tool directly.", {"feature_name": {"type": "string"}, "allow_reload": {"type": "boolean", "default": False, "description": "Permit one bounded page reload to discard an already-open panel (which does not revert a committed edit) before reading."}}, mutating=False, seconds=20, required=["feature_name"]),
     _tool("browser_activate_tab", "Make one EXISTING document tab the active tab by exact name or tab data-id, and verify the switch by reading that tab's own active class. Read tools and browser_edit_feature_parameters act on whatever tab is active, and no other tool could select one: browser_rename_tab double-clicks a tab name yet leaves the previously active tab active (measured live). Selection is by data-id whenever the tab listing supplies one, never by position, because the tab strip renumbers when a tab is added or removed. content='partstudio' additionally waits for the Feature List title and its rows, since a switched-to Part Studio renders in stages and an immediate read sees zero rows. Zero REST API quota.", {"element_id": {"type": "string", "default": "", "description": "Tab data-id from browser_get_page_tabs; pass exactly one of element_id or name."}, "name": {"type": "string", "default": "", "description": "Exact visible tab name, which must match exactly one tab."}, "content": {"type": "string", "enum": ["any", "partstudio"], "default": "any"}}, mutating=False, seconds=20),
     _tool("browser_fs_watch_part_studio", "Select the exact watched/configured Part Studio through the Feature Studio toolbar dropdown and verify the toolbar readback.", {"part_studio": {"type": "string"}, "mode": {"type": "string", "enum": ["watch", "configure"], "default": "watch"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=15, required=["part_studio"]),
     _tool("browser_open_doc_menu", "Open the document-name menu, return its item inventory, and optionally trigger one exact command.", {"command": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
@@ -1354,6 +1372,7 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_fs_toggle_fold": browser_fs_toggle_fold,
     "browser_edit_feature_parameters": browser_edit_feature_parameters,
     "browser_verify_feature_parameters": browser_verify_feature_parameters,
+    "browser_read_feature_parameters": browser_read_feature_parameters,
     "browser_activate_tab": browser_activate_tab,
     "browser_fs_watch_part_studio": browser_fs_watch_part_studio,
     "browser_open_doc_menu": browser_open_doc_menu,

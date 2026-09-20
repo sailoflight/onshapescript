@@ -252,6 +252,29 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   **所以"面板移除"对真改参数这一类编辑不是完成信号**；它瞬间满足空操作、对真改长时间
   不满足，而两种情况下的提交都已完成。要在这类编辑上拿到判决，只能走"重载 → 重新打开
   并读回值"（本轮实测可行，且读回值与请求值逐字相符），不能等面板消失。
+- **第二段自己带恢复路径，判据按"有没有恢复过"分级（2026-09-20 落地）**。
+  `browser_verify_feature_parameters` 不再用单一长超时去等面板关闭：它先做一次
+  **短探测**（`dialog_timeout_ms`，默认 3 s），面板已关就直接读回；面板还开着且
+  `allow_reload=True`（默认）就**只做一次有界重载**，然后在全新页面上重新探测、
+  重新打开特征行读回值，结果里带 `recoveredBy: "page_reload"` 与 `recovery` 字段。
+  判决分级是硬要求：**恢复重载之后仍读不到**才允许 `parametersApplied: null` +
+  `retryVerify: true`（并明说"raced the commit"），而**没有**走过恢复路径就长时间
+  读不到时给的是确定性的 `parametersApplied: false`，不是 `null`。理由很实际：
+  一类"我没有证据"必须能被上层重试，另一类"证据显示没生效"不能靠重试蒙过去；
+  把两者都写成 `null` 就是让调用方无法区分。行状态读回显示特征没有重新生成干净时，
+  同样给确定性的 `false`（此前那个分支会漏成空洞的 `null`）。
+  注意这与"重载 ≠ 回滚"这条并存：重载丢掉的是客户端 UI 状态，不是服务端提交，
+  所以重载后读回的新值恰恰是提交证据，而不是把编辑抹掉。
+- **要知道特征当前参数值，必须用只读探针，不能"填一个值试试"（2026-09-20 落地）**。
+  新增 `browser_read_feature_parameters(feature_name, allow_reload=False)`：双击特征行
+  打开对话框、读值、**无条件按 Escape 取消**，全程不填不改，所以它是
+  `mutating=False`。返回 `read` / `parameters` / `parameterCount` / `featureRow`，
+  读不到时给 `retryable` 与原因。它存在的直接原因是一个被实现挡住的取巧：
+  想用 `browser_edit_feature_parameters(parameters={})` 做"零改动读回"是不可能的，
+  handler 会以 `ValueError("parameters must be a non-empty object")` 拒绝——**这个拒绝
+  是对的**，保留它，不要为了省一个工具而放宽。默认 `allow_reload=False` 也是刻意的：
+  第一段刚点完 ✓ 时，一次重载会把面板扔掉并白白多花一次页面加载；只有第二段在
+  面板卡住时才值得付这个代价（所以 verify 的默认是 `True`，read 的默认是 `False`）。
 - 工具栏：`.toolbar-item`，按钮 `.tool.is-activatable.is-button`；文字标签
   `.tool-label.hide-in-toolbar` 是**隐藏的**，`browser_click(text=...)` 点不到，
   要按 `.toolbar-item` 的 textContent 找到后点内部按钮。

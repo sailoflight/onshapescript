@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **108**
+- Registered tools: **109**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=68, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=26, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=2
+- Capability counts: `browser`=69, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=26, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
 
 ## Safety interpretation
 
@@ -74,6 +74,7 @@
 | `browser_open_document` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Open a document from the Onshape documents list by its visible name. Read-only navigation: it goes to the documents list and clicks the matching document link, then returns the... |
 | `browser_open_insert_feature_dialog` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Open the Part Studio '添加自定义特征' dialog through the browser UI so a follow-up browser_create_document_version call can click its '创建一个版本' prompt, or so the caller can inspect the... |
 | `browser_press_key` | `browser` | `L1 browser_primitive` | `key` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota. |
+| `browser_read_feature_parameters` | `browser` | `unclassified` | `feature_name` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read one custom feature's current parameter values without changing the model: open the row's parameter dialog, read its named fields, and cancel it with Escape. Zero REST API q... |
 | `browser_read_featurescript` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read the FeatureScript source currently open in the browser's Ace editor and return it together with the document/workspace/element ids parsed from the page URL. Read-only, zero... |
 | `browser_read_selection_preview` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read a visible left-panel selection or tab-preview card and return its text and labeled fields. |
 | `browser_reconnect` | `browser` | `L2 browser_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Deprecated compatibility wrapper: use browser_session with action='reconnect'. Kept so an existing caller keeps working; it detects the Onshape session-timeout dialog and clicks... |
@@ -88,7 +89,7 @@
 | `browser_sync_rest_state` | `browser` | `boundary_operation` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state | Explicitly cache browser-observed document/workspace/element ids in REST-owned local state. Performs local file I/O only and no REST request. |
 | `browser_toggle_left_panel` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Collapse, expand, or toggle the left panel through its splitter and verify the resulting width. |
 | `browser_type` | `browser` | `L1 browser_primitive` | `text` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Type text with trusted sequential keyboard events into a main-page or frame target. Zero REST API quota. |
-| `browser_verify_feature_parameters` | `browser` | `unclassified` | `feature_name`, `parameters` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that the reopened dialog shows the requested values. It never gu... |
+| `browser_verify_feature_parameters` | `browser` | `unclassified` | `feature_name`, `parameters` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that a freshly reopened dialog shows the requested values. It ne... |
 | `browser_view_orientation` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes. |
 | `browser_wait` | `browser` | `L1 browser_primitive` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota. |
 | `browser_wall_thickness_report` | `browser` | `L4 onshape_transaction` | `body_name`, `minimum_allowed_mm` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read sampled browser measurements for a named body, report the minimum in millimeters, and never claim an unverified global minimum. |
