@@ -3063,7 +3063,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "127bd729d7b4d6c4795be60548bc2f5b61e87ecfe20b70636b00d4df25cf45c4",
+   "sha256": "5745d5c0b3de7a513b0e0ced5fb1cd75b7a7ce7122638f81ad342a7aba3f2c00",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3874,6 +3874,129 @@
          "depth": 0
         }
        ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "19. 参考几何要读成「膨胀」而不是「同心堆」（实测 2026-09-20）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Gridfinity 底板的两处几何错误都来自读错参考实现，而且都能从导出的 STL 里用量到 0.01 mm 的证据反推出来（原始证据见 onshape_docs/verification/gridfinity-profile-2026-09-20.md）。"
+      },
+      {
+       "type": "para",
+       "text": "参考实现在做什么（kennetek/gridfinity-rebuilt-openscad）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "_BASEPLATE_PROFILE = [[0,0],[0.7,0.7],[0.7,2.5],[2.85,4.65]]， BASEPLATE_INNER_RADIUS = 4 - 2.85 = 1.15；",
+         "depth": 0
+        },
+        {
+         "text": "profile 平移 (INNER_RADIUS, clearance = height - 4.65 = 0.35) 得 (1.15, 0.35) -> (1.85, 1.05) -> (1.85, 2.85) -> (4.00, 5.00)；",
+         "depth": 0
+        },
+        {
+         "text": "baseplate_cutter 用 sweep_rounded(size - BASEPLATE_OUTER_DIAMETER)，即**沿一个 直角 34 x 34 方框扫掠**，所以 z 处的型腔截面 = 该方框按偏移 o(z) 的 Minkowski 膨胀： 半宽 = 17 + o(z)，圆角半径 = o(z)（不是 o + 常数）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "两处真正做错过的点："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "圆角半径就是 o 本身。 旧写法把角柱放在 wireHalf - wireRadius、半径取 wireRadius + o，顶部圆角半径于是 1.15 + 4.00 = 5.15 mm，比板块自己的 4 mm 圆角还大 1.15 mm → 型腔在四角切穿外缘。正确值顶部 4.00 mm，与外格方框角（38, 38）处的板块 圆角同圆心，所以最外圈是刀刃而不是缺口。",
+         "depth": 0
+        },
+        {
+         "text": "平边必须随 z 一起涨。 膨胀 = 方框本身 + 四边各一条宽 o 的条 + 四个半径 o 的角圆。 旧写法只有角在长大，平边在全 z 上始终相距 34 mm，45° 只在角上\"鼓包\"。切片证据： z = 5.70 处平边半宽实测 17.80 mm，规格 18.50 mm，正好差 0.35 mm = 面往内倒了 0.35 mm。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "45° 斜条怎么建（仍然 0 草图）：常数段用 fCuboid；45° 段用 fCuboid + opDraft （中性面取该段底面）。不要用带拔模的拉伸：矩形拉伸会在另一个轴也涨出去，吃掉角柱。 选面用 qParallelPlanes(qCreatedBy(id, EntityType.FACE), vector(1, 0, 0), true)， 正好得到 ±x 两个面。"
+      },
+      {
+       "type": "para",
+       "text": "opDraft 的方向约定（实测）：拔模面的法线朝 pull 向量旋转。中性面在下、 pullVec = +z 时柱条随 z 收窄（就是上面 17.80 的证据）；要让它随 z 张开，必须 pullVec = vector(0, 0, -1)。"
+      },
+      {
+       "type": "para",
+       "text": "自检要针对真正承担该几何的 body：对整个切刀求 evBox3d 抓不住方向错误——角锥自己就 能达到顶部宽度，切刀外框依旧\"正确\"。改成对每条斜条单独 evBox3d，断言它在拔模轴上达到 wireHalf + o、另一轴仍是 wireHalf，方向错就抛 regenError：0 额度，提交后读 Part Studio 通知即可判定。"
+      },
+      {
+       "type": "para",
+       "text": "验收：切片探针比高度图更直接（temp/gridfinity_slice_check.py）。取几何包里的二进制 STL，在若干 z 平面求截面，自格心沿 +x 求最近交点 = 平边半宽，沿 45° 对角线求最近交点 = 17*sqrt(2) + o。gridfinity-2x2-final-4（29300 面）实测全部命中："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "z",
+         "o(z)",
+         "平边半宽 实测/规格",
+         "圆角半径 实测/规格"
+        ],
+        [
+         "5.20",
+         "1.15",
+         "18.15 / 18.15",
+         "1.15 / 1.15"
+        ],
+        [
+         "5.70",
+         "1.50",
+         "18.50 / 18.50",
+         "1.50 / 1.50"
+        ],
+        [
+         "6.50 / 7.50",
+         "1.85",
+         "18.85 / 18.85",
+         "1.85 / 1.85"
+        ],
+        [
+         "8.50",
+         "2.50",
+         "19.50 / 19.50",
+         "2.50 / 2.50"
+        ],
+        [
+         "9.50",
+         "3.50",
+         "20.50 / 20.50",
+         "3.50 / 3.50"
+        ],
+        [
+         "9.95",
+         "3.95",
+         "20.95 / 20.95",
+         "3.95 / 3.95"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "顶部开口 21.00 mm = 半格（相邻插座刀刃相接），顶部圆角 4.00 mm = 板块 R4。磁铁孔同样可测： z = 4.90 交点 +3.95 mm（倒角段 3.25 + 0.7）、z = 3.00 交点 +3.25 mm（半径）、z = 2.55 起 无孔（深 2.4）。"
+      },
+      {
+       "type": "para",
+       "text": "免费的整体断言：bedContactAreaMm2 = 7042.2495 mm²，而 84 x 84 圆角矩形（R4）的解析 面积 = 7056 - (4 - pi) * 16 = 7042.27 mm²——底面面积本身就证明板体形状对了（改之前 5926.75，正好少掉四条边长 76/84 的边条）；0.02 mm² 的差是网格化量级。"
+      },
+      {
+       "type": "para",
+       "text": "没有浏览器/GUI 也能看图：temp/stl_render.py 是纯标准库的软件光栅器（正交轴测 + 背面 剔除 + z-buffer + 平面着色），把几何包里的 STL 直接渲成 PNG，改前/改后各出一张即可肉眼对账。"
       }
      ]
     }
@@ -7820,6 +7943,230 @@
          "depth": 0
         }
        ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "gridfinity-profile-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/gridfinity-profile-2026-09-20.md",
+   "sha256": "9dee0d79b1a6f35205aaaa25251fbb15bbf22de4daa9b9e035479d204114e2ac",
+   "title": "Gridfinity 底板：板体圆角矩形与 45° 型腔侧壁修正（2026-09-20）",
+   "sections": [
+    {
+     "level": 1,
+     "title": "Gridfinity 底板：板体圆角矩形与 45° 型腔侧壁修正（2026-09-20）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "本文记录一次特征树全绿但模型仍然是错的的修正与验收证据。两处缺陷都不报错、 watertight: true、尺寸 [84, 84, 10] 正好，只能从导出几何里量出来。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "目标文档：document 1ef2be8f3d45e6f996af24ab / workspace bac7c0bf31912a956c44d15a",
+         "depth": 0
+        },
+        {
+         "text": "Part Studio f0360bb015d7612284423f55，Feature Studio c57b7cc5f7291694afffd17b",
+         "depth": 0
+        },
+        {
+         "text": "特征树（未变，仍 3 行自定义特征）：GB GF Base Plate Body 1、GS GF Socket Pockets 1、 GM GF Magnet Holes 1，全部 hasError: false，零件数 (1) Gridfinity baseplate 2x2",
+         "depth": 0
+        },
+        {
+         "text": "源文件：dev/fixtures-capture/gridfinity-baseplate.fs",
+         "depth": 0
+        },
+        {
+         "text": "全程 0 次 Onshape REST 额度（浏览器路径 + 离线几何包）",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "1. 缺陷一：板体不是圆角矩形",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "gfBasePlate 旧写法用一个 fCuboid（半宽 = 板半宽 - 外圆角）加四个角圆柱，得到的不是 84 x 84 圆角矩形，而是 76 x 76 方块 + 四个 r=4 圆耳：只有靠近四角处材料才到 ±42。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "底面面积实测 5926.749 mm²（几何包 bedContactAreaMm2）；",
+         "depth": 0
+        },
+        {
+         "text": "84 x 84 圆角矩形（R4）解析面积 = 7056 - (4 - pi) * 16 = 7042.27 mm²；",
+         "depth": 0
+        },
+        {
+         "text": "差值 1115.5 mm² ≈ 四条边条 4 x (76 x 4) = 1216 mm² 减去圆角重叠，方向与量级都对得上。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "屏幕上因此能看到\"四角探出的凸台\"，用户截图（屏幕截图 2026-09-20 185046.png）里 表现为角上鼓出的蘑菇状台阶。"
+      },
+      {
+       "type": "para",
+       "text": "修正：两条十字交叉 fCuboid（全长 x 芯宽 + 芯长 x 全长）加四个角圆柱。修正后底面面积 7042.2495 mm²，与解析值差 0.02 mm²（网格化量级）。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 缺陷二：型腔 45° 只在角上，平边是直墙",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "参考实现（kennetek/gridfinity-rebuilt-openscad）把平移后的 profile 沿直角 34 x 34 方框扫掠，z 处截面是方框按偏移 o(z) 的膨胀：半宽 17 + o(z)、圆角半径 o(z)。 旧写法只有角柱在长（半径还多算了 1.15），平边在全 z 上都是 34 mm 间距。"
+      },
+      {
+       "type": "para",
+       "text": "导出 STL 的切片证据（gridfinity-2x2-final-3，第一次修正尝试、拔模方向反了）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "z",
+         "平边半宽 实测",
+         "规格",
+         "角半径 实测",
+         "规格"
+        ],
+        [
+         "5.70",
+         "17.80",
+         "18.50",
+         "1.50",
+         "1.50"
+        ],
+        [
+         "8.50",
+         "18.20",
+         "19.50",
+         "2.50",
+         "2.50"
+        ],
+        [
+         "9.95",
+         "17.00",
+         "20.95",
+         "3.95",
+         "3.95"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "角半径精确、平边少 0.35 / 1.30 / 3.95 mm——正好等于\"面向内倒\"的位移，说明 opDraft 的面法线朝 pull 向量旋转；要随 z 张开必须 pullVec = vector(0, 0, -1) （中性面取该段底面）。角锥是独立 body，所以切刀整体 evBox3d 依旧\"正确\"， 自检必须逐条对斜条断言。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 最终验收（gridfinity-2x2-final-4）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "源文件 sha256 8203a0e03f0042e143bc06d30d6d14db6c32b1bde38ea7696e2fb228cfcd886a， 与云端提交回报的 sourceSha256 一致（browser_run_project(gridfinity-refresh-fs)， apply: false，不新建文档、不新增特征行）；",
+         "depth": 0
+        },
+        {
+         "text": "browser_get_fs_compile_status：compiled: true、documentClean: true、 elementErrorCount: 0、staleErrorCount: 0；Part Studio 容器 Result: Regeneration complete；",
+         "depth": 0
+        },
+        {
+         "text": "STEP 导出（浏览器路径，apiRequests: 0）sha256 ff540a9e696d45292581cc8820b7e58a686f75ce674ce06e56b3b0ff1badc7b4；",
+         "depth": 0
+        },
+        {
+         "text": "几何包：watertight: true、dimensionsMm [84, 84, 10]、 bedContactAreaMm2 7042.249535894、volumeMm3 39548.42967909、 triangleCount 29300、centerOfMassMm [-1e-09, 0.0, 3.09647225]、 overhangAreaMm2 7042.249535894。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "切片探针（temp/gridfinity_slice_check.py，0 网络）全部命中，公差 0.02 mm："
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": " z      o(z)  E=17+o   side_x   dev     r=o   corner_x  dev\n 5.20   1.15    18.15    18.15  +0.00   1.15     1.15  -0.00\n 5.70   1.50    18.50    18.50  -0.00   1.50     1.50  -0.00\n 6.50   1.85    18.85    18.85  -0.00   1.85     1.85  -0.00\n 7.50   1.85    18.85    18.85  -0.00   1.85     1.85  -0.00\n 8.50   2.50    19.50    19.50  -0.00   2.50     2.50  -0.00\n 9.50   3.50    20.50    20.50  -0.00   3.50     3.50  -0.00\n 9.95   3.95    20.95    20.95  -0.00   3.95     3.95  -0.00\n\nresult: ALL CHECKS PASS  (29300 triangles)"
+      },
+      {
+       "type": "para",
+       "text": "磁铁孔（每格 4 个，格心 ± (pitch/2 - 8) = ±13，从 z=5 向下挖 2.4，顶部倒角 0.8）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "z",
+         "孔心射线最近交点",
+         "判读",
+         "期望"
+        ],
+        [
+         "4.90",
+         "+3.95 mm",
+         "孔内（倒角段 3.25 + 0.8 * 0.7）",
+         "孔"
+        ],
+        [
+         "3.00",
+         "+3.25 mm",
+         "孔内（半径 6.5/2）",
+         "孔"
+        ],
+        [
+         "2.55",
+         "+8.00 mm（到板外缘）",
+         "实心（孔底 2.6 以下）",
+         "实心"
+        ],
+        [
+         "1.00",
+         "+8.00 mm",
+         "实心（基座块）",
+         "实心"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "体积演变可作旁证：磁铁孔摆错修正后 36628.55 → 36011.47 mm³；本次平边张开后 41933.31 → 39548.43 mm³（拔模方向反时平边收窄、少挖了料，所以中间那次体积偏大）。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 复现命令",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "python3 onshape_docs/scripts/fs_local_check.py dev/fixtures-capture/gridfinity-baseplate.fs\npython3 temp/deploy_refresh/deploy.py apply --deployment-id \"$(date -u +%Y%m%dT%H%M%SZ)-slug\"\n# 清除 onshape_browser_mode/user_data/project-runs/gridfinity-refresh-fs.checkpoint.json 后：\n#   browser_run_project(project=\"gridfinity-refresh-fs\", confirm_mutation=true)\n#   browser_export_step(export_id=\"gridfinity-2x2-final-4\", ...) -> browser_build_geometry_package\npython3 temp/gridfinity_slice_check.py <geometry_packages>/<id>/model.stl\npython3 temp/stl_render.py <geometry_packages>/<id>/model.stl out.png 900 -42 34 1.0"
+      },
+      {
+       "type": "para",
+       "text": "渲染出图（本地软件光栅器，0 依赖、0 额度）示例： temp/screenshots/{before-iso,after-iso,after-top,after-corner}.png。"
       }
      ]
     }

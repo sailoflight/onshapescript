@@ -79,7 +79,7 @@
   {
    "name": "Project docs index.json page sha256 all match",
    "ok": true,
-   "detail": "23 pages ok"
+   "detail": "25 pages ok"
   },
   {
    "name": "Project docs sections well-formed (title + blocks)",
@@ -284,14 +284,14 @@
    ]
   },
   "docs": {
-   "pages": 23,
-   "sections": 259,
+   "pages": 25,
+   "sections": 285,
    "categories": {
     "example": 6,
     "experience": 4,
     "guide": 6,
     "reference": 3,
-    "verification": 4
+    "verification": 6
    },
    "pageNames": [
     "documentation-map",
@@ -307,6 +307,8 @@
     "verification",
     "browser-tools-verification",
     "capability-live-verification",
+    "notice-retrieval-verification",
+    "gridfinity-profile-verification",
     "live-verification",
     "quick-reference",
     "mcp-tool-reference",
