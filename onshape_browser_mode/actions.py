@@ -38,6 +38,7 @@ from onshape_browser_mode.selectors import (
     PARTSTUDIO_FEATURE_ITEM,
     PS_DEFAULT_FEATURE,
     PS_FEATURES_HEADER,
+    PS_FEATURE_DIALOG,
     PS_WORKSPACE_CUSTOM_FEATURE_BTN,
     TIMEOUT_RECONNECT_LINK,
 )
@@ -1911,10 +1912,188 @@ def verify_insert_committed(
     }
 
 
+def dialog_values(page: Any) -> dict[str, str]:
+    """Read every named field of the open parameter dialog.
+
+    A parameter's own id is the key: the control carries ``name``/``id``, or the
+    wrapping ``[data-parameter-id]`` owner does. Checkboxes read as
+    ``String(checked)`` so a boolean round-trips through the same text comparison
+    as a number.
+    """
+    result = page.evaluate(
+        """
+        () => {
+          const dialog = document.querySelector('.feature-dialog');
+          if (!dialog) return {};
+          const result = {};
+          for (const input of dialog.querySelectorAll('input, textarea, select')) {
+            const owner = input.closest('[data-parameter-id], [parameter-id]');
+            const key = input.getAttribute('name') || input.id ||
+              owner?.getAttribute('data-parameter-id') || owner?.getAttribute('parameter-id') ||
+              input.getAttribute('aria-label') || '';
+            if (key) result[key] = input.type === 'checkbox' ? String(input.checked) : String(input.value || '');
+          }
+          return result;
+        }
+        """
+    )
+    return result if isinstance(result, dict) else {}
+
+
+#: A parameter id is not an id attribute: Onshape renders the control inside a
+#: ``[data-parameter-id]`` owner, so each candidate selector is tried in order and
+#: the visible label is the last resort.
+_DIALOG_FIELD_SELECTOR = (
+    '[data-parameter-id="{key}"] input, [parameter-id="{key}"] input, '
+    'input[name="{key}"], textarea[name="{key}"], select[name="{key}"], #{key}'
+)
+
+#: Onshape paints a styled checkbox and leaves the real control invisible: the
+#: ``<input type="checkbox" class="os-param-checkbox-input">`` that carries the
+#: parameter id resolves but is measured NOT VISIBLE, so clicking it waits for
+#: visibility and times out (measured live 2026-09-20: 30 s on ``subtract`` of a
+#: Thin Extrude dialog, the log showing the input resolved and "element is not
+#: visible" on every retry). The visible click target is therefore an ancestor, and
+#: which ancestor owns the click behaviour is not fixed across control types, so
+#: each candidate is tried until the state actually changes.
+_BOOLEAN_CLICK_TARGETS = (
+    "xpath=..",
+    "xpath=../..",
+    "xpath=ancestor::label[1]",
+    "xpath=ancestor::*[contains(@class, 'checkbox')][1]",
+)
+
+#: Per-candidate budget. A wrong ancestor is a cheap no-op, but four candidates at
+#: Playwright's 30 s default would cost two minutes before a refusal could be
+#: reported, and a refusal is a normal outcome for a parameter this mechanism
+#: cannot set.
+_BOOLEAN_CLICK_TIMEOUT_MS = 2500
+
+
+def _boolean_state(locator: Any) -> bool | None:
+    """Read a checkbox's state; visibility is not required to read it."""
+    try:
+        return bool(locator.first.is_checked())
+    except Exception:
+        return None
+
+
+def _click_boolean(locator: Any, desired: bool) -> bool:
+    """Click until the checkbox holds ``desired``; report whether it got there.
+
+    Every candidate is judged by its RESULT, never by the click returning: a click
+    that lands on an ancestor with no click handler raises nothing and changes
+    nothing, so the state read back afterwards is the only evidence that a click
+    was the right one.
+    """
+    if _boolean_state(locator) == desired:
+        return True
+    for selector in (None, *_BOOLEAN_CLICK_TARGETS):
+        candidate = locator if selector is None else locator.locator(selector)
+        try:
+            if candidate.count() == 0 or not candidate.first.is_visible():
+                continue
+            candidate.first.click(timeout=_BOOLEAN_CLICK_TIMEOUT_MS)
+        except Exception:
+            continue
+        if _boolean_state(locator) == desired:
+            return True
+    return _boolean_state(locator) == desired
+
+
+def _commit_field(target: Any) -> bool:
+    """Fire the ``change`` event a freshly filled field needs to reach the model.
+
+    ``Locator.fill`` focuses the field, sets the text, and fires ``input``; the
+    browser fires ``change`` only when the element loses focus. Onshape's parameter
+    directive commits on ``change``, so the LAST field filled in a dialog never
+    reached the model. Measured live 2026-09-21 on a 14-row build: every field filled
+    before another one was persisted, while the final fill of each dialog was not --
+    ``corner_radius`` and ``draft_angle`` read back correctly in the dialog (4 mm and
+    45 deg) and were stored as their zero defaults, producing a plate with sharp
+    corners and a socket whose 45 deg ramps had no taper at all. Blurring each field
+    as it is filled closes the gap instead of relying on whatever field happens to be
+    filled next.
+
+    A field cleared with an empty string needs this too, for the same reason.
+    """
+    try:
+        target.blur()
+        return True
+    except Exception:
+        return False
+
+
+def fill_dialog_fields(page: Any, parameters: dict[str, Any]) -> dict[str, Any]:
+    """Fill the open parameter dialog's named fields and read the values back.
+
+    One implementation for both callers, because "which control carries this
+    parameter id" must not drift between them:
+    ``browser_edit_feature_parameters`` opens this dialog on an existing row, and
+    ``browser_insert_custom_feature`` opens it on a row it just added, which is
+    what lets a thin feature — a row whose whole content is a few numbers — be
+    created correctly in ONE browser transaction instead of insert-then-edit.
+
+    Nothing is accepted here: the caller decides, and ``readbackOk`` plus
+    ``missing`` are the evidence it decides on. ``before`` is read before any
+    fill so a caller can report what the row held.
+    """
+    before = dialog_values(page)
+    dialog = page.locator(PS_FEATURE_DIALOG).first
+    updated: list[str] = []
+    missing: list[str] = []
+    committed: list[str] = []
+    uncommitted: list[str] = []
+    for key, value in parameters.items():
+        locator = dialog.locator(_DIALOG_FIELD_SELECTOR.format(key=key))
+        if locator.count() == 0:
+            container = dialog.locator(".parameter-item, .feature-parameter").filter(
+                has_text=str(key)
+            )
+            locator = container.locator("input, textarea, select") if container.count() else locator
+        if locator.count() == 0:
+            missing.append(str(key))
+            continue
+        target = locator.first
+        if isinstance(value, bool):
+            # A boolean goes through the styled checkbox, which is not the element
+            # that carries the parameter id; see _BOOLEAN_CLICK_TARGETS. A click
+            # commits by itself, so it needs no blur.
+            if not _click_boolean(locator, value):
+                missing.append(str(key))
+                continue
+        else:
+            target.fill(str(value))
+            if _commit_field(target):
+                committed.append(str(key))
+            else:
+                uncommitted.append(str(key))
+        updated.append(str(key))
+    after = dialog_values(page)
+    desired = {
+        key: str(value).lower() if isinstance(value, bool) else str(value)
+        for key, value in parameters.items()
+    }
+    readback_ok = all(
+        str(after.get(key, "")).lower() == value.lower() for key, value in desired.items()
+    )
+    return {
+        "updated": updated,
+        "missing": missing,
+        "committed": committed,
+        "uncommitted": uncommitted,
+        "before": before,
+        "after": after,
+        "desired": desired,
+        "readbackOk": readback_ok,
+    }
+
+
 def insert_custom_feature(
     page: Any,
     feature_name: str,
     part_studio_tab: str | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Apply a custom FeatureScript feature into a Part Studio (0 API quota).
 
@@ -1929,6 +2108,21 @@ def insert_custom_feature(
     to grow, and after the row and the part appear the page is reloaded once and
     the count must survive that reload (see ``verify_insert_committed`` for the
     measured reason).
+
+    ``parameters`` fills the dialog's named fields before it is accepted, so the
+    row is created with its numbers instead of with the dialog's defaults. A
+    feature whose whole content is a few numbers (a thin, native-shaped row) would
+    otherwise need two browser transactions per row -- insert, then edit -- and the
+    default it was briefly created with would be an extra state to reason about. A
+    fill that cannot find every field, whose field cannot be committed, or whose
+    readback does not match, is reported as ``inserted: False`` with the fill
+    evidence and the dialog is NOT accepted.
+
+    Careful with what a refusal means, because it was measured (2026-09-21): the
+    dropdown click has ALREADY added the row, and a row with an unaccepted dialog
+    keeps its dialog DEFAULTS and survives a reload. So a refusal leaves a real,
+    default-valued row in the tree that satisfies ``inserted`` on a later call and
+    contributes geometry; it must be deleted, not ignored.
     """
     if part_studio_tab:
         # Same switch the tool ``browser_activate_tab`` exposes, so both paths share
@@ -2045,6 +2239,27 @@ def insert_custom_feature(
         timeout_ms=FEATURE_DIALOG_TIMEOUT_MS,
     )
 
+    # 2b. Fill the dialog BEFORE accepting it, when the caller named values. The
+    #     dialog is already visible, so the fill runs against the row this call
+    #     just created. A fill that did not land exactly is a refusal, not a
+    #     silent default-valued row.
+    filled = None
+    if parameters:
+        filled = fill_dialog_fields(page, parameters)
+        if filled["missing"] or filled["uncommitted"] or not filled["readbackOk"]:
+            return {
+                "inserted": False,
+                "reason": (
+                    "the parameter dialog was not filled exactly; the dialog was left "
+                    "unaccepted"
+                ),
+                "parameters": filled,
+                "available": available,
+                "dialog": dialog,
+                "panelReady": panel_ready,
+                "toolbarReady": toolbar_ready,
+            }
+
     # 3. Accept the parameter dialog (checkmark) to finalize and compute.
     accepted = page.evaluate(
         """
@@ -2083,6 +2298,7 @@ def insert_custom_feature(
     result = {
         "inserted": accepted_ok and bool(commit["committed"]),
         "accepted": accepted,
+        "parameters": filled,
         "listed": state["listed"],
         "errored": state["errored"],
         "featureRows": state["rows"],

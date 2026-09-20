@@ -26,6 +26,83 @@ if str(ROOT) not in sys.path:
 from onshape_browser_mode import actions, interaction, semantic, selectors, transactions  # noqa: E402
 
 
+class FakeField:
+    """One named control inside the parameter dialog.
+
+    ``fill``/``is_checked``/``click`` write straight into the page's
+    ``dialog_fields``, so the readback that ``fill_dialog_fields`` performs reads
+    exactly what was typed — the same round trip the live dialog does.
+
+    A live boolean parameter is TWO elements: the native
+    ``<input type="checkbox" class="os-param-checkbox-input">`` that carries the
+    parameter id but is measured NOT VISIBLE, and a visible styled ancestor that owns
+    the click. ``visible=False`` plus ``wrapper`` models that pair, because the first
+    implementation clicked the id-carrying input directly and timed out waiting for a
+    hidden element.
+
+    A text fill is modelled the way the live directive behaves: ``fill`` sets the text
+    and records it as PENDING, and only ``blur`` commits it into ``dialog_fields``.
+    That is the measured behaviour that made the last field of a dialog silently keep
+    its default (see ``_commit_field``), so a fake that committed on ``fill`` would
+    hide the very bug this double exists to catch.
+    """
+
+    def __init__(self, page: "FakePage", key: str, *, visible: bool = True,
+                 wrapper: "FakeField | None" = None) -> None:
+        self.page = page
+        self.key = key
+        self.visible = visible
+        self.wrapper = wrapper
+        self.pending: str | None = None
+        self.fill_calls: list[str] = []
+        self.blur_calls: list[dict] = []
+        self.click_calls: list[dict] = []
+
+    def fill(self, value: str) -> None:
+        self.fill_calls.append(str(value))
+        self.pending = str(value)
+
+    def blur(self, **kwargs) -> None:
+        self.blur_calls.append(kwargs)
+        if self.pending is not None:
+            self.page.dialog_fields[self.key] = self.pending
+            self.pending = None
+
+    def is_visible(self) -> bool:
+        return self.visible
+
+    def is_checked(self) -> bool:
+        return str(self.page.dialog_fields.get(self.key, "")).lower() == "true"
+
+    def click(self, **kwargs) -> None:
+        self.click_calls.append(kwargs)
+        if not self.visible:
+            raise TimeoutError("element is not visible")
+        self.page.dialog_fields[self.key] = "false" if self.is_checked() else "true"
+
+    def locator(self, selector: str) -> "FakeLocator":
+        if self.wrapper is not None and selector.startswith("xpath="):
+            return FakeLocator([self.wrapper], page=self.page, selector=selector)
+        return FakeLocator([], page=self.page, selector=selector)
+
+
+class FakeDialog:
+    """The ``.feature-dialog`` element: resolves a parameter-id selector to one field."""
+
+    FIELD_SELECTOR_KEY = re.compile(r'data-parameter-id="([^"]+)"')
+
+    def __init__(self, page: "FakePage") -> None:
+        self.page = page
+        self.selector = selectors.PS_FEATURE_DIALOG
+
+    def locator(self, selector: str) -> "FakeLocator":
+        match = self.FIELD_SELECTOR_KEY.search(selector)
+        key = match.group(1) if match else ""
+        if key and key in self.page.dialog_fields:
+            return FakeLocator([self.page.dialog_field(key)], page=self.page, selector=selector)
+        return FakeLocator([], page=self.page, selector=selector)
+
+
 class FakeItem:
     """One element: a menu row, a dialog button, or a feature-list row."""
 
@@ -92,6 +169,18 @@ class FakeLocator:
         ]
         return FakeLocator(filtered, page=self.page, selector=self.selector)
 
+    def locator(self, selector: str) -> "FakeLocator":
+        """Resolve a selector relative to the element, as Playwright's locator does.
+
+        The boolean click path walks up from the id-carrying input with
+        ``locator("xpath=..")``, so the fake has to answer that relative query.
+        """
+        for item in self.items:
+            found = getattr(item, "locator", lambda _selector: FakeLocator([], page=self.page, selector=_selector))(selector)
+            if found.count():
+                return found
+        return FakeLocator([], page=self.page, selector=selector)
+
     def count(self) -> int:
         return len(self.items)
 
@@ -102,8 +191,12 @@ class FakePage:
     def __init__(self, *, menu_items=("Bc",), menu_labels=None, features=None, accept=True,
                  tabs=("Feature Studio 1", "Part Studio 1"), menu_opens=True,
                  features_before_insert=None, features_after_reload=None,
-                 reload_fails=False) -> None:
+                 reload_fails=False, dialog_fields=None, checkbox_keys=()) -> None:
         self.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        # A key named here is a styled checkbox: its native input is not visible, and
+        # the visible element that owns the click is an ancestor. Every other key is a
+        # plainly visible text field.
+        self.checkbox_keys = set(checkbox_keys)
         labels = list(menu_labels) if menu_labels is not None else [""] * len(menu_items)
         self.menu_items = [
             FakeItem(text, page=self, selector=selectors.CUSTOM_FEATURE_MENU_ITEM,
@@ -138,6 +231,11 @@ class FakePage:
         self.timeouts: list[int] = []
         self.evaluate_calls: list[str] = []
         self.accept_clicks: list[dict] = []
+        # The parameter dialog's named fields, keyed by parameter id. Seeding it
+        # with the values the dialog opens on is what makes the "before" read and
+        # the readback after a fill both meaningful.
+        self.dialog_fields: dict[str, str] = dict(dialog_fields or {})
+        self.dialog_field_calls: list[FakeField] = []
         self.keyboard = mock.Mock()
         # The commit-verify reload: `features_after_reload` models the workspace
         # truth a reload reveals (None keeps the post-insert list), and
@@ -218,6 +316,21 @@ class FakePage:
                 rows += 1
         return rows
 
+    def dialog_field(self, key: str) -> FakeField:
+        """The control for one parameter id, in its live shape.
+
+        A key listed in ``checkbox_keys`` comes back as the hidden id-carrying input
+        with a visible wrapper, which is the ancestor the click path must walk up to.
+        """
+        field = FakeField(self, key, visible=key not in self.checkbox_keys)
+        if not field.visible:
+            field.wrapper = FakeField(self, key, visible=True)
+        self.dialog_field_calls.append(field)
+        return field
+
+    def dialog_field_calls_for(self, key: str) -> list[FakeField]:
+        return [field for field in self.dialog_field_calls if field.key == key]
+
     # -- locator surface -------------------------------------------------
     def locator(self, selector: str) -> FakeLocator:
         if selector == selectors.CUSTOM_FEATURE_MENU_ITEM and not self.menu_opens:
@@ -231,6 +344,8 @@ class FakePage:
                 page=self,
                 selector=selector,
             )
+        if selector == selectors.PS_FEATURE_DIALOG:
+            return FakeLocator([FakeDialog(self)], page=self, selector=selector)
         return FakeLocator([], page=self, selector=selector)
 
     def wait_for_timeout(self, milliseconds: int) -> None:
@@ -244,6 +359,9 @@ class FakePage:
             return {"present": False, "blocking": False}
         if "workspace-custom-features button not found" in expression:
             return {"clicked": True}
+        if ".feature-dialog" in expression:
+            # The dialog read behind dialog_values / fill_dialog_fields.
+            return dict(self.dialog_fields)
         if "accept button not found" in expression:
             self.accept_clicks.append({})
             if not self.accept:
@@ -321,6 +439,95 @@ class InsertCustomFeatureTest(unittest.TestCase):
         self.assertEqual(
             page.load_states, [{"state": "domcontentloaded", "timeout": 15000}]
         )
+
+    def test_parameters_fill_the_dialog_before_it_is_accepted(self) -> None:
+        """A thin row IS a few numbers, so ONE call must create it carrying them.
+
+        Insert-then-edit would be two browser transactions per row and would leave
+        the row committed with the dialog's defaults in between.
+        """
+        page = FakePage(dialog_fields={"width": "100 mm", "corner_radius": "0 mm"})
+        result = self.apply(page, parameters={"width": "84 mm", "corner_radius": "4 mm"})
+        self.assertTrue(result["inserted"])
+        self.assertEqual(page.dialog_fields, {"width": "84 mm", "corner_radius": "4 mm"})
+        self.assertEqual(
+            result["parameters"]["before"], {"width": "100 mm", "corner_radius": "0 mm"}
+        )
+        self.assertEqual(result["parameters"]["updated"], ["width", "corner_radius"])
+        self.assertEqual(result["parameters"]["missing"], [])
+        self.assertTrue(result["parameters"]["readbackOk"])
+        self.assertEqual(len(page.accept_clicks), 1)
+
+    def test_a_parameter_the_dialog_does_not_expose_refuses_the_insert(self) -> None:
+        page = FakePage(dialog_fields={"width": "100 mm"})
+        result = self.apply(page, parameters={"width": "84 mm", "nope": "1 mm"})
+        self.assertFalse(result["inserted"])
+        self.assertEqual(result["parameters"]["missing"], ["nope"])
+        # The dialog is left unaccepted, so no default-valued row is committed and
+        # the failure is diagnosable from the missing id alone.
+        self.assertEqual(page.accept_clicks, [])
+        self.assertIn("not filled exactly", result["reason"])
+
+    def test_every_filled_field_is_committed_before_the_dialog_is_accepted(self) -> None:
+        """A text fill must fire the change event the live dialog needs.
+
+        ``Locator.fill`` focuses the field, sets the text, and fires ``input``; the
+        browser fires ``change`` only when the element loses focus, and Onshape's
+        parameter directive commits on ``change``. The last field filled in a dialog
+        was therefore the one field that never reached the model. Measured live
+        2026-09-21: ``corner_radius`` and ``draft_angle`` read back as 4 mm and 45 deg
+        in the dialog and were stored as 0 mm and 0 deg, which built a plate with
+        sharp corners and a socket whose 45 deg ramps had no taper at all.
+        """
+        page = FakePage(dialog_fields={"width": "100 mm", "corner_radius": "0 mm"})
+        result = self.apply(page, parameters={"width": "84 mm", "corner_radius": "4 mm"})
+        self.assertTrue(result["inserted"])
+        self.assertEqual(result["parameters"]["committed"], ["width", "corner_radius"])
+        self.assertEqual(result["parameters"]["uncommitted"], [])
+        self.assertEqual(page.dialog_fields["corner_radius"], "4 mm")
+        self.assertEqual(
+            len(page.dialog_field_calls_for("corner_radius")[0].blur_calls), 1
+        )
+
+    def test_a_field_that_cannot_be_committed_refuses_the_insert(self) -> None:
+        """A pending fill is not evidence: an uncommittable field is a refusal."""
+        page = FakePage(dialog_fields={"width": "100 mm"})
+        with mock.patch.object(actions, "_commit_field", return_value=False):
+            result = self.apply(page, parameters={"width": "84 mm"})
+        self.assertFalse(result["inserted"])
+        self.assertEqual(result["parameters"]["uncommitted"], ["width"])
+        self.assertEqual(page.accept_clicks, [])
+
+    def test_a_boolean_parameter_is_set_through_the_checkbox(self) -> None:
+        page = FakePage(
+            dialog_fields={"draft_inwards": "false", "depth": "10 mm"},
+            checkbox_keys={"draft_inwards"},
+        )
+        result = self.apply(page, parameters={"draft_inwards": True, "depth": "0.7 mm"})
+        self.assertTrue(result["inserted"])
+        self.assertEqual(page.dialog_fields["draft_inwards"], "true")
+        self.assertEqual(result["parameters"]["desired"]["draft_inwards"], "true")
+        # The id-carrying input is not visible, so the click must land on the visible
+        # ancestor. Clicking the input is what timed out live (30 s waiting for an
+        # element measured "not visible" on every retry).
+        hidden = page.dialog_field_calls_for("draft_inwards")[0]
+        self.assertFalse(hidden.is_visible())
+        self.assertEqual(hidden.click_calls, [])
+        self.assertTrue(hidden.wrapper.click_calls)
+
+    def test_the_edit_transaction_calls_the_shared_fill(self) -> None:
+        """One implementation of "which control carries this parameter id".
+
+        The selector table now lives once, in actions.py, so a field the insert
+        path can fill is a field the edit path can fill.
+        """
+        page = FakePage(dialog_fields={"width": "84 mm"})
+        self.assertEqual(transactions._dialog_values(page), {"width": "84 mm"})
+        self.assertEqual(transactions._dialog_values(page), actions.dialog_values(page))
+        source = (ROOT / "onshape_browser_mode" / "transactions.py").read_text(encoding="utf-8")
+        self.assertIn("actions.fill_dialog_fields(", source)
+        self.assertIn("actions.dialog_values(", source)
+        self.assertNotIn("data-parameter-id=", source)
 
     def test_the_wait_budgets_grow_with_the_custom_feature_count(self) -> None:
         """A bigger element needs a bigger post-insert budget.

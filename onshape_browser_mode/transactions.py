@@ -319,24 +319,13 @@ def fs_toggle_fold(page: Any, *, row: int | None = None, action: str = "toggle")
 
 
 def _dialog_values(page: Any) -> dict[str, str]:
-    result = page.evaluate(
-        """
-        () => {
-          const dialog = document.querySelector('.feature-dialog');
-          if (!dialog) return {};
-          const result = {};
-          for (const input of dialog.querySelectorAll('input, textarea, select')) {
-            const owner = input.closest('[data-parameter-id], [parameter-id]');
-            const key = input.getAttribute('name') || input.id ||
-              owner?.getAttribute('data-parameter-id') || owner?.getAttribute('parameter-id') ||
-              input.getAttribute('aria-label') || '';
-            if (key) result[key] = input.type === 'checkbox' ? String(input.checked) : String(input.value || '');
-          }
-          return result;
-        }
-        """
-    )
-    return result if isinstance(result, dict) else {}
+    """Read the open parameter dialog's named fields.
+
+    Delegates to :func:`onshape_browser_mode.actions.dialog_values`, which is where
+    the read lives now: ``browser_insert_custom_feature`` fills and reads the same
+    dialog, and one shared DOM read cannot drift from itself.
+    """
+    return actions.dialog_values(page)
 
 
 def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[str, Any]]:
@@ -487,31 +476,19 @@ def edit_feature_parameters(
             "featureRow": evidence,
             "reason": f"feature dialog did not open: {exc}",
         }
-    before = _dialog_values(page)
-    missing = []
-    updated = []
-    for key, value in parameters.items():
-        locator = dialog.locator(
-            f'[data-parameter-id="{key}"] input, [parameter-id="{key}"] input, '
-            f'input[name="{key}"], textarea[name="{key}"], select[name="{key}"], #{key}'
-        )
-        if locator.count() == 0:
-            container = dialog.locator(".parameter-item, .feature-parameter").filter(has_text=str(key))
-            locator = container.locator("input, textarea, select") if container.count() else locator
-        if locator.count() == 0:
-            missing.append(str(key))
-            continue
-        target = locator.first
-        if isinstance(value, bool):
-            checked = target.is_checked()
-            if checked != value:
-                target.click()
-        else:
-            target.fill(str(value))
-        updated.append(str(key))
-    after = _dialog_values(page)
-    desired = {key: str(value).lower() if isinstance(value, bool) else str(value) for key, value in parameters.items()}
-    readback_ok = all(str(after.get(key, "")).lower() == value.lower() for key, value in desired.items())
+    # The fill itself is shared with browser_insert_custom_feature, which fills this
+    # same dialog on a row it has just added; only the accept decision below is this
+    # transaction's own.
+    matched = actions.fill_dialog_fields(page, parameters)
+    updated = matched["updated"]
+    missing = matched["missing"]
+    before = matched["before"]
+    after = matched["after"]
+    readback_ok = matched["readbackOk"]
+    # The normalised request the persistence re-read is compared against, produced
+    # by the same helper that decided readbackOk, so the two comparisons cannot
+    # normalise a boolean differently.
+    desired = matched["desired"]
     accepted = False
     accept_evidence: dict[str, Any] = {}
     if accept and not missing and readback_ok:
