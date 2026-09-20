@@ -334,9 +334,13 @@ def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[
     ``read_partstudio_features`` drops a row whose ``innerText`` and ``textContent``
     are both empty, while ``page.locator('.os-list-item.ns-user-feature')`` counts
     it, so the two disagreed by exactly one on every Part Studio — 1 named row
-    against 2, and 11 against 12. Comparing them therefore refused on EVERY
-    element, which was correct (a positional click against a superset opens a
-    different row's dialog) and still made this tool unusable.
+    against 2, and 11 against 12. Comparing them therefore refused on EVERY element,
+    which was the right instinct (the locator's set contains a row the read cannot
+    account for) and still made this tool unusable. Measured again after the fix on
+    ``Spiral ridge PS``, that nameless node is the LAST node in document order, so
+    the index itself was never shifted and the refusal came from the count
+    comparison alone. Position is not a contract — the replacement below is correct
+    whatever position such a node occupies.
 
     That is also why the earlier name-only locator failed: measured live
     2026-09-20, ``.filter(has_text='Sr Spiral ridge 7')`` reported a count other

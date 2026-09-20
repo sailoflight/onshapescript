@@ -1091,6 +1091,10 @@ class FakeDialogPage:
     double therefore holds ONE node list, ``dom_rows``, and answers both the
     enumeration and the locator from it — so a test cannot quietly model the two
     views as different sets again, which is the defect class being pinned here.
+    Live that node is the LAST node in document order, and the refused call failed
+    on the count comparison rather than on a shifted index; the default here puts it
+    FIRST, which is strictly harder than live, and ``nameless_last`` models the
+    measured layout.
     """
 
     def __init__(
@@ -1098,6 +1102,7 @@ class FakeDialogPage:
         *,
         rows: tuple[str, ...] = ("Sr Spiral ridge 5", "Sr Spiral ridge 6", "Sr Spiral ridge 7"),
         nameless_rows: int = 1,
+        nameless_last: bool = False,
         locator_delta: int = 0,
         panel_renders: bool = True,
         dialog_opens: bool = True,
@@ -1107,9 +1112,8 @@ class FakeDialogPage:
     ) -> None:
         self.rows = list(rows)
         self.nameless_rows = nameless_rows
-        # The nameless node sits FIRST, the worst case for a click index computed
-        # from a names-only list — which is exactly what the live defect did.
-        self.dom_rows = [""] * nameless_rows + list(self.rows)
+        nameless = [""] * nameless_rows
+        self.dom_rows = [*self.rows, *nameless] if nameless_last else [*nameless, *self.rows]
         # `locator_delta` is the only way to make the two views disagree, and it
         # models a DOM change between the enumeration and the click (a stale read),
         # not the live +1, which was a read-side filter.
@@ -1185,7 +1189,9 @@ class EditFeatureParametersTest(unittest.TestCase):
     locator counts it, so the two counts differed by exactly one on EVERY element
     (1 against 2, 11 against 12) and the tool refused everywhere. A set difference
     is not a page change, so comparing a filtered read with a counting locator can
-    never be a valid precondition.
+    never be a valid precondition. Measured after the fix on ``Spiral ridge PS``,
+    that nameless node is the LAST of 12 nodes, which is why the double covers both
+    orders: the index happened not to shift live, and position is not a contract.
 
     These tests pin the replacement: names and click index from the same node list,
     the locator count as a staleness check, both counts reported on disagreement,
@@ -1198,7 +1204,7 @@ class EditFeatureParametersTest(unittest.TestCase):
         return transactions.edit_feature_parameters(page, self.TARGET, {"baseRadius": value})
 
     def test_a_nameless_node_does_not_shift_the_clicked_row(self):
-        """The live +1 node must be harmless: the index comes from the same list."""
+        """Harder than live: an index from a names-only list would be wrong here."""
         page = FakeDialogPage()
         result = self._edit(page)
         # Four DOM nodes, nameless one first: the target is node 3. An index taken
@@ -1208,6 +1214,20 @@ class EditFeatureParametersTest(unittest.TestCase):
         self.assertEqual(result["featureRow"]["matchedRows"], [self.TARGET])
         self.assertEqual(result["featureRow"]["locatorRows"], 4)
         self.assertTrue(result["featureRow"]["panelReady"]["waited"])
+        self.assertTrue(result["parametersApplied"])
+
+    def test_in_the_measured_live_layout_the_nameless_node_is_last(self):
+        """Live on Spiral ridge PS the phantom was the LAST of 12 nodes.
+
+        The refused call therefore failed on the count comparison, not on a shifted
+        index; this case pins that layout too, so both orders are covered.
+        """
+        page = FakeDialogPage(nameless_last=True)
+        result = self._edit(page)
+        self.assertEqual(page.dblclicks, [2, 2])
+        self.assertEqual(result["featureRow"]["featureRows"], [*page.rows, ""])
+        self.assertEqual(result["featureRow"]["locatorRows"], 4)
+        self.assertEqual(result["featureRow"]["matchedRows"], [self.TARGET])
         self.assertTrue(result["parametersApplied"])
 
     def test_without_a_nameless_node_the_index_is_the_plain_one(self):
