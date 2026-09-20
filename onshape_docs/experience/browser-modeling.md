@@ -346,6 +346,22 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
   `.agent-project-guides.json`（治理文件，不随代码发布）。指纹相等是必要条件，
   哈希相等把结论从"某个数字相等"升级成"内容相同"，也是判断**是否需要**刷新部署
   最省事的依据（当时结论：不需要，因此省掉一次会关掉浏览器会话的重启）。
+- **指纹只在"工具表面"变了才动；改模块**行为**它不会动（2026-09-20 实测）**。修好三个
+  浏览器缺陷（枚举口径、标签删除判据、DOM 零件名）后重新部署，`mcp_tool_catalog
+  (action="status").fingerprint` **改前改后完全一致**（`7091559f…`），而且与仓库算出的
+  值也一致——因为它只由工具名/schema 决定，这次一行 schema 都没动。也就是说：
+  指纹相等**不能**证明线上代码是当前代码，这一类改动的唯一门是逐文件哈希
+  （`deploy.py plan/verify`：当日 589 个仓库源文件、11 个 changed、0 missing、
+  578 identical；刷完后 `shippedPresent: 589`、`mismatched: []`）。先跑只读 `plan`
+  看漂移，再 `apply`（自动写前像到 `artifacts/deploy-backups/<id>`），最后 `verify`。
+- **文件拷完还要换进程才算上线**。部署是**文件拷贝**而非 checkout，Python 只在首次
+  import 时缓存模块，所以"拷完即生效"不成立：必须让宿主重开该 stdio 后端。当日用
+  `bridge_control(action="restart", id="onshape", expectedGeneration=3)` 完成，返回
+  `ownedGeneration: 3 → 4`、`preservedClients: 1`、`reconnectRequired: false`、
+  `force-kill/not-needed`；注意 `bridge_control(action="refresh")` **只**广播
+  `notifications/tools/list_changed`，**不会**重启后端、也不会加载新代码。代价是该进程
+  持有的浏览器一起结束、Onshape Web 会话登出，需要一次人工登录（profile 持久所以很便宜）。
+
 - 同日的合并还改变了普通 `tools/list`：八个被吸收的兼容名不再出现在普通视图（浏览器
   名通过 `default_exposure=False`，`fs_list_modules` 通过 `ABSORBED_COMPATIBILITY_TOOLS`），
   所以普通列表从 80 降到 72，而注册表仍是 106。数字下降**不等于**工具变少。

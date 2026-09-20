@@ -256,7 +256,9 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `innerText` 与 `textContent` 都为空的那个 `.os-list-item`，而定位器照数。两个规模
   完全不同的 Part Studio 上恒差 +1（`Spiral ridge PS` 读 11 / 数 12；`Part Studio 1`
   读 1 / 数 2），于是"计数必须相等"的守卫在**每个**元素上都拒绝，
-  `browser_edit_feature_parameters` 真机整体不可用。
+  `browser_edit_feature_parameters` 真机整体不可用。（修复后在 `Spiral ridge PS`
+  复测：`featureRows` 12 项、`locatorRows` 12、面板就绪 16 ms，且该无文本节点排在
+  **最后**——所以当时的名字序号并没有偏移，拒绝完全来自那次计数比较。）
   **集合差不是页面变化**，所以"筛过的读"与"照数的定位器"永远不能互为前置条件。
   修法不是放宽守卫，而是让两者成为同一个集合：`_USER_FEATURE_ROWS_JS` 在页面内一次
   `querySelectorAll` 同时返回 `count` 与 `names`（含无文本行、按 DOM 顺序），
@@ -265,10 +267,30 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `wait_for_panel_rows` 等面板渲染，拒绝时一并报出
   `featureRows` / `matchedRows` / `locatorRows`。旧文案 "must match exactly one row"
   既没说 0 也没说多个，这正是它无法从外部诊断的原因。
-- **无文本行会污染"按文本匹配"的一切做法（同批实测）**：页面上存在一个无文本的
-  `.os-list-item.ns-user-feature` 节点，且与具体元素无关。因此任何"先按文本过滤再取
-  下标"的实现都可能把下标算到别的行上；同理，`count_custom_features` 这类预算口径也
-  必须明确是"数有名字的行"还是"数 DOM 节点"，否则预热预算会虚高。
+- **无文本行确实存在，但它的位置不是契约（同批 + 修复后复测）**：页面上有一个无文本的
+  `.os-list-item.ns-user-feature` 节点，与具体元素无关，会被"按名字读"丢掉、被定位器
+  数上。**修复后在 `Spiral ridge PS` 复测：它在 12 个节点里排在最后一个**——所以旧代码
+  真正触发拒绝的是"计数必须相等"（12 ≠ 11），不是下标偏移；名字序号当时其实是对的。
+  结论按这个更准确的版本记：**不要依赖它在哪一端**，它只是 Onshape 的内部节点。同理，
+  `count_custom_features` 这类预算口径必须明确是"数有名字的行"还是"数 DOM 节点"，
+  否则预热预算会虚高。
+- **工具事务可能比传输上限活得久：调用方拿到的是"假失败"（2026-09-20 实测）**。
+  `browser_edit_feature_parameters` 在 11 个用户特征的 Part Studio 上耗时 **61.7 s**
+  （桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/中继在
+  60 s 先超时，返回 `MCP error -32001: downstream_timeout`。旧定位拒绝是 <1 s、约 618 B
+  的载荷，所以"61.7 s 后产出了多千字节响应"本身证明它已经越过定位并走完对话框流程；
+  但 `parametersApplied` 与写入结果**无法从客户端证实**。原因是可测的：
+  `PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000`，而 Onshape 要在对话框报"关闭"前重算整个模型。
+  **凡是可能超过传输上限的浏览器事务，超时都不等于失败，重试可能重复执行**；这次
+  同一现象还伴随页面掉到 `about:blank` 与会话登出（因果未确立，只按观测记录），因此
+  长事务不要为了拿返回值而重跑。
+- **没有"把已有标签设为活动"的工具，这是一个真实缺口（同批实测）**。`print/read` 类工具
+  （如 `browser_get_partstudio_features`、`browser_edit_feature_parameters`）都作用于
+  **当前活动标签**，而目前只有 `browser_create_tab`（新建即激活）和
+  `insert_custom_feature(part_studio_tab=…)` 内部那段 `page.locator('.os-tab-bar-tab
+  [data-id=…]').first.click()` 会切标签。`browser_rename_tab` 双击标签名进入改名模式
+  **并不会**把该标签设为活动（实测 `active` 仍为原标签）。于是"在一个小元素上做端到端
+  验证"这条路被堵住，只能在既有活动标签上做事——写代码前先确认目标标签已经是活动的。
 - **`arg` 是 keyword-only；写错会被 `except Exception: pass` 吞掉（同批发现）**。
   playwright-python 的 `wait_for_function(expression, *, arg=None, timeout=None, …)`
   里 `arg` 只能按关键字传。`transactions.py` 有两处（切监控目标、复制标签页）按位置

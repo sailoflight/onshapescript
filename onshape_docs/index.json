@@ -2101,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "39043d695a6240ef80b4ad1cd70036ac61588d5a1d66f2166a4f4fd517243126",
+   "sha256": "5cf135b598dec14b99a703f956badf7523ad352ea7fd1bbceba4f90ba78fa60c",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2553,11 +2553,19 @@
          "depth": 0
         },
         {
-         "text": "**行的身份与下标的必须来自同一次枚举，绝不能拿\"读过筛的读\"去比\"照数数的定位器\" （2026-09-20 实测，已修复）**。同一个面板上，read_partstudio_features 把 Sr Spiral ridge 7 读成唯一命中，而 page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral ridge 7') 连续四次（含两次页面重载）给出非 1 的计数；改成\"读计数 vs 定位器计数\"之后更糟： read_partstudio_features 的采集 JS 末尾有 .filter(f => f.name)，会丢掉 innerText 与 textContent 都为空的那个 .os-list-item，而定位器照数。两个规模 完全不同的 Part Studio 上恒差 +1（Spiral ridge PS 读 11 / 数 12；Part Studio 1 读 1 / 数 2），于是\"计数必须相等\"的守卫在每个元素上都拒绝， browser_edit_feature_parameters 真机整体不可用。 集合差不是页面变化，所以\"筛过的读\"与\"照数的定位器\"永远不能互为前置条件。 修法不是放宽守卫，而是让两者成为同一个集合：_USER_FEATURE_ROWS_JS 在页面内一次 querySelectorAll 同时返回 count 与 names（含无文本行、按 DOM 顺序）， 名字匹配与 rows.nth(index) 的下标都取自这一份列表；定位器计数只留作过期检查 （两次查询之间页面真变了才拒绝）。browser_edit_feature_parameters 先 wait_for_panel_rows 等面板渲染，拒绝时一并报出 featureRows / matchedRows / locatorRows。旧文案 \"must match exactly one row\" 既没说 0 也没说多个，这正是它无法从外部诊断的原因。",
+         "text": "**行的身份与下标的必须来自同一次枚举，绝不能拿\"读过筛的读\"去比\"照数数的定位器\" （2026-09-20 实测，已修复）**。同一个面板上，read_partstudio_features 把 Sr Spiral ridge 7 读成唯一命中，而 page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral ridge 7') 连续四次（含两次页面重载）给出非 1 的计数；改成\"读计数 vs 定位器计数\"之后更糟： read_partstudio_features 的采集 JS 末尾有 .filter(f => f.name)，会丢掉 innerText 与 textContent 都为空的那个 .os-list-item，而定位器照数。两个规模 完全不同的 Part Studio 上恒差 +1（Spiral ridge PS 读 11 / 数 12；Part Studio 1 读 1 / 数 2），于是\"计数必须相等\"的守卫在每个元素上都拒绝， browser_edit_feature_parameters 真机整体不可用。（修复后在 Spiral ridge PS 复测：featureRows 12 项、locatorRows 12、面板就绪 16 ms，且该无文本节点排在 最后——所以当时的名字序号并没有偏移，拒绝完全来自那次计数比较。） 集合差不是页面变化，所以\"筛过的读\"与\"照数的定位器\"永远不能互为前置条件。 修法不是放宽守卫，而是让两者成为同一个集合：_USER_FEATURE_ROWS_JS 在页面内一次 querySelectorAll 同时返回 count 与 names（含无文本行、按 DOM 顺序）， 名字匹配与 rows.nth(index) 的下标都取自这一份列表；定位器计数只留作过期检查 （两次查询之间页面真变了才拒绝）。browser_edit_feature_parameters 先 wait_for_panel_rows 等面板渲染，拒绝时一并报出 featureRows / matchedRows / locatorRows。旧文案 \"must match exactly one row\" 既没说 0 也没说多个，这正是它无法从外部诊断的原因。",
          "depth": 0
         },
         {
-         "text": "无文本行会污染\"按文本匹配\"的一切做法（同批实测）：页面上存在一个无文本的 .os-list-item.ns-user-feature 节点，且与具体元素无关。因此任何\"先按文本过滤再取 下标\"的实现都可能把下标算到别的行上；同理，count_custom_features 这类预算口径也 必须明确是\"数有名字的行\"还是\"数 DOM 节点\"，否则预热预算会虚高。",
+         "text": "无文本行确实存在，但它的位置不是契约（同批 + 修复后复测）：页面上有一个无文本的 .os-list-item.ns-user-feature 节点，与具体元素无关，会被\"按名字读\"丢掉、被定位器 数上。修复后在 Spiral ridge PS 复测：它在 12 个节点里排在最后一个——所以旧代码 真正触发拒绝的是\"计数必须相等\"（12 ≠ 11），不是下标偏移；名字序号当时其实是对的。 结论按这个更准确的版本记：不要依赖它在哪一端，它只是 Onshape 的内部节点。同理， count_custom_features 这类预算口径必须明确是\"数有名字的行\"还是\"数 DOM 节点\"， 否则预热预算会虚高。",
+         "depth": 0
+        },
+        {
+         "text": "工具事务可能比传输上限活得久：调用方拿到的是\"假失败\"（2026-09-20 实测）。 browser_edit_feature_parameters 在 11 个用户特征的 Part Studio 上耗时 61.7 s （桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/中继在 60 s 先超时，返回 MCP error -32001: downstream_timeout。旧定位拒绝是 <1 s、约 618 B 的载荷，所以\"61.7 s 后产出了多千字节响应\"本身证明它已经越过定位并走完对话框流程； 但 parametersApplied 与写入结果无法从客户端证实。原因是可测的： PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000，而 Onshape 要在对话框报\"关闭\"前重算整个模型。 凡是可能超过传输上限的浏览器事务，超时都不等于失败，重试可能重复执行；这次 同一现象还伴随页面掉到 about:blank 与会话登出（因果未确立，只按观测记录），因此 长事务不要为了拿返回值而重跑。",
+         "depth": 0
+        },
+        {
+         "text": "没有\"把已有标签设为活动\"的工具，这是一个真实缺口（同批实测）。print/read 类工具 （如 browser_get_partstudio_features、browser_edit_feature_parameters）都作用于 当前活动标签，而目前只有 browser_create_tab（新建即激活）和 insert_custom_feature(part_studio_tab=…) 内部那段 `page.locator('.os-tab-bar-tab [data-id=…]').first.click() 会切标签。browser_rename_tab` 双击标签名进入改名模式 并不会把该标签设为活动（实测 active 仍为原标签）。于是\"在一个小元素上做端到端 验证\"这条路被堵住，只能在既有活动标签上做事——写代码前先确认目标标签已经是活动的。",
          "depth": 0
         },
         {
@@ -2958,7 +2966,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "8c2c9b31f926d2efc36cef700f290b489768d7f575617f7436dc5170b4ae875f",
+   "sha256": "fd4ce27e9202e163bc3d666e9b330f8d31e10f5ba002f017c38b3eac2e6f7469",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3546,6 +3554,19 @@
          "depth": 0
         },
         {
+         "text": "指纹只在\"工具表面\"变了才动；改模块行为它不会动（2026-09-20 实测）。修好三个 浏览器缺陷（枚举口径、标签删除判据、DOM 零件名）后重新部署，`mcp_tool_catalog (action=\"status\").fingerprint 改前改后完全一致（7091559f…`），而且与仓库算出的 值也一致——因为它只由工具名/schema 决定，这次一行 schema 都没动。也就是说： 指纹相等不能证明线上代码是当前代码，这一类改动的唯一门是逐文件哈希 （deploy.py plan/verify：当日 589 个仓库源文件、11 个 changed、0 missing、 578 identical；刷完后 shippedPresent: 589、mismatched: []）。先跑只读 plan 看漂移，再 apply（自动写前像到 artifacts/deploy-backups/<id>），最后 verify。",
+         "depth": 0
+        },
+        {
+         "text": "文件拷完还要换进程才算上线。部署是文件拷贝而非 checkout，Python 只在首次 import 时缓存模块，所以\"拷完即生效\"不成立：必须让宿主重开该 stdio 后端。当日用 bridge_control(action=\"restart\", id=\"onshape\", expectedGeneration=3) 完成，返回 ownedGeneration: 3 → 4、preservedClients: 1、reconnectRequired: false、 force-kill/not-needed；注意 bridge_control(action=\"refresh\") 只广播 notifications/tools/list_changed，不会重启后端、也不会加载新代码。代价是该进程 持有的浏览器一起结束、Onshape Web 会话登出，需要一次人工登录（profile 持久所以很便宜）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        {
          "text": "同日的合并还改变了普通 tools/list：八个被吸收的兼容名不再出现在普通视图（浏览器 名通过 default_exposure=False，fs_list_modules 通过 ABSORBED_COMPATIBILITY_TOOLS）， 所以普通列表从 80 降到 72，而注册表仍是 106。数字下降不等于工具变少。",
          "depth": 0
         },
@@ -4098,7 +4119,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "7103d15de167fb59d2967a2ba98fe762e02ab7886cc1987f494444ca89d91e96",
+   "sha256": "024d4c046864290e474b85e0a5699249c4018e0944e7ad0478fd62394f3af0cf",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -6163,7 +6184,7 @@
       },
       {
        "type": "para",
-       "text": "The refusal is therefore correct — rows.nth(index) against a set with one extra member above the target opens a different row's dialog — but the consequence is that the corrected browser_edit_feature_parameters path is unusable on any element, and its live verification is blocked, not passed. The fix direction is to make the two views the same set rather than to relax the guard: either enumerate nameless rows in the read too (keeping count_custom_features on named rows so the budgets do not inflate), or derive the click index in the page from the same querySelectorAll the locator counts. Nothing was changed here: a source edit invalidates the freshness certificate above, and refreshing a deployment is a separate authorized action."
+       "text": "The refusal is therefore correct — requiring two differently-derived counts to be equal is the right instinct, because rows.nth(index) against a set with a member the read did not see addresses a row the read cannot account for — but the consequence is that the corrected browser_edit_feature_parameters path is unusable on any element, and its live verification is blocked, not passed. (The third section below corrects the mechanism: the nameless node is measured to sit after every named row, so the index was not shifted and the refusal came from the count check itself.) The fix direction is to make the two views the same set rather than to relax the guard: either enumerate nameless rows in the read too (keeping count_custom_features on named rows so the budgets do not inflate), or derive the click index in the page from the same querySelectorAll the locator counts. Nothing was changed here: a source edit invalidates the freshness certificate above, and refreshing a deployment is a separate authorized action."
       }
      ]
     },
@@ -6183,6 +6204,193 @@
          "depth": 0
         }
        ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Third live step — the deployment refresh and the unblocked re-run (2026-09-20, +0800)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This section is the first live measurement after the three defects above were fixed (commit 96da187) and shipped. It records what the fix certifies, one correction it forces on the section above, and one new defect it exposes."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Deployment identity",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The runtime is a file-copy deployment at C:\\MCP\\onshapescript, so a fix is not live until the files are shipped and the process is replaced."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Step",
+         "Evidence"
+        ],
+        [
+         "plan (read-only)",
+         "589 repo source files: 11 changed, 0 missing, 578 identical — the drift was exactly the two fix commits"
+        ],
+        [
+         "apply",
+         "11 files shipped, 11 pre-images + 2 manifests written to artifacts/deploy-backups/20260920T062942Z-browser-defect-fixes, 0 absent-before, 0 stale bytecode dirs"
+        ],
+        [
+         "verify (read-only)",
+         "shippedPresent: 589, mismatched: []"
+        ],
+        [
+         "recycle",
+         "bridge_control restart on onshape: generation 3 → 4, preservedClients: 1, reconnectRequired: false, phases drain/entered, protocol-close/stdin-closed, wait/exited, force-kill/not-needed"
+        ],
+        [
+         "tool fingerprint",
+         "7091559fe48fdd0826369762837ddb7720e7f047e749c8d37b0251e28352aced before and after, and equal to the repository"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The fingerprint row is the point: it did not change, because this fix moved module behaviour, not the tool surface. The registry fingerprint therefore cannot certify this class of change, and the per-file hash sweep is the only gate that does. Treating the fingerprint as \"the freshness check\" would have shipped a stale backend and reported success."
+      },
+      {
+       "type": "para",
+       "text": "The recycle terminates the browser process and the Onshape web session ends with it, so one human login was required (the persistent profile is what keeps that cheap). That is unchanged from the previous refresh."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The blocked call no longer refuses — measured directly",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The re-run target was Spiral ridge PS (05406f02482e1d943d80dc3e), the element whose nine-feature read versus twelve-node locator produced the refusal above."
+      },
+      {
+       "type": "para",
+       "text": "Calling browser_edit_feature_parameters with a deliberately ambiguous name (\"Spiral ridge\") exercises the locate path and refuses before any click, so it is a zero-mutation probe of exactly the code that was fixed. Measured:"
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"panelReady\": {\"waited\": true, \"condition\": \"partstudio_row_count\", \"minimum\": 1,\n                \"timeoutMs\": 30000, \"elapsedMs\": 16},\n \"featureRows\": [\"Sr Spiral ridge 1\", \"Sr Spiral ridge 2\", \"Sr Spiral ridge 3\",\n                 \"Sr Spiral ridge 4\", \"Sr Spiral ridge 5\", \"Sr Spiral ridge 6\",\n                 \"Sr Spiral ridge CN 1\", \"Sr Spiral ridge CN 2\", \"Sr Spiral ridge 7\",\n                 \"Sr Spiral ridge 8\", \"Sr Spiral ridge 9\", \"\"],\n \"matchedRows\": [\"Sr Spiral ridge 1\", \"... 11 names ...\"],\n \"locatorRows\": 12,\n \"reason\": \"feature 'Spiral ridge' matched 11 of 12 custom-feature rows: [...]\"}"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "featureRows is 12 entries and the last one is the empty string, so the in-page enumeration finally includes the nameless ns-user-feature node that the filtered read dropped and the locator counted.",
+         "depth": 0
+        },
+        {
+         "text": "locatorRows is 12 and equals len(featureRows): the constant +1 that made the two views disagree is gone, and the same number now appears on both sides.",
+         "depth": 0
+        },
+        {
+         "text": "The refusal names both counts and the matched rows, in under a second, with no click and no mutation.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Correction to the section above: the phantom is LAST, not above the target",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The measurement above fixes a mechanism claim this document made when the defect was found. Live, the nameless node sits after every named row. A click index derived from a names-only list therefore still addressed the intended row — the order was not shifted — and the refusal came from the count-equality guard (seen != enumerated[\"count\"], 12 against 11), which fired on every element and is what made the tool unusable. The earlier filter(has_text=...) failure is a separate mode."
+      },
+      {
+       "type": "para",
+       "text": "The replacement is still the right one, for a stronger reason than index shifting: it makes identity and position come from one node list, so it is correct whatever position an internal Onshape node occupies. Position is not a contract — the phantom is last today and nothing guarantees it stays last. The old code was not wrong about the row; it was wrong to require two differently-derived counts to be equal, because a set difference is not a page change."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The re-run of the real edit: no refusal, but a new transport boundary",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Running the previously blocked edit for real — browser_edit_feature_parameters( \"Sr Spiral ridge 9\", {baseRadius: 12 mm, length: 40 mm}, confirm_mutation=true) — did not refuse. It ran a full transaction and the downstream produced a response 61.7 s later (bridge correlation ed6e86eb…: request 236 B, response 2499 B). The client had already given up at 60 s with MCP error -32001: downstream_timeout, so the payload was discarded."
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The old locate refusal returned in under a second with a ~618-byte payload, so a 61.7 s transaction to a multi-kilobyte response means the call got past the locate step and through the dialog transaction. That is the blocked defect cleared.",
+         "depth": 0
+        },
+        {
+         "text": "PS_DIALOG_CLOSE_TIMEOUT_MS is 60_000, and Onshape re-evaluates the whole model before the dialog reports closed. On an element with 11 user features that wait is tens of seconds, so this tool's wall time can exceed the 60 s downstream limit even when everything works.",
+         "depth": 0
+        },
+        {
+         "text": "Consequence: the caller sees a transport failure for an operation that may have applied. parametersApplied is therefore unverified for this call and the document's Sr Spiral ridge 9 values are unknown to the record (most likely 12 mm / 40 mm, but this is an inference from the response shape, not a measurement). A bounded JSON-size probe over the real row names put a locate refusal near 618 B and a completed transaction near 1.2-2.4 kB depending on envelope escaping, which is consistent with a completed transaction and not with a refusal; it does not separate success from a late accepted: false.",
+         "depth": 0
+        },
+        {
+         "text": "After the timeout the page was at about:blank, and the Onshape web session was signed out (browser_session status → awaiting_login). The cause was not established: candidate mechanisms are the relay cancelling the in-flight request and the browser losing its page. It is recorded as measured, not explained, and it is why the long transaction was not re-run a second time — a second attempt would have cost another human login while still not returning the payload.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "partItems is live and the DOM part-name path works",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_get_partstudio_features on Spiral ridge PS returned partItems with 11 entries of 螺旋凸棱柱, alongside the whitespace-folded, truncated partsText (零件数 (11) 螺旋凸棱柱 … 曲线数 (11)). With len(partItems) == parts, parse_part_summary now returns 11 names with partNamesSource: \"dom\" and partNamesParsed: true, where the text path returned a bogus single name (count == 1) or nothing (count > 1). The DOM path is the live-verified one."
+      },
+      {
+       "type": "para",
+       "text": "One observation left unexplained: the same read reports headerText: \"特征 (15)\", while it lists 16 rows (5 default + 11 user) and the enumeration counts 12 ns-user-feature nodes (11 named + the nameless one). The header count matches neither, so it is not used as a count anywhere and is not claimed to."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Status of the three fixes after this run",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Fix",
+         "Live status"
+        ],
+        [
+         "feature-row identity from one enumeration",
+         "verified live — 12 = 12, phantom included, 16 ms panel wait, refusal names both counts"
+        ],
+        [
+         "tab-removal verdict by data-id",
+         "not re-exercised live (the earlier false negative is recorded above; the unit tests pin the new verdict)"
+        ],
+        [
+         "DOM part names (partItems)",
+         "verified live — 11 DOM names, partNamesSource: \"dom\""
+        ],
+        [
+         "parameter-apply path end to end",
+         "not certified — the call no longer refuses, but its result was lost to the 60 s transport limit"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Two openings are recorded rather than worked around: the tool's wall time against the transport limit, and the absence of any tool that can make an existing tab the active one (which is why a small-element end-to-end success could not be substituted for the 11-feature element)."
       }
      ]
     }

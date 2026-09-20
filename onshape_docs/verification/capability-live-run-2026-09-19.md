@@ -1257,11 +1257,14 @@ page**. The read cannot see it: `read_partstudio_features`'s collector ends with
 `.filter(f => f.name)`, which drops any row whose `innerText` and `textContent` are
 both empty, while `page.locator('.os-list-item.ns-user-feature')` counts it.
 
-The refusal is therefore **correct** — `rows.nth(index)` against a set with one
-extra member above the target opens a different row's dialog — but the consequence
-is that the corrected `browser_edit_feature_parameters` path is unusable on any
-element, and its live verification is **blocked, not passed**. The fix direction is
-to make the two views the *same set* rather than to relax the guard: either
+The refusal is therefore **correct** — requiring two differently-derived counts to be
+equal is the right instinct, because `rows.nth(index)` against a set with a member the
+read did not see addresses a row the read cannot account for — but the consequence is
+that the corrected `browser_edit_feature_parameters` path is unusable on any element,
+and its live verification is **blocked, not passed**. (The third section below corrects
+the mechanism: the nameless node is measured to sit *after* every named row, so the
+index was not shifted and the refusal came from the count check itself.) The fix
+direction is to make the two views the *same set* rather than to relax the guard: either
 enumerate nameless rows in the read too (keeping `count_custom_features` on named
 rows so the budgets do not inflate), or derive the click index in the page from the
 same `querySelectorAll` the locator counts. Nothing was changed here: a source edit
@@ -1285,3 +1288,136 @@ separate authorized action.
   branches from one call: `count == 1` → `["螺旋凸棱柱 曲线数 (1)"]`, the next section
   header swallowed into the name; `count > 1` → `[]` with `partNamesParsed: false`.
 
+
+## Third live step — the deployment refresh and the unblocked re-run (2026-09-20, +0800)
+
+This section is the first live measurement *after* the three defects above were
+fixed (commit `96da187`) and shipped. It records what the fix certifies, one
+correction it forces on the section above, and one new defect it exposes.
+
+### Deployment identity
+
+The runtime is a file-copy deployment at `C:\MCP\onshapescript`, so a fix is not
+live until the files are shipped *and* the process is replaced.
+
+| Step | Evidence |
+|---|---|
+| plan (read-only) | 589 repo source files: 11 changed, 0 missing, 578 identical — the drift was exactly the two fix commits |
+| apply | 11 files shipped, 11 pre-images + 2 manifests written to `artifacts/deploy-backups/20260920T062942Z-browser-defect-fixes`, 0 absent-before, 0 stale bytecode dirs |
+| verify (read-only) | `shippedPresent: 589`, `mismatched: []` |
+| recycle | `bridge_control restart` on `onshape`: generation 3 → 4, `preservedClients: 1`, `reconnectRequired: false`, phases `drain/entered`, `protocol-close/stdin-closed`, `wait/exited`, `force-kill/not-needed` |
+| tool fingerprint | `7091559fe48fdd0826369762837ddb7720e7f047e749c8d37b0251e28352aced` before **and** after, and equal to the repository |
+
+The fingerprint row is the point: it did **not** change, because this fix moved
+module *behaviour*, not the tool surface. The registry fingerprint therefore cannot
+certify this class of change, and the per-file hash sweep is the only gate that
+does. Treating the fingerprint as "the freshness check" would have shipped a stale
+backend and reported success.
+
+The recycle terminates the browser process and the Onshape web session ends with
+it, so one human login was required (the persistent profile is what keeps that
+cheap). That is unchanged from the previous refresh.
+
+### The blocked call no longer refuses — measured directly
+
+The re-run target was `Spiral ridge PS` (`05406f02482e1d943d80dc3e`), the element
+whose nine-feature read versus twelve-node locator produced the refusal above.
+
+Calling `browser_edit_feature_parameters` with a deliberately ambiguous name
+(`"Spiral ridge"`) exercises the locate path and refuses **before any click**, so it
+is a zero-mutation probe of exactly the code that was fixed. Measured:
+
+```json
+{"panelReady": {"waited": true, "condition": "partstudio_row_count", "minimum": 1,
+                "timeoutMs": 30000, "elapsedMs": 16},
+ "featureRows": ["Sr Spiral ridge 1", "Sr Spiral ridge 2", "Sr Spiral ridge 3",
+                 "Sr Spiral ridge 4", "Sr Spiral ridge 5", "Sr Spiral ridge 6",
+                 "Sr Spiral ridge CN 1", "Sr Spiral ridge CN 2", "Sr Spiral ridge 7",
+                 "Sr Spiral ridge 8", "Sr Spiral ridge 9", ""],
+ "matchedRows": ["Sr Spiral ridge 1", "... 11 names ..."],
+ "locatorRows": 12,
+ "reason": "feature 'Spiral ridge' matched 11 of 12 custom-feature rows: [...]"}
+```
+
+- `featureRows` is **12** entries and the last one is the empty string, so the
+  in-page enumeration finally *includes* the nameless `ns-user-feature` node that
+  the filtered read dropped and the locator counted.
+- `locatorRows` is **12** and equals `len(featureRows)`: the constant +1 that made
+  the two views disagree is gone, and the same number now appears on both sides.
+- The refusal names both counts and the matched rows, in under a second, with no
+  click and no mutation.
+
+### Correction to the section above: the phantom is LAST, not above the target
+
+The measurement above fixes a mechanism claim this document made when the defect was
+found. Live, the nameless node sits **after** every named row. A click index derived
+from a names-only list therefore still addressed the intended row — the order was
+not shifted — and the refusal came from the **count-equality guard** (`seen !=
+enumerated["count"]`, 12 against 11), which fired on every element and is what made
+the tool unusable. The earlier `filter(has_text=...)` failure is a separate mode.
+
+The replacement is still the right one, for a stronger reason than index shifting:
+it makes identity and position come from **one** node list, so it is correct
+whatever position an internal Onshape node occupies. Position is not a contract —
+the phantom is last today and nothing guarantees it stays last. The old code was not
+wrong about the row; it was wrong to require two differently-derived counts to be
+equal, because a set difference is not a page change.
+
+### The re-run of the real edit: no refusal, but a new transport boundary
+
+Running the previously blocked edit for real — `browser_edit_feature_parameters(
+"Sr Spiral ridge 9", {baseRadius: 12 mm, length: 40 mm}, confirm_mutation=true)` —
+did **not** refuse. It ran a full transaction and the downstream produced a response
+**61.7 s** later (bridge correlation `ed6e86eb…`: request 236 B, response 2499 B).
+The client had already given up at 60 s with `MCP error -32001: downstream_timeout`,
+so the payload was discarded.
+
+- The old locate refusal returned in under a second with a ~618-byte payload, so a
+  61.7 s transaction to a multi-kilobyte response means the call got past the locate
+  step and through the dialog transaction. That is the blocked defect cleared.
+- `PS_DIALOG_CLOSE_TIMEOUT_MS` is `60_000`, and Onshape re-evaluates the whole model
+  before the dialog reports closed. On an element with 11 user features that wait is
+  tens of seconds, so this tool's wall time can exceed the 60 s downstream limit
+  even when everything works.
+- **Consequence:** the caller sees a transport failure for an operation that may
+  have applied. `parametersApplied` is therefore **unverified** for this call and
+  the document's `Sr Spiral ridge 9` values are **unknown to the record** (most
+  likely 12 mm / 40 mm, but this is an inference from the response shape, not a
+  measurement). A bounded JSON-size probe over the real row names put a locate
+  refusal near 618 B and a completed transaction near 1.2-2.4 kB depending on
+  envelope escaping, which is consistent with a completed transaction and not with
+  a refusal; it does not separate success from a late `accepted: false`.
+- After the timeout the page was at `about:blank`, and the Onshape web session was
+  signed out (`browser_session status` → `awaiting_login`). The cause was **not**
+  established: candidate mechanisms are the relay cancelling the in-flight request
+  and the browser losing its page. It is recorded as measured, not explained, and it
+  is why the long transaction was not re-run a second time — a second attempt would
+  have cost another human login while still not returning the payload.
+
+### `partItems` is live and the DOM part-name path works
+
+`browser_get_partstudio_features` on `Spiral ridge PS` returned `partItems` with 11
+entries of `螺旋凸棱柱`, alongside the whitespace-folded, truncated
+`partsText` (`零件数 (11) 螺旋凸棱柱 … 曲线数 (11)`). With `len(partItems) == parts`,
+`parse_part_summary` now returns 11 names with `partNamesSource: "dom"` and
+`partNamesParsed: true`, where the text path returned a bogus single name
+(`count == 1`) or nothing (`count > 1`). The DOM path is the live-verified one.
+
+One observation left unexplained: the same read reports `headerText: "特征 (15)"`,
+while it lists 16 rows (5 default + 11 user) and the enumeration counts 12
+`ns-user-feature` nodes (11 named + the nameless one). The header count matches
+neither, so it is not used as a count anywhere and is not claimed to.
+
+### Status of the three fixes after this run
+
+| Fix | Live status |
+|---|---|
+| feature-row identity from one enumeration | **verified live** — 12 = 12, phantom included, 16 ms panel wait, refusal names both counts |
+| tab-removal verdict by `data-id` | not re-exercised live (the earlier false negative is recorded above; the unit tests pin the new verdict) |
+| DOM part names (`partItems`) | **verified live** — 11 DOM names, `partNamesSource: "dom"` |
+| parameter-apply path end to end | **not certified** — the call no longer refuses, but its result was lost to the 60 s transport limit |
+
+Two openings are recorded rather than worked around: the tool's wall time against
+the transport limit, and the absence of any tool that can make an existing tab the
+active one (which is why a small-element end-to-end success could not be
+substituted for the 11-feature element).
