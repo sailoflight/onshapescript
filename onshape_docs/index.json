@@ -3039,7 +3039,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "fd4ce27e9202e163bc3d666e9b330f8d31e10f5ba002f017c38b3eac2e6f7469",
+   "sha256": "aad090a720e283d8e9d8b0301661e08f50c97f3b36ea23366efca536ac73c755",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3631,8 +3631,32 @@
          "depth": 0
         },
         {
-         "text": "文件拷完还要换进程才算上线。部署是文件拷贝而非 checkout，Python 只在首次 import 时缓存模块，所以\"拷完即生效\"不成立：必须让宿主重开该 stdio 后端。当日用 bridge_control(action=\"restart\", id=\"onshape\", expectedGeneration=3) 完成，返回 ownedGeneration: 3 → 4、preservedClients: 1、reconnectRequired: false、 force-kill/not-needed；注意 bridge_control(action=\"refresh\") 只广播 notifications/tools/list_changed，不会重启后端、也不会加载新代码。代价是该进程 持有的浏览器一起结束、Onshape Web 会话登出，需要一次人工登录（profile 持久所以很便宜）。",
+         "text": "文件拷完还要换进程才算上线。部署是文件拷贝而非 checkout，Python 只在首次 import 时缓存模块，所以\"拷完即生效\"不成立：必须让宿主重开该 stdio 后端。当日用 bridge_control(action=\"restart\", id=\"onshape\", expectedGeneration=3) 完成，返回 ownedGeneration: 3 → 4、preservedClients: 1、reconnectRequired: false、 force-kill/not-needed；注意 bridge_control(action=\"refresh\") 只广播 notifications/tools/list_changed，不会重启后端、也不会加载新代码。代价是该进程 持有的浏览器一起结束、Onshape Web 会话登出，需要一次人工登录。**注意\"profile 持久所以 很便宜\"是错的（2026-09-20 实测更正）：profile 持久不能**保住登录态，见下条。",
          "depth": 0
+        },
+        {
+         "text": "Onshape 没有\"保持登录\"：浏览器进程一关就登出，profile 持久救不了它（2026-09-20 实测）。",
+         "depth": 0
+        },
+        {
+         "text": "实测两种死法都登出：browser_session(action=\"release\")（`releaseMethod: \"context.close\"`，与桥重启执行的是同一次关闭）之后不登录打开文档 → opened: false + pageUrl: .../signin；改成 Stop-Process -Force 强杀该 profile 的 8 个 Edge 进程（浏览器侧没走干净退出）后同样 opened: false + /signin。所以登出 不由关闭方式决定，强杀/残留也救不回来。",
+         "depth": 1
+        },
+        {
+         "text": "底层原因（实测 cookie 库）：.onshape.com on-session-id 与 cad.onshape.com _u 都是 persistent=0 has_expires=0 secure=1 httponly=1，是会话级 cookie，只活在浏览器进程 内存里；磁盘上持久的只有 _ga* 与 aws-waf-token。取证注意：读库必须在浏览器关闭后做 —— 运行中 Chromium 独占该文件，WSL 直接读和 Windows 侧 Copy-Item 都会被拒；而且刚访问过 /signin 时的 on-session-id 可能是匿名会话，只有 cookie 的类型是可靠证据。",
+         "depth": 1
+        },
+        {
+         "text": "所以\"要不要重新登录\"只取决于浏览器进程有没有活着。仓库 2026-08-20 的 tools/windows/README.md（commit e149bdf）早已写明：*\"Onshape WEB 端没有'保持登录'， 浏览器一关立即登出\"*，并给出正解 —— 浏览器由常驻进程持有、客户端断开只关 socket， 只有常驻进程退出才关浏览器。",
+         "depth": 1
+        },
+        {
+         "text": "当前架构丢掉了这个性质：win-wsl-mcp-bridge 每个连接拉起一个新的 MCP 子进程， 而 mcp_main/win/mcp/server.py 在 stdin EOF 时 session.close() 释放 profile（该行为由 9394ad0 引入，为的是避免下一次启动撞 \"profile is in use\"），于是**任何断开/重启都要 人工登录一次**。要恢复旧性质必须让浏览器活过子进程、后续子进程用 CDP 附着 （browser_common 没有 attach 能力；本仓库 playwright_factory 注入点是实现入口）。",
+         "depth": 1
+        },
+        {
+         "text": "判定注意：重启后 browser_session(action=\"login\") 报 awaiting_login / humanActionRequired: true 是正确的（不是误报），但它会无条件把状态置成 awaiting_login，所以\"它说要登录\"与\"登录真的丢了\"是两件事；要判定登录是否还在，用一次 只读导航（如 browser_open_document）而不是这个状态字段。",
+         "depth": 1
         }
        ]
       },
@@ -4192,7 +4216,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "341983781bddf6d550283927f541a784d3d4a6330f3a67af97b4ca5a1486f1e4",
+   "sha256": "b5c7fc127cab63aa18e3bf0ee2430fb8d44e346a6f0ab34b939f954bcb15923b",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -6789,6 +6813,296 @@
       {
        "type": "para",
        "text": "The one remaining opening is therefore not the transport limit as such but the choice of completion signal: the panel's removal is satisfied instantly by a no-op accept and not at all (in ≥ 95 s) by a real one, while the commit in both cases is already done."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Fifth live step — the recovery path measured, falsified, fixed, and certified (2026-09-20, +0800)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "This pass closes the gap the fourth step left open, and it is the first pass whose central finding came from running the new code rather than the old: the recovery path that the fourth step's measurement justified was itself raced against the reloaded page, returned no verdict, and had to be fixed and re-measured before it could be certified."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Deployment identity",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "",
+         "First refresh",
+         "Second refresh"
+        ],
+        [
+         "deployment id",
+         "20260920T073954Z-readonly-probe-and-panel-recovery",
+         "20260920T075034Z-recovery-render-wait"
+        ],
+        [
+         "files shipped",
+         "14",
+         "5"
+        ],
+        [
+         "verify",
+         "589 present / 0 mismatched",
+         "589 present / 0 mismatched"
+        ],
+        [
+         "bridge generation",
+         "5 → 6 (preservedClients: 2)",
+         "6 → 7 (preservedClients: 2)"
+        ],
+        [
+         "phases",
+         "drain/entered, protocol-close/stdin-closed, wait/exited, force-kill/not-needed",
+         "same"
+        ],
+        [
+         "tool fingerprint",
+         "c51cef01… → bb56591d174acc25299d70794dacecaa77b826fd1f444c650eae99ca79a614b0",
+         "unchanged (bb56591d…)"
+        ],
+        [
+         "registry / visible / browser",
+         "109 / 75 / 69",
+         "109 / 75 / 69"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The fingerprint moved on the first refresh because the tool surface gained browser_read_feature_parameters (108 → 109), and the deployed fingerprint equals the one computed from the repository with ToolCatalogIndex(server.TOOLS). It did not move on the second refresh, which changed behaviour only (a new wait inside an existing transaction) — that is the division of labour the first refresh established: the fingerprint covers surface changes, and the per-file hash sweep (589 files) is the only gate that covers a behaviour-only change. Both refreshes were applied over a live deployment with a per-deployment backup under artifacts/deploy-backups/."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "browser_read_feature_parameters — certified live (read-only, 0 REST quota)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "On Part Studio 1, feature Sr Spiral ridge 1:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "call",
+         "result"
+        ],
+        [
+         "default (allow_reload=false)",
+         "read: true, 5 values, dialogClosed: {waited: true, elapsedMs: 7}, recovery: null"
+        ],
+        [
+         "allow_reload=true",
+         "same 5 values, dialogClosed.elapsedMs: 4, recovery: null — the reload was not spent"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Values read: baseRadius 10 mm, pitch 5 mm, ridgeWidth 2 mm, ridgeHeight 1 mm, length 30 mm (parameterCount: 5). Its row evidence is the same one-enumeration contract the edit path uses: featureRows: [\"Sr Spiral ridge 1\", \"\"], matchedRows: [\"Sr Spiral ridge 1\"], locatorRows: 2."
+      },
+      {
+       "type": "para",
+       "text": "Zero-mutation proof: browser_get_partstudio_features was read before and after the two probes and returned byte-identical row classes (os-list-item ns-user-feature for the custom row, os-list-item for the part, no edited, no selected, no related-highlight) and an identical feature/part set. The probe opens a dialog, reads it and presses Escape; nothing is filled, and the document is unchanged."
+      },
+      {
+       "type": "para",
+       "text": "The second row (\"\") is the nameless ns-user-feature node that the fourth step's count comparison first exposed; this pass confirms it on a second element and confirms that it is a real DOM node in the live enumeration, not a rendering artefact."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The two-stage path — certified, then fixed, then re-certified in one call",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Stage 1 (baseRadius 10 → 12 mm) behaved exactly as designed: applyState: \"pending_verification\", parametersApplied: null, readbackOk: true, before.baseRadius 10 mm → after.baseRadius 12 mm, accept: {clicked: true, waitMs: 0} (the known initialiser), and a verifyWith payload naming stage 2."
+      },
+      {
+       "type": "para",
+       "text": "Stage 2 is where this pass earned its keep. The first live call of the new recovery path returned retryVerify: true instead of a verdict, with regenerationOk: false, featureState: [], persisted: {}, featureRow: {} and the reason \"left 0 row(s) named 'Sr Spiral ridge 1'\". Its own recovery block shows why:"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "recoveredBy: \"page_reload\", recovery: {reloaded: true, tabs: [], hasDocumentTabsToolButton: false}\ndialogClosed: {waited: true, elapsedMs: 151}"
+      },
+      {
+       "type": "para",
+       "text": "The whole recovery block finished in 151 ms against a freshly reloaded page whose tab strip had not rendered yet. A second call, on the settled page, answered verified: true / parametersApplied: true / regenerationOk: true / persistenceOk: true with persisted.baseRadius: \"12 mm\". So the edit had committed in the first call; the call simply read the rows before they existed. The verdict grading held (a non-verdict after a recovery reload is null + retryVerify, never false), but the path produced no answer, which is exactly what it was written to produce."
+      },
+      {
+       "type": "para",
+       "text": "The read probe showed that waiting alone was not the fix. Called immediately after the same kind of real edit with allow_reload=true (the panel was still open), it reported:"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "read: false, featureRows: [], locatorRows: 0,\npanelReady: {waited: true, condition: \"partstudio_row_count\", elapsedMs: 2736},\nrecovery: {reloaded: true, tabs: [], hasDocumentTabsToolButton: false}"
+      },
+      {
+       "type": "para",
+       "text": "It did wait — 2736 ms — and still enumerated 0 rows, because the condition it waited on counts .os-list-item, which the part list, the tab strip and a loading skeleton also match. A satisfied wait that proves nothing about the list the next line enumerates."
+      },
+      {
+       "type": "para",
+       "text": "The fix (46cdb8f) adds actions.wait_for_feature_list(page, timeout, selector=...) and calls it with selectors.PS_USER_FEATURE in both recovery branches, so the condition is the custom-feature rows the caller is about to read. It counts rows and never matches a name, so the single row-matching rule is not duplicated. It is a new function rather than a change to wait_for_panel_rows, whose broader condition the tab-switch callers rely on."
+      },
+      {
+       "type": "para",
+       "text": "Re-certified live after the second refresh (generation 7), same element, same feature:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "stage",
+         "result"
+        ],
+        [
+         "stage 1, 10 → 12 mm",
+         "pending_verification, parametersApplied: null, readbackOk: true"
+        ],
+        [
+         "stage 2, one call",
+         "verified: true, parametersApplied: true, regenerationOk: true, persistenceOk: true, persisted.baseRadius: \"12 mm\", recoveredBy: \"page_reload\", featureListReady: {waited: true, selector: \".os-list-item.ns-user-feature\", elapsedMs: 6181}"
+        ],
+        [
+         "stage 1, 12 → 10 mm (restore)",
+         "pending_verification"
+        ],
+        [
+         "stage 2, one call",
+         "verified: true, persisted.baseRadius: \"10 mm\", featureListReady.elapsedMs: 5717"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The 6181 ms / 5717 ms wait against the earlier 151 ms read is the whole defect and the whole fix in one number: the reloaded page needs seconds, not milliseconds, before its custom-feature rows are enumerable. Part Studio 1 was left exactly as found (baseRadius 10 mm, featureRows: [\"Sr Spiral ridge 1\", \"\"], one part 螺旋凸棱柱)."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "The two long-open questions, answered",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Sr Spiral ridge 9 on Spiral ridge PS — read back for the first time, one call, recovery: null:"
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "baseRadius 12 mm, pitch 5 mm, ridgeWidth 2 mm, ridgeHeight 1 mm, length 40 mm"
+      },
+      {
+       "type": "para",
+       "text": "The earlier suspicion (12 mm / 40 mm) was right for the two varying dimensions, and this feature is the same family as Part Studio 1's Sr Spiral ridge 1 (5 / 2 / 1), differing in baseRadius and length. Recorded as measured; the earlier pitch 6 mm / ridgeHeight 2 mm reading for a different feature is not a default of this family."
+      },
+      {
+       "type": "para",
+       "text": "特征 (15) on Spiral ridge PS is accounting, not a rendering artefact. The feature list holds 16 named rows — one 默认几何图元 group row, the four default planes (Origin/Top/Front/Right) and 11 named custom features — plus the nameless ns-user-feature node that only the DOM enumeration sees (featureRows ends with \"\", locatorRows: 12). The header counts the real features: 4 planes + 11 custom = 15; the group row and the nameless node are not features. Part Studio 1 is isomorphic: 4 planes + 1 custom = 特征 (5), over 6 named rows. The earlier \"+1\" was therefore a comparison of two different sets (a filtered read and a counting locator), exactly as the fourth step concluded — and the node itself is real."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Why a login is required after every restart — measured, and not a defect of this code",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The same pass tried to treat the post-restart login prompt as a false alarm. It is not. Four measurements, all at 0 REST quota:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "No browser survived the restart. Every Edge process whose command line carries onshape_profile was created at 15:50:55 or later, while the restart happened at 15:50:34. The pre-restart browser was gone; the browser serving the session afterwards was launched by the session call itself.",
+         "depth": 0
+        },
+        {
+         "text": "A graceful close logs out. browser_session(action=\"release\") — which is releaseMethod: \"context.close\", the same close the bridge restart performs — followed by browser_open_document without any login gave opened: false, error: \"document not found\", pageUrl: https://cad.onshape.com/signin. Afterwards no onshape_profile Edge process remained, i.e. the close really was clean.",
+         "depth": 0
+        },
+        {
+         "text": "An abrupt kill logs out too. Stop-Process -Force on the 8 profile processes (warnings: [\"context.close failed: TargetClosedError\"], so no clean shutdown ran on the browser side) followed by the same read-only navigation gave opened: false, pageUrl: /signin. So the login is not carried by anything the profile keeps after either kind of death.",
+         "depth": 0
+        },
+        {
+         "text": "The auth cookies are session cookies. With the browser closed, the profile's Default/Network/Cookies was copied out and read: .onshape.com on-session-id and cad.onshape.com _u are both persistent=0 has_expires=0 secure=1 httponly=1, while the only persistent rows are analytics and WAF (_ga, _ga_*, aws-waf-token). Caveat kept in view: this read followed an unauthenticated visit, so the presence of an on-session-id is not evidence of a logged-in session; the type of the auth cookie is the solid half.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "This matches the design note this repository already carries. Commit e149bdf (2026-08-20, tools/windows/README.md) states it directly: \"Onshape WEB 端没有'保持登录'， 浏览器一关立即登出\" — the browser had to be owned by the resident bridge process, which dispatched JSON-RPC in-process, so that a client disconnect closed only the socket and left the browser (and the login) alone; only exiting the bridge process closed it. The current transport spawns a fresh MCP server child per connection, and mcp_main/win/mcp/server.py (behaviour introduced by 9394ad0, \"在断连时释放浏览器 profile\") has that child close the browser on stdin EOF so the next child can take the profile. Under that architecture any disconnect or restart kills the browser, and \"profile is in use\" is precisely the symptom that motivated the close."
+      },
+      {
+       "type": "para",
+       "text": "So: the earlier conclusion in this same document (\"That is session-cookie semantics, not an intended guard\") was correct, and today's counter-hypothesis is withdrawn. The only way to keep the login across a restart is for the browser to outlive the MCP child and for the next child to attach to it (CDP), which the direction chosen for the next pass implements in this repository by injecting a Playwright factory through the playwright_factory hook onshape_browser_mode/session.py already forwards."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Status after this run",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Item",
+         "Live status"
+        ],
+        [
+         "browser_read_feature_parameters",
+         "verified live — values read, panel cancelled, zero mutation proven by before/after row classes"
+        ],
+        [
+         "read probe allow_reload=true without an open panel",
+         "verified live — recovery: null, the reload is not spent"
+        ],
+        [
+         "two-stage stage 1",
+         "verified live — pending_verification, parametersApplied: null (twice)"
+        ],
+        [
+         "two-stage stage 2, recovery path",
+         "verified live after the fix — one call each, verified: true, persisted == requested, featureListReady 6181 / 5717 ms"
+        ],
+        [
+         "recovery path as first written (c4c9cb6)",
+         "falsified live — 151 ms, 0 rows, retryVerify; fixed by 46cdb8f"
+        ],
+        [
+         "wait_for_panel_rows as a post-reload gate",
+         "falsified live — satisfied at 2736 ms with 0 custom-feature rows on screen"
+        ],
+        [
+         "Sr Spiral ridge 9 values (Spiral ridge PS)",
+         "answered — 12 / 5 / 2 / 1 / 40 mm"
+        ],
+        [
+         "特征 (15) vs 16 rows / 12 nodes",
+         "answered — 4 default planes + 11 named custom features; group row and nameless node are not features"
+        ],
+        [
+         "login across a restart",
+         "not preserved by design — session cookies; needs a resident browser + attach, which is the next pass"
+        ]
+       ]
       }
      ]
     }

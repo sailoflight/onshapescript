@@ -360,7 +360,32 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
   `ownedGeneration: 3 → 4`、`preservedClients: 1`、`reconnectRequired: false`、
   `force-kill/not-needed`；注意 `bridge_control(action="refresh")` **只**广播
   `notifications/tools/list_changed`，**不会**重启后端、也不会加载新代码。代价是该进程
-  持有的浏览器一起结束、Onshape Web 会话登出，需要一次人工登录（profile 持久所以很便宜）。
+  持有的浏览器一起结束、Onshape Web 会话登出，需要一次人工登录。**注意"profile 持久所以
+  很便宜"是错的**（2026-09-20 实测更正）：profile 持久**不能**保住登录态，见下条。
+- **Onshape 没有"保持登录"：浏览器进程一关就登出，profile 持久救不了它（2026-09-20 实测）**。
+  - 实测两种死法**都登出**：`browser_session(action="release")`（`releaseMethod:
+    "context.close"`，与桥重启执行的是同一次关闭）之后**不登录**打开文档 →
+    `opened: false` + `pageUrl: .../signin`；改成 `Stop-Process -Force` 强杀该 profile 的
+    8 个 Edge 进程（浏览器侧没走干净退出）后同样 `opened: false` + `/signin`。所以登出
+    **不由关闭方式决定**，强杀/残留也救不回来。
+  - 底层原因（实测 cookie 库）：`.onshape.com on-session-id` 与 `cad.onshape.com _u` 都是
+    `persistent=0 has_expires=0 secure=1 httponly=1`，是**会话级 cookie**，只活在浏览器进程
+    内存里；磁盘上持久的只有 `_ga*` 与 `aws-waf-token`。取证注意：读库必须在浏览器关闭后做
+    —— 运行中 Chromium 独占该文件，WSL 直接读和 Windows 侧 `Copy-Item` 都会被拒；而且刚访问过
+    `/signin` 时的 `on-session-id` 可能是**匿名**会话，只有 cookie 的**类型**是可靠证据。
+  - 所以"要不要重新登录"只取决于**浏览器进程有没有活着**。仓库 2026-08-20 的
+    `tools/windows/README.md`（commit `e149bdf`）早已写明：*"Onshape WEB 端没有'保持登录'，
+    浏览器一关立即登出"*，并给出正解 —— 浏览器由**常驻进程**持有、客户端断开只关 socket，
+    只有常驻进程退出才关浏览器。
+  - 当前架构丢掉了这个性质：`win-wsl-mcp-bridge` **每个连接拉起一个新的 MCP 子进程**，
+    而 `mcp_main/win/mcp/server.py` 在 stdin EOF 时 `session.close()` 释放 profile（该行为由
+    `9394ad0` 引入，为的是避免下一次启动撞 "profile is in use"），于是**任何断开/重启都要
+    人工登录一次**。要恢复旧性质必须让浏览器活过子进程、后续子进程用 CDP 附着
+    （`browser_common` 没有 attach 能力；本仓库 `playwright_factory` 注入点是实现入口）。
+  - 判定注意：重启后 `browser_session(action="login")` 报 `awaiting_login` /
+    `humanActionRequired: true` 是**正确**的（不是误报），但它会**无条件**把状态置成
+    awaiting_login，所以"它说要登录"与"登录真的丢了"是两件事；要判定登录是否还在，用一次
+    只读导航（如 `browser_open_document`）而不是这个状态字段。
 
 - 同日的合并还改变了普通 `tools/list`：八个被吸收的兼容名不再出现在普通视图（浏览器
   名通过 `default_exposure=False`，`fs_list_modules` 通过 `ABSORBED_COMPATIBILITY_TOOLS`），

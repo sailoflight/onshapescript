@@ -1645,3 +1645,197 @@ without a screenshot and without the L1 primitives.
 The one remaining opening is therefore not the transport limit as such but the choice
 of completion signal: the panel's removal is satisfied instantly by a no-op accept and
 not at all (in ≥ 95 s) by a real one, while the commit in both cases is already done.
+
+## Fifth live step — the recovery path measured, falsified, fixed, and certified (2026-09-20, +0800)
+
+This pass closes the gap the fourth step left open, and it is the first pass whose
+central finding came from running the *new* code rather than the old: the recovery path
+that the fourth step's measurement justified was itself raced against the reloaded page,
+returned no verdict, and had to be fixed and re-measured before it could be certified.
+
+### Deployment identity
+
+| | First refresh | Second refresh |
+|---|---|---|
+| deployment id | `20260920T073954Z-readonly-probe-and-panel-recovery` | `20260920T075034Z-recovery-render-wait` |
+| files shipped | 14 | 5 |
+| `verify` | 589 present / 0 mismatched | 589 present / 0 mismatched |
+| bridge generation | 5 → 6 (`preservedClients: 2`) | 6 → 7 (`preservedClients: 2`) |
+| phases | `drain/entered`, `protocol-close/stdin-closed`, `wait/exited`, `force-kill/not-needed` | same |
+| tool fingerprint | `c51cef01…` → `bb56591d174acc25299d70794dacecaa77b826fd1f444c650eae99ca79a614b0` | **unchanged** (`bb56591d…`) |
+| registry / visible / browser | 109 / 75 / 69 | 109 / 75 / 69 |
+
+The fingerprint moved on the first refresh because the tool surface gained
+`browser_read_feature_parameters` (108 → 109), and the deployed fingerprint equals the
+one computed from the repository with `ToolCatalogIndex(server.TOOLS)`. It did **not**
+move on the second refresh, which changed behaviour only (a new wait inside an existing
+transaction) — that is the division of labour the first refresh established: the
+fingerprint covers surface changes, and the per-file hash sweep (589 files) is the only
+gate that covers a behaviour-only change. Both refreshes were applied over a live
+deployment with a per-deployment backup under `artifacts/deploy-backups/`.
+
+### `browser_read_feature_parameters` — certified live (read-only, 0 REST quota)
+
+On `Part Studio 1`, feature `Sr Spiral ridge 1`:
+
+| call | result |
+|---|---|
+| default (`allow_reload=false`) | `read: true`, 5 values, `dialogClosed: {waited: true, elapsedMs: 7}`, `recovery: null` |
+| `allow_reload=true` | same 5 values, `dialogClosed.elapsedMs: 4`, `recovery: null` — the reload was **not** spent |
+
+Values read: `baseRadius 10 mm`, `pitch 5 mm`, `ridgeWidth 2 mm`, `ridgeHeight 1 mm`,
+`length 30 mm` (`parameterCount: 5`). Its row evidence is the same one-enumeration
+contract the edit path uses: `featureRows: ["Sr Spiral ridge 1", ""]`,
+`matchedRows: ["Sr Spiral ridge 1"]`, `locatorRows: 2`.
+
+**Zero-mutation proof**: `browser_get_partstudio_features` was read before and after the
+two probes and returned byte-identical row classes (`os-list-item ns-user-feature` for
+the custom row, `os-list-item` for the part, no `edited`, no `selected`, no
+`related-highlight`) and an identical feature/part set. The probe opens a dialog, reads
+it and presses Escape; nothing is filled, and the document is unchanged.
+
+The second row (`""`) is the nameless `ns-user-feature` node that the fourth step's
+count comparison first exposed; this pass confirms it on a second element and confirms
+that it is a real DOM node in the live enumeration, not a rendering artefact.
+
+### The two-stage path — certified, then fixed, then re-certified in one call
+
+Stage 1 (`baseRadius` 10 → 12 mm) behaved exactly as designed:
+`applyState: "pending_verification"`, `parametersApplied: null`, `readbackOk: true`,
+`before.baseRadius 10 mm` → `after.baseRadius 12 mm`, `accept: {clicked: true, waitMs: 0}`
+(the known initialiser), and a `verifyWith` payload naming stage 2.
+
+Stage 2 is where this pass earned its keep. **The first live call of the new recovery
+path returned `retryVerify: true` instead of a verdict**, with
+`regenerationOk: false`, `featureState: []`, `persisted: {}`, `featureRow: {}` and the
+reason "left 0 row(s) named 'Sr Spiral ridge 1'". Its own `recovery` block shows why:
+
+```
+recoveredBy: "page_reload", recovery: {reloaded: true, tabs: [], hasDocumentTabsToolButton: false}
+dialogClosed: {waited: true, elapsedMs: 151}
+```
+
+The whole recovery block finished in **151 ms** against a freshly reloaded page whose
+tab strip had not rendered yet. A second call, on the settled page, answered
+`verified: true` / `parametersApplied: true` / `regenerationOk: true` /
+`persistenceOk: true` with `persisted.baseRadius: "12 mm"`. So the edit had committed in
+the first call; the call simply read the rows before they existed. The verdict grading
+held (a non-verdict after a recovery reload is `null` + `retryVerify`, never `false`),
+but the path produced no answer, which is exactly what it was written to produce.
+
+The read probe showed that waiting alone was not the fix. Called immediately after the
+same kind of real edit with `allow_reload=true` (the panel was still open), it reported:
+
+```
+read: false, featureRows: [], locatorRows: 0,
+panelReady: {waited: true, condition: "partstudio_row_count", elapsedMs: 2736},
+recovery: {reloaded: true, tabs: [], hasDocumentTabsToolButton: false}
+```
+
+It **did** wait — 2736 ms — and still enumerated 0 rows, because the condition it waited
+on counts `.os-list-item`, which the part list, the tab strip and a loading skeleton also
+match. A satisfied wait that proves nothing about the list the next line enumerates.
+
+The fix (`46cdb8f`) adds `actions.wait_for_feature_list(page, timeout, selector=...)` and
+calls it with `selectors.PS_USER_FEATURE` in both recovery branches, so the condition is
+the *custom-feature rows the caller is about to read*. It counts rows and never matches a
+name, so the single row-matching rule is not duplicated. It is a new function rather than
+a change to `wait_for_panel_rows`, whose broader condition the tab-switch callers rely on.
+
+Re-certified live after the second refresh (generation 7), same element, same feature:
+
+| stage | result |
+|---|---|
+| stage 1, 10 → 12 mm | `pending_verification`, `parametersApplied: null`, `readbackOk: true` |
+| stage 2, **one call** | `verified: true`, `parametersApplied: true`, `regenerationOk: true`, `persistenceOk: true`, `persisted.baseRadius: "12 mm"`, `recoveredBy: "page_reload"`, `featureListReady: {waited: true, selector: ".os-list-item.ns-user-feature", elapsedMs: 6181}` |
+| stage 1, 12 → 10 mm (restore) | `pending_verification` |
+| stage 2, **one call** | `verified: true`, `persisted.baseRadius: "10 mm"`, `featureListReady.elapsedMs: 5717` |
+
+The 6181 ms / 5717 ms wait against the earlier 151 ms read is the whole defect and the
+whole fix in one number: the reloaded page needs seconds, not milliseconds, before its
+custom-feature rows are enumerable. `Part Studio 1` was left exactly as found
+(`baseRadius 10 mm`, `featureRows: ["Sr Spiral ridge 1", ""]`, one part `螺旋凸棱柱`).
+
+### The two long-open questions, answered
+
+**`Sr Spiral ridge 9` on `Spiral ridge PS`** — read back for the first time, one call,
+`recovery: null`:
+
+```
+baseRadius 12 mm, pitch 5 mm, ridgeWidth 2 mm, ridgeHeight 1 mm, length 40 mm
+```
+
+The earlier suspicion (12 mm / 40 mm) was right for the two varying dimensions, and this
+feature is the same family as `Part Studio 1`'s `Sr Spiral ridge 1` (5 / 2 / 1), differing
+in `baseRadius` and `length`. Recorded as measured; the earlier `pitch 6 mm /
+ridgeHeight 2 mm` reading for a different feature is not a default of this family.
+
+**`特征 (15)` on `Spiral ridge PS` is accounting, not a rendering artefact.** The feature
+list holds 16 *named* rows — one `默认几何图元` group row, the four default planes
+(`Origin`/`Top`/`Front`/`Right`) and **11 named custom features** — plus the nameless
+`ns-user-feature` node that only the DOM enumeration sees (`featureRows` ends with `""`,
+`locatorRows: 12`). The header counts the real features: 4 planes + 11 custom = **15**;
+the group row and the nameless node are not features. `Part Studio 1` is isomorphic:
+4 planes + 1 custom = `特征 (5)`, over 6 named rows. The earlier "+1" was therefore a
+comparison of two different sets (a filtered read and a counting locator), exactly as the
+fourth step concluded — and the node itself is real.
+
+### Why a login is required after every restart — measured, and not a defect of this code
+
+The same pass tried to treat the post-restart login prompt as a false alarm. It is not.
+Four measurements, all at 0 REST quota:
+
+1. **No browser survived the restart.** Every Edge process whose command line carries
+   `onshape_profile` was created at 15:50:55 or later, while the restart happened at
+   15:50:34. The pre-restart browser was gone; the browser serving the session afterwards
+   was launched by the session call itself.
+2. **A graceful close logs out.** `browser_session(action="release")` — which is
+   `releaseMethod: "context.close"`, the same close the bridge restart performs — followed
+   by `browser_open_document` **without any login** gave
+   `opened: false`, `error: "document not found"`, `pageUrl: https://cad.onshape.com/signin`.
+   Afterwards no `onshape_profile` Edge process remained, i.e. the close really was clean.
+3. **An abrupt kill logs out too.** `Stop-Process -Force` on the 8 profile processes
+   (`warnings: ["context.close failed: TargetClosedError"]`, so no clean shutdown ran on
+   the browser side) followed by the same read-only navigation gave `opened: false`,
+   `pageUrl: /signin`. So the login is not carried by anything the profile keeps after
+   either kind of death.
+4. **The auth cookies are session cookies.** With the browser closed, the profile's
+   `Default/Network/Cookies` was copied out and read: `.onshape.com on-session-id` and
+   `cad.onshape.com _u` are both `persistent=0 has_expires=0 secure=1 httponly=1`, while
+   the only persistent rows are analytics and WAF (`_ga`, `_ga_*`, `aws-waf-token`).
+   Caveat kept in view: this read followed an unauthenticated visit, so the presence of an
+   `on-session-id` is not evidence of a logged-in session; the **type** of the auth cookie
+   is the solid half.
+
+This matches the design note this repository already carries. Commit `e149bdf`
+(2026-08-20, `tools/windows/README.md`) states it directly: *"Onshape WEB 端没有'保持登录'，
+浏览器一关立即登出"* — the browser had to be owned by the **resident bridge process**,
+which dispatched JSON-RPC in-process, so that a client disconnect closed only the socket
+and left the browser (and the login) alone; only exiting the bridge process closed it.
+The current transport spawns a **fresh MCP server child per connection**, and
+`mcp_main/win/mcp/server.py` (behaviour introduced by `9394ad0`, "在断连时释放浏览器
+profile") has that child close the browser on stdin EOF so the next child can take the
+profile. Under that architecture any disconnect or restart kills the browser, and
+"profile is in use" is precisely the symptom that motivated the close.
+
+So: the earlier conclusion in this same document ("That is session-cookie semantics, not
+an intended guard") was correct, and today's counter-hypothesis is withdrawn. The only
+way to keep the login across a restart is for the browser to outlive the MCP child and
+for the next child to attach to it (CDP), which the direction chosen for the next pass
+implements in this repository by injecting a Playwright factory through the
+`playwright_factory` hook `onshape_browser_mode/session.py` already forwards.
+
+### Status after this run
+
+| Item | Live status |
+|---|---|
+| `browser_read_feature_parameters` | **verified live** — values read, panel cancelled, zero mutation proven by before/after row classes |
+| read probe `allow_reload=true` without an open panel | **verified live** — `recovery: null`, the reload is not spent |
+| two-stage stage 1 | **verified live** — `pending_verification`, `parametersApplied: null` (twice) |
+| two-stage stage 2, recovery path | **verified live after the fix** — one call each, `verified: true`, `persisted` == requested, `featureListReady` 6181 / 5717 ms |
+| recovery path as first written (`c4c9cb6`) | **falsified live** — 151 ms, 0 rows, `retryVerify`; fixed by `46cdb8f` |
+| `wait_for_panel_rows` as a post-reload gate | **falsified live** — satisfied at 2736 ms with 0 custom-feature rows on screen |
+| `Sr Spiral ridge 9` values (`Spiral ridge PS`) | **answered** — 12 / 5 / 2 / 1 / 40 mm |
+| `特征 (15)` vs 16 rows / 12 nodes | **answered** — 4 default planes + 11 named custom features; group row and nameless node are not features |
+| login across a restart | **not preserved by design** — session cookies; needs a resident browser + attach, which is the next pass |
+
