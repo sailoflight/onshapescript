@@ -411,8 +411,12 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   列表，删掉一个标签会把它后面的节点**重新编号**，`nth(i)` 于是在下一次解析时落到
   刚补位的那个标签上——它当然还 attached，所以这个等待**永远不可能**被满足。正确判据
   是按 `data-id` 等（`wait_for_tab_removed`：该 id 的节点数为 0，或每个该 id 的节点都带
-  `hidden`），并且只把 `browser_get_page_tabs` 的原始读取当诊断信息返回
-  （`stillListedIds`），绝不用它推翻判据：实测它仍会列出 `hidden` 的节点。
+  `hidden`）。修复后实测：删除一个新键的 `Feature Studio 1` 返回 `deleted: true`、
+  `removal.waited: true`、**274 ms**（旧代码是 30 s 超时）。同时要记住原始标签读取
+  **不能**参与判据：`list_document_tabs` 的采集 JS 做的是 `querySelectorAll('.os-tab-bar-tab')`
+  全量映射、**完全不过滤 `hidden`**，所以刚刚删完那一瞬它仍会把该节点列出来
+  （同一返回里的 `stillListedIds` 就等于被删 id），几百毫秒后节点真正 detach 才不再列出
+  ——"还列着"是时序相关的现象。因此把原始读取只当诊断信息返回，绝不用它推翻判据。
 - `dev/button-map/scan-app-shell.json` 证明 Part Studio 标签和 part row 的右键菜单都出现
   `导出…`。登录恢复后又实测了 Part Studio export dialog：根节点
   `.modal.export-dialog`；文件名 `#export-filename-input`；格式

@@ -1408,12 +1408,45 @@ while it lists 16 rows (5 default + 11 user) and the enumeration counts 12
 `ns-user-feature` nodes (11 named + the nameless one). The header count matches
 neither, so it is not used as a count anywhere and is not claimed to.
 
+### The tab-removal verdict is live-certified, and the raw read is a timing-dependent witness
+
+The third fix was exercised directly: create a throwaway Feature Studio
+(`browser_create_tab` → `d8737b68e0a7840bac1d639b`, which also proves that tool's own
+new-tab detection), then delete it by id.
+
+```json
+{"deleted": true, "elementId": "d8737b68e0a7840bac1d639b",
+ "removal": {"waited": true, "condition": "tab_removed_or_hidden",
+             "timeoutMs": 30000, "elapsedMs": 274},
+ "stillListedIds": ["d8737b68e0a7840bac1d639b"],
+ "tabs": [ ... 11 entries, the deleted tab present with "active": false ... ]}
+```
+
+- `deleted: true` after **274 ms**, where the previous implementation timed out for
+  **30 s** and returned `deleted: false` for the same operation. The verdict now comes
+  from the `data-id` wait, and it resolves as soon as the node is gone or marked
+  removed.
+- The same payload still lists the deleted tab in its raw `tabs` block **and** in
+  `stillListedIds`. That is the exact disagreement that produced the old false
+  negative, now captured as diagnosis instead of obeyed: the returned verdict is
+  `true` while the raw read says the tab is still there.
+- `browser_get_page_tabs` immediately afterwards lists **10** tabs and no longer
+  includes the deleted id. Reason, read from the collector's source: it maps every
+  `.os-tab-bar-tab` with `querySelectorAll` and **does not filter `hidden` at all**,
+  so the node is still returned in the instant after deletion and stops being
+  returned only once Onshape actually detaches it. "Still listed" is therefore a
+  timing-dependent observation, which is the second reason it cannot be the verdict.
+
+With this, two of the three fixes are certified live by direct evidence and the third
+(the parameter-apply path) is certified as *no longer refused* with its result lost to
+the transport limit described above.
+
 ### Status of the three fixes after this run
 
 | Fix | Live status |
 |---|---|
 | feature-row identity from one enumeration | **verified live** — 12 = 12, phantom included, 16 ms panel wait, refusal names both counts |
-| tab-removal verdict by `data-id` | not re-exercised live (the earlier false negative is recorded above; the unit tests pin the new verdict) |
+| tab-removal verdict by `data-id` | **verified live** — see below |
 | DOM part names (`partItems`) | **verified live** — 11 DOM names, `partNamesSource: "dom"` |
 | parameter-apply path end to end | **not certified** — the call no longer refuses, but its result was lost to the 60 s transport limit |
 

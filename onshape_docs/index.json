@@ -2101,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "5cf135b598dec14b99a703f956badf7523ad352ea7fd1bbceba4f90ba78fa60c",
+   "sha256": "7437b0111e28ae78ae6359ef92c5125c803656c8c95754d509e072d06c2e53be",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2818,7 +2818,7 @@
          "depth": 0
         },
         {
-         "text": "\"已删除\"绝不能用位置上的节点 detach 判定（2026-09-20 实测，已修）。 browser_delete_element 原来等的是 locator.nth(i).wait_for(state=\"detached\")，但 SPA 只给节点加上 hidden 类（ng-class 由 tab.getIsRemoved() 决定），节点仍在 DOM 中，于是 30 秒后超时报 deleted: false——而 browser_get_page_tabs 已经不再 列出该标签，删除其实成功了。第二个陷阱就在同一个 nth：标签条是 ng-repeat 列表，删掉一个标签会把它后面的节点重新编号，nth(i) 于是在下一次解析时落到 刚补位的那个标签上——它当然还 attached，所以这个等待永远不可能被满足。正确判据 是按 data-id 等（wait_for_tab_removed：该 id 的节点数为 0，或每个该 id 的节点都带 hidden），并且只把 browser_get_page_tabs 的原始读取当诊断信息返回 （stillListedIds），绝不用它推翻判据：实测它仍会列出 hidden 的节点。",
+         "text": "\"已删除\"绝不能用位置上的节点 detach 判定（2026-09-20 实测，已修）。 browser_delete_element 原来等的是 locator.nth(i).wait_for(state=\"detached\")，但 SPA 只给节点加上 hidden 类（ng-class 由 tab.getIsRemoved() 决定），节点仍在 DOM 中，于是 30 秒后超时报 deleted: false——而 browser_get_page_tabs 已经不再 列出该标签，删除其实成功了。第二个陷阱就在同一个 nth：标签条是 ng-repeat 列表，删掉一个标签会把它后面的节点重新编号，nth(i) 于是在下一次解析时落到 刚补位的那个标签上——它当然还 attached，所以这个等待永远不可能被满足。正确判据 是按 data-id 等（wait_for_tab_removed：该 id 的节点数为 0，或每个该 id 的节点都带 hidden）。修复后实测：删除一个新键的 Feature Studio 1 返回 deleted: true、 removal.waited: true、274 ms（旧代码是 30 s 超时）。同时要记住原始标签读取 不能参与判据：list_document_tabs 的采集 JS 做的是 querySelectorAll('.os-tab-bar-tab') 全量映射、完全不过滤 hidden，所以刚刚删完那一瞬它仍会把该节点列出来 （同一返回里的 stillListedIds 就等于被删 id），几百毫秒后节点真正 detach 才不再列出 ——\"还列着\"是时序相关的现象。因此把原始读取只当诊断信息返回，绝不用它推翻判据。",
          "depth": 0
         },
         {
@@ -4119,7 +4119,7 @@
    "page": "capability-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/capability-live-run-2026-09-19.md",
-   "sha256": "024d4c046864290e474b85e0a5699249c4018e0944e7ad0478fd62394f3af0cf",
+   "sha256": "384d587a295c59ab19afb97abd0e184f5789c73c64d6f28c90846bb3ebeeb11a",
    "title": "Whole-feature capability live run (2026-09-19)",
    "sections": [
     {
@@ -6361,6 +6361,42 @@
     },
     {
      "level": 3,
+     "title": "The tab-removal verdict is live-certified, and the raw read is a timing-dependent witness",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The third fix was exercised directly: create a throwaway Feature Studio (browser_create_tab → d8737b68e0a7840bac1d639b, which also proves that tool's own new-tab detection), then delete it by id."
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"deleted\": true, \"elementId\": \"d8737b68e0a7840bac1d639b\",\n \"removal\": {\"waited\": true, \"condition\": \"tab_removed_or_hidden\",\n             \"timeoutMs\": 30000, \"elapsedMs\": 274},\n \"stillListedIds\": [\"d8737b68e0a7840bac1d639b\"],\n \"tabs\": [ ... 11 entries, the deleted tab present with \"active\": false ... ]}"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "deleted: true after 274 ms, where the previous implementation timed out for 30 s and returned deleted: false for the same operation. The verdict now comes from the data-id wait, and it resolves as soon as the node is gone or marked removed.",
+         "depth": 0
+        },
+        {
+         "text": "The same payload still lists the deleted tab in its raw tabs block and in stillListedIds. That is the exact disagreement that produced the old false negative, now captured as diagnosis instead of obeyed: the returned verdict is true while the raw read says the tab is still there.",
+         "depth": 0
+        },
+        {
+         "text": "browser_get_page_tabs immediately afterwards lists 10 tabs and no longer includes the deleted id. Reason, read from the collector's source: it maps every .os-tab-bar-tab with querySelectorAll and does not filter hidden at all, so the node is still returned in the instant after deletion and stops being returned only once Onshape actually detaches it. \"Still listed\" is therefore a timing-dependent observation, which is the second reason it cannot be the verdict.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "With this, two of the three fixes are certified live by direct evidence and the third (the parameter-apply path) is certified as no longer refused with its result lost to the transport limit described above."
+      }
+     ]
+    },
+    {
+     "level": 3,
      "title": "Status of the three fixes after this run",
      "blocks": [
       {
@@ -6376,7 +6412,7 @@
         ],
         [
          "tab-removal verdict by data-id",
-         "not re-exercised live (the earlier false negative is recorded above; the unit tests pin the new verdict)"
+         "verified live — see below"
         ],
         [
          "DOM part names (partItems)",
