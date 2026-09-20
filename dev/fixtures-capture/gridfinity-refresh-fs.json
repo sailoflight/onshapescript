@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "gridfinity-refresh-fs",
+  "description": "Refresh a Feature Studio that is already built into a document: re-commit dev/fixtures-capture/gridfinity-baseplate.fs into the OPEN document's Feature Studio so the already-inserted custom-feature rows recompute from the corrected source. This project creates no document and adds no feature row (apply=false), so the target's feature tree keeps exactly the rows it had. The deploy step reads the source from disk, so the committed bytes are the packaged file, not a transcription. Success is verified afterwards with browser_get_fs_compile_status, browser_get_partstudio_features and a fresh STEP export; the runner cannot report it, because TOOL_OUTCOME_KEYS requires 'built' from browser_deploy_and_apply_featurescript and an apply=false call does not build anything.",
+  "steps": [
+    {
+      "id": "refresh-feature-studio",
+      "tool": "browser_deploy_and_apply_featurescript",
+      "args": {
+        "script_file": "dev/fixtures-capture/gridfinity-baseplate.fs",
+        "feature_name": "GF Base Plate Body",
+        "feature_studio_tab": "Feature Studio 1",
+        "part_studio_tab": "Part Studio 1",
+        "apply": false,
+        "create_version": false,
+        "confirm_mutation": true
+      }
+    }
+  ]
+}

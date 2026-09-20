@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "name": "gridfinity-baseplate",
+  "description": "Build a 2x2 Gridfinity baseplate as a three-row custom-feature tree (plate body, socket pockets, magnet holes) in a fresh document, so the whole artifact is reproducible from an empty account state. Step 1 creates the document through the browser UI; the remaining steps deploy the packaged FeatureScript once and then insert the second and third custom features, so the Feature List ends with exactly three rows and one part. Geometry follows https://gridfinity.xyz/specification/ and kennetek/gridfinity-rebuilt-openscad (src/core/standard.scad, src/core/gridfinity-baseplate.scad).",
+  "steps": [
+    {
+      "id": "create-document",
+      "tool": "browser_create_document",
+      "args": {
+        "name": "Gridfinity 2x2 baseplate",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "deploy-plate-body",
+      "tool": "browser_deploy_and_apply_featurescript",
+      "args": {
+        "script_file": "dev/fixtures-capture/gridfinity-baseplate.fs",
+        "feature_name": "GF Base Plate Body",
+        "feature_studio_tab": "Feature Studio 1",
+        "part_studio_tab": "Part Studio 1",
+        "apply": true,
+        "create_version": true,
+        "version_name": "gridfinity-baseplate-1",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "insert-socket-pockets",
+      "tool": "browser_build_part",
+      "args": {
+        "feature_name": "GF Socket Pockets",
+        "part_studio_tab": "Part Studio 1",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "insert-magnet-holes",
+      "tool": "browser_build_part",
+      "args": {
+        "feature_name": "GF Magnet Holes",
+        "part_studio_tab": "Part Studio 1",
+        "confirm_mutation": true
+      }
+    }
+  ]
+}
