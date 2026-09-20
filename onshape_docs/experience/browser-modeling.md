@@ -461,8 +461,43 @@ context + 1 个页面，`playwright.stop()` 同样不影响端点。原因是 **
   spawn 时的 `--window-size`；`headless` / `timezone_id` 没有对应物。这些**不静默忽略**，
   而是在 attach 记录里作为 `notApplied` 报出来。
 
-离线可验证的部分（`dev/tests/test_browser_resident.py`，21 项）：端点已有 → 只附着不 spawn；
+离线可验证的部分（`dev/tests/test_browser_resident.py`，25 项）：端点已有 → 只附着不 spawn；
 端点没有 → 恰好 spawn 一次且 argv 精确；端点始终不出现 → 干净失败并说明"可能被别的无端口
 浏览器占了 profile"；无默认 context → 拒绝新建（新 context 不带登录）；并且用**真实
 `browser_common.SyncSession`** 跑一遍 release，断言 `context.close` 恰好一次、
 `browser.close` 零次、`report.clean`。
+
+真机认证（2026-09-20，桥代数 10→11→12，0 Onshape REST 配额；详情见
+`verification/capability-live-run-2026-09-19.md` 第六步）：**不登录**重启桥后
+`/json/version` 的 GUID、`user-data-dir` 主进程 PID 3872 与其创建时间、`/json/list`
+里的页面目标全部**一字不变**，profile 进程数从 14 降到 9（空闲渲染/工具进程退出，
+浏览器本体没退），新 MCP 子进程能读到那个活着的页面；人工登录一次后，再次重启
+（11→12）后 `browser_get_page_tabs` 与 `browser_session(status)` 都直接给出目标文档
+`.../e/b1d0caa1e06f62da338d0ef8` 的 10 个标签页，`loginConfirmed: true`、
+`humanActionRequired: false`，全程没有登录也没有导航。**"重启要重新登录"这个五年来的
+既定代价到此消失**（首次运行与真正关掉浏览器窗口仍需一次登录）。
+
+这一轮真机还踩到两个只在真实环境出现、离线测试不会报的坑，值得记住：
+
+- **通用启动错误消息会把根因吞掉**。`browser_open_document` 只回
+  `Could not launch browser (channel='msedge'): TypeError.`——类型名给了线索，但没有回溯。
+  正确做法是在**部署侧**用一个小脚本直接复现同一条路径（`artifacts/resident_debug.py`：
+  `BrowserSession(cfg)._make_resources().start()` + `traceback.print_exc()`），一次就定位到
+  `ResidentChromium.__init__() got an unexpected keyword argument 'viewport'`：`_make_resources`
+  把 `viewport` 这个**逐页 launch 选项**又当生成参数传了一遍，而它本来就会经
+  `SessionConfig.launch_kwargs()` 到达 `launch_persistent_context`。教训：接线错误要让
+  **构造函数保持严格**（多传未知 kwargs 立刻 TypeError），并且在离线测试里补一条
+  "适配器必须能接受开关实际发的那组参数"。
+- **这台 Windows 有系统级 HTTP 代理，`urlopen` 默认走它**。`urllib.request.getproxies()`
+  返回 `http://127.0.0.1:10808`（v2rayN 写的注册表项），于是探测 `127.0.0.1:9333` 时
+  "没有浏览器"和"探测本身坏了"变得无法区分。而且本机连**关闭**的回环端口要 **~2.03 秒**
+  才给 `ConnectionRefusedError`（9333/9334/9399 都是 2.03 s），原来的 2.0 s 超时正好把
+  "干净拒绝"变成"超时"。修法是 `ProxyHandler({})`——注意空 ProxyHandler **不会注册任何
+  `*_open` 方法**，所以它在 handler 链里等于不存在，断言要断"链上没有 ProxyHandler"而不是
+  "ProxyHandler 的 proxies 为空"；超时预算同时提到 3.0 s。凡是探测**回环**端点的代码都要
+  显式绕开系统代理。
+- **状态字段的成功分支也要独立复核**。人工登录后 `browser_session(action="login")` 回的是
+  "already logged in (restored Onshape page was kept)"，走的是第 445 行那个"当前页已是
+  应用 URL"的分支——它只反映**这一瞬间**的 `page.url`。本轮用 `browser_get_page_tabs`
+  独立读标签页确认了它是对的，但结论应建立在标签页/文档 URL 这类**事实读**上，而不是
+  建立在状态字符串上（上一轮已记录：`awaiting_login` 是无条件置位的）。

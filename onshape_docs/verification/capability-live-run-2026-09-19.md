@@ -1838,4 +1838,129 @@ implements in this repository by injecting a Playwright factory through the
 | `Sr Spiral ridge 9` values (`Spiral ridge PS`) | **answered** — 12 / 5 / 2 / 1 / 40 mm |
 | `特征 (15)` vs 16 rows / 12 nodes | **answered** — 4 default planes + 11 named custom features; group row and nameless node are not features |
 | login across a restart | **not preserved by design** — session cookies; needs a resident browser + attach, which is the next pass |
+| resident browser (next pass) | see the sixth live step below |
 
+
+## Sixth live step — resident browser: a restart no longer costs a login (2026-09-20, +0800)
+
+The fifth step ended by naming the only way out: the browser must outlive the MCP child
+and the next child must attach to it. That is implemented (commits `0a15b2d`, `d1f8b2b`,
+`ac74449`) and certified here on the real machine, at **zero Onshape REST quota**
+(`LIVE_API_ENABLED` unset throughout; every call below is a browser or OS-level read).
+
+### Deployment identity
+
+| Item | Value |
+|---|---|
+| Deployment | `C:\MCP\onshapescript` (file-copy refresh, not a checkout) |
+| Refresh 3 | `20260920T-resident-browser` — 9 files (7 changed, 2 added), `shippedPresent: 591`, `mismatched: []` |
+| Refresh 4 | `20260920T-resident-probe-fix` — 2 files, verify 591 / 0 mismatched |
+| Refresh 5 | `20260920T-resident-wiring` — 2 files, verify 591 / 0 mismatched, removed `onshape_browser_mode\__pycache__` |
+| Bridge generations | 7 -> 8 (ship) -> 9 (probe fix) -> 10 (wiring fix) -> 11 (no-login mechanism test) -> 12 (end-to-end certification) |
+| Restart phases | `drain/entered`, `protocol-close/stdin-closed`, `wait/exited`, `force-kill/not-needed`; `reconnectRequired: false`, `preservedClients: 2` each time |
+| Config | `browser.local.toml` (host-owned, `onshape_browser_mode/config/` is a preserved prefix): `resident = true`, `resident_port = 9333` |
+
+Catalog fingerprint was **not** re-measured for these refreshes and does not need to be:
+no tool name or schema changed, so it cannot move. The per-file hash sweep is the gate,
+and it reported 591 shipped / 0 mismatched after each apply.
+
+### The measurement the design rests on
+
+`artifacts/cdp_close_probe.py` (scratch profile, port 9334, the Onshape profile never
+touched) spawned Edge detached with `--remote-debugging-port`, attached over CDP, then
+called the exact release call `browser_common` makes:
+
+```
+STEP1 endpoint=up   targets=[about:blank, chrome-extension://...(6 后台页)]
+STEP2 connected contexts=1 connected=True  pages=1 urls=['about:blank']
+STEP3 context.close() returned
+STEP3 endpointAfterClose=up   targetsAfterClose=[同前，一个都没少]
+STEP3 isConnectedAfterClose=False   contextsAfterClose=0
+STEP4 secondAttach contexts=1 pages=[1]
+STEP5 endpointAfterStop=up    targetsAfterStop=[同前]
+```
+
+`context.close()` on a CDP-attached browser **detaches the connection and leaves the
+browser, its pages and its session cookies alive** — Chromium cannot dispose a browser's
+default context. This falsified the assumption behind the first adapter design (a proxy
+context with a no-op `close()`), and the proxy was removed: `browser_common` asserts
+`page.context is session.context` in `_core._validate_pages`, which
+`_enforce_single_working_page` runs at every page hand-off, so a look-alike context would
+have broken real workflows. It also means `close()` must **not** raise — a raising close
+makes `_release_resources` fall back to `browser.close()`.
+
+### Two defects found live, both before any login was spent
+
+1. **`TypeError` swallowed into the generic launch message.** `browser_open_document`
+   returned `Could not launch browser (channel='msedge'): TypeError.` The traceback came
+   from a deployment-side reproduction (`artifacts/resident_debug.py`):
+   `ResidentChromium.__init__() got an unexpected keyword argument 'viewport'`.
+   `_make_resources` duplicated a per-page launch option that already reaches the adapter
+   through `launch_kwargs()`. Fixed by `ac74449`; two tests now cover it (the switch sends
+   only the spawn-time identity; the adapter accepts exactly what the switch sends).
+2. **The probe went through the host's system proxy.** `urllib.request.getproxies()`
+   returns `http://127.0.0.1:10808` here, and `urlopen` honours it, so an absent browser
+   looked like a proxy timeout. Measured on this host: a loopback connect to a *closed*
+   port raises `ConnectionRefusedError` only after ~2.03 s (9333, 9334 and an unused 9399
+   all 2.03 s), so the 2.0 s budget turned the refusal into a timeout. `d1f8b2b` probes
+   through `ProxyHandler({})` — which registers no `*_open` method at all — and raises the
+   budget to 3.0 s. Before: `URLError: <urlopen error timed out>` at 2000 ms. After:
+   `URLError: [WinError 10061] 由于目标计算机积极拒绝...` at 2050 ms.
+
+### Certification (no login spent on the mechanism test)
+
+Baseline after the first spawn: endpoint `Edg/153.0.4234.32`, browser GUID
+`693fb502-d9f7-42a2-9d30-026532eca4d6`, main `user-data-dir` process **PID 3872** created
+`1789892405161`, 14 profile processes, one page at `https://cad.onshape.com/signin`.
+
+Restart 10 -> 11 (still not logged in), then read-only:
+
+| Probe | Before restart | After restart |
+|---|---|---|
+| `/json/version` | reachable, GUID `693fb502…` | **reachable, same GUID `693fb502…`** |
+| main `user-data-dir` process | PID 3872, `1789892405161` | **PID 3872, `1789892405161`** |
+| `/json/list` pages | `.../signin` | **`.../signin`** |
+| profile processes | 14 | 9 (idle renderers/utilities exited; the browser did not) |
+| MCP child reads the live page | — | `browser_get_page_tabs` -> `pageUrl: .../signin`, `tabs: []` |
+
+A **new** MCP child attached to the **same** browser: no second `user-data-dir` process
+appeared, and the browser GUID was unchanged. That is the mechanism proven with no login.
+
+### End-to-end certification (after one human login)
+
+The human completed SSO once in the visible window. `browser_session(action="login")`
+then reported `already logged in (restored Onshape page was kept)` — the page had already
+reached the app URL, so the first-branch check fired; the report was confirmed
+independently rather than trusted, by reading the tabs:
+
+`browser_get_page_tabs` -> `pageUrl .../e/b1d0caa1e06f62da338d0ef8`, 10 tabs
+(`Part Studio 1` active, plus `Spiral ridge FS`, `Spiral ridge PS`, `参数化特征 FS`,
+`Part Studio 2`, `gate check`, `cap fillet`, `cap extrude`, `cap hole`, `Assembly 1`),
+`hasDocumentTabsToolButton: true`.
+
+Then restart 11 -> 12 and read again, **with no login and no navigation in between**:
+
+- `browser_get_page_tabs` -> the same document URL, the same `elementId`
+  `b1d0caa1e06f62da338d0ef8`, the same 10 tab names, `hasDocumentTabsToolButton: true`;
+- `browser_session(action="status")` -> `sessionStatus: "started"`,
+  `humanActionRequired: false`, `loginConfirmed: true`, one page, the document URL;
+- `/json/version` -> GUID `693fb502-d9f7-42a2-9d30-026532eca4d6` (unchanged), main PID
+  **3872** still `1789892405161`, 9 profile processes, and the page target still the
+  document URL.
+
+So a bridge restart no longer logs the human out: the login lives in the resident
+browser process, and the child that follows merely attaches. The negative control is the
+previous round's: killing that process (`Stop-Process -Force`) or closing the window is
+followed by a read-only navigation that lands on `/signin`.
+
+### What this does not claim
+
+- It does not make Onshape keep a session on its own; it removes the *self-inflicted*
+  logout. One login is still required on the first run and after any real browser death.
+- It does not change REST behaviour or spend REST quota; `LIVE_API_ENABLED` stayed unset.
+- It does not extend to a second owner: one resident browser per profile and port. The
+  DevTools endpoint is loopback-only and must never be forwarded — it is full control of
+  the logged-in profile.
+- `viewport` is applied as the spawn `--window-size`, not as a page viewport; `headless`
+  and `timezone_id` are reported as `notApplied` in the attach record rather than
+  silently ignored. Resident mode is for the headed, human-watched session.
