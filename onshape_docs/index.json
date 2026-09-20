@@ -8176,7 +8176,7 @@
    "page": "downloads-hub-nonblocking-verification",
    "category": "verification",
    "path": "onshape_docs/verification/downloads-hub-nonblocking-2026-09-20.md",
-   "sha256": "9684a3524da7e3749838ce470b94d179dbd2292469e67f49cde3f484f5a1d41f",
+   "sha256": "9a5d6243736df267e45cce6d5ef2d5d67c68e6ccb530ceeeeb12014c58f0684d",
    "title": "下载中心 target 卡死页面通道：根因与修复验收（2026-09-20）",
    "sections": [
     {
@@ -8376,6 +8376,19 @@
       {
        "type": "para",
        "text": "（该字段最初名为 browserInternalPagesClosed，取值为当时那次导出的 1；同一时刻 /json/list 仍列出该 target，正是这次改名与拆分字段的依据。字段尚未发布，无外部消费者。）"
+      },
+      {
+       "type": "para",
+       "text": "改名字段后重新部署（deployment 20260920T113703Z-internal-page-fields，9 个文件）并重启 节点（generation 33 → 34，preservedClients: 2、reconnectRequired: false），再做一次实机导出 gridfinity-2x2-final-6 复核："
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "\"browserInternalPagesCloseRequested\": 1,\n\"browserInternalPagesRemaining\": 1,\n\"apiRequests\": 0"
+      },
+      {
+       "type": "para",
+       "text": "即同一时刻既报告\"关闭请求被接受\"，也报告\"该内部页面仍在列\"。紧随其后的 browser_get_page_tabs 秒回，而 CDP /json/list 仍列出 edge://downloads-hub/ 与 Onshape 应用页两个 page target——通道健康与\"目标未消失\" 同时成立，正是本文要固定的区分。"
       },
       {
        "type": "para",

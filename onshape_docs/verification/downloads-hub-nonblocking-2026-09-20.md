@@ -92,6 +92,21 @@ MCP error -32001: downstream_timeout     # 约 32 s 后返回
 （该字段最初名为 `browserInternalPagesClosed`，取值为当时那次导出的 1；同一时刻
 `/json/list` 仍列出该 target，正是这次改名与拆分字段的依据。字段尚未发布，无外部消费者。）
 
+改名字段后重新部署（deployment `20260920T113703Z-internal-page-fields`，9 个文件）并重启
+节点（generation 33 → 34，`preservedClients: 2`、`reconnectRequired: false`），再做一次实机导出
+`gridfinity-2x2-final-6` 复核：
+
+```json
+"browserInternalPagesCloseRequested": 1,
+"browserInternalPagesRemaining": 1,
+"apiRequests": 0
+```
+
+即**同一时刻**既报告"关闭请求被接受"，也报告"该内部页面仍在列"。紧随其后的
+`browser_get_page_tabs` 秒回，而 CDP `/json/list` 仍列出
+`edge://downloads-hub/` 与 Onshape 应用页两个 page target——通道健康与"目标未消失"
+同时成立，正是本文要固定的区分。
+
 `browserInternalPagesRemaining` 只在确实请求过关闭时才探测：没有请求就没有"重查"这件事，
 否则每次导出都会多一次无关的 DevTools 调用，并让结果依赖运行环境。
 
