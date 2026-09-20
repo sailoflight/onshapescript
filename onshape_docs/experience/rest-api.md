@@ -58,7 +58,9 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
   in the operation's own description: `{ "rollbackIndex": integer }`, with `-1`
   meaning "move the bar to the end of the list". Trust the prose here, not the
   schema. `onshape_rest_api_mode/feature_list.py` builds the object and
-  `test_rest_feature_list` pins both halves of that evidence.
+  `test_rest_feature_list` pins both halves of that evidence. Server-confirmed
+  2026-09-19: the object was accepted (200, `BTSetFeatureRollbackResponse-1042`),
+  so the prose was right and the schema is the part to distrust.
 - **Suppression goes through `updateFeatures`, not a full redefinition.**
   `POST .../features/updates` (`BTUpdateFeaturesCall-1748`) "does not fully
   redefine the features; it updates only the parameters supplied in the
@@ -74,7 +76,8 @@ collected by `verify_docs.py` against REST API **1.219.86205**, 302 operations).
   `BTSetFeatureRollbackResponse-1042`, `BTUpdateFeaturesResponse-1333`) return
   versioning metadata and, for the batch/definition cases, the new
   `featureStates`. That is "the server accepted this", not "the model changed as
-  intended" — read the Feature List afterwards.
+  intended" — read the Feature List afterwards. All four schemas are now
+  server-confirmed (see the live-verification lessons below).
 
 ## Workflow pointers
 
@@ -116,3 +119,73 @@ and cost behavior.
 - **Batch verification is a fixed cost with declining returns.** The remaining
   open questions after ~310 calls are narrow and version-specific; answer them
   on demand inside the task that needs them rather than spending another batch.
+- **The four Feature-List mutations are server-confirmed (2026-09-19, 4 calls,
+  all 200).** Each answered with exactly the schema the vendored spec declares:
+  suppression → `BTUpdateFeaturesResponse-1333` with `features[0].suppressed:
+  true`; in-place definition replace → `BTFeatureDefinitionResponse-1617` with
+  `featureState.featureStatus: "OK"` and the new name; rollback →
+  `BTSetFeatureRollbackResponse-1042`; delete → `BTFeatureApiBase-1430`. The
+  recorded bodies replay through the production parsers in
+  `test_rest_feature_list.LiveReplayTest`, so the offline fixtures are now
+  evidence rather than construction.
+- **`updateRollback` answers with the resolved position, not the sentinel.** A
+  one-feature list asked for `-1` came back `"rollbackIndex": 1`. Read the
+  response as "where the bar ended up".
+- **`rollbackBarIndex` does not filter the Feature List read, and the documented
+  default is fine.** A P3 run saw `GET .../features` answer `{"rollbackIndex": 0,
+  "features": []}` and then, after a page reload, `{"rollbackIndex": 1, ...}`; the
+  first write-up blamed the absent argument. A three-way probe on a
+  long-committed element (absent / `-1` / `0`, one run, no reload) returned
+  identical bodies — 2 features, `rollbackIndex: 2` in all three. So
+  `rollbackIndex` reports the **element's real rollback-bar position**, not an
+  echo of the request, and the earlier empty body was a true statement about the
+  element. Evidence: `onshape_docs/verification/feature-list-read-probe-2026-09-20.json`.
+- **A custom feature inserted through the browser is not in the workspace until
+  the page is (re)loaded — reproduced, not inferred.** While it is pending, the UI
+  shows the row with the `edited selected` classes and the model shows the part,
+  but `GET .../features` truthfully answers `"features": []` /
+  `"rollbackIndex": 0`. A controlled run on one scratch Part Studio: after a clean
+  insert (`inserted: true`, `errored: false`, regeneration waited ~7.5 s, part
+  present) REST returned an empty list immediately **and again ~4 minutes later
+  without a reload**; a single page reload flipped the DOM row to the plain
+  `ns-user-feature` class and the next read returned the feature. On the same
+  element, a **REST-added** feature was visible on the very next read with no
+  reload, which rules out a read-side caching artefact. Evidence:
+  `onshape_docs/verification/browser-rest-handoff-2026-09-20.json`. The lesson for
+  the FS-first route: **never build a REST mutation on a feature the browser just
+  created without reading the Feature List back first**, and treat a REST
+  feature-count of 0 as authoritative over what the UI is showing.
+- **`addPartStudioFeature` works with the same envelope as the other four.** The
+  fifth member of the family — the one `operations.instantiate_feature` has always
+  targeted — was confirmed live: `POST .../features` with
+  `BTFeatureDefinitionCall-1406` naming feature type `spiralRidge` and the Feature
+  Studio namespace returned 200, `BTFeatureDefinitionResponse-1617`,
+  `featureStatus: "OK"` and a new `featureId`. Recorded in
+  `dev/tests/fixtures/onshape/feature-list/addPartStudioFeature/`.
+- **A custom-feature spec may declare no parameters at all.** The `spiralRidge`
+  source generated by `onshape_browser_mode.modeling_transactions` has an empty
+  `precondition` and bakes the geometry values in as literals, so a feature
+  instance of it carries `"parameters": []` — which is why the Feature List read,
+  the in-place replace and the REST add all round-trip an empty parameter array.
+  Changing the geometry of such a feature means deploying a new FeatureScript
+  version, not editing parameters.
+- **A refusal is a 404 carrying the shared error envelope, and it is free.**
+  `DELETE .../features/featureid/{unknown}` answered
+  `{"moreInfoUrl": "", "message": "Feature not found", "status": 404, "code": 9999}`
+  with the HTTP status mirrored inside the body. The probe's own ledger delta was
+  **0**, confirming empirically that 4xx does not count against the annual limit.
+  Note the envelope is not the operation's declared response schema, so a caller
+  must branch on the HTTP status, not on the presence of expected fields;
+  `dev/tests/fixtures/onshape/feature-list/refusal-deletePartStudioFeature/`
+  records it and pins that the success parser returns nothing for such a body.
+- **A custom feature's serialized definition can carry `"parameters": []`.** The
+  row read back for a custom feature inserted with its spec defaults had empty
+  `parameters`, empty `parameterLibraries`, and a `namespace` shaped
+  `e<featureStudioElementId>::m<microversionId>`. Posting that definition back
+  through `updatePartStudioFeature` renamed the feature in place and returned
+  `featureStatus: OK`, so the empty array is accepted — and the `namespace` is
+  what marks the row as custom rather than standard-library.
+- **Domain-verify a Feature List mutation with the browser, not another REST
+  call.** The four responses only say "accepted". After the run's delete, a
+  zero-REST-quota browser read of the Feature List showed `特征 (4)` and
+  `零件数 (0)` — the model-level confirmation, at no quota cost.

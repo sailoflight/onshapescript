@@ -1,6 +1,6 @@
 {
   "method": "POST",
-  "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features/featureid/F523rtc3Xx2J8UH_0",
+  "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features",
   "headers": {
     "Authorization": "<REDACTED>",
     "Accept": "application/json;charset=UTF-8; qs=0.09",
@@ -10,11 +10,12 @@
     "btType": "BTFeatureDefinitionCall-1406",
     "feature": {
       "btType": "BTMFeature-134",
-      "featureId": "F523rtc3Xx2J8UH_0",
       "featureType": "spiralRidge",
-      "name": "Spiral ridge 1 (P3 rename)",
+      "name": "P3 add probe",
       "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
-      "parameters": []
+      "parameters": [],
+      "returnAfterSubfeatures": false,
+      "suppressed": false
     }
   }
 }

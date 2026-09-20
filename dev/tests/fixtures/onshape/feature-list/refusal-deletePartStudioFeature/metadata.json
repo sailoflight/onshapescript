@@ -1,0 +1,27 @@
+{
+  "operation": "DELETE /partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
+  "operationId": "deletePartStudioFeature",
+  "liveExecuted": true,
+  "status": 404,
+  "executedAt": "2026-09-20T00:52:40Z",
+  "source": "temp/p3_live/error_shape_probe.py — pre-designed refusal probe (2026-09-19).",
+  "requestBuiltBy": "feature_list.feature_path + OnshapeClient.describe",
+  "responseSchema": null,
+  "responseSchemaNote": "A refusal does not use the operation's declared response schema (BTFeatureApiBase-1430); it returns the shared error envelope, which is exactly why this fixture exists.",
+  "purpose": "The only recorded refusal for the Feature-List family. The four success fixtures say nothing about what a failure looks like, and the refusal envelope cannot be obtained offline.",
+  "testPurpose": "Replay: assert the recorded body still carries message/status/code/moreInfoUrl, that the HTTP status is 4xx, and that the success parser summarizing this body reports nothing rather than inventing a success.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39",
+    "featureId": "P3ProbeNoSuchFeature_0"
+  },
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only.",
+  "ledgerStatus": 404,
+  "quotaConsumed": 0,
+  "quotaNote": "4xx/5xx responses do not count toward the annual limit, so this attempt cost an attempt and no quota. Confirmed empirically by the probe's own ledger delta."
+}

@@ -1,17 +1,25 @@
 {
   "operation": "POST /partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
   "operationId": "updatePartStudioFeature",
-  "liveExecuted": false,
-  "status": null,
-  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
-  "requestBuiltBy": "feature_list.feature_definition_call + OnshapeClient.describe",
+  "liveExecuted": true,
+  "status": 200,
+  "executedAt": "2026-09-19T13:41:25Z",
+  "source": "temp/p3_live/feature_list_live.py — the one authorized live confirmation of the REST Feature-List contract (P3, 2026-09-19).",
+  "requestBuiltBy": "feature_list.feature + feature_definition_call + OnshapeClient.describe",
   "responseSchema": "BTFeatureDefinitionResponse-1617",
-  "purpose": "Replace a feature definition in place. The real body is the object read back from the Feature List with the intended edit applied; this one is deliberately minimal because BTFeatureDefinitionCall-1406 declares no required fields.",
-  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "purpose": "Replace a feature definition in place. This body is the real definition read back from GET /features with only the name changed -- the documented workflow, not the minimal envelope the pre-live fixture carried.",
+  "testPurpose": "Replay: the recorded response must parse through feature_list.summarize_feature_definition and report featureStatus, so a non-OK regeneration is visible as data rather than as a silent success.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39",
+    "featureId": "F523rtc3Xx2J8UH_0"
+  },
   "requestHeaders": {
     "Authorization": "<REDACTED>",
     "Accept": "application/json;charset=UTF-8; qs=0.09",
     "Content-Type": "application/json;charset=UTF-8; qs=0.09"
   },
-  "responseHeaders": "None recorded: no request was sent, so no response exists."
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only. The call's status and time are in this file; rate-limit headers land in onshape_rest_api_mode/config/api-usage.json.",
+  "ledgeredStatus": 200
 }

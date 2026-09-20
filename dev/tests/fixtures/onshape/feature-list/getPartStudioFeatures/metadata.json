@@ -1,0 +1,24 @@
+{
+  "operation": "GET /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
+  "operationId": "getPartStudioFeatures",
+  "liveExecuted": true,
+  "status": 200,
+  "executedAt": "2026-09-19T13:40:53Z",
+  "source": "temp/p3_live/feature_list_live.py — the one authorized live confirmation of the REST Feature-List contract (P3, 2026-09-19).",
+  "requestBuiltBy": "feature_list.feature_list_path + OnshapeClient.describe",
+  "responseSchema": "BTFeatureListResponse-2457",
+  "purpose": "The Feature List READ: the endpoint of this family with no handler and no fixture, and the only source for the feature ids and serialized definitions the four mutation endpoints consume. Recorded with rollbackBarIndex=-1 (see `finding`: the argument turned out not to matter, but this is the call that returned the list).",
+  "testPurpose": "Replay: the recorded body must still carry `features`/`rollbackIndex`/`isComplete` and the feature it names must still carry `featureId`, `featureType`, `namespace` and `parameters` -- exactly the fields updatePartStudioFeature has to be fed back.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39"
+  },
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only. The call's status and time are in this file; rate-limit headers land in onshape_rest_api_mode/config/api-usage.json.",
+  "ledgeredStatus": 200,
+  "finding": "The SAME element answered this endpoint differently during the run -- with no rollbackBarIndex argument {\"rollbackIndex\": 0, \"features\": []}, with -1 {\"rollbackIndex\": 1, features present} -- and the difference was NOT the argument. A follow-up probe (onshape_docs/verification/feature-list-read-probe-2026-09-20.json) read a long-committed element three ways (absent / -1 / 0) and got identical bodies, so rollbackBarIndex does not filter this list and rollbackIndex reports the element's real bar position. The element genuinely had no user feature until the page was reloaded: a browser-inserted custom feature is not in the workspace before that. This recorded request carries rollbackBarIndex=-1 because that is the call that returned the list, not because the argument is required."
+}

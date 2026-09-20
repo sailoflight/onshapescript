@@ -1,0 +1,41 @@
+{
+  "probe": "Feature List refusal-shape probe",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39"
+  },
+  "request": {
+    "method": "DELETE",
+    "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features/featureid/P3ProbeNoSuchFeature_0",
+    "headers": {
+      "Authorization": "<REDACTED>",
+      "Accept": "application/json;charset=UTF-8; qs=0.09"
+    },
+    "body": null
+  },
+  "ledgerStatus": 404,
+  "at": "2026-09-20T00:52:40Z",
+  "outcome": {
+    "refused": true,
+    "errorMessage": "HTTP 404: {\"moreInfoUrl\": \"\", \"message\": \"Feature not found\", \"status\": 404, \"code\": 9999}",
+    "status": 404,
+    "responseBody": {
+      "moreInfoUrl": "",
+      "message": "Feature not found",
+      "status": 404,
+      "code": 9999
+    }
+  },
+  "quotaConsumedByThisProbe": 0,
+  "guard": {
+    "label": "Feature List refusal-shape probe",
+    "budget": 1,
+    "spent": 0,
+    "remaining": 1,
+    "attemptedRequests": 1,
+    "attemptsRemaining": 0,
+    "maxAttempts": 1,
+    "annualRemaining": 1746
+  }
+}

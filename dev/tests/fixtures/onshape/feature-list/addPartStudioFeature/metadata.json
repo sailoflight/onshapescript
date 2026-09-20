@@ -1,0 +1,27 @@
+{
+  "operation": "POST /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features",
+  "operationId": "addPartStudioFeature",
+  "liveExecuted": true,
+  "status": 200,
+  "executedAt": "2026-09-20T01:07:19Z",
+  "source": "temp/p3_live/add_feature_probe.py — pre-designed live confirmation (2026-09-20).",
+  "requestBuiltBy": "feature_list.feature_definition_call (the same helper operations._instantiate_body uses)",
+  "responseSchema": "BTFeatureDefinitionResponse-1617",
+  "purpose": "The fifth member of the Feature-List family and the only one still unconfirmed live: the endpoint that lets REST add a custom feature at all, which operations.instantiate_feature has always targeted. Confirms the BTFeatureDefinitionCall-1406 envelope, the spiralRidge feature type, and that an added feature comes back with a new featureId and an OK state.",
+  "testPurpose": "Replay: the recorded body must parse through feature_list.summarize_feature_definition and report featureStatus OK with the featureType and namespace the request named, so an add that silently resolves to a different definition would show up as data.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39",
+    "featureId": "FLs0vBdvuflFHIG_1"
+  },
+  "namespaceNote": "The namespace microversion is not invented: e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733 is what the live Feature List read returned for this feature type earlier in the same session.",
+  "parametersNote": "parameters is empty because the spiralRidge spec declares none -- the generated FeatureScript bakes the geometry values in as literals. That is also why the P3 in-place replace could round-trip an empty parameter array.",
+  "requestHeaders": {
+    "Authorization": "<REDACTED>",
+    "Accept": "application/json;charset=UTF-8; qs=0.09",
+    "Content-Type": "application/json;charset=UTF-8; qs=0.09"
+  },
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only.",
+  "ledgerStatus": 200
+}

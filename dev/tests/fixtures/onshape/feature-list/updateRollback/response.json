@@ -1,0 +1,13 @@
+{
+  "btType": "BTSetFeatureRollbackResponse-1042",
+  "rejectMicroversionSkew": false,
+  "microversionSkew": false,
+  "rollbackIndex": 1,
+  "microversionId": {
+    "btType": "BTMicroversionId-366",
+    "theId": "8a9088478dbe615e10d06d48"
+  },
+  "libraryVersion": 0,
+  "serializationVersion": "1.2.21",
+  "sourceMicroversion": "efa77abbb22ec851d28d5605"
+}

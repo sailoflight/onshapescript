@@ -1,17 +1,24 @@
 {
   "operation": "POST /partstudios/d/{did}/w/{wid}/e/{eid}/features/rollback",
   "operationId": "updateRollback",
-  "liveExecuted": false,
-  "status": null,
-  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "liveExecuted": true,
+  "status": 200,
+  "executedAt": "2026-09-19T13:41:27Z",
+  "source": "temp/p3_live/feature_list_live.py — the one authorized live confirmation of the REST Feature-List contract (P3, 2026-09-19).",
   "requestBuiltBy": "feature_list.rollback_body + OnshapeClient.describe",
   "responseSchema": "BTSetFeatureRollbackResponse-1042",
-  "purpose": "Move the rollback bar to the end of the list (-1), the documented no-op-safe position used to recompute the whole Feature List.",
-  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "purpose": "Confirms the operation's described body `{ \"rollbackIndex\": integer }` and the documented `-1` end-of-list sentinel. -1 is chosen deliberately: it is the only position guaranteed valid for any Feature List, and the fact being bought here is the payload shape, not list arithmetic.",
+  "testPurpose": "Replay: the recorded response must parse through feature_list.summarize_rollback and report rollbackIndex/sourceMicroversion.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39"
+  },
   "requestHeaders": {
     "Authorization": "<REDACTED>",
     "Accept": "application/json;charset=UTF-8; qs=0.09",
     "Content-Type": "application/json;charset=UTF-8; qs=0.09"
   },
-  "responseHeaders": "None recorded: no request was sent, so no response exists."
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only. The call's status and time are in this file; rate-limit headers land in onshape_rest_api_mode/config/api-usage.json.",
+  "ledgeredStatus": 200
 }

@@ -1,0 +1,528 @@
+{
+  "probe": "Feature List read param probe",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "05406f02482e1d943d80dc3e"
+  },
+  "hypotheses": {
+    "H1_default": "the server's effective default is not the documented -1",
+    "H2_handoff": "the P3 feature only reached the workspace on the page reload"
+  },
+  "reads": [
+    {
+      "label": "no-argument",
+      "request": {
+        "method": "GET",
+        "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/05406f02482e1d943d80dc3e/features",
+        "headers": {
+          "Authorization": "<REDACTED>",
+          "Accept": "application/json;charset=UTF-8; qs=0.09"
+        },
+        "body": null
+      },
+      "status": 200,
+      "at": "2026-09-20T00:50:36Z",
+      "response": {
+        "btType": "BTFeatureListResponse-2457",
+        "serializationVersion": "1.2.21",
+        "isComplete": true,
+        "rollbackIndex": 2,
+        "features": [
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "Spiral ridge 1",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FdXF5Z4OAjw1Adc_0",
+            "nodeId": "MqgrAIbq9T//ptTBy",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "Spiral ridge 2",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FjnYwuBiM7wPd3J_1",
+            "nodeId": "MnOAD8HtMWb8a7WwJ",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          }
+        ],
+        "sourceMicroversion": "17537f139a51a021177410a1",
+        "microversionSkew": false,
+        "rejectMicroversionSkew": false,
+        "libraryVersion": 3083,
+        "featureStates": {
+          "Origin": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "FjnYwuBiM7wPd3J_1": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Top": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "FdXF5Z4OAjw1Adc_0": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Front": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Right": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          }
+        },
+        "imports": [
+          {
+            "btType": "BTMImport-136",
+            "namespace": "",
+            "nodeId": "MQLzTmkuZjjKGKiaU",
+            "path": "onshape/std/geometry.fs",
+            "version": "3083.0"
+          }
+        ],
+        "defaultFeatures": [
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Origin",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Origin",
+            "nodeId": "MXp45g6TTbc4Y6v7O",
+            "featureType": "origin",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Top",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Top",
+            "nodeId": "MaWZmc6foWpu3UnO6",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Front",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Front",
+            "nodeId": "MqPt3+4EsnW+yMpoX",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Right",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Right",
+            "nodeId": "MLMYg3Ko4tOcjLypn",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          }
+        ]
+      },
+      "rollbackIndex": 2,
+      "featureCount": 2,
+      "defaultFeatureCount": 4,
+      "featureIds": [
+        "FdXF5Z4OAjw1Adc_0",
+        "FjnYwuBiM7wPd3J_1"
+      ],
+      "featureStates": [
+        "FdXF5Z4OAjw1Adc_0",
+        "FjnYwuBiM7wPd3J_1",
+        "Front",
+        "Origin",
+        "Right",
+        "Top"
+      ]
+    },
+    {
+      "label": "-1 end of list",
+      "request": {
+        "method": "GET",
+        "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/05406f02482e1d943d80dc3e/features?rollbackBarIndex=-1",
+        "headers": {
+          "Authorization": "<REDACTED>",
+          "Accept": "application/json;charset=UTF-8; qs=0.09"
+        },
+        "body": null
+      },
+      "status": 200,
+      "at": "2026-09-20T00:50:37Z",
+      "response": {
+        "btType": "BTFeatureListResponse-2457",
+        "serializationVersion": "1.2.21",
+        "isComplete": true,
+        "rollbackIndex": 2,
+        "features": [
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "Spiral ridge 1",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FdXF5Z4OAjw1Adc_0",
+            "nodeId": "MqgrAIbq9T//ptTBy",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "Spiral ridge 2",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FjnYwuBiM7wPd3J_1",
+            "nodeId": "MnOAD8HtMWb8a7WwJ",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          }
+        ],
+        "sourceMicroversion": "17537f139a51a021177410a1",
+        "microversionSkew": false,
+        "rejectMicroversionSkew": false,
+        "libraryVersion": 3083,
+        "featureStates": {
+          "Origin": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "FjnYwuBiM7wPd3J_1": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Top": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "FdXF5Z4OAjw1Adc_0": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Front": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Right": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          }
+        },
+        "imports": [
+          {
+            "btType": "BTMImport-136",
+            "namespace": "",
+            "nodeId": "MQLzTmkuZjjKGKiaU",
+            "path": "onshape/std/geometry.fs",
+            "version": "3083.0"
+          }
+        ],
+        "defaultFeatures": [
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Origin",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Origin",
+            "nodeId": "MXp45g6TTbc4Y6v7O",
+            "featureType": "origin",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Top",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Top",
+            "nodeId": "MaWZmc6foWpu3UnO6",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Front",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Front",
+            "nodeId": "MqPt3+4EsnW+yMpoX",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Right",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Right",
+            "nodeId": "MLMYg3Ko4tOcjLypn",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          }
+        ]
+      },
+      "rollbackIndex": 2,
+      "featureCount": 2,
+      "defaultFeatureCount": 4,
+      "featureIds": [
+        "FdXF5Z4OAjw1Adc_0",
+        "FjnYwuBiM7wPd3J_1"
+      ],
+      "featureStates": [
+        "FdXF5Z4OAjw1Adc_0",
+        "FjnYwuBiM7wPd3J_1",
+        "Front",
+        "Origin",
+        "Right",
+        "Top"
+      ]
+    },
+    {
+      "label": "0 top of list",
+      "request": {
+        "method": "GET",
+        "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/05406f02482e1d943d80dc3e/features?rollbackBarIndex=0",
+        "headers": {
+          "Authorization": "<REDACTED>",
+          "Accept": "application/json;charset=UTF-8; qs=0.09"
+        },
+        "body": null
+      },
+      "status": 200,
+      "at": "2026-09-20T00:50:38Z",
+      "response": {
+        "btType": "BTFeatureListResponse-2457",
+        "serializationVersion": "1.2.21",
+        "isComplete": true,
+        "rollbackIndex": 2,
+        "features": [
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "Spiral ridge 1",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FdXF5Z4OAjw1Adc_0",
+            "nodeId": "MqgrAIbq9T//ptTBy",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "Spiral ridge 2",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FjnYwuBiM7wPd3J_1",
+            "nodeId": "MnOAD8HtMWb8a7WwJ",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          }
+        ],
+        "sourceMicroversion": "17537f139a51a021177410a1",
+        "microversionSkew": false,
+        "rejectMicroversionSkew": false,
+        "libraryVersion": 3083,
+        "featureStates": {
+          "Origin": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "FjnYwuBiM7wPd3J_1": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Top": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "FdXF5Z4OAjw1Adc_0": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Front": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "Right": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          }
+        },
+        "imports": [
+          {
+            "btType": "BTMImport-136",
+            "namespace": "",
+            "nodeId": "MQLzTmkuZjjKGKiaU",
+            "path": "onshape/std/geometry.fs",
+            "version": "3083.0"
+          }
+        ],
+        "defaultFeatures": [
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Origin",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Origin",
+            "nodeId": "MXp45g6TTbc4Y6v7O",
+            "featureType": "origin",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Top",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Top",
+            "nodeId": "MaWZmc6foWpu3UnO6",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Front",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Front",
+            "nodeId": "MqPt3+4EsnW+yMpoX",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          {
+            "btType": "BTMFeature-134",
+            "namespace": "",
+            "name": "Right",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "Right",
+            "nodeId": "MLMYg3Ko4tOcjLypn",
+            "featureType": "defaultPlane",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          }
+        ]
+      },
+      "rollbackIndex": 2,
+      "featureCount": 2,
+      "defaultFeatureCount": 4,
+      "featureIds": [
+        "FdXF5Z4OAjw1Adc_0",
+        "FjnYwuBiM7wPd3J_1"
+      ],
+      "featureStates": [
+        "FdXF5Z4OAjw1Adc_0",
+        "FjnYwuBiM7wPd3J_1",
+        "Front",
+        "Origin",
+        "Right",
+        "Top"
+      ]
+    }
+  ],
+  "guard": {
+    "label": "Feature List read param probe",
+    "budget": 3,
+    "spent": 3,
+    "remaining": 0,
+    "attemptedRequests": 3,
+    "attemptsRemaining": 0,
+    "maxAttempts": 3,
+    "annualRemaining": 1749
+  }
+}

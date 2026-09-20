@@ -581,36 +581,104 @@ class ParserAgreementTest(unittest.TestCase):
 
 
 class FixtureTest(unittest.TestCase):
-    """The checked-in constructed requests still describe the real builder."""
+    """The checked-in requests still describe the real builder, and the recorded
+    live bodies replay through the parsers the live path uses.
 
-    def _current(self) -> dict[str, dict]:
-        def build(feature_id="FEATID_A"):
-            return feature_list.feature_path(**IDS, feature_id=feature_id)
-        return {
-            "updateFeatures": ("POST", feature_list.updates_path(**IDS),
-                               feature_list.suppression_body(["FEATID_A", "FEATID_B"], True)),
-            "deletePartStudioFeature": ("DELETE", build(), None),
-            "updateRollback": ("POST", feature_list.rollback_path(**IDS),
-                               feature_list.rollback_body(feature_list.ROLLBACK_END)),
-            "updatePartStudioFeature": (
-                "POST", build(),
-                feature_list.feature_definition_call({
-                    "btType": feature_list.FEATURE,
-                    "featureId": "FEATID_A",
-                    "name": "Renamed in place",
-                    "suppressed": False,
-                }),
+    The directories were born constructed-and-never-sent and were later replaced
+    by one authorized live run, so every assertion here is driven by each
+    fixture's own `metadata.json`: a constructed fixture must still say so, and a
+    live one must carry a real status, a real time, a response body, and a
+    `request.json` that matches the builder for the ids it records.
+    """
+
+    OPERATIONS = (
+        "updateFeatures",
+        "deletePartStudioFeature",
+        "updateRollback",
+        "updatePartStudioFeature",
+        "getPartStudioFeatures",
+    )
+
+    def _metadata(self, operation_id: str) -> dict:
+        path = FIXTURES / operation_id / "metadata.json"
+        self.assertTrue(path.is_file(), f"missing fixture metadata {path}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _request_ids(self, operation_id: str, metadata: dict) -> tuple[dict, str | None]:
+        """The ids the recorded request addresses: the live target when the call
+        was really sent, the placeholders while a fixture is still constructed."""
+        if metadata["liveExecuted"]:
+            target = metadata["target"]
+            named = {
+                "document_id": target["document_id"],
+                "workspace_id": target["workspace_id"],
+                "element_id": target["element_id"],
+            }
+            return dict(named), target.get("featureId")
+        return dict(IDS), "FEATID_A"
+
+    def _current(self, operation_id: str, metadata: dict) -> tuple:
+        """The request the shared builder produces for this fixture's ids:
+        `(method, path, body, query)`."""
+        named, feature_id = self._request_ids(operation_id, metadata)
+        if operation_id == "getPartStudioFeatures":
+            return (
+                "GET", feature_list.feature_list_path(**named), None,
+                {"rollbackBarIndex": -1},
+            )
+        if operation_id == "updateRollback":
+            return (
+                "POST", feature_list.rollback_path(**named),
+                feature_list.rollback_body(feature_list.ROLLBACK_END), None,
+            )
+        if operation_id == "updateFeatures":
+            return (
+                "POST", feature_list.updates_path(**named),
+                feature_list.suppression_body([feature_id], True), None,
+            )
+        path = feature_list.feature_path(**named, feature_id=feature_id)
+        if operation_id == "deletePartStudioFeature":
+            return ("DELETE", path, None, None)
+        return (
+            "POST", path,
+            feature_list.feature_definition_call(
+                self._replace_feature(operation_id, metadata, feature_id)
             ),
-        }
+            None,
+        )
+
+    def _replace_feature(self, operation_id: str, metadata: dict, feature_id: str) -> dict:
+        """`updatePartStudioFeature` was sent the definition read back from the
+        Feature List, so the expectation is rebuilt from the recorded read."""
+        if not metadata["liveExecuted"]:
+            return {
+                "btType": feature_list.FEATURE,
+                "featureId": "FEATID_A",
+                "name": "Renamed in place",
+                "suppressed": False,
+            }
+        listing = json.loads(
+            (FIXTURES / "getPartStudioFeatures" / "response.json").read_text(encoding="utf-8")
+        )
+        source = next(f for f in listing["features"] if f["featureId"] == feature_id)
+        return feature_list.feature(
+            feature_id,
+            name=f"{source['name']} (P3 rename)",
+            feature_type=source["featureType"],
+            namespace=source["namespace"],
+            parameters=source["parameters"],
+        )
 
     def test_each_fixture_request_still_matches_the_builder(self) -> None:
         client = FakeClient()
-        for operation_id, (method, path, body) in self._current().items():
+        for operation_id in self.OPERATIONS:
             with self.subTest(operation=operation_id):
+                metadata = self._metadata(operation_id)
                 fixture = FIXTURES / operation_id / "request.json"
                 self.assertTrue(fixture.is_file(), f"missing fixture {fixture}")
                 recorded = json.loads(fixture.read_text(encoding="utf-8"))
-                expected = client.describe(method, path, body)
+                method, path, body, query = self._current(operation_id, metadata)
+                expected = client.describe(method, path, body, query=query)
                 self.assertEqual(
                     recorded, expected,
                     f"{operation_id}/request.json drifted; rewrite it with:\n"
@@ -618,25 +686,195 @@ class FixtureTest(unittest.TestCase):
                 )
                 self.assertEqual(recorded["headers"]["Authorization"], "<REDACTED>")
 
-    def test_fixtures_state_plainly_that_nothing_was_sent(self) -> None:
-        for operation_id in self._current():
+    def test_every_live_fixture_records_what_the_run_received(self) -> None:
+        for operation_id in self.OPERATIONS:
             with self.subTest(operation=operation_id):
                 directory = FIXTURES / operation_id
-                metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-                self.assertIs(metadata["liveExecuted"], False)
-                self.assertIsNone(metadata["status"])
+                metadata = self._metadata(operation_id)
                 self.assertEqual(metadata["operationId"], operation_id)
-                self.assertIn("no request was sent", metadata["responseHeaders"])
                 self.assertEqual(
                     metadata["responseSchema"],
                     response_schema_name(operation(operation_id)[2]),
                 )
-                # A response body nobody received would be fabricated evidence.
-                self.assertFalse(
-                    (directory / "response.json").exists(),
-                    f"{operation_id} has a response.json but no live call was ever made",
-                )
+                if not metadata["liveExecuted"]:
+                    self.assertIsNone(metadata["status"])
+                    self.assertIn("no request was sent", metadata["responseHeaders"])
+                    self.assertFalse(
+                        (directory / "response.json").exists(),
+                        f"{operation_id} has a response.json but no live call was ever made",
+                    )
+                    continue
+                # Live: the run's own record must be internally consistent.
+                self.assertIsInstance(metadata["status"], int)
+                self.assertTrue(200 <= metadata["status"] < 300, metadata["status"])
+                self.assertRegex(metadata["executedAt"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+                self.assertTrue(metadata["target"]["element_id"])
+                self.assertTrue((directory / "response.json").is_file())
+                recorded = json.loads((directory / "request.json").read_text(encoding="utf-8"))
+                self.assertEqual(recorded["headers"]["Authorization"], "<REDACTED>")
+                self.assertNotIn("accessKey", json.dumps(recorded))
+                self.assertNotIn("secretKey", json.dumps(recorded))
         self.assertTrue((FIXTURES / "README.md").is_file())
+
+
+class RefusalShapeTest(unittest.TestCase):
+    """The one recorded refusal, and the property it exists to pin.
+
+    The four success fixtures say nothing about failure. This directory holds a
+    real 404 for a feature id that cannot exist, so the refusal envelope is
+    evidence rather than an assumption — and so that "an error body is not a
+    success" can be asserted instead of trusted.
+    """
+
+    DIRECTORY = FIXTURES / "refusal-deletePartStudioFeature"
+
+    def _metadata(self) -> dict:
+        return json.loads((self.DIRECTORY / "metadata.json").read_text(encoding="utf-8"))
+
+    def test_the_refusal_is_recorded_with_its_real_shape(self) -> None:
+        metadata = self._metadata()
+        self.assertIs(metadata["liveExecuted"], True)
+        self.assertEqual(metadata["operationId"], "deletePartStudioFeature")
+        self.assertTrue(400 <= metadata["status"] < 500, metadata["status"])
+        self.assertEqual(metadata["ledgerStatus"], metadata["status"])
+        self.assertRegex(metadata["executedAt"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        body = json.loads((self.DIRECTORY / "response.json").read_text(encoding="utf-8"))
+        # The shared error envelope, verbatim: this is what a caller has to
+        # recognise, and it is not the operation's declared response schema.
+        self.assertEqual(set(body), {"moreInfoUrl", "message", "status", "code"})
+        self.assertEqual(body["message"], "Feature not found")
+        self.assertEqual(body["status"], metadata["status"])
+        self.assertIsInstance(body["code"], int)
+        self.assertIsNone(metadata["responseSchema"])
+        self.assertIn("error envelope", metadata["responseSchemaNote"])
+        request = json.loads((self.DIRECTORY / "request.json").read_text(encoding="utf-8"))
+        self.assertEqual(request["method"], "DELETE")
+        self.assertEqual(request["headers"]["Authorization"], "<REDACTED>")
+
+    def test_the_refusal_was_free_of_quota(self) -> None:
+        """4xx does not count toward the annual limit — measured, not assumed."""
+        self.assertEqual(self._metadata()["quotaConsumed"], 0)
+
+    def test_the_success_parser_cannot_mistake_an_error_for_a_success(self) -> None:
+        body = json.loads((self.DIRECTORY / "response.json").read_text(encoding="utf-8"))
+        summary = feature_list.summarize_feature_api_base(body)
+        self.assertEqual(
+            set(summary),
+            {"btType", "sourceMicroversion", "serializationVersion", "libraryVersion"},
+        )
+        self.assertTrue(all(value is None for value in summary.values()))
+
+    def test_every_fixture_directory_states_what_it_is(self) -> None:
+        """A directory without metadata, or a response with no metadata saying it
+        is live, would be an unexplained artifact in the fixture tree."""
+        for directory in sorted(p for p in FIXTURES.iterdir() if p.is_dir()):
+            with self.subTest(directory=directory.name):
+                metadata_path = directory / "metadata.json"
+                self.assertTrue(metadata_path.is_file(), directory.name)
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                self.assertIn("liveExecuted", metadata)
+                self.assertIn("purpose", metadata)
+                self.assertIn("testPurpose", metadata)
+                if (directory / "response.json").is_file():
+                    self.assertIs(metadata["liveExecuted"], True)
+
+
+class LiveReplayTest(unittest.TestCase):
+    """The real server bodies, replayed through the real parsers.
+
+    This is the payoff of the authorized run: the parsers are no longer only
+    checked against a spec-derived instance, they are checked against what
+    Onshape actually answered.
+    """
+
+    def _body(self, operation_id: str) -> dict:
+        return json.loads(
+            (FIXTURES / operation_id / "response.json").read_text(encoding="utf-8")
+        )
+
+    def test_the_read_returns_the_fields_a_replace_call_must_be_fed(self) -> None:
+        body = self._body("getPartStudioFeatures")
+        self.assertEqual(body["btType"], "BTFeatureListResponse-2457")
+        self.assertIs(body["isComplete"], True)
+        self.assertIsInstance(body["rollbackIndex"], int)
+        # The recorded request carries rollbackBarIndex=-1 because that is the
+        # call that returned the list; a follow-up probe showed the argument does
+        # not filter the response (see this directory's README). The URL is pinned
+        # so a re-recorded fixture cannot silently drop the query.
+        request = json.loads(
+            (FIXTURES / "getPartStudioFeatures" / "request.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("rollbackBarIndex=-1", request["url"])
+        feature = body["features"][0]
+        for key in ("featureId", "featureType", "namespace", "parameters", "btType"):
+            self.assertIn(key, feature)
+        self.assertEqual(feature["btType"], feature_list.FEATURE)
+        self.assertEqual(feature["featureType"], "spiralRidge")
+        # The namespace is the Feature Studio that owns the definition, which is
+        # what makes the row a custom feature rather than a standard one.
+        self.assertRegex(feature["namespace"], r"^e[0-9a-f]{20,24}::m[0-9a-f]{20,26}$")
+        # The state map covers the feature, which is how the live path can tell
+        # a computed row from a broken one without a second request.
+        self.assertEqual(
+            body["featureStates"][feature["featureId"]]["featureStatus"], "OK",
+        )
+
+    def test_suppression_replays_to_a_suppressed_feature(self) -> None:
+        summary = feature_list.summarize_update_features(self._body("updateFeatures"))
+        self.assertEqual(summary["featureCount"], 1)
+        self.assertIs(summary["features"][0]["suppressed"], True)
+        self.assertEqual(summary["features"][0]["featureType"], "spiralRidge")
+        self.assertEqual(
+            [item["featureId"] for item in summary["featureStates"]],
+            [summary["features"][0]["featureId"]],
+        )
+        self.assertEqual(summary["featureStates"][0]["featureStatus"], "OK")
+
+    def test_the_in_place_replace_replays_to_an_ok_renamed_feature(self) -> None:
+        body = self._body("updatePartStudioFeature")
+        summary = feature_list.summarize_feature_definition(body)
+        self.assertEqual(summary["featureStatus"], "OK")
+        self.assertIs(summary["inactive"], False)
+        self.assertEqual(summary["featureType"], "spiralRidge")
+        self.assertTrue(summary["feature"]["name"].endswith("(P3 rename)"))
+        self.assertEqual(
+            summary["feature"]["featureId"], body["feature"]["featureId"],
+        )
+
+    def test_rollback_replays_to_a_real_position_and_microversion(self) -> None:
+        summary = feature_list.summarize_rollback(self._body("updateRollback"))
+        self.assertEqual(summary["rollbackIndex"], 1)
+        self.assertTrue(summary["sourceMicroversion"])
+        # `-1` was sent and the server answered with the resolved position: the
+        # response reports where the bar ended up, not the sentinel that was sent.
+        self.assertEqual(summary["microversionId"], self._body("updateRollback")["microversionId"]["theId"])
+
+    def test_the_add_endpoint_returns_the_feature_it_created(self) -> None:
+        """`addPartStudioFeature` is the endpoint `operations.instantiate_feature`
+        has always targeted; this is its only live evidence."""
+        body = self._body("addPartStudioFeature")
+        summary = feature_list.summarize_feature_definition(body)
+        self.assertEqual(summary["featureStatus"], "OK")
+        self.assertIs(summary["inactive"], False)
+        # It resolved the definition the request named, not some other one.
+        self.assertEqual(summary["featureType"], "spiralRidge")
+        request = json.loads(
+            (FIXTURES / "addPartStudioFeature" / "request.json").read_text(encoding="utf-8")
+        )
+        sent = request["body"]["feature"]
+        self.assertEqual(summary["namespace"], sent["namespace"])
+        self.assertEqual(summary["featureId"], body["feature"]["featureId"])
+        self.assertNotEqual(summary["featureId"], "")
+        # The spec takes no parameters, so an empty array is the correct body --
+        # which is also why the in-place replace could round-trip one.
+        self.assertEqual(sent["parameters"], [])
+
+    def test_delete_replays_to_the_versioning_envelope(self) -> None:
+        summary = feature_list.summarize_feature_api_base(self._body("deletePartStudioFeature"))
+        self.assertEqual(summary["btType"], "BTFeatureApiBase-1430")
+        self.assertTrue(summary["sourceMicroversion"])
+        self.assertTrue(summary["serializationVersion"])
+
 
 
 class McpToolTest(unittest.TestCase):

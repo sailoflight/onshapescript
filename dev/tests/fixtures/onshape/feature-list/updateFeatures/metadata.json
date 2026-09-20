@@ -1,17 +1,25 @@
 {
   "operation": "POST /partstudios/d/{did}/w/{wid}/e/{eid}/features/updates",
   "operationId": "updateFeatures",
-  "liveExecuted": false,
-  "status": null,
-  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "liveExecuted": true,
+  "status": 200,
+  "executedAt": "2026-09-19T13:41:23Z",
+  "source": "temp/p3_live/feature_list_live.py — the one authorized live confirmation of the REST Feature-List contract (P3, 2026-09-19).",
   "requestBuiltBy": "feature_list.suppression_body + OnshapeClient.describe",
   "responseSchema": "BTUpdateFeaturesResponse-1333",
-  "purpose": "Suppress two existing features in ONE call: the API needs updateSuppressionAttributes=true or the supplied suppression flag is ignored.",
-  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "purpose": "Suppress one existing feature in ONE call: the API needs updateSuppressionAttributes=true or the supplied suppression flag is ignored.",
+  "testPurpose": "Replay: the recorded response must still parse through feature_list.summarize_update_features and report the suppressed feature and its featureState, which is how the live path reads the new state back.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39",
+    "featureId": "F523rtc3Xx2J8UH_0"
+  },
   "requestHeaders": {
     "Authorization": "<REDACTED>",
     "Accept": "application/json;charset=UTF-8; qs=0.09",
     "Content-Type": "application/json;charset=UTF-8; qs=0.09"
   },
-  "responseHeaders": "None recorded: no request was sent, so no response exists."
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only. The call's status and time are in this file; rate-limit headers land in onshape_rest_api_mode/config/api-usage.json.",
+  "ledgeredStatus": 200
 }

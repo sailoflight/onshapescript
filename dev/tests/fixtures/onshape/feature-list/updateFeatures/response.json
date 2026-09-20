@@ -1,0 +1,31 @@
+{
+  "btType": "BTUpdateFeaturesResponse-1333",
+  "rejectMicroversionSkew": false,
+  "microversionSkew": false,
+  "featureStates": {
+    "F523rtc3Xx2J8UH_0": {
+      "btType": "BTFeatureState-1688",
+      "featureStatus": "OK",
+      "inactive": false
+    }
+  },
+  "features": [
+    {
+      "btType": "BTMFeature-134",
+      "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+      "name": "Spiral ridge 1",
+      "suppressed": true,
+      "parameters": [],
+      "nodeId": "MjppmATRkcnGYrIvx",
+      "featureId": "F523rtc3Xx2J8UH_0",
+      "featureType": "spiralRidge",
+      "returnAfterSubfeatures": false,
+      "subFeatures": [],
+      "parameterLibraries": [],
+      "suppressionState": null
+    }
+  ],
+  "libraryVersion": 0,
+  "serializationVersion": "1.2.21",
+  "sourceMicroversion": "2b7db311d967b4b99a71111e"
+}

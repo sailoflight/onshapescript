@@ -1,16 +1,24 @@
 {
   "operation": "DELETE /partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}",
   "operationId": "deletePartStudioFeature",
-  "liveExecuted": false,
-  "status": null,
-  "source": "Constructed offline by dev/tests/test_rest_feature_list.py; no request was ever sent.",
+  "liveExecuted": true,
+  "status": 200,
+  "executedAt": "2026-09-19T13:41:28Z",
+  "source": "temp/p3_live/feature_list_live.py — the one authorized live confirmation of the REST Feature-List contract (P3, 2026-09-19).",
   "requestBuiltBy": "feature_list.feature_path + OnshapeClient.describe",
   "responseSchema": "BTFeatureApiBase-1430",
-  "purpose": "Remove one feature from the Feature List. One request per feature; there is no batch delete endpoint.",
-  "testPurpose": "test_rest_feature_list.FeatureListFixtureTest asserts this file still equals the current builder output, so any payload change shows up as a reviewable diff here.",
+  "purpose": "Remove one feature from the Feature List. One request per feature; there is no batch delete endpoint. This also empties the scratch Part Studio the run used.",
+  "testPurpose": "Replay: the recorded response must parse through feature_list.summarize_feature_api_base and report sourceMicroversion.",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39",
+    "featureId": "F523rtc3Xx2J8UH_0"
+  },
   "requestHeaders": {
     "Authorization": "<REDACTED>",
     "Accept": "application/json;charset=UTF-8; qs=0.09"
   },
-  "responseHeaders": "None recorded: no request was sent, so no response exists."
+  "responseHeaders": "Not persisted: the shared OnshapeClient returns the parsed body only. The call's status and time are in this file; rate-limit headers land in onshape_rest_api_mode/config/api-usage.json.",
+  "ledgeredStatus": 200
 }

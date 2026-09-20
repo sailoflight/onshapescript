@@ -1,0 +1,1284 @@
+{
+  "probe": "browser->REST handoff and add-endpoint confirmation",
+  "session": "2026-09-19T13:38Z .. 2026-09-20T01:10Z (UTC)",
+  "target": {
+    "document_id": "86e0af79961a09acafcdb72a",
+    "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+    "element_id": "53565f0b68cb86960a092d39",
+    "element_name": "Part Studio 2",
+    "note": "a scratch Part Studio holding a single custom feature at the start of the experiment"
+  },
+  "question": "A browser-inserted custom feature was invisible to REST until a page reload during the P3 run. Is that because the read endpoint's documented rollbackBarIndex default is not honoured, or because the feature had not reached the workspace?",
+  "timeline": [
+    {
+      "step": "1. browser insert",
+      "at": "~01:00Z 2026-09-20",
+      "tool": "browser_insert_custom_feature",
+      "result": "inserted:true, errored:false, listed:true, regeneration waited 7553ms; DOM row 'Sr Spiral ridge 1' with classes 'related-highlight edited selected ns-user-feature'; partsText '零件数 (1) Spiral ridge cylinder'",
+      "restCalls": 0
+    },
+    {
+      "step": "2. REST read, no reload",
+      "at": "~01:02Z",
+      "tool": "read_param_probe --only no-argument",
+      "result": "200, rollbackIndex 0, features [], defaultFeatures 4",
+      "restCalls": 1,
+      "record": {
+        "label": "no-argument",
+        "request": {
+          "method": "GET",
+          "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features",
+          "headers": {
+            "Authorization": "<REDACTED>",
+            "Accept": "application/json;charset=UTF-8; qs=0.09"
+          },
+          "body": null
+        },
+        "status": 200,
+        "at": "2026-09-20T01:02:49Z",
+        "response": {
+          "btType": "BTFeatureListResponse-2457",
+          "isComplete": true,
+          "serializationVersion": "1.2.21",
+          "rollbackIndex": 0,
+          "features": [],
+          "sourceMicroversion": "17537f139a51a021177410a1",
+          "microversionSkew": false,
+          "rejectMicroversionSkew": false,
+          "libraryVersion": 3083,
+          "featureStates": {
+            "Origin": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Top": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Front": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Right": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            }
+          },
+          "imports": [
+            {
+              "btType": "BTMImport-136",
+              "namespace": "",
+              "nodeId": "MWVhvVY6LfNXvGsiV",
+              "path": "onshape/std/geometry.fs",
+              "version": "3083.0"
+            }
+          ],
+          "defaultFeatures": [
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Origin",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Origin",
+              "nodeId": "MvYBegUfY6v6/cQk7",
+              "featureType": "origin",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Top",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Top",
+              "nodeId": "M96TEReD9LO/gUC/y",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Front",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Front",
+              "nodeId": "M4e6mO9mNqXEaRRLT",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Right",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Right",
+              "nodeId": "MMpCQKH4BWuMR1YNh",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            }
+          ]
+        },
+        "rollbackIndex": 0,
+        "featureCount": 0,
+        "defaultFeatureCount": 4,
+        "featureIds": [],
+        "featureStates": [
+          "Front",
+          "Origin",
+          "Right",
+          "Top"
+        ]
+      }
+    },
+    {
+      "step": "3. REST read again +80s later, still no reload",
+      "at": "01:03:18Z",
+      "tool": "read_param_probe --only no-argument",
+      "result": "200, rollbackIndex 0, features [], defaultFeatures 4 -- time alone does not commit it",
+      "restCalls": 1,
+      "record": {
+        "label": "no-argument",
+        "request": {
+          "method": "GET",
+          "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features",
+          "headers": {
+            "Authorization": "<REDACTED>",
+            "Accept": "application/json;charset=UTF-8; qs=0.09"
+          },
+          "body": null
+        },
+        "status": 200,
+        "at": "2026-09-20T01:04:40Z",
+        "response": {
+          "btType": "BTFeatureListResponse-2457",
+          "isComplete": true,
+          "serializationVersion": "1.2.21",
+          "rollbackIndex": 0,
+          "features": [],
+          "sourceMicroversion": "17537f139a51a021177410a1",
+          "microversionSkew": false,
+          "rejectMicroversionSkew": false,
+          "libraryVersion": 3083,
+          "featureStates": {
+            "Origin": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Top": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Front": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Right": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            }
+          },
+          "imports": [
+            {
+              "btType": "BTMImport-136",
+              "namespace": "",
+              "nodeId": "MWVhvVY6LfNXvGsiV",
+              "path": "onshape/std/geometry.fs",
+              "version": "3083.0"
+            }
+          ],
+          "defaultFeatures": [
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Origin",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Origin",
+              "nodeId": "MvYBegUfY6v6/cQk7",
+              "featureType": "origin",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Top",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Top",
+              "nodeId": "M96TEReD9LO/gUC/y",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Front",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Front",
+              "nodeId": "M4e6mO9mNqXEaRRLT",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Right",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Right",
+              "nodeId": "MMpCQKH4BWuMR1YNh",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            }
+          ]
+        },
+        "rollbackIndex": 0,
+        "featureCount": 0,
+        "defaultFeatureCount": 4,
+        "featureIds": [],
+        "featureStates": [
+          "Front",
+          "Origin",
+          "Right",
+          "Top"
+        ]
+      }
+    },
+    {
+      "step": "4. page reload",
+      "at": "~01:05Z",
+      "tool": "browser_session reload",
+      "result": "DOM row now 'os-list-item ns-user-feature' (the pending classes are gone)",
+      "restCalls": 0
+    },
+    {
+      "step": "5. REST read after the reload",
+      "at": "~01:06Z",
+      "tool": "read_param_probe --only no-argument",
+      "result": "200, rollbackIndex 1, features ['FS0ew9p43DwiUAc_0'], defaultFeatures 4",
+      "restCalls": 1,
+      "record": {
+        "label": "no-argument",
+        "request": {
+          "method": "GET",
+          "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features",
+          "headers": {
+            "Authorization": "<REDACTED>",
+            "Accept": "application/json;charset=UTF-8; qs=0.09"
+          },
+          "body": null
+        },
+        "status": 200,
+        "at": "2026-09-20T01:06:03Z",
+        "response": {
+          "btType": "BTFeatureListResponse-2457",
+          "serializationVersion": "1.2.21",
+          "isComplete": true,
+          "rollbackIndex": 1,
+          "features": [
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+              "name": "Spiral ridge 1",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "FS0ew9p43DwiUAc_0",
+              "nodeId": "MxIhM7tcVCHHcZMcF",
+              "featureType": "spiralRidge",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            }
+          ],
+          "sourceMicroversion": "fc087b29cffd036f3e004246",
+          "microversionSkew": false,
+          "rejectMicroversionSkew": false,
+          "libraryVersion": 3083,
+          "featureStates": {
+            "Origin": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Top": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Front": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Right": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "FS0ew9p43DwiUAc_0": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            }
+          },
+          "imports": [
+            {
+              "btType": "BTMImport-136",
+              "namespace": "",
+              "nodeId": "MWVhvVY6LfNXvGsiV",
+              "version": "3083.0",
+              "path": "onshape/std/geometry.fs"
+            }
+          ],
+          "defaultFeatures": [
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Origin",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Origin",
+              "nodeId": "MvYBegUfY6v6/cQk7",
+              "featureType": "origin",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Top",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Top",
+              "nodeId": "M96TEReD9LO/gUC/y",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Front",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Front",
+              "nodeId": "M4e6mO9mNqXEaRRLT",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Right",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Right",
+              "nodeId": "MMpCQKH4BWuMR1YNh",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            }
+          ]
+        },
+        "rollbackIndex": 1,
+        "featureCount": 1,
+        "defaultFeatureCount": 4,
+        "featureIds": [
+          "FS0ew9p43DwiUAc_0"
+        ],
+        "featureStates": [
+          "FS0ew9p43DwiUAc_0",
+          "Front",
+          "Origin",
+          "Right",
+          "Top"
+        ]
+      }
+    },
+    {
+      "step": "6. REST add (the control)",
+      "at": "01:07:19Z",
+      "tool": "add_feature_probe",
+      "result": "200, BTFeatureDefinitionResponse-1617, featureStatus OK, featureId FLs0vBdvuflFHIG_1",
+      "restCalls": 1,
+      "record": {
+        "probe": "addPartStudioFeature live confirmation",
+        "hypothesis": "POST /partstudios/.../features with a BTFeatureDefinitionCall-1406 envelope naming spiralRidge and the recorded Feature Studio namespace answers 200 with BTFeatureDefinitionResponse-1617, a new featureId and an OK featureState",
+        "request": {
+          "method": "POST",
+          "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features",
+          "headers": {
+            "Authorization": "<REDACTED>",
+            "Accept": "application/json;charset=UTF-8; qs=0.09",
+            "Content-Type": "application/json;charset=UTF-8; qs=0.09"
+          },
+          "body": {
+            "btType": "BTFeatureDefinitionCall-1406",
+            "feature": {
+              "btType": "BTMFeature-134",
+              "featureType": "spiralRidge",
+              "name": "P3 add probe",
+              "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+              "parameters": [],
+              "returnAfterSubfeatures": false,
+              "suppressed": false
+            }
+          }
+        },
+        "status": 200,
+        "at": "2026-09-20T01:07:19Z",
+        "responseSchema": "BTFeatureDefinitionResponse-1617",
+        "summary": {
+          "featureStatus": "OK",
+          "inactive": false,
+          "featureId": "FLs0vBdvuflFHIG_1",
+          "featureType": "spiralRidge",
+          "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+          "sourceMicroversion": "b16902fd1bd0bb74fa78acd3"
+        },
+        "response": {
+          "btType": "BTFeatureDefinitionResponse-1617",
+          "rejectMicroversionSkew": false,
+          "microversionSkew": false,
+          "featureState": {
+            "btType": "BTFeatureState-1688",
+            "featureStatus": "OK",
+            "inactive": false
+          },
+          "feature": {
+            "btType": "BTMFeature-134",
+            "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+            "name": "P3 add probe",
+            "suppressed": false,
+            "parameters": [],
+            "featureId": "FLs0vBdvuflFHIG_1",
+            "nodeId": "MHc0U0KJiQhFrkhkj",
+            "featureType": "spiralRidge",
+            "returnAfterSubfeatures": false,
+            "subFeatures": [],
+            "parameterLibraries": [],
+            "suppressionState": null
+          },
+          "libraryVersion": 0,
+          "serializationVersion": "1.2.21",
+          "sourceMicroversion": "b16902fd1bd0bb74fa78acd3"
+        },
+        "guard": {
+          "label": "addPartStudioFeature live confirmation",
+          "budget": 1,
+          "spent": 1,
+          "remaining": 0,
+          "attemptedRequests": 1,
+          "attemptsRemaining": 0,
+          "maxAttempts": 1,
+          "annualRemaining": 1743
+        }
+      }
+    },
+    {
+      "step": "7. REST read after the add",
+      "at": "~01:08Z",
+      "tool": "read_param_probe --only no-argument",
+      "result": "200, rollbackIndex 2, features ['FS0ew9p43DwiUAc_0', 'FLs0vBdvuflFHIG_1'] -- a REST-added feature is visible immediately, on the same element, with no reload",
+      "restCalls": 1,
+      "record": {
+        "label": "no-argument",
+        "request": {
+          "method": "GET",
+          "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features",
+          "headers": {
+            "Authorization": "<REDACTED>",
+            "Accept": "application/json;charset=UTF-8; qs=0.09"
+          },
+          "body": null
+        },
+        "status": 200,
+        "at": "2026-09-20T01:07:35Z",
+        "response": {
+          "btType": "BTFeatureListResponse-2457",
+          "serializationVersion": "1.2.21",
+          "isComplete": true,
+          "rollbackIndex": 2,
+          "features": [
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+              "name": "Spiral ridge 1",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "FS0ew9p43DwiUAc_0",
+              "nodeId": "MxIhM7tcVCHHcZMcF",
+              "featureType": "spiralRidge",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+              "name": "P3 add probe",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "FLs0vBdvuflFHIG_1",
+              "nodeId": "MHc0U0KJiQhFrkhkj",
+              "featureType": "spiralRidge",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            }
+          ],
+          "sourceMicroversion": "b16902fd1bd0bb74fa78acd3",
+          "microversionSkew": false,
+          "rejectMicroversionSkew": false,
+          "libraryVersion": 3083,
+          "featureStates": {
+            "Origin": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Top": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Front": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "FLs0vBdvuflFHIG_1": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "Right": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            },
+            "FS0ew9p43DwiUAc_0": {
+              "btType": "BTFeatureState-1688",
+              "featureStatus": "OK",
+              "inactive": false
+            }
+          },
+          "imports": [
+            {
+              "btType": "BTMImport-136",
+              "namespace": "",
+              "nodeId": "MWVhvVY6LfNXvGsiV",
+              "version": "3083.0",
+              "path": "onshape/std/geometry.fs"
+            }
+          ],
+          "defaultFeatures": [
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Origin",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Origin",
+              "nodeId": "MvYBegUfY6v6/cQk7",
+              "featureType": "origin",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Top",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Top",
+              "nodeId": "M96TEReD9LO/gUC/y",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Front",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Front",
+              "nodeId": "M4e6mO9mNqXEaRRLT",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            },
+            {
+              "btType": "BTMFeature-134",
+              "namespace": "",
+              "name": "Right",
+              "suppressed": false,
+              "parameters": [],
+              "featureId": "Right",
+              "nodeId": "MMpCQKH4BWuMR1YNh",
+              "featureType": "defaultPlane",
+              "returnAfterSubfeatures": false,
+              "subFeatures": [],
+              "parameterLibraries": [],
+              "suppressionState": null
+            }
+          ]
+        },
+        "rollbackIndex": 2,
+        "featureCount": 2,
+        "defaultFeatureCount": 4,
+        "featureIds": [
+          "FS0ew9p43DwiUAc_0",
+          "FLs0vBdvuflFHIG_1"
+        ],
+        "featureStates": [
+          "FLs0vBdvuflFHIG_1",
+          "FS0ew9p43DwiUAc_0",
+          "Front",
+          "Origin",
+          "Right",
+          "Top"
+        ]
+      }
+    },
+    {
+      "step": "8. cleanup",
+      "at": "~01:09Z",
+      "tool": "cleanup_features",
+      "result": "both features DELETEd, each 200 BTFeatureApiBase-1430; Part Studio 2 back to 特征 (4) / 零件数 (0) by a zero-quota browser read",
+      "restCalls": 2
+    }
+  ],
+  "conclusion": "The read endpoint was never the problem. `rollbackBarIndex` does not filter the returned list (absent / -1 / 0 returned identical bodies on a long-committed element), and `rollbackIndex` reports the element's own rollback-bar position. The browser-inserted feature genuinely was not in the workspace: waiting ~4 minutes did not commit it and a page reload did. A REST-added feature on the same element was visible immediately, which is the control that rules out a caching artefact on the read side.",
+  "limits": [
+    "One element, one document, one custom feature type. Not repeated across documents or URL forms.",
+    "The mechanism inside the Onshape client (pending edit log flushed on reload, versus a delayed microversion push) is NOT established; only the observed behaviour is.",
+    "The reproduction used the page reload as the commit trigger. Whether an explicit save or a tab switch would do the same was not tested.",
+    "REST calls spent on the whole follow-up: 10 (the authorized budget), of which the refusal probe consumed 0 quota because 4xx is not counted."
+  ],
+  "raw": {
+    "read_param_probe_3way": {
+      "probe": "Feature List read param probe",
+      "target": {
+        "document_id": "86e0af79961a09acafcdb72a",
+        "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+        "element_id": "05406f02482e1d943d80dc3e"
+      },
+      "hypotheses": {
+        "H1_default": "the server's effective default is not the documented -1",
+        "H2_handoff": "the P3 feature only reached the workspace on the page reload"
+      },
+      "reads": [
+        {
+          "label": "no-argument",
+          "request": {
+            "method": "GET",
+            "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/05406f02482e1d943d80dc3e/features",
+            "headers": {
+              "Authorization": "<REDACTED>",
+              "Accept": "application/json;charset=UTF-8; qs=0.09"
+            },
+            "body": null
+          },
+          "status": 200,
+          "at": "2026-09-20T00:50:36Z",
+          "response": {
+            "btType": "BTFeatureListResponse-2457",
+            "serializationVersion": "1.2.21",
+            "isComplete": true,
+            "rollbackIndex": 2,
+            "features": [
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+                "name": "Spiral ridge 1",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "FdXF5Z4OAjw1Adc_0",
+                "nodeId": "MqgrAIbq9T//ptTBy",
+                "featureType": "spiralRidge",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+                "name": "Spiral ridge 2",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "FjnYwuBiM7wPd3J_1",
+                "nodeId": "MnOAD8HtMWb8a7WwJ",
+                "featureType": "spiralRidge",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              }
+            ],
+            "sourceMicroversion": "17537f139a51a021177410a1",
+            "microversionSkew": false,
+            "rejectMicroversionSkew": false,
+            "libraryVersion": 3083,
+            "featureStates": {
+              "Origin": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "FjnYwuBiM7wPd3J_1": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Top": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "FdXF5Z4OAjw1Adc_0": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Front": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Right": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              }
+            },
+            "imports": [
+              {
+                "btType": "BTMImport-136",
+                "namespace": "",
+                "nodeId": "MQLzTmkuZjjKGKiaU",
+                "path": "onshape/std/geometry.fs",
+                "version": "3083.0"
+              }
+            ],
+            "defaultFeatures": [
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Origin",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Origin",
+                "nodeId": "MXp45g6TTbc4Y6v7O",
+                "featureType": "origin",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Top",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Top",
+                "nodeId": "MaWZmc6foWpu3UnO6",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Front",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Front",
+                "nodeId": "MqPt3+4EsnW+yMpoX",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Right",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Right",
+                "nodeId": "MLMYg3Ko4tOcjLypn",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              }
+            ]
+          },
+          "rollbackIndex": 2,
+          "featureCount": 2,
+          "defaultFeatureCount": 4,
+          "featureIds": [
+            "FdXF5Z4OAjw1Adc_0",
+            "FjnYwuBiM7wPd3J_1"
+          ],
+          "featureStates": [
+            "FdXF5Z4OAjw1Adc_0",
+            "FjnYwuBiM7wPd3J_1",
+            "Front",
+            "Origin",
+            "Right",
+            "Top"
+          ]
+        },
+        {
+          "label": "-1 end of list",
+          "request": {
+            "method": "GET",
+            "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/05406f02482e1d943d80dc3e/features?rollbackBarIndex=-1",
+            "headers": {
+              "Authorization": "<REDACTED>",
+              "Accept": "application/json;charset=UTF-8; qs=0.09"
+            },
+            "body": null
+          },
+          "status": 200,
+          "at": "2026-09-20T00:50:37Z",
+          "response": {
+            "btType": "BTFeatureListResponse-2457",
+            "serializationVersion": "1.2.21",
+            "isComplete": true,
+            "rollbackIndex": 2,
+            "features": [
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+                "name": "Spiral ridge 1",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "FdXF5Z4OAjw1Adc_0",
+                "nodeId": "MqgrAIbq9T//ptTBy",
+                "featureType": "spiralRidge",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+                "name": "Spiral ridge 2",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "FjnYwuBiM7wPd3J_1",
+                "nodeId": "MnOAD8HtMWb8a7WwJ",
+                "featureType": "spiralRidge",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              }
+            ],
+            "sourceMicroversion": "17537f139a51a021177410a1",
+            "microversionSkew": false,
+            "rejectMicroversionSkew": false,
+            "libraryVersion": 3083,
+            "featureStates": {
+              "Origin": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "FjnYwuBiM7wPd3J_1": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Top": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "FdXF5Z4OAjw1Adc_0": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Front": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Right": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              }
+            },
+            "imports": [
+              {
+                "btType": "BTMImport-136",
+                "namespace": "",
+                "nodeId": "MQLzTmkuZjjKGKiaU",
+                "path": "onshape/std/geometry.fs",
+                "version": "3083.0"
+              }
+            ],
+            "defaultFeatures": [
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Origin",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Origin",
+                "nodeId": "MXp45g6TTbc4Y6v7O",
+                "featureType": "origin",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Top",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Top",
+                "nodeId": "MaWZmc6foWpu3UnO6",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Front",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Front",
+                "nodeId": "MqPt3+4EsnW+yMpoX",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Right",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Right",
+                "nodeId": "MLMYg3Ko4tOcjLypn",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              }
+            ]
+          },
+          "rollbackIndex": 2,
+          "featureCount": 2,
+          "defaultFeatureCount": 4,
+          "featureIds": [
+            "FdXF5Z4OAjw1Adc_0",
+            "FjnYwuBiM7wPd3J_1"
+          ],
+          "featureStates": [
+            "FdXF5Z4OAjw1Adc_0",
+            "FjnYwuBiM7wPd3J_1",
+            "Front",
+            "Origin",
+            "Right",
+            "Top"
+          ]
+        },
+        {
+          "label": "0 top of list",
+          "request": {
+            "method": "GET",
+            "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/05406f02482e1d943d80dc3e/features?rollbackBarIndex=0",
+            "headers": {
+              "Authorization": "<REDACTED>",
+              "Accept": "application/json;charset=UTF-8; qs=0.09"
+            },
+            "body": null
+          },
+          "status": 200,
+          "at": "2026-09-20T00:50:38Z",
+          "response": {
+            "btType": "BTFeatureListResponse-2457",
+            "serializationVersion": "1.2.21",
+            "isComplete": true,
+            "rollbackIndex": 2,
+            "features": [
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+                "name": "Spiral ridge 1",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "FdXF5Z4OAjw1Adc_0",
+                "nodeId": "MqgrAIbq9T//ptTBy",
+                "featureType": "spiralRidge",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "e28387ea6f126e7d45ef539ac::md300f71d986982a9df2b8733",
+                "name": "Spiral ridge 2",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "FjnYwuBiM7wPd3J_1",
+                "nodeId": "MnOAD8HtMWb8a7WwJ",
+                "featureType": "spiralRidge",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              }
+            ],
+            "sourceMicroversion": "17537f139a51a021177410a1",
+            "microversionSkew": false,
+            "rejectMicroversionSkew": false,
+            "libraryVersion": 3083,
+            "featureStates": {
+              "Origin": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "FjnYwuBiM7wPd3J_1": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Top": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "FdXF5Z4OAjw1Adc_0": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Front": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              },
+              "Right": {
+                "btType": "BTFeatureState-1688",
+                "featureStatus": "OK",
+                "inactive": false
+              }
+            },
+            "imports": [
+              {
+                "btType": "BTMImport-136",
+                "namespace": "",
+                "nodeId": "MQLzTmkuZjjKGKiaU",
+                "path": "onshape/std/geometry.fs",
+                "version": "3083.0"
+              }
+            ],
+            "defaultFeatures": [
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Origin",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Origin",
+                "nodeId": "MXp45g6TTbc4Y6v7O",
+                "featureType": "origin",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Top",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Top",
+                "nodeId": "MaWZmc6foWpu3UnO6",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Front",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Front",
+                "nodeId": "MqPt3+4EsnW+yMpoX",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              },
+              {
+                "btType": "BTMFeature-134",
+                "namespace": "",
+                "name": "Right",
+                "suppressed": false,
+                "parameters": [],
+                "featureId": "Right",
+                "nodeId": "MLMYg3Ko4tOcjLypn",
+                "featureType": "defaultPlane",
+                "returnAfterSubfeatures": false,
+                "subFeatures": [],
+                "parameterLibraries": [],
+                "suppressionState": null
+              }
+            ]
+          },
+          "rollbackIndex": 2,
+          "featureCount": 2,
+          "defaultFeatureCount": 4,
+          "featureIds": [
+            "FdXF5Z4OAjw1Adc_0",
+            "FjnYwuBiM7wPd3J_1"
+          ],
+          "featureStates": [
+            "FdXF5Z4OAjw1Adc_0",
+            "FjnYwuBiM7wPd3J_1",
+            "Front",
+            "Origin",
+            "Right",
+            "Top"
+          ]
+        }
+      ],
+      "guard": {
+        "label": "Feature List read param probe",
+        "budget": 3,
+        "spent": 3,
+        "remaining": 0,
+        "attemptedRequests": 3,
+        "attemptsRemaining": 0,
+        "maxAttempts": 3,
+        "annualRemaining": 1749
+      }
+    },
+    "error_shape_probe": {
+      "probe": "Feature List refusal-shape probe",
+      "target": {
+        "document_id": "86e0af79961a09acafcdb72a",
+        "workspace_id": "07cea03dcf0556d0d1a8a3ac",
+        "element_id": "53565f0b68cb86960a092d39"
+      },
+      "request": {
+        "method": "DELETE",
+        "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features/featureid/P3ProbeNoSuchFeature_0",
+        "headers": {
+          "Authorization": "<REDACTED>",
+          "Accept": "application/json;charset=UTF-8; qs=0.09"
+        },
+        "body": null
+      },
+      "ledgerStatus": 404,
+      "at": "2026-09-20T00:52:40Z",
+      "outcome": {
+        "refused": true,
+        "errorMessage": "HTTP 404: {\"moreInfoUrl\": \"\", \"message\": \"Feature not found\", \"status\": 404, \"code\": 9999}",
+        "status": 404,
+        "responseBody": {
+          "moreInfoUrl": "",
+          "message": "Feature not found",
+          "status": 404,
+          "code": 9999
+        }
+      },
+      "quotaConsumedByThisProbe": 0,
+      "guard": {
+        "label": "Feature List refusal-shape probe",
+        "budget": 1,
+        "spent": 0,
+        "remaining": 1,
+        "attemptedRequests": 1,
+        "attemptsRemaining": 0,
+        "maxAttempts": 1,
+        "annualRemaining": 1746
+      }
+    }
+  }
+}

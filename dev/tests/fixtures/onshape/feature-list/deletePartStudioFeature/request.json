@@ -1,6 +1,6 @@
 {
   "method": "DELETE",
-  "url": "https://cad.onshape.com/api/v9/partstudios/d/DOCID/w/WKSID/e/PSID/features/featureid/FEATID_A",
+  "url": "https://cad.onshape.com/api/v9/partstudios/d/86e0af79961a09acafcdb72a/w/07cea03dcf0556d0d1a8a3ac/e/53565f0b68cb86960a092d39/features/featureid/F523rtc3Xx2J8UH_0",
   "headers": {
     "Authorization": "<REDACTED>",
     "Accept": "application/json;charset=UTF-8; qs=0.09"
