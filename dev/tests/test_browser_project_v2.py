@@ -186,3 +186,123 @@ class ProjectV2Test(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProjectThinFeatureBuildTest(unittest.TestCase):
+    """A project must be able to CREATE a thin row already carrying its numbers.
+
+    A thin, native-shaped custom feature is exactly a row of a few numbers, so the
+    only way one project can build a feature tree of them without a browser
+    transaction per row is a tool that inserts with parameters. Before this the
+    closed set held no such tool, and the closed set's rule is that an unlisted
+    tool is refused rather than run.
+    """
+
+    def test_insert_with_parameters_is_allowed_and_has_an_outcome_key(self):
+        self.assertIn("browser_insert_custom_feature", project.ALLOWED_PROJECT_TOOLS)
+        self.assertEqual(
+            project.TOOL_OUTCOME_KEYS["browser_insert_custom_feature"], "inserted"
+        )
+
+    def test_every_allowed_tool_binds_an_outcome_key(self):
+        """The closed set and the outcome table must not drift apart."""
+        missing = sorted(project.ALLOWED_PROJECT_TOOLS - set(project.TOOL_OUTCOME_KEYS))
+        self.assertEqual(missing, [])
+
+    def test_every_allowed_tool_can_actually_serve_a_step(self):
+        """The closed set must not name a tool the runner cannot resolve.
+
+        A tool can be listed here, carry an outcome key, be registered with the
+        server, and still be refused at run time: a step's tool is resolved from the
+        browser module, which looks in BROWSER_HANDLERS for the handler and then in
+        BROWSER_TOOLS for the definition. A tool known only to the server's own tool
+        list is therefore refused on its first step with "Project tool has no
+        registered schema", which is what happened to
+        browser_insert_custom_feature. Importing the server runs install(), which is
+        the step that completes BROWSER_TOOLS.
+        """
+        from mcp_main.win.mcp import browser_tools, server  # noqa: F401 - install() fills the table
+
+        handlers = set(browser_tools.BROWSER_HANDLERS) | browser_tools.PROJECT_INLINE_TOOLS
+        schemas = {tool["name"] for tool in browser_tools.BROWSER_TOOLS}
+        self.assertEqual(sorted(project.ALLOWED_PROJECT_TOOLS - handlers), [])
+        self.assertEqual(
+            sorted(project.ALLOWED_PROJECT_TOOLS - schemas - browser_tools.PROJECT_INLINE_TOOLS),
+            [],
+        )
+
+    def test_a_step_that_inserts_with_parameters_runs_and_reports_its_evidence(self):
+        seen: list[tuple[str, dict]] = []
+
+        def executor(tool, args):
+            seen.append((tool, args))
+            if tool == "browser_deploy_and_apply_featurescript":
+                return {"built": True}
+            return {
+                "inserted": True,
+                "parameters": {"updated": ["width"], "missing": [], "readbackOk": True},
+            }
+
+        fixture = {
+            "schemaVersion": 1,
+            "name": "thin-row-build",
+            "steps": [
+                {"id": "refresh-fs", "tool": "browser_deploy_and_apply_featurescript",
+                 "args": {"script_file": "dev/fixtures-capture/thin-native-features.fs",
+                          "apply": False}},
+                {"id": "body-sketch", "tool": "browser_insert_custom_feature",
+                 "args": {"feature_name": "Thin Sketch Rectangle",
+                          "parameters": {"width": "84 mm", "height": "84 mm"}}},
+                {"id": "body-extrude", "tool": "browser_insert_custom_feature",
+                 "args": {"feature_name": "Thin Extrude", "parameters": {"depth": "10 mm"}}},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            projects = Path(directory)
+            (projects / "thin-row-build.json").write_text(
+                json.dumps(fixture), encoding="utf-8"
+            )
+            result = project.run_project(
+                "thin-row-build",
+                executor=executor,
+                projects_dir=projects,
+                checkpoint_dir=projects,
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual([tool for tool, _ in seen],
+                         ["browser_deploy_and_apply_featurescript",
+                          "browser_insert_custom_feature",
+                          "browser_insert_custom_feature"])
+        self.assertEqual(seen[1][1]["parameters"], {"width": "84 mm", "height": "84 mm"})
+
+    def test_an_insert_that_did_not_land_stops_the_project(self):
+        def executor(tool, args):
+            if tool == "browser_deploy_and_apply_featurescript":
+                return {"built": True}
+            return {"inserted": False, "reason": "the parameter dialog was not filled exactly"}
+
+        fixture = {
+            "schemaVersion": 1,
+            "name": "thin-row-refused",
+            "steps": [
+                {"id": "refresh-fs", "tool": "browser_deploy_and_apply_featurescript",
+                 "args": {"script_file": "dev/fixtures-capture/thin-native-features.fs",
+                          "apply": False}},
+                {"id": "body-sketch", "tool": "browser_insert_custom_feature",
+                 "args": {"feature_name": "Thin Sketch Rectangle",
+                          "parameters": {"width": "84 mm"}}},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            projects = Path(directory)
+            (projects / "thin-row-refused.json").write_text(
+                json.dumps(fixture), encoding="utf-8"
+            )
+            result = project.run_project(
+                "thin-row-refused",
+                executor=executor,
+                projects_dir=projects,
+                checkpoint_dir=projects,
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["failed"]["id"], "body-sketch")

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import traceback
 from typing import Any, Callable
@@ -1275,21 +1276,16 @@ def _browser_get_page_tabs(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_insert_custom_feature(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Insert a custom FeatureScript feature into a Part Studio (0 API quota)."""
-    from onshape_browser_mode import actions
-    from onshape_browser_mode.guard import get_guard
-    from onshape_browser_mode.session import get_session
+    """Insert a custom FeatureScript feature into a Part Studio (0 API quota).
 
-    _confirm(arguments)
-    feature_name = arguments.get("feature_name", "Branch cable trophy display")
-    part_studio_tab = arguments.get("part_studio_tab", "")
+    One implementation, in the browser handler module, because the project runner
+    resolves a step's tool through that module's BROWSER_HANDLERS table: a handler
+    that lived only here would work as a direct call yet be refused as a project
+    step, which is exactly how a row-by-row build first failed.
+    """
+    from mcp_main.win.mcp.browser_tools import browser_insert_custom_feature
 
-    session = get_session()
-    page = session.start()
-    session._enforce_single_working_page(page)
-    actions.reconnect_if_needed(page)
-    get_guard().pace()
-    return actions.insert_custom_feature(page, feature_name, part_studio_tab or None)
+    return browser_insert_custom_feature(arguments)
 
 
 def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -2843,7 +2839,13 @@ TOOLS: list[dict[str, Any]] = [
             "count it read and both computed budgets. "
             "This mutates the document (adds a feature instance), so it requires confirm_mutation=true. Returns the "
             "resulting feature-tree/part-list state; the separate 添加自定义特征 picker is not used because it may "
-            "leave a not-computed row."
+            "leave a not-computed row. "
+            "Pass `parameters` to fill the new row's dialog before it is accepted, so ONE transaction creates the row "
+            "with its numbers rather than with the dialog defaults. A thin custom feature is exactly a row of a few "
+            "numbers, and insert-then-edit would cost two browser transactions per row. A parameter id that cannot be "
+            "located, or whose readback does not match, refuses the insert and leaves the dialog unaccepted "
+            "(`inserted: false` with the `parameters` evidence); the fill and its readback are the same code path "
+            "browser_edit_feature_parameters uses."
         ),
         "inputSchema": object_schema({
             "feature_name": {
@@ -2855,6 +2857,20 @@ TOOLS: list[dict[str, Any]] = [
                 "type": "string",
                 "default": "",
                 "description": "Part Studio tab name to switch to first; empty means use the current tab.",
+            },
+            "parameters": {
+                "type": "object",
+                "default": {},
+                "description": (
+                    "Parameter ids mapped to values; filled into the dialog before it is accepted. "
+                    "Strings, numbers, and booleans only."
+                ),
+                "additionalProperties": {"type": ["string", "number", "boolean"]},
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Return the transaction plan without opening the browser or writing anything.",
             },
             "confirm_mutation": mutating_confirmation(),
         }, ["confirm_mutation"]),

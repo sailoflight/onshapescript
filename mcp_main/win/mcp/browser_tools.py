@@ -826,6 +826,58 @@ def _resolve_deploy_source(arguments: dict[str, Any]) -> tuple[str, str, dict[st
     return script, feature_name, capability_plan, local_check
 
 
+def _feature_parameters(arguments: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize the insert dialog's parameter map, or refuse it (0 API quota).
+
+    A thin custom feature is a row of a few numbers, so the insert transaction
+    carries them instead of adding a default-valued row and editing it afterwards.
+    Each id becomes a dialog field selector, which is why an id must be a CSS-safe
+    identifier, and each value must be a scalar the field mechanism accepts.
+    """
+    parameters = arguments.get("parameters")
+    if parameters is None:
+        return None
+    if not isinstance(parameters, dict):
+        raise ValueError("parameters must be an object of parameter ids to values")
+    if not parameters:
+        return None
+    for key, value in parameters.items():
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", key):
+            raise ValueError("parameter ids must be CSS-safe identifiers")
+        if not isinstance(value, (str, int, float, bool)):
+            raise ValueError("parameter values must be strings, numbers, or booleans")
+    return dict(parameters)
+
+
+def browser_insert_custom_feature(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Insert a custom FeatureScript feature, with its parameters, in one transaction.
+
+    This lives here, next to the other browser handlers, because the project runner
+    resolves a step's tool through BROWSER_HANDLERS: a tool that only the server's
+    own handler map knows about cannot be a project step, and a row-by-row build
+    would then have no way to create a row that already carries its numbers.
+    """
+    parameters = _feature_parameters(arguments)
+    preview = _mutation_plan("browser_insert_custom_feature", arguments, [
+        "switch to the Part Studio tab",
+        "open the workspace custom-feature dropdown",
+        "select the named feature",
+        "fill the parameter dialog",
+        "accept and confirm the row survived a reload",
+    ])
+    if preview:
+        return {**preview, "parameters": parameters or {}}
+    page, _ = _page()
+    from onshape_browser_mode import actions
+
+    return actions.insert_custom_feature(
+        page,
+        arguments.get("feature_name", "Branch cable trophy display"),
+        arguments.get("part_studio_tab") or None,
+        parameters,
+    )
+
+
 def browser_deploy_and_apply_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     script, feature_name, capability_plan, local_check = _resolve_deploy_source(arguments)
     extra = {"capability": capability_plan} if capability_plan else {}
@@ -949,7 +1001,17 @@ def browser_draw_part(arguments: dict[str, Any]) -> dict[str, Any]:
     return draw_part(page, source_tab=source, template=arguments.get("template", ""), dimensions=normalized_dimensions)
 
 
+# A project step's tool is resolved through BROWSER_HANDLERS, except for the few
+# the runner's executor implements itself. Naming them here is what lets a test
+# compare onshape_browser_mode.project.ALLOWED_PROJECT_TOOLS against the handlers
+# that can actually serve a step: without that comparison a tool can be allowed by
+# the fixture schema, known to the server's own handler map, and still be refused
+# at run time -- which is exactly how the first row-by-row build failed.
+PROJECT_INLINE_TOOLS = {"browser_create_document"}
+
+
 def browser_run_project(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Run a fixture-driven project; see onshape_browser_mode.project.run_project."""
     from onshape_browser_mode.project import run_project
     project_name = arguments.get("project", "module-interface-verification")
     if arguments.get("dry_run"):
@@ -957,7 +1019,7 @@ def browser_run_project(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
 
     def execute(tool: str, args: dict[str, Any]) -> dict[str, Any]:
-        if tool == "browser_create_document":
+        if tool in PROJECT_INLINE_TOOLS:
             page, _ = _page()
             from onshape_browser_mode.actions import create_document
             return create_document(page, args.get("name", ""))
@@ -1377,6 +1439,7 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_fs_insert_parameter": browser_fs_insert_parameter,
     "browser_fs_toggle_fold": browser_fs_toggle_fold,
     "browser_edit_feature_parameters": browser_edit_feature_parameters,
+    "browser_insert_custom_feature": browser_insert_custom_feature,
     "browser_verify_feature_parameters": browser_verify_feature_parameters,
     "browser_read_feature_parameters": browser_read_feature_parameters,
     "browser_activate_tab": browser_activate_tab,
@@ -1419,6 +1482,17 @@ def install(tools: list[dict[str, Any]], handlers: dict[str, Callable[..., Any]]
     existing = {tool["name"] for tool in tools}
     tools.extend(tool for tool in BROWSER_TOOLS if tool["name"] not in existing)
     handlers.update(BROWSER_HANDLERS)
+    # A handler also needs its schema in this module, because the project runner
+    # resolves a step's tool from here: it finds the handler in BROWSER_HANDLERS and
+    # then the definition in BROWSER_TOOLS. A tool that is registered only in the
+    # server's own tool list therefore works as a direct call and is refused as a
+    # project step ("Project tool has no registered schema"). Completing the table
+    # from the authoritative entry keeps ONE definition per tool while making the
+    # invariant hold for every handler.
+    known = {tool["name"] for tool in BROWSER_TOOLS}
+    BROWSER_TOOLS.extend(
+        tool for tool in tools if tool["name"] in BROWSER_HANDLERS and tool["name"] not in known
+    )
     by_name = {tool["name"]: tool for tool in tools}
     for name in ("browser_inspect", "browser_scroll", "browser_click", "browser_eval"):
         by_name[name]["inputSchema"]["properties"]["frame_url"] = _FRAME

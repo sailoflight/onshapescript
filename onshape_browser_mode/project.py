@@ -25,6 +25,11 @@ ALLOWED_PROJECT_TOOLS = {
     "browser_fs_insert_parameter",
     "browser_fs_toggle_fold",
     "browser_edit_feature_parameters",
+    # A thin, native-shaped feature is a row whose entire content is a few numbers,
+    # so a project must be able to create that row already carrying them. Without
+    # this tool a project can only add default-valued rows, and a row-by-row build
+    # would need one browser transaction to insert and another to edit each row.
+    "browser_insert_custom_feature",
     "browser_fs_watch_part_studio",
     "browser_drawing_insert_views",
     "browser_draw_part_with_views",
@@ -55,6 +60,7 @@ TOOL_OUTCOME_KEYS = {
     "browser_fs_insert_parameter": "parameterInserted",
     "browser_fs_toggle_fold": "foldStateApplied",
     "browser_edit_feature_parameters": "parametersApplied",
+    "browser_insert_custom_feature": "inserted",
     "browser_fs_watch_part_studio": "watchConfigured",
     "browser_drawing_insert_views": "viewsInserted",
     "browser_draw_part_with_views": "drawn",
