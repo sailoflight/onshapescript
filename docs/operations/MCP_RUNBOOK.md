@@ -22,6 +22,30 @@ terminates that process and releases browser resources while preserving the
 profile on disk. This repository opens no TCP listener and installs no task,
 service, relay, or launcher.
 
+### Browser lifetime and the login
+
+Onshape Web has no "stay signed in": its auth cookies (`on-session-id`, `_u`) are
+session cookies, so closing the browser signs the human out. In the default
+configuration each bridge/MCP child launches the browser and closes it on stdin
+EOF, which means **a bridge restart costs one human SSO/2FA login**. That is a
+property of Onshape, not of this module.
+
+`browser.resident = true` removes that cost. The module then spawns one detached
+browser publishing a loopback-only DevTools endpoint (`127.0.0.1:<resident_port>`)
+and every child attaches over CDP instead of launching; a child's exit detaches and
+leaves the browser, its tabs and its session cookies alive. Consequences for an
+operator:
+
+- the browser outlives the MCP process, so client EOF does **not** clean it up;
+  ending it means closing its window or stopping the browser process;
+- exactly one resident browser per profile and port; a second owner hits
+  `profile is in use`;
+- that DevTools endpoint is a listener published by the **browser** process, on
+  loopback only -- the MCP server still opens no listener. Never forward or bind it
+  beyond loopback: it grants full control of the logged-in profile;
+- the first run, or any run after the browser was closed, still needs one human
+  login. Resident mode only stops *self-inflicted* logouts.
+
 ## Preconditions
 
 - Deployment copy on the browser/REST host, conventionally `C:\MCP\onshapescript`.
@@ -95,6 +119,26 @@ An authorized MCP User invokes `browser_session(action=login)`. A human complete
 SSO/2FA in the visible browser. Never automate SSO/2FA or place credentials in
 client arguments, prompts, tool calls, logs, or fixtures.
 
+With `browser.resident = true` the login is completed once in the resident browser
+and survives later MCP/bridge restarts. Verify the resident browser is up with a
+read-only call, e.g. `browser_session(action=status)` and then
+`browser_get_page_tabs`; landing on `https://cad.onshape.com/signin` instead of the
+document means the browser was closed (or killed) and one login is required again.
+
+## Restart with resident mode
+
+The restart itself is unchanged -- deploy source, replace the process generation --
+but the expected outcome is not: after enabling resident mode a restarted bridge
+must reach the document tabs **without** a login. Two checks that cost no Onshape
+REST quota:
+
+- `127.0.0.1:<resident_port>/json/version` answers, and the `Browser` field names
+  the running browser build;
+- a read-only navigation or tab listing returns the document, not `/signin`.
+
+Stop on: `/signin` after a restart, two browsers on one profile, or an endpoint that
+answers on a non-loopback address.
+
 ## Health
 
 Healthy means:
@@ -103,6 +147,8 @@ Healthy means:
 - initialize returns expected identity and runtime-policy revision;
 - tools/list and read-only status calls succeed with protocol-clean stdout;
 - browser status is sane and credentials are not exposed;
+- in resident mode, the DevTools endpoint is loopback-only and answers on the
+  configured port, and the visible browser is the one the login lives in;
 - REST quota/state guards remain intact;
 - any external bridge reports its own registry/nodes/link healthy.
 

@@ -382,6 +382,7 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
     `9394ad0` 引入，为的是避免下一次启动撞 "profile is in use"），于是**任何断开/重启都要
     人工登录一次**。要恢复旧性质必须让浏览器活过子进程、后续子进程用 CDP 附着
     （`browser_common` 没有 attach 能力；本仓库 `playwright_factory` 注入点是实现入口）。
+    本仓库已按此实现，见 §16。
   - 判定注意：重启后 `browser_session(action="login")` 报 `awaiting_login` /
     `humanActionRequired: true` 是**正确**的（不是误报），但它会**无条件**把状态置成
     awaiting_login，所以"它说要登录"与"登录真的丢了"是两件事；要判定登录是否还在，用一次
@@ -413,3 +414,55 @@ positionReference, position, radius)` 构造器、以及「最后一个 profile 
 `.ns-dialog-panel.feature-dialog`（标题 `Bounded fillet 1`），字段就是 `precondition`
 里按顺序写的注解 `["Edges to fillet", "Radius", "Tangent propagation"]`，特征树里出现
 待接受的 `Bf Bounded fillet 1` 行。取消后特征树回到 `特征 (5)`，没有残留行。
+
+## 16. 常驻浏览器：让登录活过 MCP 子进程
+
+目标是把"每次桥重启都要人工登录一次"（§15 前那条的结论）消掉，手段是让浏览器由
+**自己拉起的独立进程**持有，后续每个 MCP 子进程只**附着**不托管。
+
+关键实测（2026-09-20，真机 Windows，`artifacts/cdp_close_probe.py`，临时 profile + 端口 9334，
+不碰 Onshape profile，0 Onshape REST 配额）：自己 `Popen`（`DETACHED_PROCESS |
+CREATE_NEW_PROCESS_GROUP`）拉起 Edge 并带 `--remote-debugging-port`，然后
+`connect_over_cdp()` 附着，再调用 `browser_common` 释放资源时用的那一次
+`context.close()`：
+
+```
+STEP1 endpoint=up            targets=[about:blank, chrome-extension://…(6 个后台页)]
+STEP2 connected contexts=1 connected=True  pages=1 urls=['about:blank']
+STEP3 context.close() returned
+STEP3 endpointAfterClose=up                 targetsAfterClose=[同前，一个都没少]
+STEP3 isConnectedAfterClose=False           contextsAfterClose=0
+STEP4 secondAttach contexts=1 pages=[1]     urls=['about:blank']
+STEP5 endpointAfterStop=up                  targetsAfterStop=[同前]
+```
+
+读法：`context.close()` **不断开**浏览器进程、**不关**标签页，它只是**分离**了这次
+Playwright 连接（`isConnected` 转 False、`contexts` 归零）；第二次附着又能拿到 1 个
+context + 1 个页面，`playwright.stop()` 同样不影响端点。原因是 **Chromium 无法销毁浏览器的
+默认 context**，所以对这个连接而言 `close()` 等价于 detach。
+
+这条测量直接决定了适配层的形状，而且是"少写代码"的方向：
+
+- **不要**用代理上下文包装真实 context。最初的设计写了一个 `close()` 空实现的外壳，理由是
+  "关了就会杀掉常驻浏览器"；实测证伪后它只剩坏处：`browser_common` 在 `reconcile_pages` /
+  `temporary_pages` 里会断言 `page.context is session.context`（`_core._validate_pages`），
+  外壳会让这条断言全部失败，而 `_enforce_single_working_page` 在每次页面交接时都走它。
+  直接返回**真实** context，身份断言自然成立。
+- **也不要**依赖 `close()` 抛异常：`sync_session._release_resources` 在 `context.close()`
+  抛错且 `browser_close_fallback=True` 时会**回退**去调 `context.browser.close()`，
+  那才会真的关掉常驻浏览器。正常返回的 `close()` 会把 `_context_closed` 置真、跳过回退，
+  这正是我们要的路径；`browser_close_fallback` 保持默认即可。
+- **必须自己 spawn**，不能 `launch_persistent_context()`。Playwright 托管的浏览器在
+  `context.close()` / `playwright.stop()` 时会一起结束（早前实测：`context.close()` 后端点
+  消失），所以"交给 Playwright 启动"与"活过子进程"不能同时成立。
+- 端点参数：`--remote-allow-origins=*` 必须加上（Chromium 111+ 拒绝带 `Origin` 头的
+  DevTools websocket）；端点默认只绑回环，**绝不能**转发到回环之外——它等于登录态的完全控制权。
+- `viewport` 在附着模式下无法按 context 设置（不能去改不属于本进程的页面），只能映射成
+  spawn 时的 `--window-size`；`headless` / `timezone_id` 没有对应物。这些**不静默忽略**，
+  而是在 attach 记录里作为 `notApplied` 报出来。
+
+离线可验证的部分（`dev/tests/test_browser_resident.py`，21 项）：端点已有 → 只附着不 spawn；
+端点没有 → 恰好 spawn 一次且 argv 精确；端点始终不出现 → 干净失败并说明"可能被别的无端口
+浏览器占了 profile"；无默认 context → 拒绝新建（新 context 不带登录）；并且用**真实
+`browser_common.SyncSession`** 跑一遍 release，断言 `context.close` 恰好一次、
+`browser.close` 零次、`report.clean`。

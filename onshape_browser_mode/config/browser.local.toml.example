@@ -12,3 +12,10 @@ proxy_server = "http://127.0.0.1:10808"
 
 # user_data_dir stays "user_data/onshape_profile" so the Onshape login profile
 # is independent of taobao-mcp.
+
+# Resident mode keeps the browser (and therefore the login) alive across MCP
+# child processes: the module spawns one detached browser with a loopback-only
+# DevTools endpoint and later children attach to it instead of launching and
+# closing one. Without it, every bridge restart costs one human SSO/2FA login.
+# resident = true
+# resident_port = 9333   # 127.0.0.1 only.

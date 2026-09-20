@@ -14,6 +14,14 @@ timezone = "Asia/Shanghai"
 headless = false              # ALWAYS false; human watches and completes login/captcha
 proxy_server = ""                     # optional HTTP proxy, e.g. "http://127.0.0.1:10808"; empty = none
 
+# Resident mode: keep ONE browser alive across MCP child processes so the Onshape
+# login survives a bridge restart. Onshape auth cookies are session cookies, so a
+# browser death costs a human SSO/2FA login every time. When enabled, the module
+# spawns a detached browser with a loopback-only DevTools endpoint and every child
+# merely attaches to it. Off by default; enable per deployment in browser.local.toml.
+resident = false
+resident_port = 9333                  # 127.0.0.1 only; one port per profile/host
+
 [pacing]
 min_delay_s = 0.8                     # randomized delay slept before each real action (click/scroll/eval)
 max_delay_s = 2.0

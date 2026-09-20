@@ -14,6 +14,7 @@ from typing import Any
 
 from onshape_browser_mode.settings import BrowserConfig, load_browser_config
 from onshape_browser_mode.errors import BrowserLaunchError, PlaywrightNotInstalled
+from onshape_browser_mode.resident import resident_playwright_factory
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_ROOT.parent
@@ -119,13 +120,27 @@ class BrowserSession:
             options["channel"] = browser_cfg.channel
         if browser_cfg.proxy_server:
             options["proxy"] = {"server": browser_cfg.proxy_server}
+        factory = self._playwright_factory
+        if factory is None and browser_cfg.resident:
+            # Resident mode: attach to one long-lived browser instead of launching one, so
+            # the Onshape login (session cookies only) survives this child's exit. Default
+            # off, and an explicitly injected factory always wins.
+            factory = resident_playwright_factory(
+                profile_dir=self.profile_dir(),
+                port=browser_cfg.resident_port,
+                channel=browser_cfg.channel,
+                executable_path=browser_cfg.executable_path,
+                proxy_server=browser_cfg.proxy_server,
+                locale=browser_cfg.locale,
+                viewport=options["viewport"],
+            )
         return SyncSession(
             SessionConfig(
                 self.profile_dir(), launch_options=options,
                 # Onshape's legacy app predicate stays in the business facade.
                 cleanup_restored=False, browser_close_fallback=True,
             ),
-            playwright_factory=self._playwright_factory,
+            playwright_factory=factory,
         )
 
     @staticmethod

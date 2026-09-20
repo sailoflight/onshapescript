@@ -26,6 +26,11 @@ class BrowserCfg:
     timezone: str = "America/New_York"
     headless: bool = False
     proxy_server: str = ""  # e.g. "http://127.0.0.1:10808"; empty = no explicit proxy
+    # Resident mode: keep ONE browser alive across MCP child processes so the Onshape
+    # login survives a bridge restart. Onshape auth cookies are session cookies, so a
+    # browser death costs a human login; see onshape_browser_mode/resident.py.
+    resident: bool = False
+    resident_port: int = 9333  # loopback DevTools endpoint of the resident browser
 
 
 @dataclass(frozen=True)
