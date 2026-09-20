@@ -36,6 +36,7 @@ from onshape_browser_mode.selectors import (
     FS_NOTICE_TABLE,
     FS_NOTICE_TOGGLE,
     PARTSTUDIO_FEATURE_ITEM,
+    PS_DEFAULT_FEATURE,
     PS_FEATURES_HEADER,
     PS_WORKSPACE_CUSTOM_FEATURE_BTN,
     TIMEOUT_RECONNECT_LINK,
@@ -1528,6 +1529,55 @@ def wait_for_panel_rows(
     return {
         "waited": waited,
         "condition": "partstudio_row_count",
+        "minimum": minimum,
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
+
+
+def wait_for_feature_list(
+    page: Any,
+    timeout_ms: int,
+    *,
+    selector: str = PS_DEFAULT_FEATURE,
+    minimum: int = 1,
+) -> dict[str, Any]:
+    """Wait until the FEATURE LIST has rendered, not merely any list item.
+
+    :func:`wait_for_panel_rows` counts ``PARTSTUDIO_FEATURE_ITEM`` (``.os-list-item``),
+    which the part list, the tab strip and a loading skeleton also match. Measured live
+    2026-09-20, immediately after the recovery page reload that wait reported
+    ``waited: True`` after 2736 ms while the row enumeration still found 0 custom
+    features, 0 readable tabs and no document-tabs button — a satisfied wait that
+    proved nothing about the list the caller was about to enumerate.
+
+    ``selector`` defaults to ``PS_DEFAULT_FEATURE`` (the default-geometry group row and
+    the Origin/plane rows), which only the Feature List renders. A caller that is about
+    to read CUSTOM-feature rows should pass ``PS_USER_FEATURE`` instead: the condition
+    that matters is the one the very next read depends on, and waiting for the default
+    rows alone can still precede the custom rows on a page that renders in stages.
+
+    This is deliberately a SEPARATE function rather than a change to
+    :func:`wait_for_panel_rows`, whose broader condition the tab-switch callers rely on.
+    ``minimum`` is a COUNT, not a name match, so the single row-matching rule
+    (:func:`match_user_feature_row_indices`) stays the only one. Failure is reported,
+    never raised: the caller still has to read the rows and can report 0 as evidence.
+    """
+    started = time.monotonic()
+    try:
+        page.wait_for_function(
+            _PANEL_ROW_COUNT_PREDICATE,
+            arg={"selector": selector, "minimum": minimum},
+            timeout=timeout_ms,
+        )
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "feature_list_rendered",
+        "selector": selector,
         "minimum": minimum,
         "timeoutMs": timeout_ms,
         "elapsedMs": round((time.monotonic() - started) * 1000),

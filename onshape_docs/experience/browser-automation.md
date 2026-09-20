@@ -275,6 +275,27 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   是对的**，保留它，不要为了省一个工具而放宽。默认 `allow_reload=False` 也是刻意的：
   第一段刚点完 ✓ 时，一次重载会把面板扔掉并白白多花一次页面加载；只有第二段在
   面板卡住时才值得付这个代价（所以 verify 的默认是 `True`，read 的默认是 `False`）。
+- **重载之后的就绪判据必须是"你马上要读的那一行"，不能是"页面上有任意列表项"
+  （2026-09-20 真机实测，随后修复）**。恢复重载后页面是**分阶段渲染**的，两条路径都栽在
+  这一点上：
+  - `verify_feature_parameters` 的恢复分支在 `reload_page()` 之后**没有任何等待**就枚举行，
+    整个恢复段 151 ms 结束、枚举到 0 行，返回 `parametersApplied: null` +
+    `retryVerify: true`——**没有撒谎，但白跑一次调用**（下一次调用才读到已提交的 12 mm）。
+    同一次返回里 `tabs: []`、`hasDocumentTabsToolButton: false` 就是页面还没加载完的证据。
+  - 只读探针那条路径**有**等待也不够：`wait_for_panel_rows` 数的是 `.os-list-item`
+    （`selectors.py:69` 的 `PARTSTUDIO_FEATURE_ITEM`），零件表行、标签条、加载骨架都能满足
+    它，所以实测 `waited: true` / `2736 ms`，而同一刻枚举到 **0 个**自定义特征行。
+  - 修法是新增 `actions.wait_for_feature_list(page, timeout, selector=...)`，恢复分支传
+    `selectors.PS_USER_FEATURE`——判据是"**即将读取的那一类行**已经存在"，而不是"页面上有点
+    东西"。它的 `minimum` 只数数量、不做名字匹配，所以全仓唯一的行匹配规则
+    （`match_user_feature_row_indices`）没有被复制成第二套。
+  - **不要**顺手把共享的 `wait_for_panel_rows` 改严：切标签的就绪判据依赖它更宽的条件，
+    需要的严判据只属于"刚重载过、马上要枚举行"的调用方。
+  - 判决分级不变：等满仍读不到时，恢复后依然是 `null` + `retryVerify`，绝不是 `false`
+    ——"页面没渲染"和"编辑没生效"必须是两种答案。
+  - 测试怎么建模这个竞态：假页用 `reload_render_polls`（>0 = 重载后要花几次等待才出现行，
+    负值 = 永不出现），并且**让宽判据在未渲染时也返回 True**。否则假页会比真机宽松，
+    测试会掩盖这个竞态——这正是"测试替身不得比真实客户端宽松"那条规则的一个实例。
 - 工具栏：`.toolbar-item`，按钮 `.tool.is-activatable.is-button`；文字标签
   `.tool-label.hide-in-toolbar` 是**隐藏的**，`browser_click(text=...)` 点不到，
   要按 `.toolbar-item` 的 textContent 找到后点内部按钮。

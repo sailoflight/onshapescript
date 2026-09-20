@@ -689,6 +689,7 @@ def read_feature_parameters(
     """
     close = _wait_for_dialog_close(page, dialog_timeout_ms)
     recovery: dict[str, Any] | None = None
+    feature_list: dict[str, Any] | None = None
     if not close["waited"]:
         if not allow_reload:
             return {
@@ -722,6 +723,14 @@ def read_feature_parameters(
                 ),
             }
         close = _wait_for_dialog_close(page, PS_REOPEN_TIMEOUT_MS)
+        # The reload replaced the DOM with a page that renders in stages. Waiting only
+        # for "some list item exists" is not enough: measured live 2026-09-20 that
+        # condition was satisfied 2736 ms into the reload while the row enumeration
+        # still found 0 custom features and even the tab strip was missing, so the read
+        # raced the render and reported no row. Wait for the Feature List itself.
+        feature_list = actions.wait_for_feature_list(
+            page, actions.PARTSTUDIO_PANEL_READY_TIMEOUT_MS, selector=selectors.PS_USER_FEATURE
+        )
     read = _open_and_read_parameters(page, feature_name)
     return {
         "read": read["read"],
@@ -731,6 +740,7 @@ def read_feature_parameters(
         "featureRow": read["featureRow"],
         "dialogClosed": close,
         "recovery": recovery,
+        **({"featureListReady": feature_list} if recovery else {}),
         **({"reason": read["reason"]} if read.get("reason") else {}),
         **({"error": read["error"]} if read.get("error") else {}),
     }
@@ -769,6 +779,7 @@ def verify_feature_parameters(
     """
     close = _wait_for_dialog_close(page, dialog_timeout_ms)
     recovery: dict[str, Any] | None = None
+    feature_list: dict[str, Any] | None = None
     recovered_by = ""
     if not close["waited"]:
         if not allow_reload:
@@ -813,6 +824,16 @@ def verify_feature_parameters(
         # The reload replaces the DOM, so nothing read from here on can be the
         # pre-accept page, and the panel went with the old page.
         close = _wait_for_dialog_close(page, PS_REOPEN_TIMEOUT_MS)
+        # A fresh page renders in stages, and reading the rows before the Feature List
+        # exists is what made the first live run of this recovery return "0 rows" and
+        # no verdict (measured 2026-09-20: the whole recovery block finished in 151 ms
+        # against a page whose tab strip had not rendered yet). Wait for the CUSTOM-feature
+        # rows this stage is about to enumerate -- a bare list-item count is satisfied by
+        # part-list rows and the tab strip, which is how the read probe's wait passed at
+        # 2736 ms on a page that still enumerated 0 features.
+        feature_list = actions.wait_for_feature_list(
+            page, actions.PARTSTUDIO_PANEL_READY_TIMEOUT_MS, selector=selectors.PS_USER_FEATURE
+        )
     state = actions.feature_state(actions.read_partstudio_features(page), feature_name)
     rows = state["rows"]
     regeneration_ok = len(rows) == 1 and not state["errored"]
@@ -830,6 +851,7 @@ def verify_feature_parameters(
     if recovered_by:
         result["recoveredBy"] = recovered_by
         result["recovery"] = recovery
+        result["featureListReady"] = feature_list
     failure = ""
     if not regeneration_ok:
         result["persistenceOk"] = False

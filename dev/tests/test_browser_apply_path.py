@@ -1118,6 +1118,7 @@ class FakeDialogPage:
         reload_fails: bool = False,
         parameter_fields: tuple[str, ...] = ("baseRadius",),
         locator_sees_parameter: bool = True,
+        reload_render_polls: int = 0,
     ) -> None:
         self.rows = list(rows)
         self.nameless_rows = nameless_rows
@@ -1158,15 +1159,31 @@ class FakeDialogPage:
         self.timeouts: list[int] = []
         self.reloads: list[dict] = []
         self.load_states: list[str] = []
+        #: How many row-render waits a reloaded page must fail before the custom-feature
+        #: rows exist. Measured live 2026-09-20: after the recovery reload the page had no
+        #: feature rows, no readable tabs and no tab-strip button, yet the broad
+        #: ``.os-list-item`` readiness gate was satisfied — so a page can be "ready" by the
+        #: old condition and still enumerate 0 rows. 0 keeps the older behaviour (a
+        #: reloaded page reads immediately); a negative value models rows that never appear.
+        self.reload_render_polls = reload_render_polls
+        self.rendered = True
+        self.render_polls = 0
         self.keyboard = mock.Mock()
 
     def evaluate(self, expression: str, arg: object = None) -> dict:
         if expression == actions._USER_FEATURE_ROWS_JS:
+            if not self.rendered:
+                # Mid-reload: the nodes are not in the DOM yet, so the SAME enumeration
+                # that later finds them currently finds nothing. Reporting them early
+                # would hide the race this double exists to model.
+                return {"count": 0, "names": []}
             # Names and count from one node list, nameless nodes included, exactly
             # as `querySelectorAll` returns them.
             return {"count": len(self.dom_rows), "names": list(self.dom_rows)}
         if ".feature-dialog" in expression:
             return dict(self.dialog_values) if self.dialog_visible else {}
+        if not self.rendered:
+            return {"headerText": "", "features": [], "partsText": "", "partItems": []}
         return self.read_features
 
     def wait_for_function(self, expression: str, *, arg: object = None, timeout: float | None = None,
@@ -1182,7 +1199,24 @@ class FakeDialogPage:
                 raise TimeoutError("dialog stayed open")
             self.dialog_visible = False
             return True
+        if isinstance(arg, dict) and arg.get("selector") in (
+            selectors.PS_USER_FEATURE,
+            selectors.PS_DEFAULT_FEATURE,
+        ):
+            # The targeted gate the recovery branches use: it is satisfied only once the
+            # custom-feature rows exist, so it cannot pass vacuously the way the broad
+            # list-item gate below does.
+            self.render_polls += 1
+            if self.rendered:
+                return True
+            if self.reload_render_polls >= 0 and self.render_polls >= self.reload_render_polls:
+                self.rendered = True
+                return True
+            raise TimeoutError("the feature rows had not rendered yet")
         if isinstance(arg, dict) and arg.get("selector") == selectors.PARTSTUDIO_FEATURE_ITEM:
+            # Deliberately satisfied by ANY list item and therefore also while the feature
+            # rows are absent: that is what the live gate did (2736 ms, "waited: true",
+            # 0 enumerated rows), and it is why the recovery branches do not use it.
             if self.panel_renders and self.rows:
                 return True
             raise TimeoutError("panel never rendered a row")
@@ -1203,6 +1237,11 @@ class FakeDialogPage:
         if self.reload_fails:
             raise RuntimeError("navigation refused")
         self.dialog_visible = False
+        # A reloaded page renders in stages: with ``reload_render_polls`` > 0 the rows are
+        # absent until that many targeted waits have been spent, and a negative value
+        # models a page whose rows never arrive.
+        self.render_polls = 0
+        self.rendered = self.reload_render_polls == 0
 
     def wait_for_load_state(self, state: str = "load", **kwargs: object) -> bool:
         self.load_states.append(state)
@@ -1523,6 +1562,42 @@ class VerifyFeatureParametersTest(unittest.TestCase):
         self.assertFalse(verified["recovery"]["reloaded"])
         self.assertIn("did not complete", verified["reason"])
 
+    def test_the_recovery_reload_waits_for_the_rows_before_reading_them(self):
+        """Live, the recovery reload read a page whose rows had not rendered yet.
+
+        Measured 2026-09-20 on the real browser: the whole recovery block finished in
+        151 ms, enumerated 0 custom-feature rows and answered `retryVerify` even though
+        the edit had committed — a second call then read the value fine. The double
+        models that page (its broad list-item gate is satisfied while the rows are
+        still absent), so this pins that the stage WAITS for the custom-feature rows
+        and answers in the same call instead of handing back "call again".
+        """
+        page = FakeDialogPage(dialog_closes=False, reload_render_polls=1)
+        applied, verified = self._apply_then_verify(page)
+        self.assertTrue(applied["pendingVerification"])
+        self.assertGreaterEqual(page.render_polls, 1, "the stage must wait for the rows")
+        self.assertEqual(len(page.reloads), 1, "still exactly one recovery reload")
+        self.assertTrue(verified["featureListReady"]["waited"])
+        self.assertEqual(verified["featureListReady"]["selector"], selectors.PS_USER_FEATURE)
+        self.assertTrue(verified["verified"], "a rendered page must be answered in one call")
+        self.assertTrue(verified["parametersApplied"])
+        self.assertEqual(verified["persisted"], {"baseRadius": "12 mm"})
+        self.assertNotIn("retryVerify", verified)
+
+    def test_a_reload_whose_rows_never_render_is_never_a_failure(self):
+        """Waiting must not turn "the page never rendered" into a definitive verdict."""
+        page = FakeDialogPage(dialog_closes=False, reload_render_polls=-1)
+        _applied, verified = self._apply_then_verify(page)
+        self.assertEqual(verified["recoveredBy"], "page_reload")
+        self.assertFalse(verified["featureListReady"]["waited"])
+        self.assertFalse(verified["verified"])
+        self.assertIsNone(
+            verified["parametersApplied"],
+            "an unrendered page is no evidence either way, not a failed edit",
+        )
+        self.assertTrue(verified["retryVerify"])
+        self.assertIn("raced the commit", verified["reason"])
+
     def test_a_row_that_did_not_regenerate_cleanly_is_not_confirmed(self):
         page = FakeDialogPage()
         page.read_features = {"headerText": "", "features": [], "partsText": "", "partItems": []}
@@ -1604,6 +1679,44 @@ class ReadFeatureParametersTest(unittest.TestCase):
         self.assertEqual(result["parameters"], {"baseRadius": "10 mm"})
         self.assertEqual(page.fills, [])
         self.assertEqual(page.accept_clicks, [])
+
+    def test_the_read_after_a_recovery_reload_waits_for_the_rows(self):
+        """Measured live 2026-09-20: this path's wait was satisfied on the WRONG signal.
+
+        ``wait_for_panel_rows`` counts ``.os-list-item``, which the part list and the tab
+        strip also match, so it reported ``waited: True`` after 2736 ms while the
+        enumeration still found 0 custom-feature rows. The recovery branch must wait for
+        the rows it is about to read.
+        """
+        page = FakeDialogPage(
+            dialog_closes=False, dialog_already_open=True, reload_render_polls=1
+        )
+        result = transactions.read_feature_parameters(
+            page, self.TARGET, allow_reload=True
+        )
+        self.assertGreaterEqual(page.render_polls, 1, "it must wait for the rows")
+        self.assertTrue(result["featureListReady"]["waited"])
+        self.assertEqual(result["featureListReady"]["selector"], selectors.PS_USER_FEATURE)
+        self.assertTrue(result["read"])
+        self.assertEqual(result["parameters"], {"baseRadius": "10 mm"})
+
+    def test_a_recovery_reload_without_rendered_rows_reads_nothing(self):
+        page = FakeDialogPage(
+            dialog_closes=False, dialog_already_open=True, reload_render_polls=-1
+        )
+        result = transactions.read_feature_parameters(
+            page, self.TARGET, allow_reload=True
+        )
+        self.assertFalse(result["read"])
+        self.assertFalse(result["featureListReady"]["waited"])
+        self.assertEqual(result["parameters"], {})
+        self.assertEqual(result["parameterCount"], 0)
+        self.assertEqual(page.fills, [], "an unreadable page must not be filled")
+        self.assertIn("no custom-feature row is on screen", result["reason"])
+        # "the row is not there after a bounded wait" is a definitive negative for this
+        # element, so it is deliberately NOT marked retryable (only an open panel or an
+        # incomplete reload are).
+        self.assertNotIn("retryable", result)
 
     def test_a_row_that_cannot_be_located_reads_nothing_and_says_so(self):
         page = FakeDialogPage(rows=("Sr Spiral ridge 1",))
