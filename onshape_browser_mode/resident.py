@@ -66,8 +66,11 @@ DEFAULT_RESIDENT_PORT = 9333
 # How long a freshly spawned browser may take to publish its DevTools endpoint.
 ENDPOINT_WAIT_S = 30.0
 ENDPOINT_POLL_S = 0.25
-# One endpoint read is cheap; a hung browser must not hang the caller.
-PROBE_TIMEOUT_S = 2.0
+# One endpoint read is cheap; a hung browser must not hang the caller. Measured on the
+# deployment host 2026-09-20: a loopback connect to a *closed* port raises
+# ConnectionRefusedError only after ~2.0 s, so a 2 s budget turned a clean refusal into a
+# timeout. Anything above that delay reports the real error.
+PROBE_TIMEOUT_S = 3.0
 
 _WINDOWS_BROWSER_RELATIVE_PATHS = {
     "msedge.exe": (
@@ -100,11 +103,28 @@ def endpoint_url(port: int) -> str:
     return f"http://127.0.0.1:{int(port)}/json/version"
 
 
+_OPENER: urllib.request.OpenerDirector | None = None
+
+
+def _direct_opener() -> urllib.request.OpenerDirector:
+    """An opener that ignores every system/env proxy.
+
+    The DevTools endpoint is loopback-only and must be probed directly. The deployment
+    host has a system HTTP proxy configured (v2rayN on 127.0.0.1:10808), and `urlopen`
+    honours it by default, so an absent browser shows up as a proxy timeout instead of
+    the refusal it is. Cached because `wait_for_endpoint` polls.
+    """
+    global _OPENER
+    if _OPENER is None:
+        _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return _OPENER
+
+
 def probe_endpoint(port: int, *, timeout_s: float = PROBE_TIMEOUT_S) -> dict[str, Any]:
     """Read the CDP version document. Never raises: an absent browser is a normal state."""
     url = endpoint_url(port)
     try:
-        with urllib.request.urlopen(url, timeout=timeout_s) as response:
+        with _direct_opener().open(url, timeout=timeout_s) as response:
             payload = json.loads(response.read().decode("utf-8", "replace"))
     except Exception as exc:  # URLError, timeout, JSON, a refused connect: all "not there"
         return {

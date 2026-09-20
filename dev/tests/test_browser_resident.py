@@ -52,6 +52,20 @@ ENDPOINT = endpoint_url(DEFAULT_RESIDENT_PORT)
 EXECUTABLE = str(Path(sys.executable))
 
 
+class FakeResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 class FakePage:
     def __init__(self, url: str = "about:blank") -> None:
         self.url = url
@@ -394,6 +408,39 @@ class StartResidentBrowserTest(unittest.TestCase):
         status = resident.probe_endpoint(9, timeout_s=0.05)
         self.assertFalse(status["reachable"])
         self.assertIn("error", status)
+
+    def test_the_probe_opener_cannot_use_a_system_proxy(self):
+        """The deployment host has a system proxy; the loopback endpoint must bypass it."""
+        import urllib.request
+
+        opener = resident._direct_opener()
+        # An empty ProxyHandler installs no `*_open` method, so it never enters the
+        # handler chain: nothing can route this request through the host's proxy. That
+        # is also why asserting the absence of the handler (not of the handler object)
+        # is the honest check.
+        self.assertEqual(
+            [h for h in opener.handlers if isinstance(h, urllib.request.ProxyHandler)], []
+        )
+        self.assertFalse(hasattr(opener, "proxy_open"))
+        self.assertIs(resident._direct_opener(), opener)
+
+    def test_the_probe_reads_through_that_opener(self):
+        calls = []
+
+        class Opener:
+            def open(self, url, timeout=None):
+                calls.append((url, timeout))
+                return FakeResponse(b'{"Browser": "Edg/153", "Protocol-Version": "1.3"}')
+
+        with mock.patch.object(resident, "_OPENER", Opener()):
+            status = resident.probe_endpoint(DEFAULT_RESIDENT_PORT)
+        self.assertTrue(status["reachable"])
+        self.assertEqual(status["browser"], "Edg/153")
+        self.assertEqual(calls, [(ENDPOINT, resident.PROBE_TIMEOUT_S)])
+
+    def test_the_probe_budget_exceeds_the_measured_refusal_delay(self):
+        """A closed loopback port refuses only after ~2.0 s on this host (measured)."""
+        self.assertGreater(resident.PROBE_TIMEOUT_S, 2.1)
 
 
 class ExecutableResolutionTest(unittest.TestCase):
