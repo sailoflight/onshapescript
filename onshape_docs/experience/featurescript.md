@@ -414,3 +414,62 @@ native step. The ASCII rule above still applies: a localised custom feature is
 impossible because `"Feature Type Name"` and every parameter `"Name"` must be
 printable ASCII.
 
+## Driving a thin feature's dialog: what actually commits (live, browser leg)
+
+A chain of thin rows only reproduces a model if every dialog value it opens with
+really reaches the part. Two measured traps make the model silently wrong while
+every readback says otherwise. Both were found on the 14-row Gridfinity rebuild
+(`dev/fixtures-capture/gridfinity-thin-plate.json`).
+
+**The dialog commits on `change`, so the last field you fill is the one that is
+lost.** `Locator.fill` fires an `input` event only; the browser fires `change`
+when the field loses focus, and Onshape's parameter directive commits on `change`.
+The dialog's OWN readback therefore shows the typed text while the model keeps the
+previous value — a corner radius typed as `4 mm` persisted as `0 mm`, and a draft
+angle typed as `45 deg` persisted as `0 deg`. The feature list stayed green, the
+extrude still produced a solid, and the plate came out with sharp corners and no
+draft anywhere. Fix: blur after every fill
+(`onshape_browser_mode/actions.py::_commit_field`).
+
+**Only geometry or a re-opened dialog is evidence of persistence.** The
+`fill_dialog_fields` result now distinguishes `committed` from `uncommitted` and
+refuses the insert when a field did not commit, because `after` (the dialog's own
+readback) was exactly the reading that lied. The same rule killed an earlier
+plausibility check: a mesh report of `watertight: true` at
+`[84, 84, 10] mm` was produced by a model whose bottom face area was
+`7056.0000 mm²` (= 84², sharp corners) with no conical face anywhere. A B-rep face
+inventory is what separates R4 from sharp and 45 deg from a straight wall; the
+acceptance evidence is in
+`onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md`.
+
+**A styled checkbox is not clickable at the `input`.** A boolean parameter renders
+as `<input type="checkbox" class="os-param-checkbox-input" data-parameter-value="false">`
+that is not visible, so `Locator.click()` blocks for the full 30 s timeout
+("element is not visible"). The visible hit target is an ancestor. Walk
+`xpath=..`, `xpath=../..`, `xpath=ancestor::label[1]`,
+`xpath=ancestor::*[contains(@class,'checkbox')][1]` with a short per-candidate
+timeout (2500 ms) and judge by the resulting state, not by the click returning
+(`_click_boolean`); verified by the parameter reading back `"true"`.
+
+**Keep every thin parameter a number, a string, or a boolean.** Enum controls are
+neither fillable nor readable through this dialog mechanism: the `axis` parameter
+of the sketch thin feature reads back `""` whatever is chosen, so a select-style
+parameter cannot be driven or verified. A thin feature that needs to choose
+between cases should take a number or a boolean instead.
+
+**A refused insert still leaves a row.** The dropdown click creates the feature row
+before any parameter is filled, so a refusal (missing field, uncommitted field, or
+a failed readback) leaves a real default-valued row that survives a reload and
+pollutes the next attempt. Delete it before retrying — on the rebuild the polluted
+Part Studio had to be deleted and recreated.
+
+**The payoff: 14 rows reproduced the domain feature exactly.** With those rules in
+place, a chain of `Thin Sketch Rectangle` / `Thin Sketch Circle` / `Thin Extrude`
+rows produced a solid whose exact B-rep is identical to the three-row domain
+baseline built from the verified FeatureScript: volume `39547.5903 mm³`, surface
+area `20002.2154 mm²`, 194 faces, delta `0` in every one of those measures, and
+the same nine face families (4 x R4 outer corners, 16 cones at exactly 45.0 deg in
+each of three bands, and the 1.15 / 1.85 / 3.25 mm cylinders). Two independent
+construction paths agreeing to the last digit is the strongest evidence available
+that a feature tree mirrors the intended modelling steps.
+

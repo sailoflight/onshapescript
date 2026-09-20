@@ -59,6 +59,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "notice-retrieval-verification": "onshape_docs/verification/notice-retrieval-2026-09-20.md",
         "gridfinity-profile-verification": "onshape_docs/verification/gridfinity-profile-2026-09-20.md",
         "downloads-hub-nonblocking-verification": "onshape_docs/verification/downloads-hub-nonblocking-2026-09-20.md",
+        "thin-feature-rebuild-verification": "onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md",
         "live-verification": "onshape_docs/verification/live/README.md",
     },
     "reference": {

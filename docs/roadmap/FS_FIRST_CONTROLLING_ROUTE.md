@@ -69,6 +69,17 @@ route. The browser leg narrows to: land FS source, compile and read notices,
 create the version, apply the custom feature, and verify the result. Geometry
 semantics belong to FeatureScript.
 
+> **Re-tested 2026-09-21 and upheld, with the boundary made explicit.** D5 forbids
+> driving the toolbar; it does not forbid building a feature tree. A thin custom
+> feature calls the same standard-library routine the native dialog calls
+> (`extrude(context, id, definition)`, which `extrude.fs` itself documents as the
+> dialog's own path), so an ordered chain of thin rows is D5-compliant geometry
+> semantics *and* a human-editable parametric tree. The native-toolbar spike was
+> built, then rejected and reverted. Measured: a 14-row thin chain reproduced the
+> three-row domain baseline's solid with a zero-delta B-rep fingerprint
+> (`onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md`;
+> `BROWSER_MODELING_GAPS.md` §4).
+
 **D6 — This page is the completed merge.** The plan route is controlled here.
 No parallel plan document may be introduced; new work is filed as phases (§11)
 or as planned rows in `BROWSER_PLANNED_TOOLS.md`.

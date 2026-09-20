@@ -90,6 +90,48 @@ The live four-view canvas fixture, pixel metrics, and selector limitations are
 stored under `dev/button-map/scan-app-shell.json` and
 `scan-drawing-four-views.png`.
 
+## 4. Native-toolbar modeling (re-tested and rejected) vs thin-feature tree (adopted)
+
+D5 (`FS_FIRST_CONTROLLING_ROUTE.md`) says the browser leg must not model geometry by
+driving Part Studio toolbars, dialogs, and context menus. A "build it as a feature
+tree" request is the one requirement that looks like it needs that route, so D5 was
+re-tested end to end on 2026-09-20 with a full native spike: two staged, resumable
+project fixtures (`native-plate-sketch`, `native-plate-extrude`), a
+`modeling_transactions` module driving 草图 → plane row → rectangle → typed
+dimensions → 拉伸 depth, per-stage screenshots for cross-host review, and its own
+test module — roughly 700 lines of tests that kept every viewport click inside the
+graphics box. The spike was **rejected and reverted**; the patch is kept as
+`temp/native-spike-rejected.patch` (local-only, `temp/` is gitignored, so the
+decision record here is the durable part, not the file).
+
+The requirement it was meant to satisfy is satisfied a different way, and this is
+the part worth keeping: **a native modeling step and a thin custom feature call the
+SAME standard-library routine.** `extrude(context, id, definition)` is what
+Onshape's own 拉伸 dialog runs, so a thin `Thin Extrude` row is not an imitation of
+a modeling step — it is that step, with its numbers exposed as dialog parameters a
+human edits in the Feature List. D5 therefore stands unamended in what it forbids
+(GUI button-driving), and the feature-tree requirement is met inside FeatureScript.
+
+Measured outcome (2026-09-21): a 14-row chain of `Thin Sketch Rectangle` /
+`Thin Sketch Circle` / `Thin Extrude` reproduced the three-row domain baseline's
+solid exactly — volume `39547.5903 mm³`, surface area `20002.2154 mm²`, 194 faces,
+zero delta in each, same nine face families including 4 x R4 outer corners and 16
+cones at exactly 45.0 deg per band. Evidence:
+`onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md`; the two dialog
+traps that had to be solved first (`change`-event commit, non-clickable styled
+checkbox) are recorded in `onshape_docs/experience/featurescript.md`.
+
+Consequences for the registry:
+
+- `browser_insert_custom_feature` accepts explicit `parameters`, so one transaction
+  creates a thin row *with its numbers* instead of insert-then-edit, and it refuses
+  the insert when a filled field did not commit (a refusal leaves a real
+  default-valued row that must be deleted before retrying).
+- A project may express a whole part as an ordered list of thin rows; the fixture
+  `dev/fixtures-capture/gridfinity-thin-plate.json` is the reference example.
+- No new native-transaction tool is added, and `BROWSER_FS_SEMANTIC_TOOLS.md`'s
+  "native feature-mode out of scope" boundary is unchanged.
+
 ## Summary table
 
 | # | Resolved capability | Level | Module / capability family | Implemented acceptance |
@@ -97,6 +139,7 @@ stored under `dev/button-map/scan-app-shell.json` and
 | 1 | Spiral / screw-on ridge generation | L5 | browser.partstudio / FeatureScript workflow | bounded helix+sweep script + compile/deploy/apply verification |
 | 2 | FDM analysis and delivery | L4 -> L6 | shared `fdm_analysis` + browser/REST source adapters | draft proxy invalid; real browser AP242 STEP + CadQuery/OCP STL + verified non-slicer L6 package; Bambu deferred |
 | 3 | Drawing auto-view insertion from a part | L5 | browser.drawing | exact new tab + DOM or decoded canvas view evidence |
+| 4 | Modeling a part as a feature tree | L5 | browser.partstudio / thin FeatureScript rows | 14 thin rows reproduce the domain baseline's solid with a zero-delta B-rep fingerprint (volume, surface area, 194 faces, all nine face families) |
 
 ## Provenance
 

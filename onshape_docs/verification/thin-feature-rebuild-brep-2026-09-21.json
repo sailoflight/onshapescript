@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-21",
+  "claim": "用 14 行薄特征（sketch/extrude 自定义特征）重建的 Gridfinity 2x2 底板，与 3 行域特征 (GB/GS/GM) 基线的 B-rep 逐位一致",
+  "method": "CadQuery 2.8.0 / OpenCascade 直读 STEP，按精确曲面量体积、表面积、面数与每类曲面的半径/半角/面积/z 区间；不使用网格化结果。",
+  "whyNotMesh": "网格化几何包对错误的板体（尖角、无拔模）同样报 watertight=true 且体积看似合理，只有 B-rep 面清单能区分 R4 圆角与尖角、45° 锥与直墙。",
+  "verifier": "onshape_docs/scripts/verify_step_brep.py",
+  "verifierPython": "/home/lijq/code/CadQ/.venv/bin/python (cadquery 2.8.0)",
+  "inputs": {
+    "thin": {
+      "element": "GF Thin Plate (960a50add3bfef717721ca9b)",
+      "fixture": "dev/fixtures-capture/gridfinity-thin-plate.json",
+      "featureStudio": "Thin Native Features (e8291d6887c1ffb321f4f868)",
+      "featureStudioSha256": "dcd1971d1a3c365a27f895b8d5ae40b73f2617f02d0738a7d08585e261aaa3ac",
+      "step": "onshape_browser_mode/outputs/step_exports/gridfinity-thin-plate-v2-20260921/model.step",
+      "stepSha256": "45aa111f997c6400c4fdf4feaf39bf73193541a0e1940b301b7318cb3745b98c"
+    },
+    "domain": {
+      "element": "Part Studio 1 (f0360bb015d7612284423f55)",
+      "source": "dev/fixtures-capture/gridfinity-baseplate.fs",
+      "step": "onshape_browser_mode/outputs/step_exports/gridfinity-domain-baseline-20260921/model.step",
+      "stepSha256": "ed2363f9e73847ad1d3475871ecf328344fae99e6f9d55d2a1061b5f501591b7"
+    }
+  },
+  "fingerprint": {
+    "thin": {
+      "volumeMm3": 39547.5903,
+      "surfaceAreaMm2": 20002.2154,
+      "faceCount": 194,
+      "boundingBoxMm": {
+        "x": [
+          -42.0,
+          42.0
+        ],
+        "y": [
+          -42.0,
+          42.0
+        ],
+        "z": [
+          -0.0,
+          10.0
+        ]
+      },
+      "horizontalPlaneZs": [
+        0.0,
+        2.6,
+        5.0,
+        10.0
+      ]
+    },
+    "domain": {
+      "volumeMm3": 39547.5903,
+      "surfaceAreaMm2": 20002.2154,
+      "faceCount": 194,
+      "boundingBoxMm": {
+        "x": [
+          -42.0,
+          42.0
+        ],
+        "y": [
+          -42.0,
+          42.0
+        ],
+        "z": [
+          -0.0,
+          10.0
+        ]
+      },
+      "horizontalPlaneZs": [
+        0.0,
+        2.6,
+        5.0,
+        10.0
+      ]
+    },
+    "delta": {
+      "volumeMm3": 0.0,
+      "surfaceAreaMm2": 0.0,
+      "faceCount": 0
+    }
+  },
+  "faces": {
+    "thin": [
+      {
+        "kind": "cone",
+        "count": 16,
+        "areaMm2": 415.1424,
+        "measure": 45.0,
+        "zMin": 4.1999999,
+        "zMax": 5.000000100000001
+      },
+      {
+        "kind": "cone",
+        "count": 16,
+        "areaMm2": 37.32,
+        "measure": 45.0,
+        "zMin": 5.3499998999999985,
+        "zMax": 6.050000100000001
+      },
+      {
+        "kind": "cone",
+        "count": 16,
+        "areaMm2": 223.5216,
+        "measure": 45.0,
+        "zMin": 7.849999899999999,
+        "zMax": 10.000000100000001
+      },
+      {
+        "kind": "cylinder",
+        "count": 16,
+        "areaMm2": 10.1152,
+        "measure": 1.15,
+        "zMin": 4.9999999,
+        "zMax": 5.3500001
+      },
+      {
+        "kind": "cylinder",
+        "count": 16,
+        "areaMm2": 83.6928,
+        "measure": 1.85,
+        "zMin": 6.0499998999999995,
+        "zMax": 7.8500001
+      },
+      {
+        "kind": "cylinder",
+        "count": 16,
+        "areaMm2": 522.7616,
+        "measure": 3.25,
+        "zMin": 2.5999999000000003,
+        "zMax": 4.2000001000000005
+      },
+      {
+        "kind": "cylinder",
+        "count": 4,
+        "areaMm2": 251.3276,
+        "measure": 4.0,
+        "zMin": -1e-07,
+        "zMax": 10.0000001
+      },
+      {
+        "kind": "plane",
+        "count": 94,
+        "areaMm2": 18458.3352,
+        "measure": 0.0,
+        "zMin": -1e-07,
+        "zMax": 10.0000001
+      }
+    ],
+    "domain": [
+      {
+        "kind": "cone",
+        "count": 16,
+        "areaMm2": 415.1424,
+        "measure": 45.0,
+        "zMin": 4.199999899999999,
+        "zMax": 5.0000001
+      },
+      {
+        "kind": "cone",
+        "count": 16,
+        "areaMm2": 37.32,
+        "measure": 45.0,
+        "zMin": 5.349999899999997,
+        "zMax": 6.050000100000001
+      },
+      {
+        "kind": "cone",
+        "count": 16,
+        "areaMm2": 223.5216,
+        "measure": 45.0,
+        "zMin": 7.849999899999997,
+        "zMax": 10.000000100000003
+      },
+      {
+        "kind": "cylinder",
+        "count": 16,
+        "areaMm2": 10.1152,
+        "measure": 1.15,
+        "zMin": 4.9999999,
+        "zMax": 5.3500001
+      },
+      {
+        "kind": "cylinder",
+        "count": 16,
+        "areaMm2": 83.6928,
+        "measure": 1.85,
+        "zMin": 6.0499998999999995,
+        "zMax": 7.8500001
+      },
+      {
+        "kind": "cylinder",
+        "count": 16,
+        "areaMm2": 522.7616,
+        "measure": 3.25,
+        "zMin": 2.5999999000000003,
+        "zMax": 4.2000001000000005
+      },
+      {
+        "kind": "cylinder",
+        "count": 4,
+        "areaMm2": 251.3276,
+        "measure": 4.0,
+        "zMin": -1e-07,
+        "zMax": 10.0000001
+      },
+      {
+        "kind": "plane",
+        "count": 94,
+        "areaMm2": 18458.3352,
+        "measure": 0.0,
+        "zMin": -1e-07,
+        "zMax": 10.000000100000003
+      }
+    ]
+  },
+  "analyticAreaCrossCheck": [
+    {
+      "what": "板体外 R4 角柱",
+      "kind": "cylinder",
+      "count": 4,
+      "measure": 4.0,
+      "zFrom": 0.0,
+      "zTo": 10.0,
+      "analyticAreaMm2": 251.3274,
+      "measuredAreaMm2": 251.3276,
+      "deltaMm2": 0.0002,
+      "formula": "quarter-arc sector"
+    },
+    {
+      "what": "型腔 36.3 角柱",
+      "kind": "cylinder",
+      "count": 16,
+      "measure": 1.15,
+      "zFrom": 5.0,
+      "zTo": 5.35,
+      "analyticAreaMm2": 10.1159,
+      "measuredAreaMm2": 10.1152,
+      "deltaMm2": -0.0007,
+      "formula": "quarter-arc sector"
+    },
+    {
+      "what": "型腔 37.7 角柱",
+      "kind": "cylinder",
+      "count": 16,
+      "measure": 1.85,
+      "zFrom": 6.05,
+      "zTo": 7.85,
+      "analyticAreaMm2": 83.692,
+      "measuredAreaMm2": 83.6928,
+      "deltaMm2": 0.0008,
+      "formula": "quarter-arc sector"
+    },
+    {
+      "what": "磁铁孔直段",
+      "kind": "cylinder",
+      "count": 16,
+      "measure": 3.25,
+      "zFrom": 2.6,
+      "zTo": 4.2,
+      "analyticAreaMm2": 522.761,
+      "measuredAreaMm2": 522.7616,
+      "deltaMm2": 0.0006,
+      "formula": "full circle"
+    },
+    {
+      "what": "角部 45° 张角锥",
+      "kind": "cone",
+      "count": 16,
+      "measure": 45.0,
+      "zFrom": 5.35,
+      "zTo": 6.05,
+      "analyticAreaMm2": 37.3202,
+      "measuredAreaMm2": 37.32,
+      "deltaMm2": -0.0002,
+      "formula": "quarter-arc sector"
+    },
+    {
+      "what": "角部 45° 外张锥",
+      "kind": "cone",
+      "count": 16,
+      "measure": 45.0,
+      "zFrom": 7.85,
+      "zTo": 10.0,
+      "analyticAreaMm2": 223.5214,
+      "measuredAreaMm2": 223.5216,
+      "deltaMm2": 0.0002,
+      "formula": "quarter-arc sector"
+    },
+    {
+      "what": "磁铁孔口 45° 倒角锥",
+      "kind": "cone",
+      "count": 16,
+      "measure": 45.0,
+      "zFrom": 4.2,
+      "zTo": 5.0,
+      "analyticAreaMm2": 415.143,
+      "measuredAreaMm2": 415.1424,
+      "deltaMm2": -0.0006,
+      "formula": "full circle"
+    }
+  ],
+  "parameterisationOnlyDifference": "唯一差异是锥面上 BRepAdaptor 报出的 RefRadius 参考端不同（域件报远端 1.85/4.0/4.15，薄特征件报近端 1.15/1.85/3.25）；同一张面、同一面积、同一 z 区间。",
+  "verdict": "IDENTICAL",
+  "verifierNote": "需要一个 OpenCascade Python 绑定；仓库只检测相邻的 CadQuery/OCP 环境，不安装依赖。"
+}
