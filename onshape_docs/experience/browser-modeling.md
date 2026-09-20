@@ -94,14 +94,19 @@
 “添加自定义特征”选择器中的条目、Part Studio 中的 `not-computed` 行、或仅有
 `feature-id` 都不足以证明建模成功。最终判定必须同时读取特征树和零件数。
 
-- **`partNames` 不可信，只有 `parts` 可用（2026-09-20 实测）**。`read_partstudio_features`
-  把 `.part-list-container` 的文本按 `\s+ → 单空格` 归一化并截断到 400 字符，而
-  `parse_part_summary` 按 `\s{2,}|\n` 切名字 —— 归一化之后这个切分永远不会命中，
-  于是两条分支都错：`count == 1` 走特例，把整个剩余串当成一个名字（实测
-  `零件数 (1) 螺旋凸棱柱 曲线数 (1)` → `["螺旋凸棱柱 曲线数 (1)"]`，把下一个分区表头
-  `曲线数` 吞进了名字）；`count > 1` 直接返回 `[]` 且 `partNamesParsed: false`
-  （实测 `零件数 (9)` 与 `零件数 (11)` 两次）。判定建模成功只用 `parts > 0`；
-  真名字应从 DOM 按零件行元素取，而不是解析归一化后的字符串。
+- **零件名字只能从 DOM 取；归一化后的 `partsText` 不足以切名字（2026-09-20 实测，已修）**。
+  `read_partstudio_features` 把 `.part-list-container` 的文本按 `\s+ → 单空格` 归一化
+  并截断到 400 字符，而 `parse_part_summary` 按 `\s{2,}|\n` 切名字 —— 归一化之后这个
+  切分永远不会命中，于是两条分支都错：`count == 1` 走特例，把整个剩余串当成一个名字
+  （实测 `零件数 (1) 螺旋凸棱柱 曲线数 (1)` → `["螺旋凸棱柱 曲线数 (1)"]`，把下一个分区
+  表头 `曲线数` 吞进了名字）；`count > 1` 直接返回 `[]` 且 `partNamesParsed: false`
+  （实测 `零件数 (9)` 与 `零件数 (11)` 两次）。
+  修法：`read_partstudio_features` 现在同时返回 `partItems`（按 `.os-list-item` 的
+  `os-part-list-icon` 认零件行），`parse_part_summary(parts_text, part_items)` 在
+  `len(partItems) == parts` 时用 DOM 名字并标 `partNamesSource: "dom"`；文本兜底只在
+  计数自洽时用，并新增拒绝：`count == 1` 的剩余串里若还含 `…数 (N)` 分区表头，就
+  不再编造名字（宁可 `partNames: []` + `partNamesSource: "none"`）。判定建模成功只看
+  `parts > 0`；要写名字必须核 `partNamesSource == "dom"`。
 
 ## 7. 已知边界
 
