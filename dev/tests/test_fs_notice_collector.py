@@ -125,18 +125,79 @@ class NoticeCollectorProbeTest(unittest.TestCase):
         self.assertEqual(no_number["row"], 0)
         self.assertEqual(no_number["col"], 0)
 
-    def test_other_tabs_and_out_of_date_containers_are_skipped(self) -> None:
-        result = self.collect("inactive-tab-skipped")
+    def test_other_element_notices_are_kept_and_flagged(self) -> None:
+        result = self.collect("other-element-notice-kept")
         self.assertEqual(result["activeTabName"], "Feature Studio 1")
-        self.assertEqual([notice["text"] for notice in result["notices"]], ["active tab"])
+        self.assertEqual(result["noticeCount"], 2)
+        self.assertEqual(result["activeTabNoticeCount"], 1)
+        self.assertEqual(result["otherElementNoticeCount"], 1)
+        self.assertEqual(result["containerTitles"], ["Part Studio 1", "Feature Studio 1"])
+        by_tab = {notice["tabName"]: notice for notice in result["notices"]}
+        regenerated = by_tab["Part Studio 1"]
+        self.assertFalse(regenerated["isActiveTab"])
+        self.assertEqual(regenerated["severity"], "error")
+        self.assertEqual(regenerated["messages"], [
+            "GF Socket Pockets 1 failed to regenerate",
+            "Plate width is not an integer multiple of the cell pitch",
+        ])
+        self.assertEqual(regenerated["line"], 100)
+        self.assertEqual(regenerated["column"], 9)
+        self.assertTrue(by_tab["Feature Studio 1"]["isActiveTab"])
 
-        stale = self.collect("out-of-date-container-skipped")
-        self.assertEqual([notice["text"] for notice in stale["notices"]], ["fresh result"])
+    def test_an_error_marker_inside_a_table_outranks_an_info_icon(self) -> None:
+        # A Part Studio console row can carry an info-styled gutter icon next to
+        # the error text; labelling it info hid a real regeneration error.
+        notice = self.collect("error-marker-wins-over-info-icon")["notices"][0]
+        self.assertEqual(notice["severity"], "error")
+        self.assertEqual(notice["text"], "throw boom")
+        self.assertEqual(notice["line"], 100)
+        self.assertEqual(notice["tabName"], "Part Studio 1")
+
+    def test_out_of_date_rows_are_read_and_flagged_not_dropped(self) -> None:
+        # Live-measured shape: the container for a Part Studio whose custom
+        # feature failed to regenerate carries `notices-out-of-date` on its
+        # header AND the real error. Dropping it hid the failure.
+        result = self.collect("out-of-date-container-read-and-flagged")
+        self.assertEqual([notice["text"] for notice in result["notices"]],
+                         ["stale result", "fresh result"])
+        self.assertTrue(result["notices"][0]["outOfDate"])
+        self.assertFalse(result["notices"][1]["outOfDate"])
+        # Both containers produced a row, so there is no silent element to report.
+        self.assertNotIn("unstructuredContainers", result)
+
+    def test_an_untitled_container_counts_as_the_active_tab(self) -> None:
+        result = self.collect("untitled-container-counts-as-active")
+        self.assertEqual(result["activeTabNoticeCount"], 1)
+        self.assertTrue(result["notices"][0]["isActiveTab"])
+        self.assertEqual(result["containerTitles"], [])
+
+    def test_a_listed_element_without_notice_tables_is_still_reported(self) -> None:
+        # This is the shape that separates "the pane said nothing" from "the
+        # pane listed an element whose failure is not a notice table".
+        result = self.collect("element-without-notice-tables")
+        self.assertEqual(result["notices"], [])
+        self.assertEqual(result["noticeCount"], 0)
+        self.assertEqual(result["containerCount"], 1)
+        self.assertEqual(result["containerTitles"], ["Part Studio 1"])
+        structure = result["unstructuredContainers"]
+        self.assertEqual(len(structure), 1)
+        listed = structure[0]
+        self.assertEqual(listed["tabName"], "Part Studio 1")
+        self.assertIn("element-notice-set-container", listed["classes"])
+        self.assertIn("GF Socket Pockets 1 failed to regenerate", listed["text"])
+        self.assertIn("element-log-container", result["paneClassNames"])
+
+    def test_a_pane_with_tables_carries_no_structure_noise(self) -> None:
+        result = self.collect("pane-open-multi-message")
+        self.assertNotIn("unstructuredContainers", result)
 
     def test_a_table_without_messages_is_not_a_notice(self) -> None:
         result = self.collect("message-less-table-skipped")
         self.assertEqual(result["noticeCount"], 0)
         self.assertEqual(result["notices"], [])
+        # A message-less table is the same "listed but silent" shape as a
+        # missing table: the container is reported structurally, not dropped.
+        self.assertEqual(len(result["unstructuredContainers"]), 1)
 
     def test_the_probe_rejects_an_unknown_scenario(self) -> None:
         payload = {"js": actions.FS_NOTICE_SNAPSHOT_JS, "selectors": SELECTORS,
@@ -255,7 +316,10 @@ class NoticeObservationWiringTest(unittest.TestCase):
     def test_a_clean_compile_carries_no_summary(self) -> None:
         result = self._compile_status([])
         self.assertTrue(result["compiled"])
+        self.assertTrue(result["documentClean"])
         self.assertNotIn("diagnosticSummary", result)
+        self.assertEqual(result["elementNotices"], [])
+        self.assertEqual(result["elementErrorCount"], 0)
 
     def test_info_notices_do_not_block_but_are_counted(self) -> None:
         result = self._compile_status([{
@@ -270,6 +334,117 @@ class NoticeObservationWiringTest(unittest.TestCase):
         self.assertTrue(result["compiled"])
         self.assertEqual(result["noticeCount"], 1)
         self.assertEqual(result["errors"], [])
+
+    def test_another_elements_regeneration_error_never_fails_the_editor_verdict(self) -> None:
+        """A broken Part Studio must not turn a clean commit into a failed one."""
+        result = self._compile_status([
+            {"severity": "info", "text": "informational", "line": 1, "column": 1,
+             "row": 0, "col": 0, "tabName": "Feature Studio 1", "isActiveTab": True},
+            {"severity": "error",
+             "text": "GF Socket Pockets 1 failed to regenerate",
+             "messages": ["GF Socket Pockets 1 failed to regenerate",
+                          "Plate width is not an integer multiple of the cell pitch"],
+             "line": 100, "column": 9, "row": 99, "col": 8,
+             "tabName": "Part Studio 1", "isActiveTab": False},
+        ])
+        # Editor-scoped: what deployment acceptance reads.
+        self.assertTrue(result["compiled"])
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["activeTabNoticeCount"], 1)
+        # Document-scoped: the same observation, attributed per element.
+        self.assertFalse(result["documentClean"])
+        self.assertEqual(result["noticeCount"], 2)
+        self.assertEqual(result["elementNoticeCount"], 1)
+        self.assertEqual(result["elementErrorCount"], 1)
+        element_error = result["elementErrors"][0]
+        self.assertEqual(element_error["text"], "GF Socket Pockets 1 failed to regenerate")
+        self.assertEqual(element_error["messages"], [
+            "GF Socket Pockets 1 failed to regenerate",
+            "Plate width is not an integer multiple of the cell pitch",
+        ])
+        self.assertEqual(element_error["tabName"], "Part Studio 1")
+        self.assertFalse(element_error["isActiveTab"])
+        self.assertEqual(element_error["type"], "error")
+        self.assertEqual(result["elementDiagnosticSummary"]["severityCounts"]["error"], 1)
+
+    def test_an_out_of_date_element_error_is_still_reported_with_its_call_stack(self) -> None:
+        """The live-measured shape: the Part Studio container is out of date."""
+        result = self._compile_status([{
+            "severity": "error",
+            "text": "throw Plate width is not an integer multiple of the cell pitch; "
+                    "expected a Gridfinity plate",
+            "messages": [
+                "throw Plate width is not an integer multiple of the cell pitch; "
+                "expected a Gridfinity plate",
+            ],
+            "line": 100, "column": 9, "row": 99, "col": 8,
+            "tabName": "Part Studio 1", "isActiveTab": False, "outOfDate": True,
+        }])
+        # The editor still compiles, so deployment acceptance is untouched.
+        self.assertTrue(result["compiled"])
+        self.assertEqual(result["errors"], [])
+        # ... and the actual error text is returned, not swallowed.
+        self.assertFalse(result["documentClean"])
+        self.assertEqual(result["elementErrorCount"], 1)
+        reported = result["elementErrors"][0]
+        self.assertEqual(reported["tabName"], "Part Studio 1")
+        self.assertTrue(reported["outOfDate"])
+        self.assertIn("not an integer multiple of the cell pitch", reported["text"])
+
+    def test_an_out_of_date_row_on_the_active_tab_never_fails_a_fresh_commit(self) -> None:
+        result = self._compile_status([{
+            "severity": "error",
+            "text": "stale error from the previous compile",
+            "line": 4, "column": 9, "row": 3, "col": 8,
+            "tabName": "Feature Studio 1", "isActiveTab": True, "outOfDate": True,
+        }])
+        self.assertTrue(result["compiled"])
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["staleErrorCount"], 1)
+        self.assertEqual(result["staleErrors"][0]["outOfDate"], True)
+        self.assertEqual(result["staleNotices"][0]["text"],
+                         "stale error from the previous compile")
+        self.assertFalse(result["documentClean"])
+
+    def test_the_pane_structure_evidence_reaches_the_compile_status(self) -> None:
+        # A listed element that produced no notice table is exactly where a
+        # regeneration failure hides; its structure must survive into the
+        # derived status instead of being swallowed.
+        page = mock.Mock()
+        page.evaluate.return_value = {"found": True, "annotationCount": 0, "errors": []}
+        with mock.patch.object(actions, "read_featurescript_notices", return_value={
+            "found": True,
+            "complete": True,
+            "noticeCount": 0,
+            "notices": [],
+            "containerTitles": ["Part Studio 1"],
+            "unstructuredContainers": [{
+                "tabName": "Part Studio 1",
+                "classes": "element-notice-set-container",
+                "text": "Part Studio 1 GF Socket Pockets 1 failed to regenerate",
+            }],
+            "paneClassNames": ["notices-content", "element-log-container"],
+        }):
+            result = actions.read_featurescript_compile_status(page)
+        self.assertEqual(result["noticeContainerTitles"], ["Part Studio 1"])
+        structure = result["noticePaneStructure"]
+        self.assertEqual(structure["unstructuredContainers"][0]["tabName"], "Part Studio 1")
+        self.assertIn("element-log-container", structure["paneClassNames"])
+
+    def test_an_unreadable_notice_pane_never_claims_the_document_is_clean(self) -> None:
+        page = mock.Mock()
+        page.evaluate.return_value = {"found": True, "annotationCount": 0, "errors": []}
+        with mock.patch.object(actions, "read_featurescript_notices", return_value={
+            "found": True,
+            "complete": False,
+            "noticeCount": 0,
+            "notices": [],
+            "reason": "notice pane unavailable",
+        }):
+            result = actions.read_featurescript_compile_status(page)
+        self.assertFalse(result["compiled"])
+        self.assertFalse(result["documentClean"])
+        self.assertEqual(result["reason"], "notice pane unavailable")
 
 
 if __name__ == "__main__":

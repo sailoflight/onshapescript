@@ -1158,6 +1158,13 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         "noticeCount": compile_status.get("noticeCount", 0),
         "errors": compile_status.get("errors", []),
         "notices": compile_status.get("notices", []),
+        # A clean commit is still a clean commit, but the deploy report also
+        # says whether any OTHER document element currently fails to regenerate.
+        "documentClean": compile_status.get("documentClean", False),
+        "elementNoticeCount": compile_status.get("elementNoticeCount", 0),
+        "elementErrorCount": compile_status.get("elementErrorCount", 0),
+        "elementErrors": compile_status.get("elementErrors", []),
+        "staleErrorCount": compile_status.get("staleErrorCount", 0),
         "diagnosticCapture": diagnostic_capture,
     }
 

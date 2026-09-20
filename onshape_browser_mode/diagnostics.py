@@ -573,6 +573,12 @@ def _server_conclusion(compile_status: dict[str, Any]) -> dict[str, Any]:
         "noticeCount": int(compile_status.get("noticeCount", 0) or 0),
         "errorCount": int(compile_status.get("errorCount", 0) or 0),
         "warningCount": int(compile_status.get("warningCount", 0) or 0),
+        # `compiled` is the active editor's verdict. These two say whether some
+        # OTHER document element is failing to regenerate, so the corpus cannot
+        # record a clean compile as if the whole document were healthy.
+        "documentClean": bool(compile_status.get("documentClean", False)),
+        "elementErrorCount": int(compile_status.get("elementErrorCount", 0) or 0),
+        "staleErrorCount": int(compile_status.get("staleErrorCount", 0) or 0),
     }
 
 

@@ -55,6 +55,7 @@ class El {
 
   matches(selector) {
     for (const part of selector.split(/(?=[.#])/)) {
+      if (part === "*" || part === "[class]") continue;
       if (part.startsWith(".")) {
         if (!this.classes.has(part.slice(1))) return false;
       } else if (part && this.tag !== part) {
@@ -146,17 +147,54 @@ function scenario(name) {
       root.add(content);
       break;
     }
-    case "inactive-tab-skipped": {
+    case "other-element-notice-kept": {
       const content = section("div", ["notices-content"]);
-      content.add(noticePane({ tabName: "Feature Studio 2", tables: [noticeTable(["other tab"])] }));
-      content.add(noticePane({ tabName: "Feature Studio 1", tables: [noticeTable(["active tab"])] }));
+      content.add(noticePane({
+        tabName: "Part Studio 1",
+        tables: [noticeTable(
+          ["GF Socket Pockets 1 failed to regenerate",
+           "Plate width is not an integer multiple of the cell pitch"],
+          { severity: "error", line: "100", column: "9" }
+        )],
+      }));
+      content.add(noticePane({ tabName: "Feature Studio 1", tables: [noticeTable(["informational"])] }));
       root.add(content);
       root.add(section("div", ["os-tab-bar-tab", "active"]).add(
         section("span", ["os-tab-name"], "Feature Studio 1")
       ));
       break;
     }
-    case "out-of-date-container-skipped": {
+    case "untitled-container-counts-as-active": {
+      const content = section("div", ["notices-content"]);
+      content.add(noticePane({ tabName: "", tables: [noticeTable(["unattributed warning"])] }));
+      root.add(content);
+      root.add(section("div", ["os-tab-bar-tab", "active"]).add(
+        section("span", ["os-tab-name"], "Feature Studio 1")
+      ));
+      break;
+    }
+    case "element-without-notice-tables": {
+      const content = section("div", ["notices-content"]);
+      const container = section("div", ["element-notice-set-container"]);
+      container.add(section("div", ["element-notice-title"], "Part Studio 1"));
+      const log = section("div", ["element-log-container"]);
+      log.add(section("div", ["element-log-line"], "GF Socket Pockets 1 failed to regenerate"));
+      container.add(log);
+      content.add(container);
+      root.add(content);
+      break;
+    }
+    case "error-marker-wins-over-info-icon": {
+      // Live-measured shape of a Part Studio console row: an info-styled gutter
+      // icon inside a table that also carries an error text cell.
+      const content = section("div", ["notices-content"]);
+      const table = noticeTable(["throw boom"], { severity: "info", line: "100", column: "9" });
+      table.add(section("span", ["error-text-td"], ""));
+      content.add(noticePane({ tabName: "Part Studio 1", tables: [table] }));
+      root.add(content);
+      break;
+    }
+    case "out-of-date-container-read-and-flagged": {
       const content = section("div", ["notices-content"]);
       content.add(noticePane({ tables: [noticeTable(["stale result"])], outOfDate: true }));
       content.add(noticePane({ tables: [noticeTable(["fresh result"])] }));

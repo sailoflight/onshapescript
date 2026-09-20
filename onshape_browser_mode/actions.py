@@ -182,8 +182,17 @@ _USER_FEATURE_ROWS_JS = """
 
 #: Notice-pane collector. One notice table can carry several message paragraphs;
 #: all of them are returned in ``messages`` (``text`` keeps the first one for
-#: callers that predate the list). Kept as a module constant so the offline
-#: stub-DOM test in dev/tests exercises the exact string sent to Playwright.
+#: callers that predate the list). Notices are returned for EVERY document
+#: element the pane lists, each flagged ``isActiveTab`` and ``outOfDate``: a
+#: feature that fails to regenerate in a Part Studio is reported in this pane
+#: under that Part Studio's own container while a Feature Studio is the active
+#: tab, and dropping that container (or skipping a container whose header carries
+#: ``notices-out-of-date``) hid the failure behind an empty notice list. When a
+#: listed element yields no readable notice at all, bounded structural evidence
+#: (``unstructuredContainers``/``paneClassNames``) is returned instead of
+#: nothing, because the pane's real structure is otherwise unobservable. Kept as
+#: a module constant so the offline stub-DOM test in dev/tests exercises the
+#: exact string sent to Playwright.
 FS_NOTICE_SNAPSHOT_JS = """
 (selectors) => {
   const visible = (el) => {
@@ -206,20 +215,60 @@ FS_NOTICE_SNAPSHOT_JS = """
   const containers = content
     ? Array.from(content.querySelectorAll('.element-notice-set-container'))
     : [];
+  // Bounded structural evidence for the shape "the pane listed a document
+  // element but this collector read no notice from it": a regeneration failure
+  // is recorded in the element's log region rather than as a notice row, so an
+  // empty notice list alone cannot tell "nothing to report" apart from
+  // "reported somewhere this collector does not read yet". Class names are
+  // keyword-filtered and unique, so the payload stays small and the pane's real
+  // structure is observable without a browser eval tool.
+  const structureClasses = (root, limit) => {
+    const seen = [];
+    for (const el of root.querySelectorAll('[class]')) {
+      const cls = String(el.className || '').trim().replace(/\\s+/g, ' ');
+      if (!cls || !/notice|log|console|error|warn/i.test(cls)) continue;
+      if (seen.includes(cls)) continue;
+      seen.push(cls);
+      if (seen.length >= limit) break;
+    }
+    return seen;
+  };
   const notices = [];
+  const silentContainers = [];
   for (const container of containers) {
-    if (container.querySelector('.notices-out-of-date')) continue;
+    // ``notices-out-of-date`` on the element header is NOT "these rows are
+    // invalid". Measured live 2026-09-20: the container for a Part Studio whose
+    // custom feature failed to regenerate carried that class AND the complete,
+    // current error with its call stack in a normal notice table. Skipping such
+    // a container hid the failure behind an empty notice list, so the rows are
+    // read and flagged ``outOfDate`` instead; callers that must not let a stale
+    // row fail a fresh compile filter on that flag.
+    const outOfDate = !!container.querySelector('.notices-out-of-date');
     const tabName = text(container.querySelector('.element-notice-title'));
-    if (activeTabName && tabName && tabName !== activeTabName) continue;
+    // A container with no title cannot be attributed, so it counts as the
+    // active tab (the pre-existing behaviour) instead of being dropped.
+    const isActiveTab = !activeTabName || !tabName || tabName === activeTabName;
+    let produced = 0;
     for (const table of container.querySelectorAll(selectors.table)) {
       const messages = Array.from(table.querySelectorAll(selectors.message))
         .map(text).filter(Boolean);
       if (!messages.length) continue;
       const line = integer(table.querySelector(selectors.line));
       const column = integer(table.querySelector(selectors.column));
+      // Severity from the table's OWN class vocabulary, by precedence: one row
+      // of a console-style table can carry an info-styled gutter icon AND an
+      // error text cell (`.error-text-td`/`.error-list-error-text`), so asking
+      // for `fs-notice-info` first labelled a real regeneration error as info
+      // and hid it from every blocking verdict. An error marker anywhere in the
+      // table therefore wins, then warning, then info.
+      const classBlob = [
+        String(table.className || ''),
+        ...Array.from(table.querySelectorAll('[class]')).map((el) => String(el.className || '')),
+      ].join(' ').toLowerCase();
       let severity = 'warning';
-      if (table.querySelector('.fs-notice-error')) severity = 'error';
-      else if (table.querySelector('.fs-notice-info')) severity = 'info';
+      if (classBlob.includes('error')) severity = 'error';
+      else if (classBlob.includes('warn')) severity = 'warning';
+      else if (classBlob.includes('info')) severity = 'info';
       notices.push({
         severity,
         text: messages[0],
@@ -229,16 +278,42 @@ FS_NOTICE_SNAPSHOT_JS = """
         row: line === null ? 0 : Math.max(0, line - 1),
         col: column === null ? 0 : Math.max(0, column - 1),
         tabName,
+        isActiveTab,
+        outOfDate,
       });
+      produced += 1;
     }
+    if (!produced) silentContainers.push({ container, tabName, outOfDate });
   }
+  const activeTabNotices = notices.filter((notice) => notice.isActiveTab);
+  const structure = silentContainers.length ? {
+    unstructuredContainers: silentContainers.slice(0, 3).map((entry) => ({
+      tabName: entry.tabName,
+      outOfDate: entry.outOfDate,
+      classes: String(entry.container.className || '').trim().replace(/\\s+/g, ' ').slice(0, 160),
+      text: text(entry.container).slice(0, 400),
+    })),
+    paneClassNames: structureClasses(document, 48),
+  } : {};
   return {
     found: !!toggle || !!content,
     indicatorPresent: visible(toggle),
     paneOpen: !!(toggle && toggle.querySelector('.flyout-toggle-button.os-expanded')),
     activeTabName,
+    // Bounded structural evidence: which document elements the pane listed at
+    // all, which distinguishes "the pane said nothing" from "the pane listed an
+    // element that produced no readable notice", which an empty notice list
+    // alone cannot tell apart.
+    containerCount: containers.length,
+    containerTitles: containers
+      .map((container) => text(container.querySelector('.element-notice-title')))
+      .filter(Boolean)
+      .slice(0, 20),
     noticeCount: notices.length,
+    activeTabNoticeCount: activeTabNotices.length,
+    otherElementNoticeCount: notices.length - activeTabNotices.length,
     notices,
+    ...structure,
   };
 }
 """
@@ -315,7 +390,13 @@ def _read_featurescript_notice_snapshot(page: Any) -> dict[str, Any]:
 
 
 def read_featurescript_notices(page: Any) -> dict[str, Any]:
-    """Read active-tab FeatureScript notices and restore the notice pane state."""
+    """Read every notice the pane lists and restore the notice pane state.
+
+    Rows are NOT filtered by tab: the pane attributes each row to a document
+    element, and a Part Studio regeneration failure is exactly such a row while
+    a Feature Studio is the active tab. Callers that need the active editor's
+    verdict split on ``isActiveTab`` instead of relying on a silent drop.
+    """
     try:
         snapshot = _read_featurescript_notice_snapshot(page)
     except Exception as exc:  # noqa: BLE001 - fail closed with structured evidence
@@ -409,12 +490,71 @@ def _enrich_compile_errors(
     return enriched
 
 
+def _notice_error_row(item: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one raw notice row into the compile-status diagnostic shape."""
+    return {
+        "row": int(item.get("row", 0)),
+        "col": int(item.get("col", 0)),
+        "line": item.get("line"),
+        "column": item.get("column"),
+        "text": str(item.get("text", "")),
+        "messages": [
+            str(message) for message in item.get("messages", []) if str(message).strip()
+        ],
+        "type": str(item.get("severity", "warning")),
+        "source": "featureScriptNotice",
+        "tabName": str(item.get("tabName", "")),
+        "isActiveTab": bool(item.get("isActiveTab", True)),
+        "outOfDate": bool(item.get("outOfDate", False)),
+    }
+
+
+def _split_notices(
+    notices: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split pane notices into fresh-active-tab, stale-active-tab, and other.
+
+    A custom feature that fails to regenerate in a Part Studio is reported in
+    the Feature Studio notice pane under that Part Studio's own container — often
+    with that container's header carrying ``notices-out-of-date`` — so the split
+    is what lets a caller keep the editor's verdict separate from the document's,
+    and a fresh commit separate from a stale row.
+    """
+    fresh_active: list[dict[str, Any]] = []
+    stale_active: list[dict[str, Any]] = []
+    others: list[dict[str, Any]] = []
+    for item in notices:
+        if not bool(item.get("isActiveTab", True)):
+            others.append(item)
+        elif bool(item.get("outOfDate", False)):
+            stale_active.append(item)
+        else:
+            fresh_active.append(item)
+    return fresh_active, stale_active, others
+
+
+def _blocking_notices(notices: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Notices at warning-or-worse severity; ``info`` never blocks."""
+    return [
+        item for item in notices if str(item.get("severity", "warning")).lower() != "info"
+    ]
+
+
 def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
-    """Combine Ace annotations with the active FeatureScript notice pane.
+    """Combine Ace annotations with the FeatureScript notice pane.
 
     Every returned diagnostic carries ``messages`` (all paragraphs of one notice
     table) and a self-labeled ``code``. ``diagnosticSummary`` appears only when
     there is something to summarize, so a clean compile stays small.
+
+    ``errors``/``compiled`` stay the ACTIVE EDITOR's fresh verdict: they are what
+    deployment acceptance reads, so a Part Studio that is broken elsewhere — or a
+    row the pane marks ``notices-out-of-date`` — must never turn a clean
+    FeatureScript commit into a failed one. The same pane observation is still
+    reported in full: ``elementErrors`` covers other document elements and
+    ``staleErrors`` covers out-of-date rows on the active tab, so the real
+    regeneration error text is returned instead of hidden, and ``documentClean``
+    states whether anything at all is failing.
     """
     index = diagnostics.error_string_enum_index()
     try:
@@ -425,6 +565,16 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
             "compiled": False,
             "annotationCount": 0,
             "noticeCount": 0,
+            "activeTabNoticeCount": 0,
+            "elementNoticeCount": 0,
+            "elementNotices": [],
+            "elementErrorCount": 0,
+            "elementErrors": [],
+            "staleNoticeCount": 0,
+            "staleNotices": [],
+            "staleErrorCount": 0,
+            "staleErrors": [],
+            "documentClean": False,
             "errors": _enrich_compile_errors([{
                 "row": 0,
                 "col": 0,
@@ -443,6 +593,16 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
             "compiled": False,
             "annotationCount": int((ace or {}).get("annotationCount", 0)),
             "noticeCount": 0,
+            "activeTabNoticeCount": 0,
+            "elementNoticeCount": 0,
+            "elementNotices": [],
+            "elementErrorCount": 0,
+            "elementErrors": [],
+            "staleNoticeCount": 0,
+            "staleNotices": [],
+            "staleErrorCount": 0,
+            "staleErrors": [],
+            "documentClean": False,
             "errors": _enrich_compile_errors(ace_errors, index),
             "notices": [],
             "noticeReadComplete": False,
@@ -451,33 +611,36 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
 
     notice_status = read_featurescript_notices(page)
     notices = [item for item in notice_status.get("notices", []) if isinstance(item, dict)]
-    blocking_notices = [
-        item for item in notices if str(item.get("severity", "warning")).lower() != "info"
-    ]
-    notice_errors = [
-        {
-            "row": int(item.get("row", 0)),
-            "col": int(item.get("col", 0)),
-            "line": item.get("line"),
-            "column": item.get("column"),
-            "text": str(item.get("text", "")),
-            "messages": [
-                str(message) for message in item.get("messages", []) if str(message).strip()
-            ],
-            "type": str(item.get("severity", "warning")),
-            "source": "featureScriptNotice",
-            "tabName": str(item.get("tabName", "")),
-        }
-        for item in blocking_notices
-    ]
+    fresh_active, stale_active, element_notices = _split_notices(notices)
+    notice_errors = [_notice_error_row(item) for item in _blocking_notices(fresh_active)]
+    stale_errors = _enrich_compile_errors(
+        [_notice_error_row(item) for item in _blocking_notices(stale_active)], index
+    )
+    element_errors = _enrich_compile_errors(
+        [_notice_error_row(item) for item in _blocking_notices(element_notices)], index
+    )
     ace_errors = [item for item in ace.get("errors", []) if isinstance(item, dict)]
     notice_complete = bool(notice_status.get("complete"))
     errors = _enrich_compile_errors([*ace_errors, *notice_errors], index)
+    document_clean = bool(
+        not errors and not element_errors and not stale_errors and notice_complete
+    )
     result = {
         "found": True,
         "compiled": not errors and notice_complete,
         "annotationCount": int(ace.get("annotationCount", len(ace_errors))),
         "noticeCount": len(notices),
+        "activeTabName": str(notice_status.get("activeTabName", "")),
+        "activeTabNoticeCount": len(fresh_active),
+        "elementNoticeCount": len(element_notices),
+        "elementNotices": element_notices,
+        "elementErrorCount": len(element_errors),
+        "elementErrors": element_errors,
+        "staleNoticeCount": len(stale_active),
+        "staleNotices": stale_active,
+        "staleErrorCount": len(stale_errors),
+        "staleErrors": stale_errors,
+        "documentClean": document_clean,
         "errorCount": sum(1 for item in errors if str(item.get("type", "")).lower() == "error"),
         "warningCount": sum(1 for item in errors if str(item.get("type", "")).lower() == "warning"),
         "errors": errors,
@@ -486,6 +649,26 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
         "noticePaneOpenedForRead": bool(notice_status.get("openedForRead")),
         "noticePaneRestored": bool(notice_status.get("restored", True)),
     }
+    container_titles = notice_status.get("containerTitles")
+    if isinstance(container_titles, list):
+        result["noticeContainerTitles"] = [
+            str(title) for title in container_titles if str(title).strip()
+        ][:20]
+    pane_structure = {
+        key: notice_status[key]
+        for key in ("unstructuredContainers", "paneClassNames")
+        if notice_status.get(key)
+    }
+    if pane_structure:
+        result["noticePaneStructure"] = pane_structure
+    if element_errors:
+        result["elementDiagnosticSummary"] = diagnostics.inline_diagnostic_summary(
+            diagnostics.summarize_diagnostics({"errors": element_errors}, index=index)
+        )
+    if stale_errors:
+        result["staleDiagnosticSummary"] = diagnostics.inline_diagnostic_summary(
+            diagnostics.summarize_diagnostics({"errors": stale_errors}, index=index)
+        )
     if errors:
         result["diagnosticSummary"] = diagnostics.inline_diagnostic_summary(
             diagnostics.summarize_diagnostics({"errors": errors}, index=index)

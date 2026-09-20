@@ -236,6 +236,12 @@ def browser_fs_capture_diagnostic(arguments: dict[str, Any]) -> dict[str, Any]:
         "annotationCount": compile_status.get("annotationCount", 0),
         "noticeCount": compile_status.get("noticeCount", 0),
         "errors": compile_status.get("errors", []),
+        # Another document element can be broken while the editor compiles; the
+        # capture must carry that too, or the corpus mis-describes the document.
+        "documentClean": bool(compile_status.get("documentClean", False)),
+        "elementErrorCount": compile_status.get("elementErrorCount", 0),
+        "elementNotices": compile_status.get("elementNotices", []),
+        "staleErrorCount": compile_status.get("staleErrorCount", 0),
     }
 
 
