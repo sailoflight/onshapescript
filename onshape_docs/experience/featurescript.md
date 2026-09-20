@@ -165,6 +165,63 @@ corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see
   (upload 3 + create Part Studio 1 + POST feature 1), and it is the only
   layer that exercises the body.
 
+### Annotation strings are ASCII-only; body strings are not (live, browser leg)
+
+Measured 2026-09-20 through the browser FeatureScript editor (deploy → read the
+notice pane → commit), which costs **0 REST quota** per probe. Four deploys of
+the same feature, varying only the strings:
+
+| Deploy | `"Feature Type Name"` | parameter `"Name"` labels | body `setProperty` value | result |
+|---|---|---|---|---|
+| 1 | `螺旋凸棱` | Chinese | Chinese | `compiled: false` — "Nonconforming feature function 'spiralRidgeCn': Invalid character in 'Feature Type Name' annotation: only printable ASCII allowed" |
+| 2 | `Spiral ridge CN` | Chinese | Chinese | `compiled: false` — "precondition analysis failed" + "Invalid character in 'Name' annotation" for **all five** parameters |
+| 3 | `Spiral ridge` | ASCII | ASCII | `compiled: true`, 0 notices |
+| 4 | `Spiral ridge` | ASCII | `螺旋凸棱柱` | `compiled: true`, 0 notices; the parts list showed `螺旋凸棱柱` |
+
+So the gate is **annotations only**, and it applies to every annotation string
+value, not just `"Feature Type Name"`:
+
+- **A non-ASCII annotation value kills the whole feature.** Deploy 2 kept a
+  valid ASCII type name and still emitted zero feature specs, so a single
+  Chinese parameter label is enough to lose the feature — and the message names
+  the key, not the line, so a long precondition needs a per-parameter scan.
+- **Non-ASCII string *values* in the body are legal.** The vendored standard
+  library already relies on this (`holeTable.fs:160` passes `"⌀"` to
+  `tolerancedValueToString`, and `holetables.gen.fs:35277` has `"S™/SS™/CLS™"`
+  as a table-map value), and deploy 4 both compiled clean and displayed the
+  Chinese name in the part list. The name shown next to a body therefore does
+  not have to match the ASCII UI label.
+- **A Chinese *UI* label is impossible**, so a localized custom feature gets an
+  ASCII `"Feature Type Name"` and ASCII `"Name"` labels; only model/part names
+  can carry the Chinese text. The local checker warns about this shape
+  (`fs_check.check_annotation_ascii`) rather than failing the deploy.
+
+### A precondition is what makes a generated feature look official (live)
+
+The first version of the generated spiral declared an **empty precondition**, so
+it published zero parameters. Onshape then showed the feature's internals
+(`fCylinder` → an "extrude", `opHelix`, sketch+sweep, `opBoolean`) read-only
+with nothing editable — visually nothing like a standard feature even though the
+history row was a valid custom feature. Adding one
+
+```featurescript
+annotation { "Name" : "Base radius" }
+isLength(definition.baseRadius, { (millimeter) : [12.5, 50, 200] } as LengthBoundSpec);
+```
+
+per dimension produces a real parameter dialog (`Base radius 10 mm / Pitch 6 mm
+/ Ridge width 2 mm / Ridge height 2 mm / Length 30 mm` in the measured run), and
+editing two of those fields applied and persisted:
+
+- **The requested value belongs in the bound spec's middle slot** (the
+  `LengthBoundSpec` literal is `[min, default, max]`), and the body must then
+  read `definition.*` — a baked constant makes the dialog disagree with the
+  geometry, e.g. a helix whose revolution count no longer follows `pitch`.
+- **`setProperty(..., PropertyType.NAME)` is where a non-ASCII part name goes**,
+  not the annotation.
+- The measured dialog read `10 mm / 6 mm / 2 mm / 2 mm / 30 mm` for the
+  requested `10/6/2/2/30`, i.e. the default slot is honored verbatim.
+
 ### `evalfeaturescript` as the live-doc tool (live, verified)
 
 The server's `POST .../featurescript` (via `onshape_eval_featurescript`) is the
@@ -236,6 +293,28 @@ masked text, so a word inside an annotation string — `"Planar face (drill
 direction)"` — no longer reports a call to `face(`, and a commented-out example no
 longer reports its own types; `test_static_guards` pins both directions, including
 that a genuine unknown call or enum member is still warned.
+
+One rule came from a failure the local pass used to miss *entirely*, and the live
+evidence is still visible in the scratch document: the `gate check` Feature Studio
+carries the yellow/red notice from 2026-09-19, because the server saved and then
+rejected
+
+    isLength(definition.depth, { (0) * millimeter, (100) * millimeter } as LengthBoundSpec);
+
+with five notices ("no viable alternative at input '(0) * millimeter,'",
+"missing TOP_SEMI at 'function'", "extraneous input ')' expecting {…, TOP_SEMI}").
+`{ … }` in expression position is a **map**, so every top-level entry needs
+`key : value`, and a positional entry is a syntax error — but the checker reported
+only the unrelated undefined-symbol warning next to it. It now warns
+`map literal at line 8 has an entry without 'key : value'`, on the same line the
+server pointed at. Because it is text-level, it needed its own false-positive gate
+against the whole mirror: the first version flagged `cplane.fs`'s lambda body
+`(x is number) returns boolean =>{ … }`, which is why `>` is excluded from the
+expression-position set (no reading of FeatureScript puts a map literal to the
+right of `>`). After that exclusion all 265 vendored modules are clean, and the
+gate test asserts that class stays clean. Warning-level like every new rule: it is
+never the reason a deploy stops, and a source it flags still needs the server's
+own verdict.
 
 Rules that save quota:
 

@@ -286,6 +286,53 @@ def check_dangling_annotations(fs: FsFile, text: str, masked: str) -> None:
             )
 
 
+_NON_ASCII = re.compile(r"[^\x20-\x7e]")
+
+
+def check_annotation_ascii(fs: FsFile, text: str, masked: str) -> None:
+    """Every string VALUE inside ``annotation { ... }`` must be printable ASCII.
+
+    FeatureScript gates annotation strings to printable ASCII and reports it per
+    key. Measured live 2026-09-20 through the browser leg (0 REST quota each):
+    a Chinese ``"Feature Type Name"`` gave "Invalid character in 'Feature Type
+    Name' annotation: only printable ASCII allowed", and Chinese ``"Name"``
+    labels gave the same message for all five parameters — the whole feature
+    stopped being conforming (``compiled: false``, no feature spec emitted). The
+    same source compiled CLEAN once the labels were ASCII while keeping a Chinese
+    ``setProperty`` value, so the gate is annotations only: non-ASCII *values* in
+    the body are legal (the vendored standard library itself uses "⌀" and "™").
+
+    The rule is scoped to annotation maps and applied to every key rather than
+    only the two measured ones, because the vendored mirror is clean either way:
+    2496 annotation string pairs across the 265 vendored modules contain zero
+    non-ASCII characters, so the wider net adds no false positive.
+
+    ``text`` is the comment-masked source (string literals preserved, since the
+    literals are what is being checked); ``masked`` is the fully-masked source
+    used for brace matching. The marker itself is searched in ``masked`` so that a
+    string literal which merely *mentions* the word `annotation` cannot be
+    mistaken for a real annotation block, and the two texts have equal length, so
+    the offsets transfer.
+    """
+    for marker in re.finditer(r"\bannotation\s*(\{)", masked):
+        brace = marker.start(1)
+        close = find_matching(masked, brace)
+        if close is None:
+            continue  # unbalanced braces are reported separately
+        body = text[brace + 1 : close]
+        for entry in re.finditer(r'"([^"\n]*)"\s*:\s*"([^"\n]*)"', body):
+            key, value = entry.group(1), entry.group(2)
+            if not _NON_ASCII.search(value):
+                continue
+            line = fs.text.count("\n", 0, brace) + 1
+            fs.warn(
+                f"annotation at line {line} has a non-ASCII {key!r} value "
+                f"{value!r}: FeatureScript allows only printable ASCII inside "
+                "annotation strings, so the server reports \"Invalid character "
+                f"in '{key}' annotation\" and refuses the feature"
+            )
+
+
 def _load_index(fs: FsFile) -> dict[str, set[str]] | None:
     if not INDEX_PATH.is_file():
         fs.warn(f"index not found at {INDEX_PATH}; skipping symbol check")
@@ -498,6 +545,107 @@ def check_unit_mixing(fs: FsFile, comments_only: str) -> None:
             )
 
 
+#: Characters that put a `{` in expression position, where FeatureScript reads it
+#: as a map literal (and therefore requires `key : value` entries). A statement
+#: block is never preceded by one of these: `precondition {` and `else {` follow a
+#: keyword, an `if (…) {` / `for (…) {` / function body follows `)`, a nested
+#: block follows `}` or `;`, and a lambda body follows `=>`.
+#:
+#: `>` is deliberately absent: `(args) returns boolean =>{ … }` is a lambda *block*
+#: in the vendored standard library (`cplane.fs`), and no reading of FeatureScript
+#: puts a map literal to the right of `>`. The std-library false-positive gate in
+#: `dev/tests/test_static_guards.py` is what found that case.
+_MAP_AFTER = set("(,=:[+-*/%&|!?<")
+_MAP_AFTER_KEYWORD = re.compile(r"\breturn\s*$")
+#: How far back to look for the character/keyword that introduces a `{`.
+_MAP_LOOKBEHIND = 32
+
+
+def _top_level_entries(masked: str, open_at: int) -> list[tuple[int, int]] | None:
+    """Spans of the top-level entries inside the ``{`` at ``open_at``.
+
+    ``masked`` must be the fully masked source (string literals and comments
+    blanked), so a brace or comma *inside* a string cannot split an entry.
+    Returns ``None`` for an unbalanced group, which `check_brackets` reports.
+    """
+    entries: list[tuple[int, int]] = []
+    start = open_at + 1
+    depth = 0
+    i = open_at + 1
+    n = len(masked)
+    while i < n:
+        ch = masked[i]
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            if depth == 0:
+                if ch != "}":
+                    return None
+                entries.append((start, i))
+                return [span for span in entries if masked[span[0] : span[1]].strip()]
+            depth -= 1
+        elif ch == "," and depth == 0:
+            entries.append((start, i))
+            start = i + 1
+        i += 1
+    return None
+
+
+def _has_top_level_colon(masked: str, start: int, end: int) -> bool:
+    """True when the span holds a `:` at its own nesting level."""
+    depth = 0
+    for i in range(start, end):
+        ch = masked[i]
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == ":" and depth == 0:
+            return True
+    return False
+
+
+def check_map_literals(fs: FsFile, masked: str) -> None:
+    """Warn on a map literal whose entry is not `key : value`.
+
+    `{ ... }` in expression position is a **map** in FeatureScript, so every
+    top-level entry must be a key/value pair. A positional entry is rejected by
+    the live parser, and the notices it produces name the symptom instead of the
+    map: the source
+
+        isLength(definition.depth, { (0) * millimeter, (100) * millimeter } as LengthBoundSpec);
+
+    came back from the server on 2026-09-19 as five errors ("no viable alternative
+    at input '(0) * millimeter,'", "missing TOP_SEMI at 'function'", "extraneous
+    input ')' expecting {…, TOP_SEMI}") while this checker reported only the
+    separate undefined-symbol warning — that is the class this rule closes. The
+    finding is warning-level: it is a text heuristic, not a parser, even though
+    the shape it names has no reading in the language.
+    """
+    for match in re.finditer(r"\{", masked):
+        open_at = match.start()
+        before = masked[max(0, open_at - _MAP_LOOKBEHIND) : open_at].rstrip()
+        if not before:
+            continue
+        if before[-1] not in _MAP_AFTER and not _MAP_AFTER_KEYWORD.search(before):
+            continue
+        entries = _top_level_entries(masked, open_at)
+        if not entries:
+            continue
+        for start, end in entries:
+            if _has_top_level_colon(masked, start, end):
+                continue
+            line = fs.text.count("\n", 0, start) + 1
+            snippet = " ".join(fs.text[start:end].split())[:60]
+            fs.warn(
+                f"map literal at line {line} has an entry without `key : value`: "
+                f"{snippet!r} — `{{ … }}` in expression position is a map, so a "
+                "positional entry is a syntax error the server reports as "
+                "'no viable alternative' / 'missing TOP_SEMI'"
+            )
+            break
+
+
 def check_file(path: Path) -> FsFile:
     """Check one FeatureScript file on disk."""
     return check_source(FsFile(path))
@@ -516,6 +664,8 @@ def check_source(fs: FsFile) -> FsFile:
     check_imports(fs, comments_only, index)
     check_op_definitions(fs, comments_only, masked, index)
     check_unit_mixing(fs, comments_only)
+    check_map_literals(fs, masked)
+    check_annotation_ascii(fs, comments_only, masked)
     return fs
 
 

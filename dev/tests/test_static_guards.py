@@ -14,6 +14,7 @@ driven through mocks only, and the corpus check is fully offline.
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import subprocess
 import sys
@@ -282,10 +283,271 @@ class ImportCheckTest(unittest.TestCase):
             result = fs_check.check_source(fs_check.FsFile.from_text(text, name=str(path))).as_result()
             with self.subTest(module=path.name):
                 self.assertEqual(
-                    [w for w in result["warnings"] if "vendored standard library" in w or "empty version" in w],
+                    [
+                        w
+                        for w in result["warnings"]
+                        if "vendored standard library" in w
+                        or "empty version" in w
+                        # `map literal at line …` must never fire on real FS: the
+                        # rule's first version flagged `cplane.fs`'s lambda body
+                        # `(x) returns boolean =>{ … }`, which is how the `=>`
+                        # exclusion in _MAP_AFTER was found.
+                        or "map literal at line" in w
+                        # The annotation-ASCII rule casts a wider net than the
+                        # two keys measured live, so its false-positive gate has
+                        # to be the real mirror: 2496 annotation string pairs
+                        # across these modules contain zero non-ASCII characters.
+                        or "non-ASCII" in w
+                    ],
                     [],
                 )
         self.assertGreater(checked, 100, "the library sample looks truncated")
+
+
+class MapLiteralTest(unittest.TestCase):
+    """`{ … }` in expression position is a map, so its entries need keys.
+
+    The case is not invented: it is the `gate check` source the live server
+    rejected on 2026-09-19 with five notices ("no viable alternative at input
+    '(0) * millimeter,'", "missing TOP_SEMI at 'function'", "extraneous input
+    ')'"), captured in
+    `onshape_browser_mode/outputs/fs_diagnostics/20260919T132740314887Z-0563066ce97b/`
+    and recorded in `onshape_docs/verification/capability-live-run-2026-09-19.md`.
+    The checker passed that source locally, which is why the rule exists.
+    """
+
+    #: The exact source the server rejected. Kept verbatim so the regression is
+    #: the measured case, not a paraphrase of it.
+    _SERVER_REJECTED = _HEADER + (
+        "export const gateProbe = defineFeature(function(context is Context, id is Id, definition is map)\n"
+        "    precondition\n"
+        "    {\n"
+        '        annotation { "Name" : "Probe depth" }\n'
+        "        isLength(definition.depth, { (0) * millimeter, (100) * millimeter } as LengthBoundSpec);\n"
+        "    }\n"
+        "    {\n"
+        "        opThisFunctionDoesNotExist(context, id + \"probe\", { \"depth\" : definition.depth });\n"
+        "    });\n"
+    )
+
+    def test_the_positional_map_entry_is_reported(self) -> None:
+        result = check_text(self._SERVER_REJECTED).as_result()
+        hits = [w for w in result["warnings"] if "map literal at line" in w]
+        self.assertEqual(len(hits), 1, result["warnings"])
+        self.assertIn("(0) * millimeter", hits[0])
+        # The line is the entry's own line, not the start of the file — and it is
+        # the same line the server's notices pointed at (line 8, column 54).
+        self.assertIn("line 8", hits[0])
+
+    def test_a_keyed_map_in_the_same_position_is_not_reported(self) -> None:
+        good = self._SERVER_REJECTED.replace(
+            "{ (0) * millimeter, (100) * millimeter } as LengthBoundSpec",
+            '{ (millimeter) : [1, 100] } as LengthBoundSpec',
+        )
+        self.assertEqual(
+            [w for w in check_text(good).warnings if "map literal" in w], []
+        )
+
+    def test_blocks_are_not_read_as_maps(self) -> None:
+        """A block is introduced by `)`, a keyword, `}` or a lambda `=>`, never
+        by an expression character, so none of these may be flagged."""
+        source = _HEADER + (
+            "export const f = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            "    precondition\n"
+            "    {\n"
+            '        annotation { "Name" : "N" }\n'
+            "        isInteger(definition.n);\n"
+            "    }\n"
+            "    {\n"
+            "        if (definition.n > 0)\n"
+            "        {\n"
+            "            opNothingAtAll(context, id);\n"
+            "        }\n"
+            "        else\n"
+            "        {\n"
+            "            opNothingAtAll(context, id + \"b\");\n"
+            "        }\n"
+            "        const g = (x is number) returns number =>{\n"
+            "            const doubled = x * 2;\n"
+            "            return doubled;\n"
+            "        };\n"
+            "    });\n"
+        )
+        self.assertEqual(
+            [w for w in check_text(source).warnings if "map literal" in w], []
+        )
+
+    def test_an_empty_map_and_a_nested_map_are_not_reported(self) -> None:
+        source = _HEADER + (
+            "export const f = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            "    precondition\n"
+            "    {\n"
+            '        annotation { "Name" : "N" }\n'
+            "        isInteger(definition.n);\n"
+            "    }\n"
+            "    {\n"
+            "        const empty = {};\n"
+            '        const nested = { "a" : { "b" : 1 }, "c" : [1, 2] };\n'
+            "        opNothingAtAll(context, id, empty, nested);\n"
+            "    });\n"
+        )
+        self.assertEqual(
+            [w for w in check_text(source).warnings if "map literal" in w], []
+        )
+
+    def test_the_finding_stays_advisory_so_a_deploy_is_not_gated_on_it(self) -> None:
+        """Per the standing rule, a new local rule is warning-level, not a stop."""
+        result = check_text(self._SERVER_REJECTED).as_result()
+        self.assertEqual(result["errorCount"], 0)
+        self.assertEqual(fs_check.findings_requiring_acknowledgement(result), [])
+        self.assertFalse(
+            fs_check.acknowledgement_missing(result, {})
+        )
+
+
+class AnnotationAsciiTest(unittest.TestCase):
+    """Annotation string VALUES must be printable ASCII; body strings need not.
+
+    The measured case, 2026-09-20 through the browser leg (0 REST quota per
+    probe). Two deploys of the "Chinese name" variant were refused; both
+    sources are kept verbatim in
+    `onshape_browser_mode/outputs/fs_diagnostics/20260920T023013883848Z-a27a2cc9dacd/`
+    and `…023048515402Z-e9d1588d11a2/` and are recorded in
+    `onshape_docs/verification/capability-live-run-2026-09-19.md`:
+
+    * a Chinese `"Feature Type Name"` value gave
+      "Nonconforming feature function 'spiralRidgeCn': Invalid character in
+      'Feature Type Name' annotation: only printable ASCII allowed"
+      (``compiled: false``, 0 feature specs emitted);
+    * ASCII type name + Chinese parameter `"Name"` labels gave
+      "precondition analysis failed" plus the same "Invalid character in 'Name'
+      annotation" message for 5 parameters.
+
+    The third deploy kept ASCII labels and a Chinese ``setProperty`` body value
+    and compiled ``true`` with 0 notices, which is what scopes the rule to
+    annotation maps: non-ASCII *values* in the body are legal (the vendored
+    standard library itself uses "⌀" and "™").
+
+    ``_MEASURED_REJECTED`` pins the annotation shape of the second rejected
+    source: the two annotation blocks the server complained about, plus the
+    Chinese body value the server accepted. The geometry between them is
+    elided because the rule reads annotations only.
+    """
+
+    _MEASURED_REJECTED = _HEADER + (
+        'annotation { "Feature Type Name" : "Spiral ridge CN" }\n'
+        "export const spiralRidgeCn = defineFeature(function(context is Context, id is Id, definition is map)\n"
+        "    precondition\n"
+        "    {\n"
+        '        annotation { "Name" : "底圆半径" }\n'
+        "        isLength(definition.baseRadius, { (millimeter) : [1, 10, 60] } as LengthBoundSpec);\n"
+        "\n"
+        '        annotation { "Name" : "节距" }\n'
+        "        isLength(definition.pitch, { (millimeter) : [0.5, 6, 60] } as LengthBoundSpec);\n"
+        "    }\n"
+        "    {\n"
+        "        setProperty(context, {\n"
+        '                "entities" : qEverything(EntityType.BODY),\n'
+        '                "propertyType" : PropertyType.NAME,\n'
+        '                "value" : "螺旋凸棱柱"\n'
+        "        });\n"
+        "    });\n"
+    )
+
+    @staticmethod
+    def _ascii_warnings(source: str) -> list[str]:
+        return [
+            w
+            for w in check_text(source).as_result()["warnings"]
+            if "non-ASCII" in w
+        ]
+
+    def test_a_non_ascii_feature_type_name_is_reported_at_its_line(self) -> None:
+        warnings = self._ascii_warnings(
+            _HEADER
+            + 'annotation { "Feature Type Name" : "螺旋凸棱" }\n'
+            + "export const spiralRidgeCn = defineFeature(function(context is Context, id is Id, definition is map)\n"
+            + "    precondition\n"
+            + "    {\n"
+            + '        annotation { "Name" : "Radius" }\n'
+            + "        isLength(definition.baseRadius, { (millimeter) : [1, 10, 60] } as LengthBoundSpec);\n"
+            + "    }\n"
+            + "    {\n"
+            + "    });\n"
+        )
+        self.assertEqual(len(warnings), 1, warnings)
+        self.assertIn("annotation at line 4", warnings[0])
+        self.assertIn("'Feature Type Name'", warnings[0])
+        self.assertIn("only printable ASCII", warnings[0])
+
+    def test_one_warning_per_non_ascii_parameter_label(self) -> None:
+        """The measured second deploy: 5 labels, 5 messages, one per parameter."""
+        warnings = self._ascii_warnings(self._MEASURED_REJECTED)
+        self.assertEqual(len(warnings), 2, warnings)
+        for warning in warnings:
+            self.assertIn("'Name'", warning)
+        self.assertEqual(
+            sorted(int(w.split("annotation at line ")[1].split(" ")[0]) for w in warnings),
+            [8, 11],
+        )
+
+    def test_a_non_ascii_body_string_value_is_not_reported(self) -> None:
+        """The third deploy compiled this clean; the body is out of scope."""
+        ascii_labels = self._MEASURED_REJECTED.replace("底圆半径", "Base radius").replace(
+            "节距", "Pitch"
+        )
+        self.assertIn("螺旋凸棱柱", ascii_labels, "the body value must survive the edit")
+        self.assertEqual(self._ascii_warnings(ascii_labels), [])
+
+    def test_an_ascii_annotation_is_silent(self) -> None:
+        self.assertEqual(
+            self._ascii_warnings(
+                _HEADER
+                + 'annotation { "Feature Type Name" : "Spiral ridge" }\n'
+                + "export const spiralRidge = defineFeature(function(context is Context, id is Id, definition is map)\n"
+                + "    precondition\n"
+                + "    {\n"
+                + '        annotation { "Name" : "Base radius" }\n'
+                + "        isLength(definition.baseRadius, { (millimeter) : [1, 10, 60] } as LengthBoundSpec);\n"
+                + "    }\n"
+                + "    {\n"
+                + "    });\n"
+            ),
+            [],
+        )
+
+    def test_a_string_literal_that_merely_mentions_annotation_is_not_scanned(self) -> None:
+        """The marker is searched in the masked text, so a literal cannot fake it.
+
+        The rule's first version searched the string-preserving text and crashed
+        with ``KeyError: ' '`` in ``find_matching`` when a body string contained
+        the word ``annotation``. FeatureScript strings are double-quoted (and
+        the shared masker honours ``\\"`` escapes), so the fake marker lives in
+        one.
+        """
+        self.assertEqual(
+            self._ascii_warnings(
+                _HEADER
+                + "export const note = defineFeature(function(context is Context, id is Id, definition is map)\n"
+                + "    precondition\n"
+                + "    {\n"
+                + '        annotation { "Name" : "Note" }\n'
+                + "        isString(definition.note);\n"
+                + "    }\n"
+                + "    {\n"
+                + '        const text = "annotation { \\"Name\\" : \\"底圆半径\\" }";\n'
+                + "        println(text);\n"
+                + "    });\n"
+            ),
+            [],
+        )
+
+    def test_the_finding_stays_advisory_so_a_deploy_is_not_gated_on_it(self) -> None:
+        """Per the standing rule, a new local rule is warning-level, not a stop."""
+        result = check_text(self._MEASURED_REJECTED).as_result()
+        self.assertEqual(result["errorCount"], 0)
+        self.assertEqual(fs_check.findings_requiring_acknowledgement(result), [])
+        self.assertFalse(fs_check.acknowledgement_missing(result, {}))
 
 
 class DanglingAnnotationTest(unittest.TestCase):
@@ -515,6 +777,75 @@ class UnitMixingTest(unittest.TestCase):
         self.assertFalse(
             [warning for warning in checked.warnings if "mixed dimensions" in warning]
         )
+
+
+class PlaywrightCallSignatureTest(unittest.TestCase):
+    """Client calls must match the installed Playwright signature.
+
+    Measured live 2026-09-20: the first count-based row wait called
+    ``page.wait_for_function(expr, {..}, timeout=..)``, and the real client
+    raised ``TypeError: Page.wait_for_function() takes 2 positional arguments
+    but 3 positional arguments (and 1 keyword-only argument) were given`` —
+    ``arg`` is keyword-only in playwright-python. The ``FakePage`` double
+    accepted the positional form, so 617 offline tests stayed green while the
+    live tool reported a successful insert as not committed. The double is now
+    strict; these guards check both the caller and the double so a permissive
+    double cannot hide the same class of defect again.
+    """
+
+    ACTIONS = ROOT / "onshape_browser_mode" / "actions.py"
+    # The same defect was found a second time here: two `wait_for_function` calls
+    # passed their argument positionally, which playwright-python rejects with a
+    # TypeError, and both sat inside `except Exception: pass`, so the wait never
+    # happened and nothing said so. Guard every module that writes the call.
+    TRANSACTIONS = ROOT / "onshape_browser_mode" / "transactions.py"
+    CALLERS = (ACTIONS, TRANSACTIONS)
+    DOUBLE = ROOT / "dev" / "tests" / "test_browser_apply_path.py"
+
+    @staticmethod
+    def _defs(tree: ast.AST, name: str) -> list[ast.FunctionDef]:
+        return [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        ]
+
+    def test_every_wait_for_function_call_passes_its_argument_by_keyword(self) -> None:
+        for source in self.CALLERS:
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+            calls = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "wait_for_function"
+            ]
+            self.assertTrue(calls, f"expected {source.name} to call wait_for_function")
+            for call in calls:
+                with self.subTest(module=source.name, line=call.lineno):
+                    self.assertEqual(
+                        len(call.args),
+                        1,
+                        f"{source.name}:{call.lineno} passes more than the "
+                        "expression positionally; playwright-python makes arg and "
+                        "timeout keyword-only",
+                    )
+                    self.assertTrue(
+                        any(keyword.arg == "arg" for keyword in call.keywords),
+                        f"{source.name}:{call.lineno} does not pass arg= by keyword",
+                    )
+
+    def test_the_test_double_mirrors_the_real_keyword_only_signature(self) -> None:
+        tree = ast.parse(self.DOUBLE.read_text(encoding="utf-8"))
+        defs = self._defs(tree, "wait_for_function")
+        self.assertTrue(defs, "expected at least one page double for this call")
+        for definition in defs:
+            with self.subTest(line=definition.lineno):
+                signature = definition.args
+                self.assertEqual([a.arg for a in signature.args], ["self", "expression"])
+                self.assertNotIn("arg", [a.arg for a in signature.args])
+                self.assertIn("arg", [a.arg for a in signature.kwonlyargs])
+                self.assertIn("timeout", [a.arg for a in signature.kwonlyargs])
 
 
 class LiveLabeledCorpusTest(unittest.TestCase):
