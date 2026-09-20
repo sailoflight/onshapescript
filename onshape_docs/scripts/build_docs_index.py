@@ -56,6 +56,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "verification": "onshape_docs/verification/README.md",
         "browser-tools-verification": "onshape_docs/verification/browser-tools-2026-08-25.md",
         "capability-live-verification": "onshape_docs/verification/capability-live-run-2026-09-19.md",
+        "notice-retrieval-verification": "onshape_docs/verification/notice-retrieval-2026-09-20.md",
         "live-verification": "onshape_docs/verification/live/README.md",
     },
     "reference": {

@@ -501,3 +501,41 @@ context + 1 个页面，`playwright.stop()` 同样不影响端点。原因是 **
   应用 URL"的分支——它只反映**这一瞬间**的 `page.url`。本轮用 `browser_get_page_tabs`
   独立读标签页确认了它是对的，但结论应建立在标签页/文档 URL 这类**事实读**上，而不是
   建立在状态字符串上（上一轮已记录：`awaiting_login` 是无条件置位的）。
+
+## 17. 几何包质心是最便宜的不对称检测器（实测 2026-09-20）
+
+Gridfinity 2x2 底板（84 x 84 x 10，4 个型腔 + 16 个磁铁孔）出现过这样一个状态：
+特征树三行全部 `hasError: false`、几何包 `watertight: true`、尺寸正好 `[84, 84, 10]`
+——**但模型仍然是错的**。
+
+- 未切割的板体几何包质心 `[-0.0, 0.0, 5.0]`（精确对称），说明分析器本身没有系统偏差；
+- 加上型腔与孔之后，质心变成 `[-0.205846211, -0.205846626, 3.506100101]`：x/y 同时
+  偏移约 0.206 mm。对称件不该偏，于是可以断定有特征摆错，而不是"看起来差不多"。
+- 根因：磁铁孔沿用了"格心"含义的 `firstCell` 变量，却套了"格角"公式
+  `firstCell + {d, pitch - d}`，得到 x ∈ {-13, 13, 29, 55}（55 已在 84 mm 板外，16 个孔
+  里 7 个落空）；参考实现给的是 `firstCell ± (pitch/2 - d)` = {-34, -8, 8, 34}。
+- 修正后质心 `[0.000114, 0.0000113, 3.499408]`；体积 36628.55 → 36011.47 mm³
+  （−617 mm³，正好等于那 7 个原本落空的孔该挖掉的料），三角面 30940 → 39456。
+
+教训：`browser_build_geometry_package`（离线、0 额度）给出的 `centerOfMassMm` /
+`volumeMm3` / `triangleCount` 是**免费**的几何断言。`hasError: false` 只证明"能算出来"，
+不证明"放对了"。对称零件的正确用法是：先量一次基准件质心，切完再量一次；质心偏移超过
+tessellation 量级（这里 0.206 mm 远大于 1e-4）就说明有摆放错误，体积差还能反过来
+核对"少挖了多少料"。
+
+## 18. 已建好的文档里更新 FeatureScript：只提交、不加行（实测 2026-09-20）
+
+改完 `.fs` 不必重建文档：**Feature Studio 的提交会让工作区里已插入的自定义特征行重新
+计算**。`dev/fixtures-capture/gridfinity-refresh-fs.json` 把这一步固化成单步项目
+（`browser_deploy_and_apply_featurescript` + `apply: false`）：它从磁盘读 `script_file`，
+所以提交的字节就是打包好的字节，返回值里的 `diagnosticCapture.sourceSha256` /
+`sourceLength` 可以直接和 `sha256sum` 对账，而且**不新建文档、不新增特征行**。
+
+- 项目运行器会把这步报成失败（`TOOL_OUTCOME_KEYS` 要求 `built`，而 `apply: false`
+  什么都不 build），但同一份结果里 `deployed` / `verified` / `commitAccepted` 都是真值。
+  验收要用别的读：`browser_get_fs_compile_status`（`documentClean`）、
+  `browser_get_partstudio_features`（行与 `hasError`）、再重新导出 STEP + 几何包。
+- 提交那一刻读到的 Part Studio 通知可能还没刷新；重算结果要在下一次读取里看，本次读到的是
+  Part Studio 容器里的 `Result: Regeneration complete`。
+- 实测对账：编辑器内容 23760 → 24534 字节，`sourceSha256` = `40d1064b…`，
+  与仓库 `sha256sum dev/fixtures-capture/gridfinity-baseplate.fs` 一致。

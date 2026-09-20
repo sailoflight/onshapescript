@@ -448,6 +448,17 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - **全部消息**：一个 `.feature-script-notice-table` 可能含多个
   `.notice-location-message` 段落。采集器（`actions.FS_NOTICE_SNAPSHOT_JS`，模块常量）
   现在返回 `messages` 数组，`text` 仍是第一段，老调用方不受影响。
+- **跨元素与过期容器（实测修正，2026-09-20）**：派生层只把**活动标签的新鲜通知**算进
+  `errors` / `compiled`（部署门不受影响），但采集器**不再跳过其他文档元素**、也**不再
+  跳过 `.notices-out-of-date` 容器**——Part Studio 的重生成错误恰恰带着
+  `notices-out-of-date` 标记、躺在**非活动**元素的普通 `.feature-script-notice-table`
+  里。每条通知因此带 `tabName` / `isActiveTab` / `outOfDate`；
+  `read_featurescript_compile_status()` 另给 `activeTabName`、`elementNotice*`、
+  `staleNotice*`、`documentClean`、`noticeContainerTitles`，以及静默容器存在时的
+  `noticePaneStructure`（有界：容器摘要 + 关键词过滤后的 pane class 名）。
+- **severity 优先级**：通知表自身 className 加全部后代 className 里出现 `error` 即判
+  `error`，否则 `warn`→warning、`info`→info，都没有再退回 warning。历史上只看标题图标，
+  把 Part Studio 的 error 记成 `info`——这是检索盲区的另一半，两处一起改才捞得回来。
 - **归一化编码**：每个派生诊断带 `code` / `codeBasis` / `codeStable`，便于归类而不用
   解析自由散文。四种 basis：
   - `errorstringenum`：文本里出现 vendored `ErrorStringEnum` 定义过的全大写 token；
@@ -475,12 +486,21 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - 归一化、源码行、去重汇总、采集产物、历史读取由 `dev/tests/test_fs_diagnostics.py`
   覆盖（离线、确定性）。
 - 采集器字符串本身由 `dev/tests/test_fs_notice_collector.py` 在 **node + stub DOM** 下
-  执行**同一份生产字符串**，覆盖多消息、severity 回退、行/列非数字、非活动标签跳过、
-  `notices-out-of-date` 跳过、空表跳过、不可见 toggle。
-- **未验证**：以上都还没在真实 Onshape 页面上跑过。采集器新增的 `messages` 假设
-  （一个通知表含多个 `.notice-location-message` 节点）没有实机证据；现有实机记录只有
-  `dev/button-map/scan-fs-notices.json`（28 条通知、4 条样本文本）。真机只读复核需要
-  操作者在场。
+  执行**同一份生产字符串**（25 个用例），覆盖多消息、severity 回退与优先级、行/列非数字、
+  跨元素通知保留、`notices-out-of-date` 容器读取并打标、无标题容器按活动标签处理、
+  静默元素、空表跳过、不可见 toggle，以及「读不到 pane 时绝不报 `documentClean`」。
+- **已实机（2026-09-20，浏览器腿，0 REST）**：在 Feature Studio 标签下
+  `browser_get_fs_compile_status()` 读到了 `tabName: "Part Studio 1"`、
+  `isActiveTab: false`、`outOfDate: true` 的 error，文本与调用栈完整
+  （`Feature Studio 1 (gfCellCount)` → `(const gfSocketPockets)` →
+  `onshape/std/feature.fs (defineFeature)` → `Part Studio 1 (GF Socket Pockets 1)`，
+  line 100/107 column 9），`elementErrorCount: 1`、`documentClean: false`，而同一时刻
+  `compiled: true`。修好模型后重读，Part Studio 容器只剩 `Result: Regeneration complete`，
+  `documentClean: true`、`elementErrorCount: 0`、`staleErrorCount: 0`。
+  证据：`onshape_docs/verification/notice-retrieval-2026-09-20.md`。
+- **仍未验证**：一个通知表含**多个** `.notice-location-message` 段落的 `messages` 假设
+  仍只有 stub DOM 证据；实机记录里每张表都只有一段。另有更早的实机记录
+  `dev/button-map/scan-fs-notices.json`（28 条通知、4 条样本文本）。
 
 ## 6. 已知坑
 
@@ -494,6 +514,20 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - `launch_persistent_context` 命令行末尾固定带 `about:blank`，这是正常启动页；
   是否恢复上次标签取决于上次是否强杀（崩溃恢复）。
 - 中文 Windows 下 Python stdout 默认 GBK；MCP 协议读写必须走 UTF-8 字节流。
+- **`edge://downloads-hub/` 会卡死页面级调用（实测 2026-09-20）**：STEP 导出之后 Edge
+  会多出一个下载中心标签页；只要它在，`browser_get_page_tabs`、参数读写等页面级调用一律以
+  `MCP error -32001: downstream_timeout` 结束（约 32 s），而 `browser_session(status)`、
+  `onshape_api_quota`、`bridge_control` 仍然可用。用 CDP HTTP 关掉它即可恢复：
+  `/json/list` 里找 `url` 含 `downloads-hub` 的 target，再
+  `curl http://127.0.0.1:9333/json/close/<targetId>`；返回 `Target is closing` 之后目标
+  可能还在列表里停留一会儿，页面调用要等它真正消失才恢复，**不需要重启节点**。
+- **页面通道卡住时透明重启会被拒**：卡住的页面请求在服务端仍算 active，重启返回
+  `control_failed: active_requests: transparent restart requires an idle shared backend`。
+  先清掉卡住页面的来源（上一条），而不是反复重试重启。
+- **浏览器动作 8 次/分钟上限**：项目运行器撞到上限直接抛
+  `ActionRateExceeded: browser action cap reached (8 actions/min); retry in about 17.8s`，
+  它不会自己等；直接调用 browser_* 工具则内部排队。多步项目在第 4 步被打断时，优先改用
+  单次直接工具调用补那一步，而不是重跑整个项目。
 
 ## 7. 标签（Feature Studio / Part Studio）管理
 

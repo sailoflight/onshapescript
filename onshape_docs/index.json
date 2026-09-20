@@ -2101,7 +2101,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "cd07d9d84fed28a823db05a860868ef690f89ef0e504480decd9265cdcb9cfcd",
+   "sha256": "f1fdab3db75f7473e5f08f62aeae2d6481d022518f6c84d9ff655db07dc732bb",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2760,6 +2760,14 @@
          "depth": 0
         },
         {
+         "text": "跨元素与过期容器（实测修正，2026-09-20）：派生层只把活动标签的新鲜通知算进 errors / compiled（部署门不受影响），但采集器不再跳过其他文档元素、也**不再 跳过 .notices-out-of-date 容器**——Part Studio 的重生成错误恰恰带着 notices-out-of-date 标记、躺在非活动元素的普通 .feature-script-notice-table 里。每条通知因此带 tabName / isActiveTab / outOfDate； read_featurescript_compile_status() 另给 activeTabName、elementNotice*、 staleNotice*、documentClean、noticeContainerTitles，以及静默容器存在时的 noticePaneStructure（有界：容器摘要 + 关键词过滤后的 pane class 名）。",
+         "depth": 0
+        },
+        {
+         "text": "severity 优先级：通知表自身 className 加全部后代 className 里出现 error 即判 error，否则 warn→warning、info→info，都没有再退回 warning。历史上只看标题图标， 把 Part Studio 的 error 记成 info——这是检索盲区的另一半，两处一起改才捞得回来。",
+         "depth": 0
+        },
+        {
          "text": "归一化编码：每个派生诊断带 code / codeBasis / codeStable，便于归类而不用 解析自由散文。四种 basis：",
          "depth": 0
         },
@@ -2813,11 +2821,15 @@
          "depth": 0
         },
         {
-         "text": "采集器字符串本身由 dev/tests/test_fs_notice_collector.py 在 node + stub DOM 下 执行同一份生产字符串，覆盖多消息、severity 回退、行/列非数字、非活动标签跳过、 notices-out-of-date 跳过、空表跳过、不可见 toggle。",
+         "text": "采集器字符串本身由 dev/tests/test_fs_notice_collector.py 在 node + stub DOM 下 执行同一份生产字符串（25 个用例），覆盖多消息、severity 回退与优先级、行/列非数字、 跨元素通知保留、notices-out-of-date 容器读取并打标、无标题容器按活动标签处理、 静默元素、空表跳过、不可见 toggle，以及「读不到 pane 时绝不报 documentClean」。",
          "depth": 0
         },
         {
-         "text": "未验证：以上都还没在真实 Onshape 页面上跑过。采集器新增的 messages 假设 （一个通知表含多个 .notice-location-message 节点）没有实机证据；现有实机记录只有 dev/button-map/scan-fs-notices.json（28 条通知、4 条样本文本）。真机只读复核需要 操作者在场。",
+         "text": "已实机（2026-09-20，浏览器腿，0 REST）：在 Feature Studio 标签下 browser_get_fs_compile_status() 读到了 tabName: \"Part Studio 1\"、 isActiveTab: false、outOfDate: true 的 error，文本与调用栈完整 （Feature Studio 1 (gfCellCount) → (const gfSocketPockets) → onshape/std/feature.fs (defineFeature) → Part Studio 1 (GF Socket Pockets 1)， line 100/107 column 9），elementErrorCount: 1、documentClean: false，而同一时刻 compiled: true。修好模型后重读，Part Studio 容器只剩 Result: Regeneration complete， documentClean: true、elementErrorCount: 0、staleErrorCount: 0。 证据：onshape_docs/verification/notice-retrieval-2026-09-20.md。",
+         "depth": 0
+        },
+        {
+         "text": "仍未验证：一个通知表含多个 .notice-location-message 段落的 messages 假设 仍只有 stub DOM 证据；实机记录里每张表都只有一段。另有更早的实机记录 dev/button-map/scan-fs-notices.json（28 条通知、4 条样本文本）。",
          "depth": 0
         }
        ]
@@ -2849,6 +2861,18 @@
         },
         {
          "text": "中文 Windows 下 Python stdout 默认 GBK；MCP 协议读写必须走 UTF-8 字节流。",
+         "depth": 0
+        },
+        {
+         "text": "edge://downloads-hub/ 会卡死页面级调用（实测 2026-09-20）：STEP 导出之后 Edge 会多出一个下载中心标签页；只要它在，browser_get_page_tabs、参数读写等页面级调用一律以 MCP error -32001: downstream_timeout 结束（约 32 s），而 browser_session(status)、 onshape_api_quota、bridge_control 仍然可用。用 CDP HTTP 关掉它即可恢复： /json/list 里找 url 含 downloads-hub 的 target，再 curl http://127.0.0.1:9333/json/close/<targetId>；返回 Target is closing 之后目标 可能还在列表里停留一会儿，页面调用要等它真正消失才恢复，不需要重启节点。",
+         "depth": 0
+        },
+        {
+         "text": "页面通道卡住时透明重启会被拒：卡住的页面请求在服务端仍算 active，重启返回 control_failed: active_requests: transparent restart requires an idle shared backend。 先清掉卡住页面的来源（上一条），而不是反复重试重启。",
+         "depth": 0
+        },
+        {
+         "text": "浏览器动作 8 次/分钟上限：项目运行器撞到上限直接抛 ActionRateExceeded: browser action cap reached (8 actions/min); retry in about 17.8s， 它不会自己等；直接调用 browser_* 工具则内部排队。多步项目在第 4 步被打断时，优先改用 单次直接工具调用补那一步，而不是重跑整个项目。",
          "depth": 0
         }
        ]
@@ -3039,7 +3063,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "50fefa5a14ab7e9e8bea3b85536b49476b774885da5ff6bdd31e8aa733d11118",
+   "sha256": "127bd729d7b4d6c4795be60548bc2f5b61e87ecfe20b70636b00d4df25cf45c4",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3785,6 +3809,68 @@
         },
         {
          "text": "状态字段的成功分支也要独立复核。人工登录后 browser_session(action=\"login\") 回的是 \"already logged in (restored Onshape page was kept)\"，走的是第 445 行那个\"当前页已是 应用 URL\"的分支——它只反映这一瞬间的 page.url。本轮用 browser_get_page_tabs 独立读标签页确认了它是对的，但结论应建立在标签页/文档 URL 这类事实读上，而不是 建立在状态字符串上（上一轮已记录：awaiting_login 是无条件置位的）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "17. 几何包质心是最便宜的不对称检测器（实测 2026-09-20）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Gridfinity 2x2 底板（84 x 84 x 10，4 个型腔 + 16 个磁铁孔）出现过这样一个状态： 特征树三行全部 hasError: false、几何包 watertight: true、尺寸正好 [84, 84, 10] ——但模型仍然是错的。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "未切割的板体几何包质心 [-0.0, 0.0, 5.0]（精确对称），说明分析器本身没有系统偏差；",
+         "depth": 0
+        },
+        {
+         "text": "加上型腔与孔之后，质心变成 [-0.205846211, -0.205846626, 3.506100101]：x/y 同时 偏移约 0.206 mm。对称件不该偏，于是可以断定有特征摆错，而不是\"看起来差不多\"。",
+         "depth": 0
+        },
+        {
+         "text": "根因：磁铁孔沿用了\"格心\"含义的 firstCell 变量，却套了\"格角\"公式 firstCell + {d, pitch - d}，得到 x ∈ {-13, 13, 29, 55}（55 已在 84 mm 板外，16 个孔 里 7 个落空）；参考实现给的是 firstCell ± (pitch/2 - d) = {-34, -8, 8, 34}。",
+         "depth": 0
+        },
+        {
+         "text": "修正后质心 [0.000114, 0.0000113, 3.499408]；体积 36628.55 → 36011.47 mm³ （−617 mm³，正好等于那 7 个原本落空的孔该挖掉的料），三角面 30940 → 39456。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "教训：browser_build_geometry_package（离线、0 额度）给出的 centerOfMassMm / volumeMm3 / triangleCount 是免费的几何断言。hasError: false 只证明\"能算出来\"， 不证明\"放对了\"。对称零件的正确用法是：先量一次基准件质心，切完再量一次；质心偏移超过 tessellation 量级（这里 0.206 mm 远大于 1e-4）就说明有摆放错误，体积差还能反过来 核对\"少挖了多少料\"。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "18. 已建好的文档里更新 FeatureScript：只提交、不加行（实测 2026-09-20）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "改完 .fs 不必重建文档：Feature Studio 的提交会让工作区里已插入的自定义特征行重新 计算。dev/fixtures-capture/gridfinity-refresh-fs.json 把这一步固化成单步项目 （browser_deploy_and_apply_featurescript + apply: false）：它从磁盘读 script_file， 所以提交的字节就是打包好的字节，返回值里的 diagnosticCapture.sourceSha256 / sourceLength 可以直接和 sha256sum 对账，而且不新建文档、不新增特征行。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "项目运行器会把这步报成失败（TOOL_OUTCOME_KEYS 要求 built，而 apply: false 什么都不 build），但同一份结果里 deployed / verified / commitAccepted 都是真值。 验收要用别的读：browser_get_fs_compile_status（documentClean）、 browser_get_partstudio_features（行与 hasError）、再重新导出 STEP + 几何包。",
+         "depth": 0
+        },
+        {
+         "text": "提交那一刻读到的 Part Studio 通知可能还没刷新；重算结果要在下一次读取里看，本次读到的是 Part Studio 容器里的 Result: Regeneration complete。",
+         "depth": 0
+        },
+        {
+         "text": "实测对账：编辑器内容 23760 → 24534 字节，sourceSha256 = 40d1064b…， 与仓库 sha256sum dev/fixtures-capture/gridfinity-baseplate.fs 一致。",
          "depth": 0
         }
        ]
@@ -7399,6 +7485,338 @@
         },
         {
          "text": "viewport is applied as the spawn --window-size, not as a page viewport; headless and timezone_id are reported as notApplied in the attach record rather than silently ignored. Resident mode is for the headed, human-watched session.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "notice-retrieval-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/notice-retrieval-2026-09-20.md",
+   "sha256": "f20ef1c458a4c49bb31e0c877bed9716e814eb2276005deac869f1feabc45cde",
+   "title": "FeatureScript 通知检索修复实测（2026-09-20）",
+   "sections": [
+    {
+     "level": 1,
+     "title": "FeatureScript 通知检索修复实测（2026-09-20）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "本页记录两件在同一条建模路径上实测出来的事："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "检索缺陷：browser_get_fs_compile_status() / browser_fs_capture_diagnostic() 会静默漏掉 Part Studio 的重生成错误——本页给出它漏在哪、修成什么、以及修好之后的实测读。",
+         "depth": 0
+        },
+        {
+         "text": "附带发现的建模缺陷：同一个模型的磁铁孔被摆到板外（16 个孔里 7 个落空）， 而特征树当时是\"零错误、水密、尺寸正确\"。它是被几何包的质心抓出来的。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "范围与安全",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "全程只走浏览器腿：browser_* 工具 + 本地文件，apiRequests: 0， LIVE_API_ENABLED 未启用，Onshape REST 年度额度账本没有变化。",
+         "depth": 0
+        },
+        {
+         "text": "目标文档：1ef2be8f3d45e6f996af24ab / workspace bac7c0bf31912a956c44d15a； Part Studio f0360bb015d7612284423f55，Feature Studio c57b7cc5f7291694afffd17b。",
+         "depth": 0
+        },
+        {
+         "text": "云端变更只有两类，都由用户的任务授权：Feature Studio 源码提交（提交 ≠ 新增特征行） 与 STEP 导出（导出对话框下载，不计 REST 额度）。",
+         "depth": 0
+        },
+        {
+         "text": "运行时是 /mnt/c/MCP/onshapescript（Windows 裸 stdio MCP 的文件复制部署）。 本轮涉及两次纯数据部署：20260920T102123Z-gridfinity-magnet-hole-frame-fix、 20260920T103101Z-gridfinity-refresh-fixture；onshape 节点为 generation 27， 浏览器腿的代码变更更早一轮已经部署并在本轮生效。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "缺陷：报错被静默丢弃",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户原话：\"这个报错获取要修复\"。当时的实测现象是： browser_get_fs_compile_status() 返回 noticeCount: 0、compiled: true， 而 Part Studio 里明明有一行特征在报错。用户的补充线索：\"现在发现 FS 通知也会报告重生成 错误 但是是 log 登记\"。"
+      },
+      {
+       "type": "para",
+       "text": "定位过程不靠猜测，而是在采集器里加了有界结构证据（noticePaneStructure：静默容器 摘要 + 关键词过滤后的 pane class 名）后直接读出来的。结论是三处叠加："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "跨元素被跳过：采集器里有一句 `if (activeTabName && tabName && tabName !== activeTabName) continue;`，别的文档元素的通知直接丢掉。",
+         "depth": 0
+        },
+        {
+         "text": "过期容器被跳过：Part Studio 的容器带 notices-out-of-date 类名，采集器因此整个 跳过它——而真正的 error 就躺在这个容器里一张普通的 .compact-table.feature-script-notice-table 内（.notice-location-message / -line-number / -column-number + .error-text-td / .error-list-error-text）。",
+         "depth": 0
+        },
+        {
+         "text": "严重级被降级：严重级原先看标题图标，于是同一张表里的 error 被记成 info。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "修复",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "位置",
+         "改动"
+        ],
+        [
+         "onshape_browser_mode/actions.py",
+         "FS_NOTICE_SNAPSHOT_JS 不再按标签过滤、不再跳过过期容器；每条通知带 tabName / isActiveTab / outOfDate；新增 activeTabName、containerCount/Titles、noticeCount、activeTabNoticeCount、otherElementNoticeCount，以及静默容器存在时的 noticePaneStructure / unstructuredContainers / paneClassNames（都做了条数上限）。严重级改为：表 className 与全部后代 class 名里出现 error 即 error，否则 warn→warning、info→info，都没有再退 warning"
+        ],
+        [
+         "onshape_browser_mode/actions.py",
+         "read_featurescript_compile_status() 只把活动标签的新鲜通知算进 errors / compiled / errorCount（部署门因此保持不变），另给 activeTabName、activeTabNoticeCount、elementNotice、elementError、staleNotice、staleError、documentClean、noticeContainerTitles、elementDiagnosticSummary / staleDiagnosticSummary"
+        ],
+        [
+         "onshape_browser_mode/diagnostics.py",
+         "_server_conclusion() 增加 documentClean、elementErrorCount、staleErrorCount（纯增加，DIAGNOSTIC_SCHEMA_VERSION 仍为 1）"
+        ],
+        [
+         "mcp_main/win/mcp/browser_tools.py",
+         "browser_fs_capture_diagnostic 返回 documentClean、elementErrorCount、elementNotices、staleErrorCount"
+        ],
+        [
+         "mcp_main/win/mcp/server.py",
+         "browser_deploy_featurescript 结果增加 documentClean、elementNoticeCount、elementErrorCount、elementErrors、staleErrorCount"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "documentClean 的定义是\"没有 Ace annotation error、没有任何元素的 error、没有过期容器的 error，且这次读取是完整的\"——读不到通知面板时它不会报 clean。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "实测证据（浏览器腿，0 REST）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "读到了别的元素里的重生成错误（修复前读不到的那种）。 当时 Feature Studio 是活动标签， browser_get_fs_compile_status() 返回的 error 是："
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "text      : throw Plate width is not an integer multiple of the cell pitch; expected a Gridfinity plate\nstack     : Feature Studio 1 (gfCellCount) -> (const gfSocketPockets)\n            -> onshape/std/feature.fs (defineFeature) -> Part Studio 1 (GF Socket Pockets 1)\nlocation  : line 100 / 107, column 9\ntabName   : \"Part Studio 1\"   isActiveTab: false   outOfDate: true\nelementErrorCount: 1   staleErrorCount: 0   documentClean: false\ncompiled  : true            noticeReadComplete: true"
+      },
+      {
+       "type": "para",
+       "text": "即：活动标签的 Ace 是干净的（compiled: true），错误在另一个元素里，而它带着 notices-out-of-date 标记——两个跳过条件正好同时命中它。"
+      },
+      {
+       "type": "para",
+       "text": "修好模型后的干净读。 重新提交修正后的 Feature Studio（见下节），再读："
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "noticeContainerTitles: [\"Part Studio 1\"]\nunstructuredContainers: [{tabName: \"Part Studio 1\", outOfDate: true,\n                           text: \"监控\\n  Part Studio 1\\nResult: Regeneration complete\"}]\nnoticeCount: 0  elementNoticeCount: 0  elementErrorCount: 0  staleErrorCount: 0\ndocumentClean: true   noticePaneOpenedForRead: true   noticePaneRestored: true"
+      },
+      {
+       "type": "para",
+       "text": "容器此时没有通知表，只有一句 Result: Regeneration complete；采集器把它记进 unstructuredContainers（有界结构证据）而不是当成通知，也没有因此谎报错误。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "附带发现的建模缺陷：磁铁孔摆到了板外",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "同一轮的几何终检暴露出质心不对称，顺着查出了一个与检索无关的建模错误，因为它是 \"零错误模型也可能是错的\"这条结论的直接证据，所以一并记录。"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "指标",
+         "修改前",
+         "修改后"
+        ],
+        [
+         "质心 x, y (mm)",
+         "-0.205846211, -0.205846626",
+         "0.000114, 0.000011"
+        ],
+        [
+         "质心 z (mm)",
+         "3.506100101",
+         "3.499408"
+        ],
+        [
+         "体积 (mm³)",
+         "36628.552775144",
+         "36011.474513942"
+        ],
+        [
+         "三角面",
+         "30940",
+         "39456"
+        ],
+        [
+         "尺寸 / 水密",
+         "[84, 84, 10] / true",
+         "[84, 84, 10] / true"
+        ],
+        [
+         "孔位 x (mm)",
+         "{-13, 13, 29, 55}",
+         "{-34, -8, 8, 34}"
+        ]
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "质心基准：同一分析器对未切割的板体给出 [-0.0, 0.0, 5.0]，所以 0.206 mm 不是 分析器的偏差。",
+         "depth": 0
+        },
+        {
+         "text": "根因：磁铁孔沿用了\"格心\"含义的 firstCell 变量，却套用参考实现的\"格角\"公式 firstCell + {d, pitch - d}。84 mm 板上 x=55 已在板外，16 个孔里 7 个落空， 剩下的又切错了位置（多挖了 +x/+y 侧，质心因此被推向 -x/-y）。",
+         "depth": 0
+        },
+        {
+         "text": "修正为 firstCell ± (cell_pitch / 2 - magnet_from_side)，并加了 holeInset <= 0 的 regenError 守卫。",
+         "depth": 0
+        },
+        {
+         "text": "体积减少 617 mm³，与\"7 个原本落空的孔真正挖掉的料\"同量级，第二个独立通道再次印证。",
+         "depth": 0
+        },
+        {
+         "text": "两者的完整数值来源： outputs/step_exports/gridfinity-2x2-final-1|2/step-manifest.json 与 outputs/geometry_packages/gridfinity-2x2-final-1|2/report.json （STEP sha256：aa4399a5… → 4fc8075e…）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "修正后的模型状态（活证据）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "特征树 特征 (7)：默认几何图元 + Origin/Top/Front/Right + GB GF Base Plate Body 1 + GS GF Socket Pockets 1 + GM GF Magnet Holes 1， 三行全部 hasError: false；零件数 (1) Gridfinity baseplate 2x2。",
+         "depth": 0
+        },
+        {
+         "text": "云端 Feature Studio 源码 = 仓库文件： sourceSha256 40d1064bd758bee155786c2d5a86be2a82fc99f9094b2c7ef4339b8051c9cbc2， 24534 字节 / 515 行，与 sha256sum dev/fixtures-capture/gridfinity-baseplate.fs 一致。",
+         "depth": 0
+        },
+        {
+         "text": "修正通过只提交、不加行的方式生效：dev/fixtures-capture/gridfinity-refresh-fs.json 单步项目（apply: false）提交 Feature Studio，工作区里已插入的三行随之重算， 特征树仍是三行。项目运行器会把这步报成失败（缺 built 键），但同一结果里 deployed / verified / commitAccepted / compiled 均为真。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "离线验证",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "python3 dev/tests/test_fs_notice_collector.py：25 个用例，在 node + stub DOM 下执行 同一份生产字符串。",
+         "depth": 0
+        },
+        {
+         "text": "全量离线套件 `PYTHONPATH=temp/browser-common-site python3 -m unittest discover -s dev/tests`：723 tests OK。",
+         "depth": 0
+        },
+        {
+         "text": "python3 onshape_docs/scripts/fs_local_check.py dev/fixtures-capture/gridfinity-baseplate.fs：PASS。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "边界（不声明的东西）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "messages（一个通知表含多个 .notice-location-message 段落）仍只有 stub DOM 证据； 本次实机记录里每张表都只有一段。",
+         "depth": 0
+        },
+        {
+         "text": "documentClean: true 只表示\"这次读取没看到 error\"；它依赖采集器真的读到了通知面板 （noticeReadComplete），读不到时会退化为不 clean，而不是\"没有错误\"。",
+         "depth": 0
+        },
+        {
+         "text": "磁铁孔的修正只由\"质心 + 体积 + 面数 + 重生成无错\"证明；没有做截面/视觉复核， 孔与型腔底面的实际间隙没有量测。",
+         "depth": 0
+        },
+        {
+         "text": "本轮没有清理迭代过程中产生的多余文档；文档删除是另一个（破坏性）动作。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "复现",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "离线：python3 dev/tests/test_fs_notice_collector.py 与全量套件；",
+         "depth": 0
+        },
+        {
+         "text": "实机（浏览器腿，0 REST，需要操作者在场处理登录/会话）： browser_get_fs_compile_status → 期望 noticeContainerTitles 含非活动元素、 documentClean 与实际一致；",
+         "depth": 0
+        },
+        {
+         "text": "重提交并复核： browser_run_project(project=\"gridfinity-refresh-fs\", confirm_mutation=true) → browser_activate_tab(name=\"Part Studio 1\", content=\"partstudio\") → browser_get_partstudio_features（三行 hasError: false、零件数 (1)） → browser_export_step + browser_build_geometry_package（质心应回到原点、 watertight: true、dimensionsMm [84, 84, 10]）。",
          "depth": 0
         }
        ]
