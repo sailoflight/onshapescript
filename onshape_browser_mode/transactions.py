@@ -327,58 +327,65 @@ def _dialog_values(page: Any) -> dict[str, str]:
 
 
 def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[str, Any]]:
-    """Locate exactly one custom-feature row, identified by a READ of the panel.
+    """Locate exactly one custom-feature row from ONE enumeration of the DOM.
 
-    The read is the document; a ``has_text`` locator is a re-query of it, and the
-    two can disagree. Measured live 2026-09-20: on a Part Studio whose read
-    listed nine user-feature rows, ``page.locator('.os-list-item.ns-user-feature')
-    .filter(has_text='Sr Spiral ridge 7')`` reported a count other than one for
-    the row that read returned as its single match — deterministically, across
-    four attempts and two page reloads. The old message ("must match exactly one
-    row") could not say whether that was zero or several, so the tool was neither
-    usable nor diagnosable.
+    Identity and position must come from the same enumeration, because a read that
+    FILTERS and a locator that COUNTS are different sets. Measured live 2026-09-20:
+    ``read_partstudio_features`` drops a row whose ``innerText`` and ``textContent``
+    are both empty, while ``page.locator('.os-list-item.ns-user-feature')`` counts
+    it, so the two disagreed by exactly one on every Part Studio — 1 named row
+    against 2, and 11 against 12. Comparing them therefore refused on EVERY
+    element, which was correct (a positional click against a superset opens a
+    different row's dialog) and still made this tool unusable.
 
-    So: wait for the panel to render, identify the row from the read, click it by
-    its POSITION among the read's user-feature rows (a locator ``nth`` cannot
-    select a different row than the one the read named, because both are DOM
-    order), and report both counts whenever they disagree instead of clicking
-    something unknown.
+    That is also why the earlier name-only locator failed: measured live
+    2026-09-20, ``.filter(has_text='Sr Spiral ridge 7')`` reported a count other
+    than one for the row a read returned as the single match, deterministically
+    over four attempts and two page reloads.
+
+    So: wait for the panel to render, enumerate the custom-feature rows once
+    (``enumerate_user_feature_rows``), and take the match and its click index from
+    that one list. The locator count is kept only as a staleness check: it
+    re-queries the page, so a change between the enumeration and the click is
+    reported instead of clicked through.
     """
     panel_ready = actions.wait_for_panel_rows(page, actions.PARTSTUDIO_PANEL_READY_TIMEOUT_MS)
-    read = actions.read_partstudio_features(page)
-    names = actions.user_feature_names(read)
-    state = actions.feature_state(read, feature_name)
+    enumerated = actions.enumerate_user_feature_rows(page, selectors.PS_USER_FEATURE)
+    names = enumerated["names"]
+    indices = actions.match_user_feature_row_indices(names, feature_name)
     evidence: dict[str, Any] = {
         "panelReady": panel_ready,
         "featureRows": names,
-        "matchedRows": state["names"],
-        "locatorRows": None,
+        "matchedRows": [names[index] for index in indices],
+        "locatorRows": enumerated["count"],
     }
     if not names:
         reason = (
-            f"no custom-feature row is on screen (feature list header "
-            f"{read.get('headerText', '')!r})"
+            "no custom-feature row is on screen (the live enumeration found "
+            f"{enumerated['count']} matching node(s))"
         )
         if not panel_ready.get("waited"):
             reason += f"; the panel never rendered rows: {panel_ready.get('error', '')}"
         evidence["reason"] = reason
         return None, evidence
-    if len(state["names"]) != 1:
+    if len(indices) != 1:
         evidence["reason"] = (
-            f"feature {feature_name!r} matched {len(state['names'])} of "
-            f"{len(names)} custom-feature rows: {state['names']}"
+            f"feature {feature_name!r} matched {len(indices)} of "
+            f"{len(names)} custom-feature rows: "
+            f"{[names[index] for index in indices]}"
         )
         return None, evidence
     rows = page.locator(selectors.PS_USER_FEATURE)
-    located = rows.count()
-    evidence["locatorRows"] = located
-    if located != len(names):
+    seen = rows.count()
+    evidence["locatorRows"] = seen
+    if seen != enumerated["count"]:
         evidence["reason"] = (
-            f"the read lists {len(names)} custom-feature rows but the row locator "
-            f"sees {located}; refusing to click a row that may be a different one"
+            f"the page enumeration lists {enumerated['count']} custom-feature rows "
+            f"but the row locator sees {seen}; refusing to click a row that may be "
+            "a different one"
         )
         return None, evidence
-    return rows.nth(names.index(state["names"][0])), evidence
+    return rows.nth(indices[0]), evidence
 
 
 def edit_feature_parameters(

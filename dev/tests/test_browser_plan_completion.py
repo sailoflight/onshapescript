@@ -517,6 +517,50 @@ class SemanticOperationTest(unittest.TestCase):
         self.assertEqual(result["parts"], 2)
         self.assertEqual(result["partNames"], [])
         self.assertFalse(result["partNamesParsed"])
+        self.assertEqual(result["partNamesSource"], "none")
+
+    def test_the_dom_names_win_over_the_collapsed_text(self):
+        """The live shape: whitespace folded away, so only the DOM names the parts."""
+        result = semantic.parse_part_summary(
+            "零件数 (2) Fixed wall Module block", ["Fixed wall", "Module block"]
+        )
+        self.assertEqual(result["parts"], 2)
+        self.assertEqual(result["partNames"], ["Fixed wall", "Module block"])
+        self.assertTrue(result["partNamesParsed"])
+        self.assertEqual(result["partNamesSource"], "dom")
+
+    def test_a_dom_count_that_disagrees_with_the_text_is_not_used(self):
+        result = semantic.parse_part_summary(
+            "零件数 (2) Fixed wall Module block", ["Fixed wall"]
+        )
+        self.assertEqual(result["parts"], 2)
+        self.assertEqual(result["partNames"], [])
+        self.assertFalse(result["partNamesParsed"])
+        self.assertEqual(result["partNamesSource"], "none")
+
+    def test_a_swallowed_section_header_is_never_a_part_name(self):
+        """Live on Part Studio 1: the next section counter was returned as a name."""
+        result = semantic.parse_part_summary("零件数 (1) 螺旋凸棱柱 曲线数 (1)")
+        self.assertEqual(result["parts"], 1)
+        self.assertEqual(result["partNames"], [], "no invented name from the text path")
+        self.assertFalse(result["partNamesParsed"])
+        self.assertEqual(result["partNamesSource"], "none")
+        # The DOM read of the same panel still names the single part.
+        dom = semantic.parse_part_summary("零件数 (1) 螺旋凸棱柱 曲线数 (1)", ["螺旋凸棱柱"])
+        self.assertEqual(dom["partNames"], ["螺旋凸棱柱"])
+        self.assertEqual(dom["partNamesSource"], "dom")
+
+    def test_a_real_single_part_name_is_still_read_from_the_text(self):
+        result = semantic.parse_part_summary("零件数 (1) 螺旋凸棱柱")
+        self.assertEqual(result["parts"], 1)
+        self.assertEqual(result["partNames"], ["螺旋凸棱柱"])
+        self.assertTrue(result["partNamesParsed"])
+        self.assertEqual(result["partNamesSource"], "text")
+
+    def test_dom_items_are_trimmed_and_empties_dropped(self):
+        result = semantic.parse_part_summary("零件数 (2) x", ["  rail  ", "  ", "groove"])
+        self.assertEqual(result["partNames"], ["rail", "groove"])
+        self.assertEqual(result["partNamesSource"], "dom")
 
     def test_create_drawing_dialog_path_still_requires_frame(self):
         page = mock.Mock()

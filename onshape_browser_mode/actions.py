@@ -114,6 +114,55 @@ _ROW_COUNT_PREDICATE = """
 }
 """
 
+#: How long a deleted document tab may take to leave the tab strip. A removed tab
+#: is marked ``hidden`` first (Onshape's ``ng-class`` reads
+#: ``tab.getIsRemoved()``) and detached later, so the wait accepts either state.
+#: The wait is on the tab's ``data-id``, never on a position: a tab strip is an
+#: ``ng-repeat`` list, so removing a tab re-numbers it and ``locator.nth(i)``
+#: re-resolves to the tab that moved into the freed slot — which is attached, so
+#: ``wait_for(state="detached")`` can never be satisfied. Measured live
+#: 2026-09-20: that wait timed out after 30 s on a tab that had in fact been
+#: deleted, and the exception became ``deleted: false``.
+TAB_DELETE_TIMEOUT_MS = 30_000
+
+#: In-page predicate: the tab carrying this ``data-id`` is gone, or every node
+#: carrying it is marked removed (``hidden``).
+_TAB_REMOVED_PREDICATE = """
+({selector, id}) => {
+  const nodes = Array.from(document.querySelectorAll(selector)).filter(
+    el => el.getAttribute('data-id') === id
+  );
+  return nodes.length === 0 || nodes.every(
+    el => String(el.className || '').split(/\\s+/).includes('hidden')
+  );
+}
+"""
+
+#: In-page enumeration of custom-feature rows: the names AND the count of the SAME
+#: node list. That identity is the point — a read that filters and a locator that
+#: counts are different sets and must never be compared. Measured live 2026-09-20,
+#: ``read_partstudio_features`` ends its collector with ``.filter(f => f.name)``,
+#: so a node whose ``innerText`` and ``textContent`` are both empty was dropped
+#: there while ``page.locator('.os-list-item.ns-user-feature')`` counted it: on two
+#: elements holding 1 and 11 named rows the counts were ``2`` and ``12``, a
+#: constant +1 that made the dialog edit path refuse on every element.
+#: ``querySelectorAll`` is document order, which is the order the row locator
+#: resolves in, so a click index taken from this list addresses the row the name
+#: came from.
+_USER_FEATURE_ROWS_JS = """
+({selector}) => {
+  const rows = Array.from(document.querySelectorAll(selector)).filter(
+    el => String(el.className || '').includes('ns-user-feature')
+  );
+  return {
+    count: rows.length,
+    names: rows.map(el =>
+      (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100)
+    ),
+  };
+}
+"""
+
 #: Notice-pane collector. One notice table can carry several message paragraphs;
 #: all of them are returned in ``messages`` (``text`` keeps the first one for
 #: callers that predate the list). Kept as a module constant so the offline
@@ -763,7 +812,13 @@ def _tab_locators_by_id(page: Any, element_id: str) -> list[Any]:
 
 
 def delete_element_by_id(page: Any, element_id: str) -> dict[str, Any]:
-    """Delete exactly one visible tab by observed data-id and verify detachment."""
+    """Delete exactly one visible tab by observed data-id and verify REMOVAL.
+
+    The verdict is the element id leaving the visible tab strip, not the node
+    detaching: a removed tab is marked ``hidden`` first and detached later, and
+    the previous positional ``state="detached"`` wait could never be satisfied
+    (see :func:`wait_for_tab_removed`).
+    """
     from onshape_browser_mode.selectors import DIALOG_ACCEPT, TAB_CONTEXT_MENU_ITEM
 
     matches = _tab_locators_by_id(page, element_id)
@@ -799,12 +854,70 @@ def delete_element_by_id(page: Any, element_id: str) -> dict[str, Any]:
         confirm = page.locator(DIALOG_ACCEPT)
         if confirm.count() > 0:
             confirm.first.click()
-        tab.wait_for(state="detached", timeout=30_000)
     except Exception as exc:  # noqa: BLE001
         return {"deleted": False, "elementId": element_id, "reason": str(exc), "pageUrl": page.url}
+    removal = wait_for_tab_removed(page, element_id)
     tabs = list_document_tabs(page)
-    deleted = not _tab_locators_by_id(page, element_id)
-    return {"deleted": deleted, "elementId": element_id, **tabs, "pageUrl": page.url}
+    # `list_document_tabs` does not filter removed nodes, so a ``hidden`` tab can
+    # still be listed while the document no longer has it. ``removal`` (the
+    # data-id wait) is the verdict; the raw read is returned for diagnosis.
+    still_listed = [
+        tab.get("id") for tab in tabs.get("tabs", []) if tab.get("id") == element_id
+    ]
+    deleted = bool(removal.get("waited"))
+    result = {
+        "deleted": deleted,
+        "elementId": element_id,
+        "removal": removal,
+        "stillListedIds": still_listed,
+        **tabs,
+        "pageUrl": page.url,
+    }
+    if not deleted:
+        result["reason"] = (
+            f"the tab {element_id!r} is still a visible document tab after "
+            f"{removal.get('elapsedMs')} ms"
+        )
+    return result
+
+
+def wait_for_tab_removed(
+    page: Any,
+    element_id: str,
+    timeout_ms: int = TAB_DELETE_TIMEOUT_MS,
+) -> dict[str, Any]:
+    """Wait until a tab carrying ``element_id`` is gone, or marked removed.
+
+    The wait is on the ``data-id``, never on a position. Measured live 2026-09-20:
+    the previous check was ``locator.nth(i).wait_for(state="detached")``, and a tab
+    strip is an ``ng-repeat`` list — removing a tab re-numbers it, so ``nth(i)``
+    re-resolved to the tab that moved into the freed slot, which is attached. The
+    wait could therefore never be satisfied: it timed out after 30 s on a tab that
+    had in fact been deleted, the exception became ``deleted: false``, and
+    ``browser_get_page_tabs`` immediately afterwards no longer listed the tab.
+
+    Timeout is returned as data, never raised: the caller reports the verdict.
+    """
+    from onshape_browser_mode.selectors import TAB_BAR_TAB
+
+    started = time.monotonic()
+    try:
+        page.wait_for_function(
+            _TAB_REMOVED_PREDICATE,
+            arg={"selector": TAB_BAR_TAB, "id": element_id},
+            timeout=timeout_ms,
+        )
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "tab_removed_or_hidden",
+        "elementId": element_id,
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
 
 
 def delete_tab(page: Any, name: str) -> dict[str, Any]:
@@ -910,36 +1023,61 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
             headerText: header ? (header.innerText || header.textContent || '').trim() : '',
             features,
             partsText: partsEl ? (partsEl.innerText || partsEl.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 400) : '',
+            // Part-name rows as ELEMENTS, in DOM order. `partsText` is whitespace
+            // folded and must never be split into names (measured live
+            // 2026-09-20: the `count == 1` branch swallowed the next section
+            // header into the name, `曲线数 (1)`, and `count > 1` produced no
+            // names at all). The folded text stays as the count's source and as
+            // the evidence for what the panel actually rendered.
+            partItems: Array.from(document.querySelectorAll('.os-list-item')).filter(el => {
+              const icon = el.querySelector('.os-list-item-icon');
+              return String((icon && icon.className) || '').includes('os-part-list-icon');
+            }).map(el => (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100)),
           };
         }
         """
     )
 
 
-def user_feature_names(features: Any) -> list[str]:
-    """The custom-feature row names of a read feature list, in DOM order.
+def match_user_feature_row_indices(names: Any, feature_name: Any) -> list[int]:
+    """Positions of the rows whose name contains ``feature_name``, case-insensitive.
 
-    This is the read-side identity of a row. Callers that must CLICK one row
-    should identify it here and then click by this list's position, because
-    `read_partstudio_features` reflects the document while a Playwright
-    ``.filter(has_text=…)`` locator re-queries it: measured live 2026-09-20,
-    ``page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral
-    ridge 7')`` reported a count other than one for a row this function returned
-    as the single match, so name matching alone cannot be trusted to select a
-    row. Position derived from the same read keeps the two views in step, and a
-    caller that is handed both counts can see a disagreement instead of
-    guessing.
+    The ONE matching rule for custom-feature rows. Presence (``feature_state``)
+    and the dialog edit path's row choice both call it, so a presence check and a
+    click cannot drift apart. An empty row name never matches, and an empty
+    ``feature_name`` matches nothing rather than everything.
     """
-    if not isinstance(features, dict):
+    wanted = str(feature_name or "").strip().lower()
+    if not wanted or not isinstance(names, (list, tuple)):
         return []
-    items = features.get("features")
-    if not isinstance(items, list):
-        return []
-    return [
-        str(item.get("name", ""))
-        for item in items
-        if isinstance(item, dict) and item.get("isUserFeature")
-    ]
+    return [index for index, name in enumerate(names) if wanted in str(name).lower()]
+
+
+def enumerate_user_feature_rows(page: Any, selector: str) -> dict[str, Any]:
+    """Enumerate the custom-feature rows ONCE: their names and their count.
+
+    Identity and position must come from one enumeration. Measured live
+    2026-09-20: ``read_partstudio_features`` drops any row whose ``innerText`` and
+    ``textContent`` are both empty (its collector ends with ``.filter(f => f.name)``),
+    while ``page.locator('.os-list-item.ns-user-feature')`` counts it; comparing
+    the two therefore reported a constant +1 on every Part Studio — 1 named row
+    against 2, and 11 against 12 — so the dialog edit path refused on both. Both
+    ``querySelectorAll`` and ``page.locator`` are document order, so an index taken
+    from this list addresses the row the name came from.
+
+    A malformed answer is returned as an empty enumeration instead of raised: the
+    caller has to report "0 rows" as evidence rather than crash on it.
+    """
+    result = page.evaluate(_USER_FEATURE_ROWS_JS, {"selector": selector})
+    if not isinstance(result, dict):
+        return {"count": 0, "names": []}
+    raw_names = result.get("names")
+    names = [str(name) for name in raw_names] if isinstance(raw_names, list) else []
+    try:
+        count = max(0, int(result.get("count", len(names))))
+    except (TypeError, ValueError):
+        count = len(names)
+    return {"count": count, "names": names}
 
 
 def feature_state(features: Any, feature_name: str) -> dict[str, Any]:
@@ -958,22 +1096,19 @@ def feature_state(features: Any, feature_name: str) -> dict[str, Any]:
     empty = {"listed": False, "errored": False, "names": [], "rows": []}
     if not isinstance(features, dict) or not isinstance(feature_name, str):
         return empty
-    wanted = feature_name.strip().lower()
-    if not wanted:
-        return empty
     items = features.get("features")
     if not isinstance(items, list):
         return empty
-    rows = [
+    candidates = [
         {
             "name": str(item.get("name", "")),
             "hasError": bool(item.get("hasError")),
         }
         for item in items
-        if isinstance(item, dict)
-        and item.get("isUserFeature")
-        and wanted in str(item.get("name", "")).lower()
+        if isinstance(item, dict) and item.get("isUserFeature")
     ]
+    names = [row["name"] for row in candidates]
+    rows = [candidates[index] for index in match_user_feature_row_indices(names, feature_name)]
     return {
         "listed": bool(rows),
         "errored": any(row["hasError"] for row in rows),

@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mcp_main.win.mcp import server  # noqa: E402
-from onshape_browser_mode import actions  # noqa: E402
+from onshape_browser_mode import actions, selectors  # noqa: E402
 from onshape_browser_mode.guard import ActionGuard, ActionRateExceeded  # noqa: E402
 from onshape_browser_mode.session import (  # noqa: E402
     BrowserSession,
@@ -991,6 +991,117 @@ class BrowserDeleteTabTest(unittest.TestCase):
         self.assertTrue(result["deleted"])
         self.assertTrue(result["compatibilityWrapper"])
         delete_by_id.assert_called_once_with(page, "e2")
+
+
+class WaitForTabRemovedTest(unittest.TestCase):
+    """A tab removal is judged by its data-id, never by its position.
+
+    Measured live 2026-09-20: ``locator.nth(i).wait_for(state="detached")`` timed
+    out after 30 s on a tab that HAD in fact been deleted, and the very next read
+    of the tab strip no longer listed it. The tab strip is an ``ng-repeat`` list,
+    so removing a tab renumbers the remaining nodes and ``nth(i)`` re-resolves to
+    the tab that just moved into the freed slot — which is attached. The wait could
+    therefore never be satisfied, and the exception became ``deleted: false``.
+    """
+
+    @staticmethod
+    def _page(*, removes: bool) -> mock.Mock:
+        page = mock.Mock(url="https://cad.onshape.com/documents/d1/w/w1/e/e1")
+        calls: list[dict] = []
+
+        def wait_for_function(expression, *, arg=None, timeout=None, polling=None):
+            calls.append({"expression": expression, "arg": arg, "timeout": timeout})
+            if not removes:
+                raise TimeoutError("tab is still attached")
+            return True
+
+        page.wait_for_function.side_effect = wait_for_function
+        page.removal_calls = calls
+        return page
+
+    def test_the_wait_is_addressed_by_data_id_not_by_position(self):
+        page = self._page(removes=True)
+        result = actions.wait_for_tab_removed(page, "e9")
+        self.assertTrue(result["waited"])
+        self.assertEqual(result["condition"], "tab_removed_or_hidden")
+        self.assertEqual(result["elementId"], "e9")
+        self.assertEqual(result["timeoutMs"], actions.TAB_DELETE_TIMEOUT_MS)
+        self.assertGreaterEqual(result["elapsedMs"], 0)
+        self.assertNotIn("error", result)
+        (call,) = page.removal_calls
+        self.assertEqual(call["expression"], actions._TAB_REMOVED_PREDICATE)
+        self.assertEqual(call["arg"], {"selector": selectors.TAB_BAR_TAB, "id": "e9"})
+        self.assertEqual(call["timeout"], actions.TAB_DELETE_TIMEOUT_MS)
+
+    def test_the_predicate_accepts_the_hidden_marker_as_removed(self):
+        # A removed tab is marked hidden before it detaches, so an "absent only"
+        # predicate would still miss the state the position wait missed.
+        self.assertIn("'hidden'", actions._TAB_REMOVED_PREDICATE)
+        self.assertIn("nodes.length === 0", actions._TAB_REMOVED_PREDICATE)
+
+    def test_a_timeout_is_returned_as_evidence_not_raised(self):
+        page = self._page(removes=False)
+        result = actions.wait_for_tab_removed(page, "e9", timeout_ms=1234)
+        self.assertFalse(result["waited"])
+        self.assertEqual(result["timeoutMs"], 1234)
+        self.assertIn("TimeoutError", result["error"])
+
+
+class DeleteElementVerdictTest(unittest.TestCase):
+    """The delete verdict is the data-id wait, not the raw tab-strip read.
+
+    Live, the raw read no longer listed the tab while the positional wait had
+    already timed out, so the two can disagree in that direction; the tool must
+    believe the wait and return the raw read for diagnosis only.
+    """
+
+    @staticmethod
+    def _page() -> mock.Mock:
+        page = mock.Mock(url="https://cad.onshape.com/documents/d1/w/w1/e/e1")
+        menu = mock.Mock()
+        menu.count.return_value = 1
+        item = mock.Mock()
+        item.is_visible.return_value = True
+        item.inner_text.return_value = "删除"
+        menu.nth.return_value = item
+        confirm = mock.Mock()
+        confirm.count.return_value = 1
+        page.locator.side_effect = (
+            lambda selector: menu if selector == selectors.TAB_CONTEXT_MENU_ITEM else confirm
+        )
+        page.menu_item = item
+        return page
+
+    def test_a_removed_tab_is_not_reported_live_again_by_a_stale_raw_read(self):
+        page = self._page()
+        tab = mock.Mock()
+        with mock.patch.object(actions, "_tab_locators_by_id", return_value=[tab]), \
+             mock.patch.object(actions, "dismiss_stale_context_menu"), \
+             mock.patch.object(actions, "wait_for_tab_removed",
+                               return_value={"waited": True, "elapsedMs": 412}), \
+             mock.patch.object(actions, "list_document_tabs",
+                               return_value={"tabs": [{"name": "Feature Studio 1", "id": "e9"}]}):
+            result = actions.delete_element_by_id(page, "e9")
+        self.assertTrue(result["deleted"], "the data-id wait is the verdict")
+        self.assertEqual(result["stillListedIds"], ["e9"], "the raw read is reported, not obeyed")
+        self.assertNotIn("reason", result)
+        tab.click.assert_called_once_with(button="right")
+        page.menu_item.click.assert_called_once()
+
+    def test_a_tab_that_never_leaves_is_reported_with_its_timeout(self):
+        page = self._page()
+        tab = mock.Mock()
+        with mock.patch.object(actions, "_tab_locators_by_id", return_value=[tab]), \
+             mock.patch.object(actions, "dismiss_stale_context_menu"), \
+             mock.patch.object(actions, "wait_for_tab_removed",
+                               return_value={"waited": False, "elapsedMs": 30001,
+                                             "timeoutMs": 30000}), \
+             mock.patch.object(actions, "list_document_tabs", return_value={"tabs": []}):
+            result = actions.delete_element_by_id(page, "e9")
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["stillListedIds"], [])
+        self.assertIn("still a visible document tab", result["reason"])
+        self.assertIn("30001", result["reason"])
 
 
 class BrowserReloadTest(unittest.TestCase):

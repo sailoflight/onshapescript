@@ -10,26 +10,61 @@ from onshape_browser_mode import actions, diagnostics, selectors
 from onshape_browser_mode.pages import AssemblyPage, DrawingPage
 
 _PARTS_RE = re.compile(r"零件数\s*\((\d+)\)")
+#: A SECOND localised section counter, e.g. ``曲线数 (1)``. The part-list text is
+#: one flat string with no separators between sections, so a ``count == 1`` name
+#: heuristic that takes the whole remainder swallows the next section header into
+#: the part name — measured live 2026-09-20 on ``Part Studio 1``, where
+#: ``零件数 (1) 螺旋凸棱柱 曲线数 (1)`` produced the "name"
+#: ``螺旋凸棱柱 曲线数 (1)``.
+_SECTION_COUNT_RE = re.compile(r"[\u4e00-\u9fff]{1,6}数\s*\(\d+\)")
 
 
-def parse_part_summary(parts_text: str) -> dict[str, Any]:
-    """Parse the Part Studio's localized part count and visible part names."""
+def parse_part_summary(parts_text: str, part_items: Any = None) -> dict[str, Any]:
+    """Parse the Part Studio's localized part count and visible part names.
+
+    ``part_items`` is the part-name list read from the DOM (``read_partstudio_features``
+    returns it as ``partItems``) and is the ONLY trustworthy source of names. The
+    text fallback below cannot work on the text this repository actually reads:
+    ``partsText`` has every whitespace run folded to one space and is truncated, so
+    the ``\\s{2,}|\\n`` split can never fire. Measured live 2026-09-20 on
+    ``Part Studio 1``: ``零件数 (1) 螺旋凸棱柱 曲线数 (1)`` took the ``count == 1``
+    branch and returned ``["螺旋凸棱柱 曲线数 (1)"]`` — the next section header
+    swallowed into a part name — while ``Spiral ridge PS`` with ``零件数 (9)`` and
+    ``零件数 (11)`` returned no names at all. The fallback is kept because replayed
+    and logged text has no DOM, and ``partNamesSource`` says which path answered;
+    it now also refuses a ``count == 1`` remainder that still contains a section
+    counter, because inventing a swallowed name is worse than reporting none.
+    """
     match = _PARTS_RE.search(parts_text or "")
     if not match:
-        return {"parts": 0, "partNames": [], "partsText": parts_text or ""}
+        return {
+            "parts": 0, "partNames": [], "partNamesParsed": False,
+            "partNamesSource": "none", "partsText": parts_text or "",
+        }
     count = int(match.group(1))
+    names = [
+        str(name).strip()
+        for name in (part_items if isinstance(part_items, list) else [])
+        if str(name).strip()
+    ]
+    if count > 0 and len(names) == count:
+        return {
+            "parts": count, "partNames": names, "partNamesParsed": True,
+            "partNamesSource": "dom", "partsText": parts_text,
+        }
     remainder = (parts_text or "")[match.end():].strip()
-    if count == 1 and remainder:
-        names = [remainder]
-        names_parsed = True
+    if count == 1 and remainder and not _SECTION_COUNT_RE.search(remainder):
+        fallback = [remainder]
+        fallback_parsed = True
     elif re.search(r"\s{2,}|\n", remainder):
-        names = [name.strip() for name in re.split(r"\s{2,}|\n", remainder) if name.strip()]
-        names_parsed = len(names) == count
+        fallback = [name.strip() for name in re.split(r"\s{2,}|\n", remainder) if name.strip()]
+        fallback_parsed = len(fallback) == count
     else:
-        names = []
-        names_parsed = False
+        fallback = []
+        fallback_parsed = False
     return {
-        "parts": count, "partNames": names, "partNamesParsed": names_parsed,
+        "parts": count, "partNames": fallback, "partNamesParsed": fallback_parsed,
+        "partNamesSource": "text" if fallback else "none",
         "partsText": parts_text,
     }
 
@@ -367,7 +402,7 @@ def build_part(page: Any, feature_name: str, part_studio_tab: str = "") -> dict[
     """
     inserted = actions.insert_custom_feature(page, feature_name, part_studio_tab or None)
     features = inserted.get("features") or actions.read_partstudio_features(page)
-    summary = parse_part_summary(str(features.get("partsText", "")))
+    summary = parse_part_summary(str(features.get("partsText", "")), features.get("partItems"))
     state = actions.feature_state(features, feature_name)
     computed = state["listed"] and not state["errored"]
     built = bool(inserted.get("inserted")) and computed and summary["parts"] > 0

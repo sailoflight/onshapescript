@@ -1082,14 +1082,23 @@ class FakeDialogLocator:
 
 
 class FakeDialogPage:
-    """Page double for the feature-dialog edit path (offline, no session)."""
+    """Page double for the feature-dialog edit path (offline, no session).
+
+    ``rows`` are the NAMED custom-feature rows in DOM order and ``nameless_rows``
+    models the extra ``.os-list-item.ns-user-feature`` node that carries no text.
+    Measured live 2026-09-20, that node is on every Part Studio: a READ that drops
+    empty names saw 1 and 11 rows where the row locator counted 2 and 12. The
+    double therefore holds ONE node list, ``dom_rows``, and answers both the
+    enumeration and the locator from it — so a test cannot quietly model the two
+    views as different sets again, which is the defect class being pinned here.
+    """
 
     def __init__(
         self,
         *,
         rows: tuple[str, ...] = ("Sr Spiral ridge 5", "Sr Spiral ridge 6", "Sr Spiral ridge 7"),
-        read_features: dict | None = None,
-        locator_user_rows: int | None = None,
+        nameless_rows: int = 1,
+        locator_delta: int = 0,
         panel_renders: bool = True,
         dialog_opens: bool = True,
         dialog_closes: bool = True,
@@ -1097,14 +1106,24 @@ class FakeDialogPage:
         locator_sees_parameter: bool = True,
     ) -> None:
         self.rows = list(rows)
-        self.read_features = read_features if read_features is not None else {
+        self.nameless_rows = nameless_rows
+        # The nameless node sits FIRST, the worst case for a click index computed
+        # from a names-only list — which is exactly what the live defect did.
+        self.dom_rows = [""] * nameless_rows + list(self.rows)
+        # `locator_delta` is the only way to make the two views disagree, and it
+        # models a DOM change between the enumeration and the click (a stale read),
+        # not the live +1, which was a read-side filter.
+        self.locator_user_rows = len(self.dom_rows) + locator_delta
+        self.read_features = {
             "headerText": "特征 (%d)" % len(self.rows),
+            # A READ filters nameless nodes out; the enumeration does not. Keeping
+            # both in the double is what pins that difference.
             "features": [
                 {"name": name, "isUserFeature": True, "hasError": False} for name in self.rows
             ],
             "partsText": "零件数 (1)",
+            "partItems": [],
         }
-        self.locator_user_rows = len(self.rows) if locator_user_rows is None else locator_user_rows
         self.panel_renders = panel_renders
         self.dialog_opens = dialog_opens
         self.dialog_closes = dialog_closes
@@ -1124,6 +1143,10 @@ class FakeDialogPage:
         self.keyboard = mock.Mock()
 
     def evaluate(self, expression: str, arg: object = None) -> dict:
+        if expression == actions._USER_FEATURE_ROWS_JS:
+            # Names and count from one node list, nameless nodes included, exactly
+            # as `querySelectorAll` returns them.
+            return {"count": len(self.dom_rows), "names": list(self.dom_rows)}
         if ".feature-dialog" in expression:
             return dict(self.dialog_values) if self.dialog_visible else {}
         return self.read_features
@@ -1150,17 +1173,23 @@ class FakeDialogPage:
 
 
 class EditFeatureParametersTest(unittest.TestCase):
-    """The dialog edit path identifies its row from a READ, not from a name match.
+    """The edit path takes its row NAME and its CLICK INDEX from one enumeration.
 
-    Measured live 2026-09-20: on a Part Studio whose read listed nine user-feature
-    rows, ``page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr
-    Spiral ridge 7')`` reported a count other than one for the row that read
-    returned as its single match — deterministically, over four attempts and two
-    page reloads. The old code turned that into "must match exactly one row",
-    which named neither the count nor the rows, and this tool had no behavioural
-    test at all, which is how the false negative shipped. These tests pin the
-    replacement: a read-identified row, a positional click, both counts reported
-    on disagreement, and an accept that waits on the dialog closing.
+    Two live measurements on 2026-09-20, both on the real Windows browser, drove
+    this class. First: on a Part Studio whose read listed nine user-feature rows,
+    ``page.locator('.os-list-item.ns-user-feature').filter(has_text='Sr Spiral
+    ridge 7')`` reported a count other than one for the row that read returned as
+    its single match — deterministically, over four attempts and two page reloads.
+    Second, after comparing the read against the counting locator instead: the read
+    drops a row whose ``innerText`` and ``textContent`` are both empty while the
+    locator counts it, so the two counts differed by exactly one on EVERY element
+    (1 against 2, 11 against 12) and the tool refused everywhere. A set difference
+    is not a page change, so comparing a filtered read with a counting locator can
+    never be a valid precondition.
+
+    These tests pin the replacement: names and click index from the same node list,
+    the locator count as a staleness check, both counts reported on disagreement,
+    and an accept that waits on the dialog closing rather than on a sleep.
     """
 
     TARGET = "Sr Spiral ridge 7"
@@ -1168,25 +1197,35 @@ class EditFeatureParametersTest(unittest.TestCase):
     def _edit(self, page: FakeDialogPage, value: str = "12 mm") -> dict:
         return transactions.edit_feature_parameters(page, self.TARGET, {"baseRadius": value})
 
-    def test_the_row_is_clicked_by_the_position_the_read_reported(self):
+    def test_a_nameless_node_does_not_shift_the_clicked_row(self):
+        """The live +1 node must be harmless: the index comes from the same list."""
         page = FakeDialogPage()
         result = self._edit(page)
-        # The target is the LAST of three rows, so a name match that collapsed to
-        # the first row would be caught here.
-        self.assertEqual(page.dblclicks, [2, 2], "click the read's row, then reopen it")
+        # Four DOM nodes, nameless one first: the target is node 3. An index taken
+        # from a names-only list would be 2 and would open a different row.
+        self.assertEqual(page.dblclicks, [3, 3], "click the enumerated row, then reopen it")
+        self.assertEqual(result["featureRow"]["featureRows"], ["", *page.rows])
         self.assertEqual(result["featureRow"]["matchedRows"], [self.TARGET])
-        self.assertEqual(result["featureRow"]["locatorRows"], 3)
-        self.assertEqual(result["featureRow"]["featureRows"], page.rows)
+        self.assertEqual(result["featureRow"]["locatorRows"], 4)
         self.assertTrue(result["featureRow"]["panelReady"]["waited"])
         self.assertTrue(result["parametersApplied"])
 
-    def test_the_read_and_the_locator_must_agree_before_anything_is_clicked(self):
-        page = FakeDialogPage(locator_user_rows=1)
+    def test_without_a_nameless_node_the_index_is_the_plain_one(self):
+        page = FakeDialogPage(nameless_rows=0)
+        result = self._edit(page)
+        self.assertEqual(page.dblclicks, [2, 2])
+        self.assertEqual(result["featureRow"]["featureRows"], page.rows)
+        self.assertEqual(result["featureRow"]["locatorRows"], 3)
+        self.assertTrue(result["parametersApplied"])
+
+    def test_only_a_page_change_between_the_two_queries_refuses_the_click(self):
+        """A DOM change between enumerating and clicking is the only valid refusal."""
+        page = FakeDialogPage(locator_delta=1)
         result = self._edit(page)
         self.assertFalse(result["parametersApplied"])
         self.assertEqual(page.dblclicks, [], "no click without agreement")
-        self.assertEqual(result["featureRow"]["locatorRows"], 1)
-        self.assertEqual(len(result["featureRow"]["featureRows"]), 3)
+        self.assertEqual(result["featureRow"]["locatorRows"], 5)
+        self.assertEqual(len(result["featureRow"]["featureRows"]), 4)
         self.assertIn("refusing to click", result["reason"])
 
     def test_a_name_that_matches_nothing_reports_the_rows_it_could_have_matched(self):
@@ -1195,21 +1234,21 @@ class EditFeatureParametersTest(unittest.TestCase):
         self.assertFalse(result["parametersApplied"])
         self.assertEqual(page.dblclicks, [])
         self.assertEqual(result["featureRow"]["matchedRows"], [])
-        self.assertIn("matched 0 of 3", result["reason"])
-        self.assertEqual(result["featureRow"]["featureRows"], page.rows)
+        self.assertIn("matched 0 of 4", result["reason"])
+        self.assertEqual(result["featureRow"]["featureRows"], ["", *page.rows])
 
     def test_a_name_that_matches_several_rows_is_reported_not_guessed(self):
         page = FakeDialogPage(rows=("Sr Spiral ridge 1", "Sr Spiral ridge 2"))
         result = transactions.edit_feature_parameters(page, "Spiral ridge", {"baseRadius": "12 mm"})
         self.assertFalse(result["parametersApplied"])
         self.assertEqual(page.dblclicks, [])
-        self.assertIn("matched 2 of 2", result["reason"])
+        self.assertIn("matched 2 of 3", result["reason"])
         self.assertEqual(
             result["featureRow"]["matchedRows"], ["Sr Spiral ridge 1", "Sr Spiral ridge 2"]
         )
 
-    def test_the_panel_is_waited_for_before_the_read(self):
-        page = FakeDialogPage(rows=(), panel_renders=False)
+    def test_the_panel_is_waited_for_before_the_enumeration(self):
+        page = FakeDialogPage(rows=(), nameless_rows=0, panel_renders=False)
         result = self._edit(page)
         self.assertFalse(result["parametersApplied"])
         self.assertEqual(page.dblclicks, [])
@@ -1265,12 +1304,22 @@ class EditFeatureParametersTest(unittest.TestCase):
         self.assertEqual(page.accept_clicks, [], "never accept with a field unfilled")
 
     def test_the_row_is_never_identified_by_a_text_filter(self):
-        """The locator counts and clicks; the READ decides which row that is."""
+        """One enumeration; a filtered read is never compared with a counting locator."""
         source = Path(transactions.__file__).read_text(encoding="utf-8")
         self.assertNotIn("filter(has_text=feature_name)", source)
         locator_source = source.split("def _locate_feature_row", 1)[1].split("\ndef ", 1)[0]
-        self.assertIn("rows.nth(", locator_source)
-        self.assertIn("names.index(", locator_source)
+        # Drop the docstring: it deliberately NAMES the two defects it documents,
+        # so only the executable body may carry the invariant.
+        body = locator_source.rsplit('"""', 1)[-1]
+        self.assertIn("rows.nth(", body)
+        self.assertIn("enumerate_user_feature_rows", body)
+        self.assertIn("match_user_feature_row_indices", body)
+        self.assertNotIn(
+            "read_partstudio_features",
+            body,
+            "a read that FILTERS nameless rows and a locator that COUNTS them are "
+            "different sets; comparing them refused on every element live",
+        )
 
 
 if __name__ == "__main__":
