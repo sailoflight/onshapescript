@@ -125,6 +125,10 @@ class BrowserSession:
             # Resident mode: attach to one long-lived browser instead of launching one, so
             # the Onshape login (session cookies only) survives this child's exit. Default
             # off, and an explicitly injected factory always wins.
+            # Only the spawn-time identity, never the per-page launch options: those
+            # reach `launch_persistent_context` through `launch_options` above, and the
+            # adapter reads the viewport from there. Passing them twice is how a stray
+            # `viewport` kwarg became a TypeError instead of a window size.
             factory = resident_playwright_factory(
                 profile_dir=self.profile_dir(),
                 port=browser_cfg.resident_port,
@@ -132,7 +136,6 @@ class BrowserSession:
                 executable_path=browser_cfg.executable_path,
                 proxy_server=browser_cfg.proxy_server,
                 locale=browser_cfg.locale,
-                viewport=options["viewport"],
             )
         return SyncSession(
             SessionConfig(

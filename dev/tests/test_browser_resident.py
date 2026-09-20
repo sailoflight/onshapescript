@@ -484,7 +484,7 @@ class ResidentWiringTest(unittest.TestCase):
         self.assertEqual(BrowserCfg().resident_port, DEFAULT_RESIDENT_PORT)
         self.assertIsNone(self.session()._make_resources()._factory)
 
-    def test_the_switch_injects_the_resident_factory_without_touching_launch_options(self):
+    def test_the_switch_injects_only_the_spawn_time_identity(self):
         browser = self.session(resident=True, resident_port=9444, channel="msedge", locale="zh-CN")
         with mock.patch.object(
             session_module, "resident_playwright_factory", wraps=session_module.resident_playwright_factory
@@ -495,7 +495,22 @@ class ResidentWiringTest(unittest.TestCase):
         self.assertEqual(kwargs["port"], 9444)
         self.assertEqual(kwargs["channel"], "msedge")
         self.assertEqual(kwargs["locale"], "zh-CN")
-        self.assertEqual(kwargs["viewport"], {"width": 1280, "height": 800})
+        # Per-page options belong to `launch_options` and reach the adapter through the
+        # wheel's `launch_kwargs()`; duplicating them here is a TypeError, not a config.
+        self.assertNotIn("viewport", kwargs)
+        self.assertEqual(
+            resources.config.launch_kwargs()["viewport"], {"width": 1280, "height": 800}
+        )
+
+    def test_the_adapter_accepts_exactly_the_options_the_switch_sends(self):
+        """A wiring mismatch must fail here, not as a TypeError during start()."""
+        browser = self.session(resident=True, resident_port=9444, channel="msedge")
+        with mock.patch.object(
+            session_module, "resident_playwright_factory", wraps=session_module.resident_playwright_factory
+        ) as factory:
+            resources = browser._make_resources()
+        options = dict(factory.call_args.kwargs)
+        ResidentChromium(FakeChromium(), **options)  # must not raise
 
     def test_an_injected_factory_still_wins_over_resident_mode(self):
         config = BrowserConfig(BrowserCfg(resident=True), PacingCfg(), ListenerCfg())
