@@ -183,6 +183,13 @@ class FakePage:
                 "polling": polling,
             }
         )
+        if expression == actions._TAB_ACTIVE_PREDICATE:
+            # The tab switch's verdict is that tab's own active class, for the exact
+            # data-id — not a duration and not a position.
+            wanted = str((arg or {}).get("id", ""))
+            if any(tab.get("id") == wanted and tab.get("active") for tab in self.tabs):
+                return True
+            raise TimeoutError(f"tab {wanted!r} never became the active tab")
         minimum = int((arg or {}).get("minimum", 1))
         if self.never_satisfied_minimum is not None and minimum >= self.never_satisfied_minimum:
             raise TimeoutError(f"row count never reached {minimum}")
@@ -1194,14 +1201,24 @@ class EditFeatureParametersTest(unittest.TestCase):
     orders: the index happened not to shift live, and position is not a contract.
 
     These tests pin the replacement: names and click index from the same node list,
-    the locator count as a staleness check, both counts reported on disagreement,
-    and an accept that waits on the dialog closing rather than on a sleep.
+    the locator count as a staleness check, and both counts reported on disagreement.
+
+    They also pin the two-stage contract. Accepting re-evaluates the model before the
+    dialog reports closed, and a one-shot wait measured 61.7 s against a 60 s relay
+    limit, so the default apply stage returns on the accept click with
+    ``applyState: "pending_verification"`` and ``parametersApplied: None``; the verdict
+    belongs to `browser_verify_feature_parameters`, and the constants below are the
+    index the target sits at in each layout.
     """
 
     TARGET = "Sr Spiral ridge 7"
+    TARGET_INDEX = 3
 
-    def _edit(self, page: FakeDialogPage, value: str = "12 mm") -> dict:
-        return transactions.edit_feature_parameters(page, self.TARGET, {"baseRadius": value})
+    def _edit(self, page: FakeDialogPage, **kwargs) -> dict:
+        value = kwargs.pop("value", "12 mm")
+        return transactions.edit_feature_parameters(
+            page, self.TARGET, {"baseRadius": value}, **kwargs
+        )
 
     def test_a_nameless_node_does_not_shift_the_clicked_row(self):
         """Harder than live: an index from a names-only list would be wrong here."""
@@ -1209,12 +1226,12 @@ class EditFeatureParametersTest(unittest.TestCase):
         result = self._edit(page)
         # Four DOM nodes, nameless one first: the target is node 3. An index taken
         # from a names-only list would be 2 and would open a different row.
-        self.assertEqual(page.dblclicks, [3, 3], "click the enumerated row, then reopen it")
+        self.assertEqual(page.dblclicks, [3], "the apply stage clicks the enumerated row")
         self.assertEqual(result["featureRow"]["featureRows"], ["", *page.rows])
         self.assertEqual(result["featureRow"]["matchedRows"], [self.TARGET])
         self.assertEqual(result["featureRow"]["locatorRows"], 4)
         self.assertTrue(result["featureRow"]["panelReady"]["waited"])
-        self.assertTrue(result["parametersApplied"])
+        self.assertTrue(result["pendingVerification"])
 
     def test_in_the_measured_live_layout_the_nameless_node_is_last(self):
         """Live on Spiral ridge PS the phantom was the LAST of 12 nodes.
@@ -1224,19 +1241,19 @@ class EditFeatureParametersTest(unittest.TestCase):
         """
         page = FakeDialogPage(nameless_last=True)
         result = self._edit(page)
-        self.assertEqual(page.dblclicks, [2, 2])
+        self.assertEqual(page.dblclicks, [2])
         self.assertEqual(result["featureRow"]["featureRows"], [*page.rows, ""])
         self.assertEqual(result["featureRow"]["locatorRows"], 4)
         self.assertEqual(result["featureRow"]["matchedRows"], [self.TARGET])
-        self.assertTrue(result["parametersApplied"])
+        self.assertTrue(result["pendingVerification"])
 
     def test_without_a_nameless_node_the_index_is_the_plain_one(self):
         page = FakeDialogPage(nameless_rows=0)
         result = self._edit(page)
-        self.assertEqual(page.dblclicks, [2, 2])
+        self.assertEqual(page.dblclicks, [2])
         self.assertEqual(result["featureRow"]["featureRows"], page.rows)
         self.assertEqual(result["featureRow"]["locatorRows"], 3)
-        self.assertTrue(result["parametersApplied"])
+        self.assertTrue(result["pendingVerification"])
 
     def test_only_a_page_change_between_the_two_queries_refuses_the_click(self):
         """A DOM change between enumerating and clicking is the only valid refusal."""
@@ -1284,9 +1301,46 @@ class EditFeatureParametersTest(unittest.TestCase):
             "the panel readiness wait must query the feature-item selector",
         )
 
-    def test_the_accept_step_waits_on_the_dialog_closing_not_on_a_sleep(self):
+    def test_the_default_apply_stage_returns_before_the_dialog_closes(self):
+        """The commit must not be held hostage by a wait that outlives the transport.
+
+        Measured live 2026-09-20: the one-shot form took 61.7 s on an 11-user-feature
+        element and the caller got `-32001 downstream_timeout` for a write that had
+        very likely been applied. So the default stage returns on the accept click.
+        """
         page = FakeDialogPage()
         result = self._edit(page)
+        self.assertEqual(page.dblclicks, [self.TARGET_INDEX], "one click: the dialog open")
+        self.assertEqual(result["applyState"], "pending_verification")
+        self.assertIsNone(result["parametersApplied"], "not known to have failed")
+        self.assertTrue(result["pendingVerification"])
+        self.assertEqual(result["accept"], {"clicked": True, "waitMs": 0})
+        self.assertTrue(result["readbackOk"])
+        self.assertEqual(page.timeouts, [], "no blind sleep on the path")
+        self.assertEqual(
+            [
+                call["expression"]
+                for call in page.wait_calls
+                if call["arg"] == selectors.PS_FEATURE_DIALOG
+            ],
+            [],
+            "the apply stage must not wait for the dialog to close",
+        )
+        self.assertEqual(
+            result["verifyWith"],
+            {
+                "tool": "browser_verify_feature_parameters",
+                "arguments": {
+                    "feature_name": self.TARGET,
+                    "parameters": {"baseRadius": "12 mm"},
+                },
+            },
+            "the result must carry the exact follow-up call",
+        )
+
+    def test_the_one_shot_form_still_waits_and_verifies_when_asked(self):
+        page = FakeDialogPage()
+        result = self._edit(page, wait_for_regeneration=True)
         self.assertTrue(result["accepted"])
         self.assertTrue(result["accept"]["clicked"])
         self.assertTrue(result["accept"]["waited"])
@@ -1294,17 +1348,22 @@ class EditFeatureParametersTest(unittest.TestCase):
         self.assertEqual(page.timeouts, [], "the accept step must not sleep")
         self.assertTrue(
             any(call["arg"] == selectors.PS_FEATURE_DIALOG for call in page.wait_calls),
-            "the accept step must wait on the dialog closing",
+            "the opt-in form must wait on the dialog closing",
         )
+        self.assertEqual(page.dblclicks, [self.TARGET_INDEX, self.TARGET_INDEX])
         self.assertTrue(result["readbackOk"])
         self.assertTrue(result["regenerationOk"])
         self.assertTrue(result["persistenceOk"])
+        self.assertTrue(result["parametersApplied"])
+        self.assertEqual(result["applyState"], "confirmed")
+        self.assertFalse(result["pendingVerification"])
 
-    def test_an_accept_that_never_closes_is_evidence_not_a_crash(self):
+    def test_an_accept_that_never_closes_is_evidence_in_the_one_shot_form(self):
         page = FakeDialogPage(dialog_closes=False)
-        result = self._edit(page)
+        result = self._edit(page, wait_for_regeneration=True)
         self.assertFalse(result["accepted"])
         self.assertFalse(result["parametersApplied"])
+        self.assertEqual(result["applyState"], "failed")
         self.assertFalse(result["accept"]["waited"])
         self.assertIn("timeoutMs", result["accept"])
 
@@ -1322,6 +1381,86 @@ class EditFeatureParametersTest(unittest.TestCase):
         self.assertEqual(result["missing"], ["baseRadius"])
         self.assertEqual(page.fills, [])
         self.assertEqual(page.accept_clicks, [], "never accept with a field unfilled")
+
+class VerifyFeatureParametersTest(unittest.TestCase):
+    """The second stage answers "did the accepted edit stick", and never guesses.
+
+    The apply stage cannot both commit and confirm inside a transport budget
+    (measured live 2026-09-20: 61.7 s on an 11-user-feature element against a 60 s
+    relay limit). This stage therefore has a smaller dialog budget and reports
+    `parametersApplied: null` with `retryVerify: true` while the model is still
+    re-evaluating, because the row list at that moment can still be the pre-accept
+    DOM — reading it and claiming regeneration would be a fabrication.
+    """
+
+    TARGET = "Sr Spiral ridge 7"
+
+    def _apply_then_verify(self, page: FakeDialogPage) -> tuple[dict, dict]:
+        applied = transactions.edit_feature_parameters(
+            page, self.TARGET, {"baseRadius": "12 mm"}
+        )
+        verified = transactions.verify_feature_parameters(
+            page, self.TARGET, {"baseRadius": "12 mm"}
+        )
+        return applied, verified
+
+    def test_it_confirms_regeneration_and_persistence_after_the_dialog_closes(self):
+        page = FakeDialogPage()
+        applied, verified = self._apply_then_verify(page)
+        self.assertTrue(applied["pendingVerification"])
+        self.assertTrue(verified["verified"])
+        self.assertTrue(verified["parametersApplied"])
+        self.assertTrue(verified["dialogClosed"]["waited"])
+        self.assertEqual(verified["dialogClosed"]["condition"], "feature_dialog_absent")
+        self.assertTrue(verified["regenerationOk"])
+        self.assertTrue(verified["persistenceOk"])
+        self.assertEqual(verified["persisted"], {"baseRadius": "12 mm"})
+        self.assertEqual(
+            [row.get("name") for row in verified["featureState"]], [self.TARGET]
+        )
+        self.assertNotIn("retryVerify", verified)
+
+    def test_a_dialog_that_has_not_closed_yet_is_unknown_not_failed(self):
+        page = FakeDialogPage(dialog_closes=False)
+        _applied, verified = self._apply_then_verify(page)
+        self.assertFalse(verified["verified"])
+        self.assertIsNone(
+            verified["parametersApplied"],
+            "an unfinished re-evaluation is not a failed edit",
+        )
+        self.assertIsNone(verified["persistenceOk"])
+        self.assertTrue(verified["retryVerify"])
+        self.assertFalse(verified["dialogClosed"]["waited"])
+        self.assertEqual(verified["featureState"], [], "no row list is read while the dialog is open")
+
+    def test_a_row_that_did_not_regenerate_cleanly_is_not_confirmed(self):
+        page = FakeDialogPage()
+        page.read_features = {"headerText": "", "features": [], "partsText": "", "partItems": []}
+        _applied, verified = self._apply_then_verify(page)
+        self.assertFalse(verified["verified"])
+        self.assertFalse(verified["parametersApplied"])
+        self.assertFalse(verified["regenerationOk"])
+        self.assertFalse(verified["persistenceOk"])
+        self.assertIn("did not regenerate cleanly", verified["reason"])
+
+    def test_values_that_do_not_survive_the_reopen_are_reported(self):
+        page = FakeDialogPage()
+        applied = transactions.edit_feature_parameters(
+            page, self.TARGET, {"baseRadius": "12 mm"}
+        )
+        self.assertTrue(applied["readbackOk"])
+        # The dialog read back 12 mm, but the persisted value is something else: the
+        # stage must report that, not the readback it already saw.
+        page.dialog_values["baseRadius"] = "10 mm"
+        verified = transactions.verify_feature_parameters(
+            page, self.TARGET, {"baseRadius": "12 mm"}
+        )
+        self.assertFalse(verified["verified"])
+        self.assertFalse(verified["parametersApplied"])
+        self.assertTrue(verified["regenerationOk"])
+        self.assertFalse(verified["persistenceOk"])
+        self.assertIn("persisted=", verified["reason"])
+
 
     def test_the_row_is_never_identified_by_a_text_filter(self):
         """One enumeration; a filtered read is never compared with a counting locator."""

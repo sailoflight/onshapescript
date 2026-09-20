@@ -13,8 +13,18 @@ from onshape_browser_mode import actions, selectors
 #: Bounded wait for a Parameter dialog to close after its accept button is
 #: clicked. Accepting re-evaluates the model, so the close is a function of how
 #: much geometry the element holds, not a fixed latency: measured live
-#: 2026-09-20, a 7-feature Part Studio took longer than the old fixed 500 ms.
+#: 2026-09-20, a 7-feature Part Studio took longer than the old fixed 500 ms —
+#: and on an 11-feature element the whole transaction reached 61.7 s, past the
+#: 60 s transport limit, so the apply stage no longer waits for this by default.
 PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000
+
+#: Second-stage budget for the same condition. It is deliberately smaller than any
+#: transport limit: the point of the second stage is to answer cheaply, and an
+#: unfinished re-evaluation is reported as "call again", never as a failure.
+PS_VERIFY_DIALOG_CLOSE_TIMEOUT_MS = 25_000
+
+#: Bounded wait for the reopened dialog that reads persisted values back.
+PS_REOPEN_TIMEOUT_MS = 5_000
 
 DOC_NAME = selectors.DOC_NAME
 DOC_MENU = selectors.DOC_MENU
@@ -392,14 +402,59 @@ def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[
     return rows.nth(indices[0]), evidence
 
 
+def _wait_for_dialog_close(page: Any, timeout_ms: int) -> dict[str, Any]:
+    """Wait until the Parameter dialog is gone, or report how long it was given.
+
+    Timeout is returned as data, never raised: on the apply stage a timeout is not a
+    failure (the accept click already committed the edit) and on the verify stage it
+    only means "not finished yet".
+    """
+    started = time.monotonic()
+    try:
+        page.wait_for_function(
+            "(selector) => document.querySelector(selector) === null",
+            arg=selectors.PS_FEATURE_DIALOG,
+            timeout=timeout_ms,
+        )
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "feature_dialog_absent",
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
+
+
 def edit_feature_parameters(
     page: Any,
     feature_name: str,
     parameters: dict[str, Any],
     *,
     accept: bool = True,
+    wait_for_regeneration: bool = False,
 ) -> dict[str, Any]:
-    """Open a custom feature dialog, update named fields, and optionally accept.
+    """Open a custom feature dialog, update named fields, and accept it.
+
+    Two stages, because one stage does not fit a transport budget. Accepting a
+    Parameter dialog re-evaluates the model before the dialog reports closed, and on
+    an element with 11 user features that measured **61.7 s** end to end — past a
+    60 s relay limit, so the caller received ``-32001 downstream_timeout`` for an
+    operation that had very likely been applied. Losing the result of a write is the
+    same false-negative class as the locate defect this path was just fixed for, so:
+
+    * the default (``wait_for_regeneration=False``) returns as soon as the accept
+      button is clicked. Wall time is the locate, the dialog, the fills and the
+      readback — seconds — and the result says ``applyState:
+      "pending_verification"`` with ``parametersApplied: None``, never ``False``,
+      because the write is not known to have failed. ``verifyWith`` carries the
+      exact follow-up call.
+    * ``wait_for_regeneration=True`` keeps the original one-shot behaviour for a
+      caller whose transport budget allows it.
+
+    The verdict belongs to :func:`verify_feature_parameters`.
 
     Every return carries ``featureRow``: the read-identified row evidence
     (``panelReady``, ``featureRows``, ``matchedRows``, ``locatorRows``). A refusal
@@ -410,6 +465,8 @@ def edit_feature_parameters(
     if row is None:
         return {
             "parametersApplied": False,
+            "applyState": "refused",
+            "pendingVerification": False,
             "featureName": feature_name,
             "featureRow": evidence,
             "reason": evidence.get("reason", ""),
@@ -421,6 +478,8 @@ def edit_feature_parameters(
     except Exception as exc:  # noqa: BLE001
         return {
             "parametersApplied": False,
+            "applyState": "failed",
+            "pendingVerification": False,
             "featureName": feature_name,
             "featureRow": evidence,
             "reason": f"feature dialog did not open: {exc}",
@@ -460,6 +519,35 @@ def edit_feature_parameters(
         if button.count() > 0:
             button.first.click()
             accept_evidence["clicked"] = True
+            if not wait_for_regeneration:
+                # The click is the commit; the dialog closes when the model has been
+                # re-evaluated. Return now and let the second stage answer.
+                return {
+                    "parametersApplied": None,
+                    "applyState": "pending_verification",
+                    "pendingVerification": True,
+                    "featureName": feature_name,
+                    "updated": updated,
+                    "missing": missing,
+                    "before": before,
+                    "after": after,
+                    "readbackOk": readback_ok,
+                    "accept": accept_evidence,
+                    "featureRow": evidence,
+                    "verifyWith": {
+                        "tool": "browser_verify_feature_parameters",
+                        "arguments": {
+                            "feature_name": feature_name,
+                            "parameters": parameters,
+                        },
+                    },
+                    "reason": (
+                        "the dialog was accepted and the model is re-evaluating; this "
+                        "stage returns before the dialog reports closed so the call "
+                        "fits the transport budget. The edit is neither confirmed nor "
+                        "failed — verify with browser_verify_feature_parameters"
+                    ),
+                }
             # The dialog closes only after the model has been re-evaluated, and a
             # real Part Studio takes seconds to do that. A fixed sleep here
             # misreports a successful edit as a failure: measured live 2026-09-20
@@ -467,19 +555,11 @@ def edit_feature_parameters(
             # `accepted: false` for an edit that HAD been applied (the next run
             # opened the dialog on the new values). Wait on the condition instead,
             # bounded, and report how long it took.
-            accept_evidence["timeoutMs"] = PS_DIALOG_CLOSE_TIMEOUT_MS
-            started = time.monotonic()
-            try:
-                page.wait_for_function(
-                    "(selector) => document.querySelector(selector) === null",
-                    arg=selectors.PS_FEATURE_DIALOG,
-                    timeout=PS_DIALOG_CLOSE_TIMEOUT_MS,
-                )
-                accepted = True
-            except Exception:  # noqa: BLE001 - a timeout is evidence, not a crash
-                accepted = page.locator(selectors.PS_FEATURE_DIALOG).count() == 0
+            close = _wait_for_dialog_close(page, PS_DIALOG_CLOSE_TIMEOUT_MS)
+            accepted = close["waited"] or page.locator(selectors.PS_FEATURE_DIALOG).count() == 0
+            accept_evidence["timeoutMs"] = close["timeoutMs"]
             accept_evidence["waited"] = accepted
-            accept_evidence["waitMs"] = round((time.monotonic() - started) * 1000)
+            accept_evidence["waitMs"] = close["elapsedMs"]
     after_state = actions.feature_state(
         actions.read_partstudio_features(page) if accepted else {"features": []},
         feature_name,
@@ -492,15 +572,25 @@ def edit_feature_parameters(
         row.dblclick()
         reopened = page.locator(selectors.PS_FEATURE_DIALOG).first
         try:
-            reopened.wait_for(state="visible", timeout=5_000)
+            reopened.wait_for(state="visible", timeout=PS_REOPEN_TIMEOUT_MS)
             persisted = _dialog_values(page)
             persistence_ok = all(str(persisted.get(key, "")).lower() == value.lower() for key, value in desired.items())
         except Exception:
             persistence_ok = False
         finally:
             page.keyboard.press("Escape")
+    applied = (
+        not missing
+        and len(updated) == len(parameters)
+        and readback_ok
+        and accepted
+        and regeneration_ok
+        and persistence_ok
+    )
     return {
-        "parametersApplied": not missing and len(updated) == len(parameters) and readback_ok and accepted and regeneration_ok and persistence_ok,
+        "parametersApplied": applied,
+        "applyState": "confirmed" if applied else "failed",
+        "pendingVerification": False,
         "featureName": feature_name,
         "updated": updated,
         "missing": missing,
@@ -515,6 +605,97 @@ def edit_feature_parameters(
         "featureState": matching_features,
         "featureRow": evidence,
     }
+
+
+def verify_feature_parameters(
+    page: Any,
+    feature_name: str,
+    parameters: dict[str, Any],
+    *,
+    dialog_timeout_ms: int = PS_VERIFY_DIALOG_CLOSE_TIMEOUT_MS,
+) -> dict[str, Any]:
+    """Second stage of :func:`edit_feature_parameters`: confirm what was applied.
+
+    A single stage cannot both commit and confirm inside a transport budget, because
+    the dialog closes only after the model is re-evaluated (measured live
+    2026-09-20: 61.7 s on an 11-user-feature element). So the apply stage returns
+    ``pending_verification`` and this stage answers, cheaply, later.
+
+    It never guesses. If the dialog has not reported closed inside
+    ``dialog_timeout_ms`` the model is still re-evaluating: the result is
+    ``parametersApplied: None`` with ``retryVerify: true``, because reading the row
+    list while the dialog is open can only see the pre-accept DOM. Once the dialog
+    is gone it reads the row state (regeneration) and reopens the row to read the
+    values back (persistence), and only then reports a boolean.
+    """
+    close = _wait_for_dialog_close(page, dialog_timeout_ms)
+    result: dict[str, Any] = {
+        "verified": False,
+        "parametersApplied": None,
+        "featureName": feature_name,
+        "dialogClosed": close,
+        "regenerationOk": False,
+        "persistenceOk": None,
+        "featureState": [],
+        "persisted": {},
+    }
+    if not close["waited"]:
+        result["retryVerify"] = True
+        result["reason"] = (
+            "the feature dialog had not reported closed after "
+            f"{close['timeoutMs']} ms, so the row list may still be the pre-accept DOM "
+            "and the persisted values cannot be read yet; call again"
+        )
+        return result
+
+    state = actions.feature_state(actions.read_partstudio_features(page), feature_name)
+    rows = state["rows"]
+    regeneration_ok = len(rows) == 1 and not state["errored"]
+    result["featureState"] = rows
+    result["regenerationOk"] = regeneration_ok
+    if not regeneration_ok:
+        result["persistenceOk"] = False
+        result["reason"] = (
+            f"the accepted edit left {len(rows)} row(s) named {feature_name!r} and "
+            f"errored={state['errored']}, so it did not regenerate cleanly"
+        )
+        return result
+
+    row, locate = _locate_feature_row(page, feature_name)
+    result["featureRow"] = locate
+    if row is None:
+        result["retryVerify"] = True
+        result["reason"] = (
+            "the row could not be re-located to read its values back: "
+            f"{locate.get('reason', '')}"
+        )
+        return result
+    row.dblclick()
+    reopened = page.locator(selectors.PS_FEATURE_DIALOG).first
+    persisted: dict[str, Any] = {}
+    persistence_ok = False
+    try:
+        reopened.wait_for(state="visible", timeout=PS_REOPEN_TIMEOUT_MS)
+        persisted = _dialog_values(page)
+        persistence_ok = all(
+            str(persisted.get(key, "")).lower()
+            == (str(value).lower() if isinstance(value, bool) else str(value)).lower()
+            for key, value in parameters.items()
+        )
+    except Exception as exc:  # noqa: BLE001 - reported, not raised
+        result["error"] = f"{type(exc).__name__}: {exc}"
+    finally:
+        page.keyboard.press("Escape")
+    result["persisted"] = persisted
+    result["persistenceOk"] = persistence_ok
+    result["verified"] = regeneration_ok and persistence_ok
+    result["parametersApplied"] = result["verified"]
+    if not result["verified"]:
+        result["reason"] = (
+            "the accepted edit regenerated cleanly but the reopened dialog did not "
+            f"show the requested values: persisted={persisted}"
+        )
+    return result
 
 
 def fs_watch_part_studio(

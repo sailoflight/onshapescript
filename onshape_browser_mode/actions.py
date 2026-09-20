@@ -125,6 +125,22 @@ _ROW_COUNT_PREDICATE = """
 #: deleted, and the exception became ``deleted: false``.
 TAB_DELETE_TIMEOUT_MS = 30_000
 
+#: Bounded wait for a tab this call just clicked to carry Onshape's own ``active``
+#: class. The verdict is that class, read for the exact ``data-id``, never a
+#: duration and never a position.
+TAB_ACTIVATE_TIMEOUT_MS = 15_000
+
+_TAB_ACTIVE_PREDICATE = """
+({selector, id}) => {
+  const nodes = Array.from(document.querySelectorAll(selector)).filter(
+    el => el.getAttribute('data-id') === id
+  );
+  return nodes.length > 0 && nodes.every(
+    el => String(el.className || '').split(/\\s+/).includes('active')
+  );
+}
+"""
+
 #: In-page predicate: the tab carrying this ``data-id`` is gone, or every node
 #: carrying it is marked removed (``hidden``).
 _TAB_REMOVED_PREDICATE = """
@@ -920,6 +936,150 @@ def wait_for_tab_removed(
     }
 
 
+def activate_tab(
+    page: Any,
+    *,
+    element_id: str = "",
+    name: str = "",
+    content: str = "any",
+    timeout_ms: int = TAB_ACTIVATE_TIMEOUT_MS,
+) -> dict[str, Any]:
+    """Make one EXISTING document tab the active tab, by ``data-id`` or exact name.
+
+    Read tools and the dialog-edit transaction act on whatever tab happens to be
+    active, and until now nothing could select one. Measured live 2026-09-20:
+    ``browser_rename_tab`` double-clicks a tab NAME but leaves the previously active
+    tab active, and the only tab switches in the codebase were a byproduct of
+    ``insert_custom_feature(part_studio_tab=...)``. That is why a small-element
+    end-to-end run could not be substituted for an 11-feature element.
+
+    Selection goes through ``data-id`` whenever one is known — and the tab listing
+    itself supplies it — never through a position: the tab strip is an ``ng-repeat``
+    list, so removing or adding a tab renumbers it (the same property that made the
+    old positional delete wait unsatisfiable). ``name`` resolution requires exactly
+    one exact match, so an ambiguous name is a refusal and not a guess.
+
+    The verdict is the tab's own ``active`` class for that ``data-id``, read in the
+    page; ``content="partstudio"`` additionally waits for the feature-list header and
+    whose rows, because a switched-to Part Studio renders in stages and a read taken
+    immediately after the switch sees zero rows.
+    """
+    from onshape_browser_mode.selectors import TAB_BAR_TAB
+
+    if not element_id and not name:
+        raise ValueError("either element_id or name is required")
+    if content not in {"any", "partstudio"}:
+        raise ValueError("content must be any or partstudio")
+    before = list_document_tabs(page)
+    tabs = before.get("tabs", [])
+    active_before = next((tab.get("id", "") for tab in tabs if tab.get("active")), "")
+    matches = (
+        [tab for tab in tabs if tab.get("id") == element_id]
+        if element_id
+        else [tab for tab in tabs if tab.get("name") == name]
+    )
+    if len(matches) != 1:
+        return {
+            "activated": False,
+            "elementId": element_id,
+            "name": name,
+            "matchCount": len(matches),
+            "activeBefore": active_before,
+            "activeAfter": active_before,
+            "reason": (
+                "element_id must match exactly one visible tab"
+                if element_id
+                else f"tab name {name!r} must match exactly one visible tab"
+            ),
+            "tabs": tabs,
+        }
+    target_id = matches[0].get("id", "")
+    if not target_id:
+        return {
+            "activated": False,
+            "name": matches[0].get("name", ""),
+            "activeBefore": active_before,
+            "activeAfter": active_before,
+            "reason": "the matched tab carries no data-id",
+            "tabs": tabs,
+        }
+
+    already_active = active_before == target_id
+    started = time.monotonic()
+    clicked = False
+    if not already_active:
+        try:
+            dismiss_stale_context_menu(page)
+            page.locator(f'{TAB_BAR_TAB}[data-id="{target_id}"]').first.click()
+            clicked = True
+        except Exception as exc:  # noqa: BLE001 - a failed click is evidence
+            return {
+                "activated": False,
+                "elementId": target_id,
+                "name": matches[0].get("name", ""),
+                "clicked": False,
+                "activeBefore": active_before,
+                "activeAfter": active_before,
+                "reason": f"the tab {target_id!r} could not be clicked: {type(exc).__name__}: {exc}",
+                "tabs": list_document_tabs(page).get("tabs", []),
+            }
+
+    try:
+        page.wait_for_function(
+            _TAB_ACTIVE_PREDICATE,
+            arg={"selector": TAB_BAR_TAB, "id": target_id},
+            timeout=timeout_ms,
+        )
+        waited, wait_error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, wait_error = False, f"{type(exc).__name__}: {exc}"
+
+    content_ready: dict[str, Any] = {}
+    if waited and content == "partstudio":
+        try:
+            page.locator(PS_FEATURES_HEADER).first.wait_for(
+                state="visible", timeout=PARTSTUDIO_PANEL_READY_TIMEOUT_MS
+            )
+            header_visible = True
+        except Exception:  # noqa: BLE001
+            header_visible = False
+        content_ready = {
+            "headerVisible": header_visible,
+            "rows": wait_for_panel_rows(page, PARTSTUDIO_PANEL_READY_TIMEOUT_MS),
+        }
+
+    after = list_document_tabs(page)
+    active_after = next(
+        (tab.get("id", "") for tab in after.get("tabs", []) if tab.get("active")), ""
+    )
+    activated = waited and active_after == target_id
+    result = {
+        "activated": activated,
+        "elementId": target_id,
+        "name": matches[0].get("name", ""),
+        "alreadyActive": already_active,
+        "clicked": clicked,
+        "activeBefore": active_before,
+        "activeAfter": active_after,
+        "wait": {
+            "condition": "tab_active_class",
+            "waited": waited,
+            "timeoutMs": timeout_ms,
+            "elapsedMs": round((time.monotonic() - started) * 1000),
+            **({"error": wait_error} if wait_error else {}),
+        },
+        "content": content,
+        "tabs": after.get("tabs", []),
+    }
+    if content_ready:
+        result["contentReady"] = content_ready
+    if not activated:
+        result["reason"] = (
+            f"the tab {target_id!r} is not the active tab after {timeout_ms} ms"
+        )
+    return result
+
+
 def delete_tab(page: Any, name: str) -> dict[str, Any]:
     """Compatibility wrapper: resolve one exact visible name, then delete by ID."""
     tabs = list_document_tabs(page)
@@ -1538,30 +1698,31 @@ def insert_custom_feature(
     measured reason).
     """
     if part_studio_tab:
-        tabs = list_document_tabs(page).get("tabs", [])
-        matched = next((tab for tab in tabs if tab.get("name") == part_studio_tab), None)
-        if not matched:
-            return {"inserted": False, "reason": f"part studio tab {part_studio_tab!r} not found"}
-        tab_id = matched.get("id", "")
-        selector = f'.os-tab-bar-tab[data-id="{tab_id}"]' if tab_id else ".os-tab-bar-tab"
-        tab = page.locator(selector)
-        if not tab_id:
-            tab = tab.filter(has_text=part_studio_tab)
-        try:
-            dismiss_stale_context_menu(page)
-            tab.first.click()
-            page.locator(PS_FEATURES_HEADER).first.wait_for(state="visible", timeout=30_000)
-        except Exception as exc:  # noqa: BLE001 - structured missing/unready tab
-            return {"inserted": False, "reason": f"part studio tab did not become ready: {exc}"}
-        # A switched-to Part Studio renders in stages: the Feature List title
-        # appears before its rows, and the toolbar later still. Measured live
-        # 2026-09-20, switching from a Feature Studio produced both a
-        # "workspace-custom-features button not found" click and a baseline read
-        # of 0 rows on a Part Studio holding 8 custom features — the second one
-        # silently degrades ``minimum`` to 1 and re-opens the false-positive the
-        # count check exists to close. Wait for the rows and the toolbar button
-        # before either is used.
-        panel_ready = wait_for_panel_rows(page, PARTSTUDIO_PANEL_READY_TIMEOUT_MS)
+        # Same switch the tool ``browser_activate_tab`` exposes, so both paths share
+        # one implementation. The hard gate stays what it always was: the
+        # Feature-List title has to become visible, and the row wait is recorded as
+        # evidence. A switched-to Part Studio renders in stages: the title appears
+        # before its rows, and the toolbar later still. Measured live 2026-09-20,
+        # switching from a Feature Studio produced both a "workspace-custom-features
+        # button not found" click and a baseline read of 0 rows on a Part Studio
+        # holding 8 custom features — the second one silently degrades ``minimum`` to
+        # 1 and re-opens the false-positive the count check exists to close. Wait for
+        # the rows and the toolbar button before either is used.
+        activation = activate_tab(page, name=part_studio_tab, content="partstudio")
+        content_ready = activation.get("contentReady", {})
+        panel_ready = content_ready.get("rows")
+        if not activation.get("activated") or not content_ready.get("headerVisible"):
+            reason = (
+                f"part studio tab {part_studio_tab!r} not found"
+                if activation.get("matchCount") == 0
+                else f"part studio tab did not become ready: {activation.get('reason', '')}"
+            )
+            return {
+                "inserted": False,
+                "reason": reason,
+                "panelReady": panel_ready,
+                "activation": activation,
+            }
         toolbar_ready = wait_for_toolbar_button(
             page, PS_WORKSPACE_CUSTOM_FEATURE_BTN, PARTSTUDIO_TOOLBAR_TIMEOUT_MS
         )

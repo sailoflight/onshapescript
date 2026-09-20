@@ -274,23 +274,32 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   结论按这个更准确的版本记：**不要依赖它在哪一端**，它只是 Onshape 的内部节点。同理，
   `count_custom_features` 这类预算口径必须明确是"数有名字的行"还是"数 DOM 节点"，
   否则预热预算会虚高。
-- **工具事务可能比传输上限活得久：调用方拿到的是"假失败"（2026-09-20 实测）**。
-  `browser_edit_feature_parameters` 在 11 个用户特征的 Part Studio 上耗时 **61.7 s**
-  （桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/中继在
-  60 s 先超时，返回 `MCP error -32001: downstream_timeout`。旧定位拒绝是 <1 s、约 618 B
-  的载荷，所以"61.7 s 后产出了多千字节响应"本身证明它已经越过定位并走完对话框流程；
-  但 `parametersApplied` 与写入结果**无法从客户端证实**。原因是可测的：
+- **工具事务可能比传输上限活得久：拆两段，别让"确认"拖住"提交"（2026-09-20 实测）**。
+  `browser_edit_feature_parameters` 一次做完"提交 + 确认"时，在 11 个用户特征的 Part Studio 上
+  耗时 **61.7 s**（桥的 correlation 记录：请求 236 B → 响应 2499 B，间隔 61.7 s），而客户端/
+  中继在 60 s 先超时，返回 `MCP error -32001: downstream_timeout`。旧定位拒绝是 <1 s、
+  约 618 B 的载荷，所以"61.7 s 后产出了多千字节响应"本身就证明它已经越过定位并走完对话框
+  流程；但 `parametersApplied` 与写入结果**无法从客户端证实**。原因可测：
   `PS_DIALOG_CLOSE_TIMEOUT_MS = 60_000`，而 Onshape 要在对话框报"关闭"前重算整个模型。
-  **凡是可能超过传输上限的浏览器事务，超时都不等于失败，重试可能重复执行**；这次
-  同一现象还伴随页面掉到 `about:blank` 与会话登出（因果未确立，只按观测记录），因此
-  长事务不要为了拿返回值而重跑。
-- **没有"把已有标签设为活动"的工具，这是一个真实缺口（同批实测）**。`print/read` 类工具
-  （如 `browser_get_partstudio_features`、`browser_edit_feature_parameters`）都作用于
-  **当前活动标签**，而目前只有 `browser_create_tab`（新建即激活）和
-  `insert_custom_feature(part_studio_tab=…)` 内部那段 `page.locator('.os-tab-bar-tab
-  [data-id=…]').first.click()` 会切标签。`browser_rename_tab` 双击标签名进入改名模式
-  **并不会**把该标签设为活动（实测 `active` 仍为原标签）。于是"在一个小元素上做端到端
-  验证"这条路被堵住，只能在既有活动标签上做事——写代码前先确认目标标签已经是活动的。
+  **修法：把"提交"与"确认"拆成两段**——点击 accept 就是提交，对话框关闭只是"重算完成"的
+  信号。默认段在点击 accept 后立刻返回 `applyState: "pending_verification"`、
+  `parametersApplied: null`（**绝不返回 `False`**：写入并未失败），并带 `verifyWith` 指向
+  `browser_verify_feature_parameters`；第二段用更小的预算（25 s）等对话框关闭，关不上就返回
+  `parametersApplied: null` + `retryVerify: true`，**不猜**——对话框还开着时行列表可能仍是
+  accept 之前的 DOM，用它宣称"已重新生成"就是编造。要一次做完的调用方显式传
+  `wait_for_regeneration=true`。同一现象还伴随页面掉到 `about:blank` 与会话登出（因果未
+  确立，只按观测记录），所以长事务不要为了拿返回值而重跑。**凡可能超过传输上限的浏览器事务，
+  超时都不等于失败，重试可能重复执行。**
+- **必须有工具能把"已有标签"设为活动，否则读类工具没有目标可指（2026-09-20 实测）**。
+  `browser_get_partstudio_features`、`browser_edit_feature_parameters` 这类工具都作用于
+  **当前活动标签**，而此前只有 `browser_create_tab`（新建即激活）与
+  `insert_custom_feature(part_studio_tab=…)` 内部那段标签点击会切标签；
+  `browser_rename_tab` 双击标签名进入改名模式**并不会**让该标签变成活动（实测 `active`
+  仍是原标签）。后果很具体：想在一个小元素上做端到端验证都做不到，只能撞 11 特征的大元素，
+  于是又踩上 60 s 上限。现在由 `browser_activate_tab` 补上：按 `data-id`（标签列表本身
+  就给 id）或"恰好一个同名标签"选择，**绝不按位置**（标签条是 `ng-repeat`，增删标签会
+  重编号），判据是回读该 `data-id` 自己的 `active` 类；`content="partstudio"` 时再等特征树
+  标题与行——切换过去的 Part Studio 分阶段渲染，立刻读会读到 0 行。
 - **`arg` 是 keyword-only；写错会被 `except Exception: pass` 吞掉（同批发现）**。
   playwright-python 的 `wait_for_function(expression, *, arg=None, timeout=None, …)`
   里 `arg` 只能按关键字传。`transactions.py` 有两处（切监控目标、复制标签页）按位置

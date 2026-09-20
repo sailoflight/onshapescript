@@ -61,12 +61,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 59 |
+| `Keep` | 61 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **106** |
+| **total** | **108** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -95,6 +95,8 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_element_context_menu` | `Internal-only` | - | Opens an element-tab context menu for the next command; the command, not the menu, is the useful unit. |
 | `browser_eval` | `Internal-only` | - | Arbitrary JavaScript in the page. Reachable at an explicit level for diagnosis, but never a default choice: it would bypass every typed wrapper. |
 | `browser_export_step` | `Keep` | - | Deliverable export through the UI at zero REST quota, with explicit tab targeting. |
+| `browser_activate_tab` | `Keep` | - | Makes one existing tab active and waits for its content, which every read tool and `browser_edit_feature_parameters` depend on because they act on whatever tab is active; no other tool could select one. |
+| `browser_verify_feature_parameters` | `Keep` | - | Second stage of the parameter edit: confirms regeneration and persisted values after the apply stage returns, because one stage cannot both commit and confirm inside a 60 s transport budget. |
 | `browser_fix_instances` | `Internal-only` | - | Multi-select plus the fixed-gesture; meaningful only inside the assembly workflow that establishes the selection context. |
 | `browser_fs_capture_diagnostic` | `Internal-only` | - | Persists full source plus diagnostics for offline analysis. Experimental, default-hidden, and called by the diagnostic loop rather than chosen on its own. |
 | `browser_fs_goto_definition` | `Internal-only` | - | Editor navigation micro-command; part of the authoring flow, not a task a caller should start from. |

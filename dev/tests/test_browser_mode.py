@@ -1104,6 +1104,159 @@ class DeleteElementVerdictTest(unittest.TestCase):
         self.assertIn("30001", result["reason"])
 
 
+class FakeTabLocator:
+    def __init__(self, page, selector):
+        self.page, self.selector = page, selector
+
+    @property
+    def first(self):
+        return self
+
+    def click(self):
+        self.page.clicks.append(self.selector)
+
+    def wait_for(self, state=None, timeout=None):
+        self.page.wait_calls.append({"selector": self.selector, "state": state, "timeout": timeout})
+        if self.selector == selectors.PS_FEATURES_HEADER and not self.page.header:
+            raise TimeoutError("features title never appeared")
+        return True
+
+
+class FakeTabPage:
+    """Page double for activate_tab: a tab strip plus the two readiness waits."""
+
+    def __init__(self, tabs, *, activates=True, rows=1, header=True):
+        self.tabs = [dict(tab) for tab in tabs]
+        self.activates = activates
+        self.rows = rows
+        self.header = header
+        self.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        self.clicks: list[str] = []
+        self.wait_calls: list[dict] = []
+        self.wait_function_calls: list[dict] = []
+
+    def evaluate(self, expression, *args):
+        if "os-tab-bar-tab" in expression:
+            return {"tabs": self.tabs, "hasDocumentTabsToolButton": True}
+        # dismiss_stale_context_menu: no blocking layer in the double.
+        return {"present": False, "blocking": False}
+
+    def locator(self, selector):
+        return FakeTabLocator(self, selector)
+
+    def wait_for_function(self, expression, *, arg=None, timeout=None, polling=None):
+        self.wait_function_calls.append(
+            {"expression": expression, "arg": arg, "timeout": timeout}
+        )
+        if expression == actions._TAB_ACTIVE_PREDICATE:
+            wanted = str((arg or {}).get("id", ""))
+            if self.activates:
+                # Onshape moves the active class; the double mirrors that, so the
+                # verdict really is read back rather than assumed.
+                self.tabs = [
+                    {**tab, "active": tab.get("id") == wanted} for tab in self.tabs
+                ]
+                return True
+            raise TimeoutError(f"tab {wanted!r} never became active")
+        minimum = int((arg or {}).get("minimum", 1))
+        if self.rows >= minimum:
+            return True
+        raise TimeoutError("no feature row rendered")
+
+
+class ActivateTabTest(unittest.TestCase):
+    """One existing tab can be made active, and the verdict is that tab's class.
+
+    Measured live 2026-09-20: `browser_rename_tab` double-clicks a tab name yet the
+    previously active tab stays active, and read tools plus the dialog-edit
+    transaction act on whatever tab is active. That is why a small-element end-to-end
+    run could not be substituted for an 11-feature element.
+    """
+
+    TABS = (
+        {"id": "e0", "name": "Feature Studio 1", "active": True},
+        {"id": "e1", "name": "Part Studio 1", "active": False},
+        {"id": "e2", "name": "Part Studio 2", "active": False},
+    )
+
+    def test_it_switches_by_data_id_and_reads_the_active_class_back(self):
+        page = FakeTabPage(self.TABS)
+        result = actions.activate_tab(page, name="Part Studio 1")
+        self.assertTrue(result["activated"])
+        self.assertFalse(result["alreadyActive"])
+        self.assertTrue(result["clicked"])
+        self.assertEqual(result["elementId"], "e1")
+        self.assertEqual(result["activeBefore"], "e0")
+        self.assertEqual(result["activeAfter"], "e1")
+        self.assertEqual(page.clicks, [f'{selectors.TAB_BAR_TAB}[data-id="e1"]'])
+        self.assertEqual(result["wait"]["condition"], "tab_active_class")
+        self.assertEqual(result["wait"]["timeoutMs"], actions.TAB_ACTIVATE_TIMEOUT_MS)
+        self.assertTrue(result["wait"]["waited"])
+        # By data-id, never by position: the tab strip renumbers.
+        (call,) = page.wait_function_calls
+        self.assertEqual(call["arg"], {"selector": selectors.TAB_BAR_TAB, "id": "e1"})
+
+    def test_an_already_active_tab_is_not_clicked(self):
+        page = FakeTabPage(self.TABS)
+        result = actions.activate_tab(page, element_id="e0")
+        self.assertTrue(result["activated"])
+        self.assertTrue(result["alreadyActive"])
+        self.assertFalse(result["clicked"])
+        self.assertEqual(page.clicks, [])
+
+    def test_an_ambiguous_or_missing_name_is_refused_without_a_click(self):
+        page = FakeTabPage(
+            (
+                {"id": "e0", "name": "Part Studio 1", "active": True},
+                {"id": "e1", "name": "Part Studio 1", "active": False},
+            )
+        )
+        ambiguous = actions.activate_tab(page, name="Part Studio 1")
+        self.assertFalse(ambiguous["activated"])
+        self.assertEqual(ambiguous["matchCount"], 2)
+        self.assertIn("exactly one", ambiguous["reason"])
+        missing = actions.activate_tab(page, name="Part Studio 9")
+        self.assertFalse(missing["activated"])
+        self.assertEqual(missing["matchCount"], 0)
+        self.assertEqual(page.clicks, [], "never click an unproven target")
+
+    def test_a_tab_that_never_becomes_active_is_reported_not_assumed(self):
+        page = FakeTabPage(self.TABS, activates=False)
+        result = actions.activate_tab(page, name="Part Studio 2")
+        self.assertFalse(result["activated"])
+        self.assertFalse(result["wait"]["waited"])
+        self.assertIn("TimeoutError", result["wait"]["error"])
+        self.assertEqual(result["activeAfter"], "e0", "the re-read decides, not the click")
+        self.assertIn("is not the active tab", result["reason"])
+
+    def test_partstudio_content_waits_for_the_title_and_the_rows(self):
+        page = FakeTabPage(self.TABS, rows=3)
+        result = actions.activate_tab(page, name="Part Studio 1", content="partstudio")
+        self.assertTrue(result["activated"])
+        self.assertTrue(result["contentReady"]["headerVisible"])
+        self.assertTrue(result["contentReady"]["rows"]["waited"])
+        self.assertEqual(result["contentReady"]["rows"]["condition"], "partstudio_row_count")
+        self.assertIn(
+            selectors.PS_FEATURES_HEADER,
+            [call["selector"] for call in page.wait_calls],
+            "a switched-to Part Studio renders in stages: the title is waited for",
+        )
+
+    def test_a_panel_that_never_renders_rows_is_evidence_not_a_refusal(self):
+        page = FakeTabPage(self.TABS, rows=0)
+        result = actions.activate_tab(page, name="Part Studio 1", content="partstudio")
+        self.assertTrue(result["activated"], "the switch happened; the read wait is evidence")
+        self.assertFalse(result["contentReady"]["rows"]["waited"])
+        self.assertIn("TimeoutError", result["contentReady"]["rows"]["error"])
+
+    def test_the_arguments_are_validated(self):
+        page = FakeTabPage(self.TABS)
+        with self.assertRaises(ValueError):
+            actions.activate_tab(page)
+        with self.assertRaises(ValueError):
+            actions.activate_tab(page, name="Part Studio 1", content="assembly")
+
+
 class BrowserReloadTest(unittest.TestCase):
     def test_reload_is_read_only_and_paces(self) -> None:
         session = FakeSession(FakePage())
@@ -1234,7 +1387,7 @@ class BrowserMetadataTest(unittest.TestCase):
         # 106 since the two print-analysis stubs were archived on 2026-09-19
         # (docs/history/legacy/ARCHIVED_BROWSER_PRINT_TOOLS.md). This number is a
         # tripwire: it must only move when a tool is deliberately added or removed.
-        self.assertEqual(len(server.TOOLS), 106)
+        self.assertEqual(len(server.TOOLS), 108)
 
 
 if __name__ == "__main__":

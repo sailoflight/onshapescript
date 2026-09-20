@@ -310,12 +310,60 @@ def browser_edit_feature_parameters(arguments: dict[str, Any]) -> dict[str, Any]
             raise ValueError("parameter ids must be CSS-safe identifiers")
         if not isinstance(value, (str, int, float, bool)):
             raise ValueError("parameter values must be strings, numbers, or booleans")
-    preview = _mutation_plan("browser_edit_feature_parameters", arguments, ["open feature dialog", "update named fields", "read values back", "accept dialog", "reopen and verify persistence/regen"])
+    wait_for_regeneration = bool(arguments.get("wait_for_regeneration", False))
+    preview = _mutation_plan("browser_edit_feature_parameters", arguments, ["open feature dialog", "update named fields", "read values back", "accept dialog"] + (["wait for the dialog to close", "reopen and verify persistence/regen"] if wait_for_regeneration else ["return pending_verification (verify with browser_verify_feature_parameters)"]))
     if preview:
         return preview
     page, _ = _page()
     from onshape_browser_mode.transactions import edit_feature_parameters
-    return edit_feature_parameters(page, feature_name.strip(), parameters, accept=True)
+    return edit_feature_parameters(
+        page,
+        feature_name.strip(),
+        parameters,
+        accept=True,
+        wait_for_regeneration=wait_for_regeneration,
+    )
+
+
+def browser_verify_feature_parameters(arguments: dict[str, Any]) -> dict[str, Any]:
+    feature_name = arguments.get("feature_name", "")
+    parameters = arguments.get("parameters")
+    if not isinstance(feature_name, str) or not feature_name.strip():
+        raise ValueError("feature_name is required")
+    if not isinstance(parameters, dict) or not parameters:
+        raise ValueError("parameters must be a non-empty object")
+    dialog_timeout_ms = arguments.get("dialog_timeout_ms")
+    if dialog_timeout_ms is not None:
+        if not isinstance(dialog_timeout_ms, int) or not 1 <= dialog_timeout_ms <= 60_000:
+            raise ValueError("dialog_timeout_ms must be an integer from 1 to 60000")
+    page, _ = _page()
+    from onshape_browser_mode.transactions import verify_feature_parameters
+    return verify_feature_parameters(
+        page,
+        feature_name.strip(),
+        parameters,
+        **({"dialog_timeout_ms": dialog_timeout_ms} if dialog_timeout_ms is not None else {}),
+    )
+
+
+def browser_activate_tab(arguments: dict[str, Any]) -> dict[str, Any]:
+    element_id = arguments.get("element_id", "")
+    name = arguments.get("name", "")
+    if not isinstance(element_id, str) or not isinstance(name, str):
+        raise ValueError("element_id and name must be strings")
+    if bool(element_id) == bool(name):
+        raise ValueError("pass exactly one of element_id or name")
+    content = arguments.get("content", "any")
+    if content not in {"any", "partstudio"}:
+        raise ValueError("content must be any or partstudio")
+    page, _ = _page()
+    from onshape_browser_mode.actions import activate_tab
+    return activate_tab(
+        page,
+        element_id=element_id,
+        name=name,
+        content=content,
+    )
 
 
 def browser_fs_watch_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1253,7 +1301,9 @@ BROWSER_TOOLS = [
     _tool("browser_fs_insert_snippet", "Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_fs_insert_parameter", "Insert the verified Length parameter template at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_fs_toggle_fold", "Fold, unfold, or toggle a FeatureScript Ace fold and return the resulting folded ranges.", {"action": {"type": "string", "enum": ["toggle", "fold", "unfold"], "default": "toggle"}, "row": {"type": "integer", "minimum": 0}}, mutating=False, seconds=5),
-    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback and persistence, accept, and require an error-free feature row.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback, and accept. By default it returns as soon as the accept button is clicked, with applyState='pending_verification' and parametersApplied=null, because accepting re-evaluates the model before the dialog reports closed and a one-shot wait can outlive the transport limit (measured live: 61.7 s on an 11-feature element against a 60 s relay limit). Confirm it with browser_verify_feature_parameters; pass wait_for_regeneration=true to keep the original one-shot wait-and-verify behaviour.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "wait_for_regeneration": {"type": "boolean", "default": False, "description": "Keep the apply call waiting for the dialog to close and verify persistence in the same call. Only use it when the transport budget is known to allow a wait that scales with the element's feature count."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_verify_feature_parameters", "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that the reopened dialog shows the requested values. It never guesses — if the dialog has not reported closed within its bounded budget it returns parametersApplied=null with retryVerify=true, because the row list may still be the pre-accept DOM. Zero REST API quota.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "dialog_timeout_ms": {"type": "integer", "minimum": 1, "maximum": 60000, "description": "Bounded wait for the accepted dialog to report closed; defaults to 25000 ms."}}, mutating=False, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_activate_tab", "Make one EXISTING document tab the active tab by exact name or tab data-id, and verify the switch by reading that tab's own active class. Read tools and browser_edit_feature_parameters act on whatever tab is active, and no other tool could select one: browser_rename_tab double-clicks a tab name yet leaves the previously active tab active (measured live). Selection is by data-id whenever the tab listing supplies one, never by position, because the tab strip renumbers when a tab is added or removed. content='partstudio' additionally waits for the Feature List title and its rows, since a switched-to Part Studio renders in stages and an immediate read sees zero rows. Zero REST API quota.", {"element_id": {"type": "string", "default": "", "description": "Tab data-id from browser_get_page_tabs; pass exactly one of element_id or name."}, "name": {"type": "string", "default": "", "description": "Exact visible tab name, which must match exactly one tab."}, "content": {"type": "string", "enum": ["any", "partstudio"], "default": "any"}}, mutating=False, seconds=20),
     _tool("browser_fs_watch_part_studio", "Select the exact watched/configured Part Studio through the Feature Studio toolbar dropdown and verify the toolbar readback.", {"part_studio": {"type": "string"}, "mode": {"type": "string", "enum": ["watch", "configure"], "default": "watch"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=15, required=["part_studio"]),
     _tool("browser_open_doc_menu", "Open the document-name menu, return its item inventory, and optionally trigger one exact command.", {"command": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_set_panel_filter", "Set the left document-panel filter and verify the trusted input value and visible tree count.", {"query": {"type": "string"}}, mutating=False, seconds=10, required=["query"]),
@@ -1303,6 +1353,8 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_fs_insert_parameter": browser_fs_insert_parameter,
     "browser_fs_toggle_fold": browser_fs_toggle_fold,
     "browser_edit_feature_parameters": browser_edit_feature_parameters,
+    "browser_verify_feature_parameters": browser_verify_feature_parameters,
+    "browser_activate_tab": browser_activate_tab,
     "browser_fs_watch_part_studio": browser_fs_watch_part_studio,
     "browser_open_doc_menu": browser_open_doc_menu,
     "browser_set_panel_filter": browser_set_panel_filter,

@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **106**
+- Registered tools: **108**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=66, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=26, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1
+- Capability counts: `browser`=68, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=26, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=2
 
 ## Safety interpretation
 
@@ -25,6 +25,7 @@
 
 | Tool | Capability | Optional semantic classification | Required arguments | Registered safety/cost | Intent |
 |---|---|---|---|---|---|
+| `browser_activate_tab` | `browser` | `unclassified` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Make one EXISTING document tab the active tab by exact name or tab data-id, and verify the switch by reading that tab's own active class. Read tools and browser_edit_feature_par... |
 | `browser_add_drawing_dimension` | `browser` | `L5 onshape_workflow` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Deprecated compatibility wrapper: use browser_draw_part_with_views with a one-entry dimensions array (flat tool/geometry/placement arguments are normalized the same way). Kept s... |
 | `browser_apply_blend` | `browser` | `L4 onshape_transaction` | `targets`, `amount` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Apply a fillet, chamfer, or draft to semantic targets and require amount readback plus an exact new error-free history row. |
 | `browser_assemble` | `browser` | `L5 onshape_workflow` | `instance_names`, `instance_selector` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state. |
@@ -46,7 +47,7 @@
 | `browser_draw_part_with_views` | `browser` | `L5 onshape_workflow` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | The one Drawing transaction: create verified drawing views from an exact part row, add dimensions to the current Drawing frame, or both in one verified job (give part_name, dime... |
 | `browser_drawing_insert_views` | `browser` | `L5 onshape_workflow` | `part_name` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Deprecated compatibility wrapper: use browser_draw_part_with_views with part_name and no dimensions. Kept so an existing caller keeps working; it creates a drawing from an exact... |
 | `browser_duplicate_element` | `browser` | `L4 onshape_transaction` | `element_id` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Duplicate an id-addressed document element through its exact context-menu command and verify exactly one new tab id. |
-| `browser_edit_feature_parameters` | `browser` | `L4 onshape_transaction` | `feature_name`, `parameters` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Open a custom feature dialog, update named scalar fields, verify readback and persistence, accept, and require an error-free feature row. |
+| `browser_edit_feature_parameters` | `browser` | `L4 onshape_transaction` | `feature_name`, `parameters` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Open a custom feature dialog, update named scalar fields, verify readback, and accept. By default it returns as soon as the accept button is clicked, with applyState='pending_ve... |
 | `browser_element_context_menu` | `browser` | `L3 onshape_interaction` | `element_id` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Open an id-addressed document-element tab context menu and return its visible item list. |
 | `browser_eval` | `browser` | `L1 browser_primitive` | `expression` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Evaluate an arbitrary JavaScript expression in the current Onshape page and return its JSON-serializable result. page.evaluate cannot be guaranteed read-only, so actual executio... |
 | `browser_export_step` | `browser` | `L4 onshape_transaction` | `source_tab`, `export_id`, `document_id`, `workspace_id`, `element_id` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP... |
@@ -87,6 +88,7 @@
 | `browser_sync_rest_state` | `browser` | `boundary_operation` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state | Explicitly cache browser-observed document/workspace/element ids in REST-owned local state. Performs local file I/O only and no REST request. |
 | `browser_toggle_left_panel` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Collapse, expand, or toggle the left panel through its splitter and verify the resulting width. |
 | `browser_type` | `browser` | `L1 browser_primitive` | `text` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Type text with trusted sequential keyboard events into a main-page or frame target. Zero REST API quota. |
+| `browser_verify_feature_parameters` | `browser` | `unclassified` | `feature_name`, `parameters` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that the reopened dialog shows the requested values. It never gu... |
 | `browser_view_orientation` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes. |
 | `browser_wait` | `browser` | `L1 browser_primitive` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota. |
 | `browser_wall_thickness_report` | `browser` | `L4 onshape_transaction` | `body_name`, `minimum_allowed_mm` | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read sampled browser measurements for a named body, report the minimum in millimeters, and never claim an unverified global minimum. |
