@@ -9,7 +9,11 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "gf_pitch", "value": "42 mm", "description": "格距：相邻单元格中心距" },
+        "parameters": {
+          "name": "gf_pitch",
+          "value": "42 mm",
+          "description": "格距：相邻单元格中心距"
+        },
         "expect_row": "#gf_pitch = 42 mm",
         "confirm_mutation": true
       }
@@ -20,7 +24,11 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "gf_gap", "value": "0.5 mm", "description": "每单元总间隙（单侧 0.25）" },
+        "parameters": {
+          "name": "gf_gap",
+          "value": "0.5 mm",
+          "description": "每单元总间隙（单侧 0.25）"
+        },
         "expect_row": "#gf_gap = 0.5 mm",
         "confirm_mutation": true
       }
@@ -31,7 +39,11 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "corner_r", "value": "3.75 mm", "description": "盒体外圆角半径" },
+        "parameters": {
+          "name": "corner_r",
+          "value": "3.75 mm",
+          "description": "盒体外圆角半径"
+        },
         "expect_row": "#corner_r = 3.75 mm",
         "confirm_mutation": true
       }
@@ -42,7 +54,11 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "base_h", "value": "7 mm", "description": "1U 底脚高（含加强段）" },
+        "parameters": {
+          "name": "base_h",
+          "value": "7 mm",
+          "description": "1U 底脚高（含加强段）"
+        },
         "expect_row": "#base_h = 7 mm",
         "confirm_mutation": true
       }
@@ -53,9 +69,15 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "bin_h", "value": "#base_h * 4", "description": "4U 盒体高（含底脚）" },
+        "parameters": {
+          "name": "bin_h",
+          "value": "#base_h * 4",
+          "description": "4U 盒体高（含底脚）"
+        },
         "expect_row": "#bin_h = 28 mm",
-        "expect_values": { "value": "28 mm" },
+        "expect_values": {
+          "value": "28 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -65,7 +87,11 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "lip_h", "value": "4.4 mm", "description": "堆叠唇高（位于盒体之上）" },
+        "parameters": {
+          "name": "lip_h",
+          "value": "4.4 mm",
+          "description": "堆叠唇高（位于盒体之上）"
+        },
         "expect_row": "#lip_h = 4.4 mm",
         "confirm_mutation": true
       }
@@ -76,7 +102,11 @@
       "args": {
         "feature_name": "Thin Variable",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "name": "wall_t", "value": "0.95 mm", "description": "壁厚（内圆角 2.8）" },
+        "parameters": {
+          "name": "wall_t",
+          "value": "0.95 mm",
+          "description": "壁厚（内圆角 2.8）"
+        },
         "expect_row": "#wall_t = 0.95 mm",
         "confirm_mutation": true
       }
@@ -88,6 +118,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "底脚平面",
           "origin_z": "0 mm",
           "grid_x": 1,
           "grid_y": 1,
@@ -95,7 +126,10 @@
           "height": "35.6 mm",
           "corner_radius": "0.8 mm"
         },
-        "expect_values": { "width": "35.6 mm", "height": "35.6 mm" },
+        "expect_values": {
+          "width": "35.6 mm",
+          "height": "35.6 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -105,8 +139,14 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "0.8 mm", "draft_angle": "45 deg" },
-        "expect_values": { "depth": "0.8 mm" },
+        "parameters": {
+          "description": "底脚斜面 45°",
+          "depth": "0.8 mm",
+          "draft_angle": "45 deg"
+        },
+        "expect_values": {
+          "depth": "0.8 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -117,6 +157,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "锁扣段",
           "origin_z": "0.8 mm",
           "grid_x": 1,
           "grid_y": 1,
@@ -124,7 +165,10 @@
           "height": "37.2 mm",
           "corner_radius": "1.6 mm"
         },
-        "expect_values": { "origin_z": "0.8 mm", "width": "37.2 mm" },
+        "expect_values": {
+          "origin_z": "0.8 mm",
+          "width": "37.2 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -134,8 +178,13 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "1.8 mm" },
-        "expect_values": { "depth": "1.8 mm" },
+        "parameters": {
+          "description": "锁扣段竖直",
+          "depth": "1.8 mm"
+        },
+        "expect_values": {
+          "depth": "1.8 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -146,6 +195,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "外扩段起始",
           "origin_z": "2.6 mm",
           "grid_x": 1,
           "grid_y": 1,
@@ -153,7 +203,10 @@
           "height": "37.2 mm",
           "corner_radius": "1.6 mm"
         },
-        "expect_values": { "origin_z": "2.6 mm", "width": "37.2 mm" },
+        "expect_values": {
+          "origin_z": "2.6 mm",
+          "width": "37.2 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -163,8 +216,14 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "2.15 mm", "draft_angle": "45 deg" },
-        "expect_values": { "depth": "2.15 mm" },
+        "parameters": {
+          "description": "外扩段斜面 45°",
+          "depth": "2.15 mm",
+          "draft_angle": "45 deg"
+        },
+        "expect_values": {
+          "depth": "2.15 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -175,6 +234,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "盒体",
           "origin_z": "4.75 mm",
           "grid_x": 1,
           "grid_y": 1,
@@ -182,7 +242,12 @@
           "height": "#gf_pitch - #gf_gap",
           "corner_radius": "#corner_r"
         },
-        "expect_values": { "origin_z": "4.75 mm", "width": "41.5 mm", "height": "41.5 mm", "corner_radius": "3.75 mm" },
+        "expect_values": {
+          "origin_z": "4.75 mm",
+          "width": "41.5 mm",
+          "height": "41.5 mm",
+          "corner_radius": "3.75 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -192,8 +257,13 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "#bin_h + #lip_h - 4.75 mm" },
-        "expect_values": { "depth": "27.65 mm" },
+        "parameters": {
+          "description": "盒体外壳",
+          "depth": "#bin_h + #lip_h - 4.75 mm"
+        },
+        "expect_values": {
+          "depth": "27.65 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -204,6 +274,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "内腔",
           "origin_z": "#base_h",
           "grid_x": 1,
           "grid_y": 1,
@@ -211,7 +282,12 @@
           "height": "#gf_pitch - #gf_gap - 2 * #wall_t",
           "corner_radius": "#corner_r - #wall_t"
         },
-        "expect_values": { "origin_z": "7 mm", "width": "39.6 mm", "height": "39.6 mm", "corner_radius": "2.8 mm" },
+        "expect_values": {
+          "origin_z": "7 mm",
+          "width": "39.6 mm",
+          "height": "39.6 mm",
+          "corner_radius": "2.8 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -221,8 +297,14 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "#bin_h - #base_h", "subtract": true },
-        "expect_values": { "depth": "21 mm" },
+        "parameters": {
+          "description": "内腔切除",
+          "depth": "#bin_h - #base_h",
+          "subtract": true
+        },
+        "expect_values": {
+          "depth": "21 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -233,6 +315,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "唇斜面起始",
           "origin_z": "#bin_h",
           "grid_x": 1,
           "grid_y": 1,
@@ -240,7 +323,10 @@
           "height": "36.3 mm",
           "corner_radius": "1.15 mm"
         },
-        "expect_values": { "origin_z": "28 mm", "width": "36.3 mm" },
+        "expect_values": {
+          "origin_z": "28 mm",
+          "width": "36.3 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -250,8 +336,15 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "0.7 mm", "subtract": true, "draft_angle": "45 deg" },
-        "expect_values": { "depth": "0.7 mm" },
+        "parameters": {
+          "description": "唇斜面切除 45°",
+          "depth": "0.7 mm",
+          "subtract": true,
+          "draft_angle": "45 deg"
+        },
+        "expect_values": {
+          "depth": "0.7 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -262,6 +355,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "唇锁扣",
           "origin_z": "28.7 mm",
           "grid_x": 1,
           "grid_y": 1,
@@ -269,7 +363,10 @@
           "height": "37.7 mm",
           "corner_radius": "1.85 mm"
         },
-        "expect_values": { "origin_z": "28.7 mm", "width": "37.7 mm" },
+        "expect_values": {
+          "origin_z": "28.7 mm",
+          "width": "37.7 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -279,8 +376,14 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "1.8 mm", "subtract": true },
-        "expect_values": { "depth": "1.8 mm" },
+        "parameters": {
+          "description": "唇锁扣切除",
+          "depth": "1.8 mm",
+          "subtract": true
+        },
+        "expect_values": {
+          "depth": "1.8 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -291,6 +394,7 @@
         "feature_name": "Thin Sketch Rectangle",
         "part_studio_tab": "GF 4U 盒子",
         "parameters": {
+          "description": "唇外扩起始",
           "origin_z": "30.5 mm",
           "grid_x": 1,
           "grid_y": 1,
@@ -298,7 +402,10 @@
           "height": "37.7 mm",
           "corner_radius": "1.85 mm"
         },
-        "expect_values": { "origin_z": "30.5 mm", "width": "37.7 mm" },
+        "expect_values": {
+          "origin_z": "30.5 mm",
+          "width": "37.7 mm"
+        },
         "confirm_mutation": true
       }
     },
@@ -308,8 +415,15 @@
       "args": {
         "feature_name": "Thin Extrude",
         "part_studio_tab": "GF 4U 盒子",
-        "parameters": { "depth": "1.9 mm", "subtract": true, "draft_angle": "45 deg" },
-        "expect_values": { "depth": "1.9 mm" },
+        "parameters": {
+          "description": "唇外扩切除 45°",
+          "depth": "1.9 mm",
+          "subtract": true,
+          "draft_angle": "45 deg"
+        },
+        "expect_values": {
+          "depth": "1.9 mm"
+        },
         "confirm_mutation": true
       }
     }

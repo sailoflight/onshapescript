@@ -446,5 +446,78 @@ class Gridfinity4UBinConfirmation(unittest.TestCase):
         self.assertTrue(loaded["steps"])
 
 
+class Gridfinity4UBinChineseRowNames(unittest.TestCase):
+    """Every row this fixture creates must read as Chinese in the Onshape UI.
+
+    The mechanism is a FeatureScript `Feature Name Template`, so the parameter
+    that feeds it and the template that places it are two halves of one promise:
+    a missing `description` renders an empty prefix, and a template that does not
+    start with `#description` buries it. Both halves are checked here, plus the
+    variable row, whose value must come BEFORE its description
+    (`#gf_pitch = 42 mm 格距…`) or the number is hard to read.
+    """
+
+    FS = FIXTURE.parent / "thin-native-features.fs"
+    CJK = re.compile(r"[\u4e00-\u9fff]")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.f = _Fixture()
+        cls.source = cls.FS.read_text(encoding="utf-8")
+
+    def _template(self, type_name: str) -> str:
+        match = re.search(
+            r'"Feature Type Name"\s*:\s*"%s"\s*,\s*"Feature Name Template"\s*:\s*"([^"]*)"'
+            % re.escape(type_name),
+            self.source,
+        )
+        self.assertIsNotNone(match, f"no Feature Name Template for {type_name}")
+        return match.group(1)
+
+    def test_every_step_carries_a_chinese_row_description(self):
+        self.assertEqual(len(self.f.steps), 23)
+        for index, step in enumerate(self.f.steps):
+            description = self.f.parameters(index)["description"]
+            self.assertIsInstance(description, str, step["id"])
+            self.assertTrue(description.strip(), step["id"])
+            # The user-visible requirement is Chinese in the ROW, so the value
+            # must actually contain Han characters rather than transliteration.
+            self.assertRegex(description, self.CJK, step["id"])
+
+    def test_the_geometric_rows_lead_with_the_description(self):
+        for type_name in ("Thin Sketch Rectangle", "Thin Extrude", "Thin Sketch Circle"):
+            self.assertTrue(
+                self._template(type_name).startswith("#description"),
+                type_name,
+            )
+        # The transition rows name the angle they cut at, which is what makes the
+        # row self-describing in the tree.
+        ramps = [self.f.parameters(i)["description"] for i in (8, 12, 18, 22)]
+        for description in ramps:
+            self.assertIn("45°", description)
+            self.assertIn("面" if "斜面" in description else "切除", description)
+
+    def test_the_variable_row_keeps_its_value_before_the_description(self):
+        template = self._template("Thin Variable")
+        self.assertTrue(template.startswith("###name = #value"), template)
+        self.assertGreater(
+            template.index("#description"), template.index("#value"), template
+        )
+        # A variable row that states a description must also state a value.
+        for index in range(7):
+            parameters = self.f.parameters(index)
+            self.assertTrue(parameters.get("value"), self.f.steps[index]["id"])
+            self.assertRegex(parameters["description"], self.CJK)
+
+    def test_the_description_parameter_is_a_declared_string_in_every_definition(self):
+        # An undeclared parameter id is refused by the insert dialog, so each
+        # thin feature must declare `definition.description is string` exactly
+        # once -- the declaration is what makes the fixture's value legal.
+        self.assertEqual(
+            self.source.count("definition.description is string;"),
+            self.source.count("defineFeature("),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

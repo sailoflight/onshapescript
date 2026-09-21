@@ -183,7 +183,26 @@ TS 9, TE 6, TS 10, TE 7, TS 11, TE 8`，每个拉伸紧跟自己那条草图。
 检查点**（`Project fixture changed after checkpoint creation`）；且 `TOOL_OUTCOME_KEYS` 要求
 每步有一个真值结果键，所以 `inserted: null` 的短路径步骤无法满足运行器完成门。
 
-## 8. 复现
+## 8. 中文行名落地（2026-09-21 追加）
+
+用户要求「我其实就是 UI 上显示中文就行」，所以本次把中文说明做进**行文本**：三个几何薄特征的
+`Feature Name Template` 以 `#description` 开头，变量行保持 `###name = #value #description`。
+`dev/fixtures-capture/thin-native-features.fs` 新增 `Description (row prefix)` 参数
+（`definition.description is string;`，位于参数表第一项），23 步夹具全部带上中文说明。
+
+- **能力已端到端证明**：新 FeatureScript 提交进 `Thin Native Features`（22072→25545 字节、
+  0 error / 0 notice、`deployed: true`、`compiled: true`、`commitAccepted: true`），随后在
+  `GF 4U 盒子` 里插入两条演示行，渲染为
+  `TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm` 与 `TE 底脚斜面 45° 0.8 mm`。
+- **演示行已删除**，元素回到 23 个用户特征（表头 `特征 (27)` = 23 + 4 基准面）、
+  `零件数 (4)`、所有行 `hasError: false`。几何未受影响：本次编辑只改 FeatureScript 的
+  行模板与参数声明，既有的 16 个几何行不重算。
+- **行名在再生之后才定型**：接受点击时读到的是占位值（`100 mm x 100 mm`、`10 mm`），
+  再生后才是 `35.6 mm x 35.6 mm`、`0.8 mm`。所以短路径步骤的行名不能当验收证据。
+- 夹具级守卫新增 4 条（中文说明存在、几何模板 `#description` 前置、变量行 `#value` 在前、
+  `definition.description is string;` 条数 == `defineFeature(` 条数）。
+
+## 9. 复现
 
 ```bash
 # 夹具 → 浏览器（文档内新建 Part Studio 后，把标签名设为 GF 4U 盒子）

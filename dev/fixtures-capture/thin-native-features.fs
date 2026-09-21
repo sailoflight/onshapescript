@@ -169,10 +169,18 @@ function thinRectangle(sketch is Sketch, prefix is string, centre is Vector,
             });
 }
 
-annotation { "Feature Type Name" : "Thin Sketch Rectangle" }
+annotation { "Feature Type Name" : "Thin Sketch Rectangle", "Feature Name Template" : "#description #width x #height @z=#origin_z" }
 export const thinSketchRectangle = defineFeature(function(context is Context, id is Id, definition is map)
     precondition
     {
+        // First in the dialog on purpose: it is the human-facing name, and the row
+        // template prints it FIRST. It is the only slot in this family that may hold
+        // non-ASCII text (an annotation "Name" with a Chinese character kills the whole
+        // feature: "only printable ASCII allowed"), so this parameter is what puts
+        // Chinese on the Feature List row itself.
+        annotation { "Name" : "Description (row prefix)", "MaxLength" : 10000 }
+        definition.description is string;
+
         annotation { "Name" : "Face (optional; empty = numeric plane below)", "Filter" : EntityType.FACE && GeometryType.PLANE, "MaxNumberOfPicks" : 1 }
         definition.plane_face is Query;
 
@@ -233,13 +241,30 @@ export const thinSketchRectangle = defineFeature(function(context is Context, id
         // constraint had to be solved.
         skSolve(sketch);
 
+        // A feature name can cite a value associated with a string: library.html documents
+        // setFeatureComputedParameter as "Associates a FeatureScript value with a given
+        // string ... can be used in a feature name by including e.g. \"#myValue\" in the
+        // Feature Name Template", and variable.fs:156 does exactly this for `#value`. The row
+        // therefore prints real, unit-bearing numbers instead of a bare index.
+        setFeatureComputedParameter(context, id, { "name" : "width", "value" : definition.width });
+        setFeatureComputedParameter(context, id, { "name" : "height", "value" : definition.height });
+        setFeatureComputedParameter(context, id, { "name" : "origin_z", "value" : definition.origin_z });
+
         setQueryVariable(context, THIN_SKETCH_REGION_VARIABLE, qSketchRegion(id + "sketch"));
     });
 
-annotation { "Feature Type Name" : "Thin Extrude" }
+annotation { "Feature Type Name" : "Thin Extrude", "Feature Name Template" : "#description #depth" }
 export const thinExtrude = defineFeature(function(context is Context, id is Id, definition is map)
     precondition
     {
+        // First in the dialog on purpose: it is the human-facing name, and the row
+        // template prints it FIRST. It is the only slot in this family that may hold
+        // non-ASCII text (an annotation "Name" with a Chinese character kills the whole
+        // feature: "only printable ASCII allowed"), so this parameter is what puts
+        // Chinese on the Feature List row itself.
+        annotation { "Name" : "Description (row prefix)", "MaxLength" : 10000 }
+        definition.description is string;
+
         annotation { "Name" : "Region (optional; empty = the last Thin Sketch Rectangle)", "Filter" : EntityType.FACE, "MaxNumberOfPicks" : 1 }
         definition.region is Query;
 
@@ -307,12 +332,21 @@ export const thinExtrude = defineFeature(function(context is Context, id is Id, 
             "draftPullDirection" : definition.draft_inwards
         };
         extrude(context, id + "extrude", extrusion);
+        setFeatureComputedParameter(context, id, { "name" : "depth", "value" : definition.depth });
     });
 
-annotation { "Feature Type Name" : "Thin Sketch Circle" }
+annotation { "Feature Type Name" : "Thin Sketch Circle", "Feature Name Template" : "#description #diameter @z=#origin_z" }
 export const thinSketchCircle = defineFeature(function(context is Context, id is Id, definition is map)
     precondition
     {
+        // First in the dialog on purpose: it is the human-facing name, and the row
+        // template prints it FIRST. It is the only slot in this family that may hold
+        // non-ASCII text (an annotation "Name" with a Chinese character kills the whole
+        // feature: "only printable ASCII allowed"), so this parameter is what puts
+        // Chinese on the Feature List row itself.
+        annotation { "Name" : "Description (row prefix)", "MaxLength" : 10000 }
+        definition.description is string;
+
         annotation { "Name" : "Face (optional; empty = numeric plane below)", "Filter" : EntityType.FACE && GeometryType.PLANE, "MaxNumberOfPicks" : 1 }
         definition.plane_face is Query;
 
@@ -395,6 +429,14 @@ export const thinSketchCircle = defineFeature(function(context is Context, id is
         }
 
         skSolve(sketch);
+
+        // A feature name can cite a value associated with a string: library.html documents
+        // setFeatureComputedParameter as "Associates a FeatureScript value with a given
+        // string ... can be used in a feature name by including e.g. \"#myValue\" in the
+        // Feature Name Template", and variable.fs:156 does exactly this for `#value`. The row
+        // therefore prints real, unit-bearing numbers instead of a bare index.
+        setFeatureComputedParameter(context, id, { "name" : "diameter", "value" : definition.diameter });
+        setFeatureComputedParameter(context, id, { "name" : "origin_z", "value" : definition.origin_z });
 
         setQueryVariable(context, THIN_SKETCH_REGION_VARIABLE, qSketchRegion(id + "sketch"));
     });
