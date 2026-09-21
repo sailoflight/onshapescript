@@ -3224,7 +3224,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "d6b1f1de9af34778d62e280e2555df6d409b69611ce0050610bb84d64095e713",
+   "sha256": "412cba85ce1544ed79c121e80f41b862e450b25e1a631d2e0502361e9001ab2b",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4354,6 +4354,10 @@
       {
        "type": "para",
        "text": "「行数看表头」现在由读工具自己给出（2026-09-21 修复）。 上面两条都是人工纪律， 只要调用方忘了就会把「窗口里没有」当成「树里没有」。browser_get_partstudio_features 的返回值现在多三个键：headerCount（从 特征 (N) / Features (N) 解出的全量表头计数， 形状不认识时为 null 而不是猜一个数）、rowsComplete（len(features) == headerCount - 4 才为 true，没有表头可依据时为 null）、ready（文档外壳是否已渲染，只读不等待）。 于是「一行不在返回列表里」只有在 rowsComplete: true 时才等于「它不在树里」； ready: false 或 rowsComplete: null/false 时正确的动作是再读一次，不是下结论。 三个键在同一次 page.evaluate 里返回，没有额外往返，也不新增等待——读工具不得为了 一次读去启动页面。"
+      },
+      {
+       "type": "para",
+       "text": "上线后第一次实测就抓到了这个假阴性（2026-09-21，部署 89）。 对同一个 23 行元素 （ready: true、headerCount: 27）的普通读返回 rowsComplete: false：窗口里只有 22 个用户行，缺的正是 TV #gf_pitch = 42 mm …。修复前这一次读看起来就是「那一行不见了」； 修复后它自己说清楚了「这是一次窗口读」。所以要行身份就用会滚动的行工具 （browser_delete_feature 的定位器、enumerate_user_feature_rows 的滚动并集）， 普通读只适合「表头计数 + 已渲染窗口」这类问题。"
       }
      ]
     },
