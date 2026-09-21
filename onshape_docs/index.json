@@ -9482,7 +9482,7 @@
    "page": "four-u-box-verification",
    "category": "verification",
    "path": "onshape_docs/verification/4u-box-2026-09-21.md",
-   "sha256": "feaeb60c582ea6a841fddec2a669d97c60e4bffe7bdec719290ef78fefab52a0",
+   "sha256": "3276b90cf688761821beb650a324cc63c0001b54f5ec1d0810ea529910648e8a",
    "title": "4U 机箱盒子：同文档回归构建 + 解析值级 B-rep 验收（2026-09-21）",
    "sections": [
     {
@@ -9525,7 +9525,7 @@
         ],
         [
          "新 Part Studio elementId",
-         "053130c9363a96adc2500379"
+         "053130c9363a96adc2500379（该标签页已于 2026-09-21 按要求删除，见下方说明）"
         ],
         [
          "标签名（中文）",
@@ -9548,6 +9548,10 @@
          "0（全程浏览器腿）"
         ]
        ]
+      },
+      {
+       "type": "para",
+       "text": "> 说明（2026-09-21 收尾）：按要求删除了 4U 机箱盒子 标签页，让文档里只留正在用的试验台。 > 本文的证据不依赖该页面继续存在：STEP 文件与 sha256 已落盘（见上表），解析值与 B-rep 的 > 逐位对照都在本文内；要复现，用同一夹具 dev/fixtures-capture/4u-box.json 在任意 Part Studio > 重建即可。"
       },
       {
        "type": "para",
