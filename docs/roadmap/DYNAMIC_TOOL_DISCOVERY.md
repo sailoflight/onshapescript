@@ -157,7 +157,7 @@ Preserve explicit modes:
 - `dynamic` (implemented): per-connection `mcp_tool_view` state plus
   `notifications/tools/list_changed` after an effective set/reset.
 - `gateway` (implemented 2026-09-21): advertises a small **declarative** surface —
-  a discovery core (`mcp_tool_catalog`, `mcp_tool_view`) plus curated
+  a discovery core (`mcp_tool_catalog`, `mcp_tool_view`, `mcp_tool_invoke`) plus curated
   representatives covering every category (session, tabs, feature read/write,
   FeatureScript deploy, runner, capability discovery, STEP export, project docs,
   FeatureScript reference, REST reference, quota, geometry status). Every other
@@ -173,9 +173,9 @@ the same reason the catalog gained `action=index`: one line per category
 with no schemas and no concurrency blocks. Measured with
 `dev/tools/context_cost.py` and recorded in
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`: the same
-registry renders as 224,560 chars / 110 tools in `static`, 164,542 chars / 76
-tools in `semantic`, and 40,817 chars / 15 tools in `gateway` — 5.5x smaller than
-the registry and 4.0x smaller than the default view, with no tool made
+registry renders as 226,845 chars / 111 tools in `static`, 166,827 chars / 77
+tools in `semantic`, and 43,102 chars / 16 tools in `gateway` — 5.3x smaller than
+the registry and 3.9x smaller than the default view, with no tool made
 unreachable.
 
 The mode is switchable **inside this product**: `mcp_main/win/mcp/config/`
@@ -184,12 +184,20 @@ host whose launcher is an external bridge that owns the child environment.
 Precedence is an explicit argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then that
 file, then `semantic`.
 
-The gateway mode deliberately adds **no registry row**: the audit already merged
-`browser_invoke_discovered` with the reason "any registered tool can be called by
-exact name even when the current view hides it, so a separate invoker adds a hop
-without adding capability". It compresses the advertised list, not the capability
-set, so a client that cannot call an unadvertised name should keep `semantic`
-rather than add an invoker.
+**The one registry row the mode did add: `mcp_tool_invoke` (111th).** The P5 audit
+had merged `browser_invoke_discovered` with the reason "any registered tool can be
+called by exact name even when the current view hides it, so a separate invoker
+adds a hop without adding capability". That reason was correct about the SERVER and
+wrong about a real CLIENT: measured live 2026-09-21, a deployed client answered
+`unknown tool "mcp__onshape__docs_list"` for a name the registry dispatches
+happily, because the name was absent from `tools/list`. A compressed surface whose
+documented lookup leads to an uncallable name is worse than no compression, and the
+compressed view hides 95 of 111 names, so the gateway ships one advertised,
+generic forwarder that resolves through the same `HANDLERS` entry as a direct call
+(targets' `confirm_mutation`, `dry_run`, quota, pacing and acceptance gates all
+still answer; connection-scoped tools are refused rather than recursed into). It is
+listed in EVERY exposure mode, because a hidden escape hatch is no escape hatch. It
+compresses the advertised list, and it does not change any tool's authority.
 
 **Response side.** The same token audit applies to a mutation ANSWER, not only to
 the tool list. A delete used to repeat one row set four times (enumeration,

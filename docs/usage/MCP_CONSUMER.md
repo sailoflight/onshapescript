@@ -170,7 +170,11 @@ debugging.
 For a client whose context budget matters more than a visible list, `gateway`
 advertises a small declarative surface:
 
-1. A discovery core — `mcp_tool_catalog` and `mcp_tool_view`.
+1. A discovery core — `mcp_tool_catalog`, `mcp_tool_view`, and `mcp_tool_invoke`.
+   The invoker is the advertised door to the 95 names this view does not list: it
+   forwards one call to any registered tool by exact name and the target's own
+   gates still answer. It is listed in every exposure mode, because a client that
+   refuses unadvertised names (measured live 2026-09-21) cannot use a hidden one.
 2. Curated representatives covering every category: `browser_session`,
    `browser_get_page_tabs`, `browser_get_partstudio_features`,
    `browser_insert_custom_feature`, `browser_deploy_featurescript`,
@@ -188,9 +192,11 @@ IS needed, prefer the cheap path:
    get that category's tools as bounded `name -- purpose` lines, paging with
    `offset` when the answer says `truncated`.
 2. `action=describe` with the exact name only when you need the full schema.
-3. Call any registered name as a normal `tools/call`, advertised or not. The
+3. Call any registered name as a normal `tools/call`, advertised or not — or, if
+   the client refuses names absent from `tools/list`, call `mcp_tool_invoke` with
+   that exact name and its arguments. Both routes reach the same handler, so the
    handler's own `confirm_mutation`, dry-run, cost, and acceptance gates are what
-   answer, so the gateway changes only what is advertised.
+   answer; the gateway changes only what is advertised.
 
 Switch it on this host by copying
 `mcp_main/win/mcp/config/tool_views.local.toml.example` to
@@ -200,9 +206,12 @@ and restart the MCP process to apply it.
 
 Measured (2026-09-21, `dev/tools/context_cost.py`, recorded in
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`): the same
-registry renders as 224,560 chars for 110 tools in `static`, 164,542 chars for 76
-tools in `semantic`, and 40,817 chars for 15 tools in `gateway` (5.5x and 4.0x
-smaller). Use `semantic` instead when the client cannot call an unadvertised name.
+registry renders as 226,845 chars for 111 tools in `static`, 166,827 chars for 77
+tools in `semantic`, and 43,102 chars for 16 tools in `gateway` (5.3x and 3.9x
+smaller). A client that refuses unadvertised names does not need a different mode:
+`mcp_tool_invoke` is advertised in every mode and forwards one call to any
+registered tool by exact name, with the target's own confirmation, cost and dry-run
+gates intact.
 
 Mutation answers are compacted on the same principle: a row list that would repeat
 the same Feature List several times is reported as a count, and
@@ -274,10 +283,11 @@ Deployment modes are explicit:
 
 Profiles are `default`, `browser`, `rest`, `featurescript`, `documentation`,
 `geometry`, and `all`. An optional `semantic_levels` list narrows classified
-browser tools. `mcp_tool_view`, `mcp_tool_catalog`, `browser_session`,
-and `browser_discover_tools` remain available as navigation/recovery surfaces in
-the relevant view; the absorbed compatibility names do not, and are reachable
-only by exact name or through `mcp_tool_view profile=all`.
+browser tools. `mcp_tool_view`, `mcp_tool_catalog`, `mcp_tool_invoke`,
+`browser_session`, and `browser_discover_tools` remain available as
+navigation/recovery surfaces in the relevant view; the absorbed compatibility names
+do not, and are reachable only by exact name, through `mcp_tool_invoke`, or through
+`mcp_tool_view profile=all`.
 
 Correct dynamic-client flow:
 

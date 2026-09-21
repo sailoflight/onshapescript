@@ -1462,10 +1462,12 @@ class BrowserMetadataTest(unittest.TestCase):
         # read-only browser_read_feature_parameters probe was added on 2026-09-20;
         # 110 since browser_delete_feature was added on 2026-09-21 (the feature-row
         # delete no other tool performed, needed to undo a row a refused or
-        # timed-out insert left behind).
+        # timed-out insert left behind); 111 since mcp_tool_invoke was added the
+        # same day, after a real client refused a hidden name with "unknown tool".
+
         # This number is a tripwire: it must only move when a tool is deliberately
         # added or removed.
-        self.assertEqual(len(server.TOOLS), 110)
+        self.assertEqual(len(server.TOOLS), 111)
 
 
 if __name__ == "__main__":

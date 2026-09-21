@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "087c1abc07a6b9b5a75bbd37dedfe07dd0070b3cee8a0307832e7e64475b7b83",
+   "sha256": "138e47ad6fe9c52d616dd0325b96b3f55804a2a5cf889954c0f5d33c1d12ad34",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -729,7 +729,7 @@
        "type": "list",
        "items": [
         {
-         "text": "A discovery core — mcp_tool_catalog and mcp_tool_view.",
+         "text": "A discovery core — mcp_tool_catalog, mcp_tool_view, and mcp_tool_invoke. The invoker is the advertised door to the 95 names this view does not list: it forwards one call to any registered tool by exact name and the target's own gates still answer. It is listed in every exposure mode, because a client that refuses unadvertised names (measured live 2026-09-21) cannot use a hidden one.",
          "depth": 0
         },
         {
@@ -754,7 +754,7 @@
          "depth": 0
         },
         {
-         "text": "Call any registered name as a normal tools/call, advertised or not. The handler's own confirm_mutation, dry-run, cost, and acceptance gates are what answer, so the gateway changes only what is advertised.",
+         "text": "Call any registered name as a normal tools/call, advertised or not — or, if the client refuses names absent from tools/list, call mcp_tool_invoke with that exact name and its arguments. Both routes reach the same handler, so the handler's own confirm_mutation, dry-run, cost, and acceptance gates are what answer; the gateway changes only what is advertised.",
          "depth": 0
         }
        ]
@@ -765,7 +765,7 @@
       },
       {
        "type": "para",
-       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the same registry renders as 224,560 chars for 110 tools in static, 164,542 chars for 76 tools in semantic, and 40,817 chars for 15 tools in gateway (5.5x and 4.0x smaller). Use semantic instead when the client cannot call an unadvertised name."
+       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the same registry renders as 226,845 chars for 111 tools in static, 166,827 chars for 77 tools in semantic, and 43,102 chars for 16 tools in gateway (5.3x and 3.9x smaller). A client that refuses unadvertised names does not need a different mode: mcp_tool_invoke is advertised in every mode and forwards one call to any registered tool by exact name, with the target's own confirmation, cost and dry-run gates intact."
       },
       {
        "type": "para",
@@ -872,7 +872,7 @@
       },
       {
        "type": "para",
-       "text": "Profiles are default, browser, rest, featurescript, documentation, geometry, and all. An optional semantic_levels list narrows classified browser tools. mcp_tool_view, mcp_tool_catalog, browser_session, and browser_discover_tools remain available as navigation/recovery surfaces in the relevant view; the absorbed compatibility names do not, and are reachable only by exact name or through mcp_tool_view profile=all."
+       "text": "Profiles are default, browser, rest, featurescript, documentation, geometry, and all. An optional semantic_levels list narrows classified browser tools. mcp_tool_view, mcp_tool_catalog, mcp_tool_invoke, browser_session, and browser_discover_tools remain available as navigation/recovery surfaces in the relevant view; the absorbed compatibility names do not, and are reachable only by exact name, through mcp_tool_invoke, or through mcp_tool_view profile=all."
       },
       {
        "type": "para",
@@ -2287,7 +2287,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "f9b5c1641236e0fa843586624369da7b6bbf379620e748804706ff71a44a268b",
+   "sha256": "57f5271de0dbcbdbfc20c2dbfb1109dad0ffea366785d13aad7e733f8d81d8b9",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2482,7 +2482,11 @@
       },
       {
        "type": "para",
-       "text": "普通发现按 L5 workflow → L4 verified transaction/observation → L2 generic transaction → L6 deliverable recipe 排序。这样先复用完成的多事务能力，只有明确需要 独立 artifact/manifest/retry 边界时才选择 L6。L1/L3 为减少 普通上下文默认不暴露，但并非隐藏知识：开发、异常恢复或人工辅助需要时调用 browser_discover_tools 并显式传 semantic_levels=[\"L1\"] 或 semantic_levels=[\"L3\"]，再按返回的精确注册名直接调用（mcp_tool_catalog 同样返回精确名与完整 schema）；没有单独的 invocation gateway 需要绕，发现步骤也 不绕过确认、成本或 handler 验收。未分类工具继续有效并默认可见；ONSHAPE_MCP_TOOL_EXPOSURE=static 保留完整列表兼容模式。当前审阅 元数据和非阻断 lint 在 onshape_browser_mode/semantics.py。"
+       "text": "普通发现按 L5 workflow → L4 verified transaction/observation → L2 generic transaction → L6 deliverable recipe 排序。这样先复用完成的多事务能力，只有明确需要 独立 artifact/manifest/retry 边界时才选择 L6。L1/L3 为减少 普通上下文默认不暴露，但并非隐藏知识：开发、异常恢复或人工辅助需要时调用 browser_discover_tools 并显式传 semantic_levels=[\"L1\"] 或 semantic_levels=[\"L3\"]，再按返回的精确注册名直接调用（mcp_tool_catalog 同样返回精确名与完整 schema）；发现步骤不绕过确认、成本或 handler 验收。未分类工具继续有效并默认可见；ONSHAPE_MCP_TOOL_EXPOSURE=static 保留完整列表兼容模式。当前审阅 元数据和非阻断 lint 在 onshape_browser_mode/semantics.py。"
+      },
+      {
+       "type": "para",
+       "text": "「隐藏名仍可按名调用」是服务端事实，不是每个客户端的事实。 2026-09-21 实测： 某真实 MCP 客户端对不在 tools/list 中的已注册名返回 unknown tool \"mcp__onshape__docs_list\"，而同一时刻服务端会照常 dispatch。因此 ONSHAPE_MCP_TOOL_EXPOSURE=gateway 压缩视图内置一个被展示的通用入口 mcp_tool_invoke（{name, arguments}）：它经同一个 HANDLERS 条目转发，目标的 confirm_mutation、dry_run、quota、pacing 与验收门全部照常回答；连接级工具 （mcp_tool_view、mcp_tool_catalog、它自己）被拒绝而不是递归。该入口在每种展示模式 都被列出，因为对上述客户端而言“藏起来的逃生门”等于没有门。P5 合并 browser_invoke_discovered 的理由（“能按名调用就不必多一跳”）对这类客户端不成立， 两者不是同一个判断。"
       }
      ]
     },
@@ -2496,7 +2500,7 @@
       },
       {
        "type": "para",
-       "text": "窄化 browser semantic levels 时必须常驻 browser_session 和 browser_discover_tools，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的 兼容名不常驻，只能按精确名调用。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用 固定 semantic/profile 或 discovery gateway，不要把“未展示”解释为“禁止”。"
+       "text": "窄化 browser semantic levels 时必须常驻 browser_session 和 browser_discover_tools，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的 兼容名不常驻，只能按精确名调用。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用 固定 semantic/profile 或 discovery gateway，不要把“未展示”解释为“禁止”；若客户端拒绝未展示名， 按精确名改走被展示的 mcp_tool_invoke（见 3.1 的实测）。"
       }
      ]
     },
@@ -11052,7 +11056,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "8d3c1a6d56049596b2d8b4b8d92812da7990718bd1515903fda35a7ff934d3d0",
+   "sha256": "d03f60cbf4197ce6594b9566b3e2d80910a50a377328a974251f92a22a4b90e7",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -11073,7 +11077,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 110",
+         "text": "Registered tools: 111",
          "depth": 0
         },
         {
@@ -11085,7 +11089,7 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=70, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
+         "text": "Capability counts: browser=70, featurescript=11, other=3, project_docs=3, rest_operations=18, rest_reference=6",
          "depth": 0
         },
         {
@@ -11839,6 +11843,14 @@
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
          "Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never retu..."
+        ],
+        [
+         "mcp_tool_invoke",
+         "other",
+         "-",
+         "name",
+         "network=offline; api_max=0; mutating=yes; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration",
+         "Call one registered tool by its EXACT name with its own arguments. It exists for the compressed gateway view: mcp_tool_catalog can name a tool that the current view does not a..."
         ],
         [
          "mcp_tool_view",

@@ -9,7 +9,14 @@ from typing import Any
 
 CONTROL_TOOL_NAME = "mcp_tool_view"
 CATALOG_TOOL_NAME = "mcp_tool_catalog"
-CONTROL_TOOL_NAMES = frozenset({CONTROL_TOOL_NAME, CATALOG_TOOL_NAME})
+INVOKE_TOOL_NAME = "mcp_tool_invoke"
+#: The gateway/control surface: discovery, view status, and the generic entry
+#: point. These three are listed under EVERY profile, because a profile that
+#: hides a name it cannot route is a dead end for a client that refuses names
+#: absent from `tools/list` (measured live 2026-09-21, see below).
+CONTROL_TOOL_NAMES = frozenset(
+    {CONTROL_TOOL_NAME, CATALOG_TOOL_NAME, INVOKE_TOOL_NAME}
+)
 VALID_EXPOSURE_MODES = ("semantic", "static", "profile", "dynamic", "gateway")
 
 #: Host-local switch for the exposure mode, in the same shape as the other
@@ -22,8 +29,22 @@ VALID_EXPOSURE_MODES = ("semantic", "static", "profile", "dynamic", "gateway")
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 LOCAL_CONFIG_PATH = CONFIG_DIR / "tool_views.local.toml"
 
-#: The `gateway` mode's always-listed core: discovery plus the view status.
-GATEWAY_CORE_TOOL_NAMES = frozenset({CATALOG_TOOL_NAME, CONTROL_TOOL_NAME})
+#: The `gateway` mode's always-listed core, in listing order. Identical to
+#: `CONTROL_TOOL_NAMES` by design: the profile views and the gateway view must
+#: agree on what a caller can always reach, or a mode switch would silently
+#: remove the only door to a hidden name.
+#:
+#: `mcp_tool_invoke` exists because "hidden known-name calls remain" is a
+#: property of the SERVER, not of every client: measured live 2026-09-21, a real
+#: MCP client refused `docs_list` with "unknown tool" once the gateway view no
+#: longer advertised it, while the server would have dispatched it happily. A
+#: compressed surface whose lookup leads to an uncallable name is worse than no
+#: compression, so the mode ships one generic entry that forwards to the SAME
+#: handler (and therefore to the same confirmation, cost, dry-run and acceptance
+#: gates). This is not the merged `browser_invoke_discovered`: that wrapper added a
+#: hop for a client that could already call unadvertised names, whereas this one is
+#: the only route for a client that cannot.
+GATEWAY_CORE_TOOL_NAMES = CONTROL_TOOL_NAMES
 
 #: The `gateway` mode's curated representatives, one or two per category. The
 #: point of listing these is that retrieval is NOT cheap: a three-result catalog
@@ -296,13 +317,25 @@ class ToolViewState:
             # bounded lines, so nothing is lost or made unfindable -- hiding is
             # context routing, never authority.
             by_name = {tool["name"]: tool for tool in self.tools}
-            ordered = (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME) + GATEWAY_CURATED_TOOL_NAMES
+            ordered = (
+                (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME, INVOKE_TOOL_NAME)
+                + GATEWAY_CURATED_TOOL_NAMES
+            )
             return [by_name[name] for name in ordered if name in by_name]
-        return select_view_tools(
+        listed = select_view_tools(
             self.tools,
             profile=self.profile,
             semantic_levels=self.semantic_levels,
         )
+        # The invoker is listed in EVERY mode (static returns the raw registry,
+        # which already contains it). Hiding it outside gateway was the tempting
+        # design -- an ordinary view looks like it already lists what it would
+        # forward to -- but it was measured wrong: a real client (2026-09-21)
+        # refuses a name that is absent from tools/list with `unknown tool`, so a
+        # hidden name is reachable ONLY while some advertised door exists.
+        # Listing it costs 2,207 chars on the semantic view (+1.4%) and is the
+        # sole route to the names that view hides.
+        return listed
 
     def status(self) -> dict[str, Any]:
         listed = self.listed_tools()

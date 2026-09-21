@@ -20,6 +20,13 @@ wrapper, exactly the way `browser_delete_tab` did, and each row is now
 honestly is. Nothing was unregistered, so the registry count stays at 106 while the
 ordinary semantic `tools/list` drops from 80 to 72.
 
+**Status 2026-09-21.** The registry is now 111 tools. `browser_delete_feature`
+(110) was added so a row a refused or relay-timed-out insert left behind can be
+removed at all, and `mcp_tool_invoke` (111) followed a live measurement: a real MCP
+client refused a registered-but-unadvertised name with `unknown tool`, so "hidden
+known-name calls remain" held for the server and not for that client. Neither
+addition changed an earlier verdict.
+
 ## How to read a verdict
 
 | Verdict | Meaning |
@@ -61,12 +68,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 63 |
+| `Keep` | 64 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **110** |
+| **total** | **111** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -155,6 +162,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `fs_search` | `Keep` | - | Keyword entry point across 929 functions and 270 types; the first step for any FS question. |
 | `fs_update_reference` | `Internal-only` | - | Re-vendors upstream reference material. That is repository maintenance with a live fetch attached, not a design step; it belongs to an operator-invoked refresh. |
 | `mcp_tool_catalog` | `Keep` | - | Authoritative registry search plus the escape hatch when a view hides a tool that the task actually needs. |
+| `mcp_tool_invoke` | `Keep` | - | The measured repair for a compressed view: a real MCP client (2026-09-21) refused a registered name that `tools/list` did not advertise with `unknown tool`, so "hidden known-name calls remain" was a property of the server, not of that client. It forwards to the same handler, so the target's own confirmation, cost, dry-run and acceptance gates still answer, and it is listed in EVERY view because a hidden escape hatch is no escape hatch. Unlike the merged `browser_invoke_discovered`, a client that can already call hidden names gains nothing from it. |
 | `mcp_tool_view` | `Keep` | - | The only way to widen or narrow the visible surface for one connection without a restart; discovery plumbing the model needs before it can route. |
 | `onshape_api_auth` | `Keep` | - | Authentication reference; read-only and small, and the first thing a new client setup needs. |
 | `onshape_api_endpoint` | `Keep` | - | Exact operation definition (parameters, body, responses); the evidence step before any live request. |

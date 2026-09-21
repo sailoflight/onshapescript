@@ -78,37 +78,37 @@
   ],
   "toolSurfaces": {
     "registry": {
-      "chars": 224560,
-      "estimatedTokens": 56197,
-      "toolCount": 110
+      "chars": 226845,
+      "estimatedTokens": 56769,
+      "toolCount": 111
     },
     "modes": {
       "semantic": {
-        "chars": 164542,
-        "estimatedTokens": 41176,
-        "toolCount": 76
+        "chars": 166827,
+        "estimatedTokens": 41748,
+        "toolCount": 77
       },
       "gateway": {
-        "chars": 40817,
-        "estimatedTokens": 10224,
-        "toolCount": 15
+        "chars": 43102,
+        "estimatedTokens": 10795,
+        "toolCount": 16
       },
       "static": {
-        "chars": 224560,
-        "estimatedTokens": 56197,
-        "toolCount": 110
+        "chars": 226845,
+        "estimatedTokens": 56769,
+        "toolCount": 111
       },
       "dynamic": {
-        "chars": 164542,
-        "estimatedTokens": 41176,
-        "toolCount": 76
+        "chars": 166827,
+        "estimatedTokens": 41748,
+        "toolCount": 77
       }
     },
     "runtimePrompt": {
       "chars": 3183,
       "estimatedTokens": 796
     },
-    "compressionRatio": 5.5,
+    "compressionRatio": 5.26,
     "gatewayHiddenNamesStillCallable": true
   }
 }

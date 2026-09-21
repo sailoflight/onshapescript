@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Registered tools: **110**
+- Registered tools: **111**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=70, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
+- Capability counts: `browser`=70, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
 - Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
 
 ## Safety interpretation
@@ -117,6 +117,7 @@
 | Tool | Capability | Optional semantic classification | Required arguments | Registered safety/cost | Intent |
 |---|---|---|---|---|---|
 | `mcp_tool_catalog` | `other` | - | - | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none | Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never retu... |
+| `mcp_tool_invoke` | `other` | - | `name` | network=offline; api_max=0; mutating=yes; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration | Call one registered tool by its EXACT name with its own arguments. It exists for the compressed gateway view: `mcp_tool_catalog` can name a tool that the current view does not a... |
 | `mcp_tool_view` | `other` | - | - | network=offline; api_max=0; mutating=yes; dry_run=no; confirm=no; concurrency=connection_local/connection | Inspect or change the current connection's tool-display view. This is a context-routing convention, not an authorization boundary: hidden known-name tools remain callable and al... |
 
 ## Capability: project_docs

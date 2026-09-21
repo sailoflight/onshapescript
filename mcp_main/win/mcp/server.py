@@ -24,6 +24,7 @@ from mcp_main.win.mcp.tool_catalog import (
 from mcp_main.win.mcp.tool_views import (
     CATALOG_TOOL_NAME,
     CONTROL_TOOL_NAME,
+    INVOKE_TOOL_NAME,
     ToolViewState,
     VALID_PROFILES,
     VALID_SEMANTIC_LEVELS,
@@ -1506,6 +1507,43 @@ TOOLS: list[dict[str, Any]] = [
             "destructiveHint": False,
             "idempotentHint": True,
             "openWorldHint": False,
+        },
+    },
+    {
+        "name": INVOKE_TOOL_NAME,
+        "cost": {
+            "network": "offline",
+            "estimated_requests": 0,
+            "max_requests": 0,
+            "mutating": True,
+            "cacheable": False,
+            "side_effects": ["target_tool_effects"],
+        },
+        "description": (
+            "Call one registered tool by its EXACT name with its own arguments. It exists for the compressed "
+            "gateway view: `mcp_tool_catalog` can name a tool that the current view does not advertise, and a "
+            "client that only calls advertised names would otherwise be unable to reach it (measured live "
+            "2026-09-21: a real client answered 'unknown tool' for an unadvertised but registered name). This is "
+            "a forwarder, not an authority: the target's own handler runs unchanged, so its confirm_mutation, "
+            "dry_run, quota, pacing and acceptance gates all still answer, and a refusal is returned as that "
+            "tool's own error. Connection-scoped tools (mcp_tool_view, mcp_tool_catalog, and this tool) are "
+            "refused because they need the connection that is calling them; call them directly. The result is "
+            "the target tool's structured result, plus `invokedTool`.")
+        ,
+        "inputSchema": object_schema({
+            "name": {"type": "string", "description": "Exact registered tool name; get it from mcp_tool_catalog."},
+            "arguments": {
+                "type": "object",
+                "default": {},
+                "description": "The target tool's own arguments, unchanged, including any confirm_mutation or dry_run it defines.",
+                "additionalProperties": True,
+            },
+        }, ["name"]),
+        "annotations": {
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "idempotentHint": False,
+            "openWorldHint": True,
         },
     },
     {
@@ -3116,9 +3154,14 @@ def _tool_catalog_requires_connection(_: dict[str, Any]) -> dict[str, Any]:
     raise ValueError("mcp_tool_catalog must be dispatched through an MCP connection")
 
 
+def _invoke_requires_connection(_: dict[str, Any]) -> dict[str, Any]:
+    raise ValueError("mcp_tool_invoke must be dispatched through an MCP connection")
+
+
 HANDLERS: dict[str, ToolHandler] = {
     CONTROL_TOOL_NAME: _tool_view_requires_connection,
     CATALOG_TOOL_NAME: _tool_catalog_requires_connection,
+    INVOKE_TOOL_NAME: _invoke_requires_connection,
     "browser_session": _browser_session,
     "browser_watch": _browser_watch,
     "browser_inspect": _browser_inspect,
@@ -3378,6 +3421,35 @@ class McpConnection:
         self.view = view or ToolViewState.from_environment(TOOLS)
         self.catalog = catalog or TOOL_CATALOG
 
+    def invoke(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Forward one call to a registered tool by exact name.
+
+        The target's own handler answers, so every confirmation, cost, dry-run
+        and acceptance gate still applies and a refusal arrives as that tool's
+        own error. Connection-scoped tools are refused rather than recursed into:
+        they need the connection doing the asking, which is the caller.
+        """
+        target = arguments.get("name")
+        if not isinstance(target, str) or not target.strip():
+            raise ValueError("name is required for mcp_tool_invoke")
+        target = target.strip()
+        if target in {INVOKE_TOOL_NAME, CONTROL_TOOL_NAME, CATALOG_TOOL_NAME}:
+            raise ValueError(
+                f"{target} is connection-scoped; call it directly instead of through mcp_tool_invoke"
+            )
+        if target not in HANDLERS:
+            raise ValueError(f"Unknown tool: {target}. Use mcp_tool_catalog for the exact name.")
+        if "arguments" in arguments and not isinstance(arguments["arguments"], dict):
+            raise ValueError("arguments must be an object")
+        forwarded = arguments.get("arguments") or {}
+        result = tool_result(target, forwarded)
+        structured = result.get("structuredContent")
+        if isinstance(structured, dict):
+            # One extra key names the leg that ran, so a transcript of forwarded
+            # calls cannot be mistaken for a direct call of the target.
+            result = {**result, **_connection_tool_result({"invokedTool": target, **structured})}
+        return result
+
     def dispatch_messages(self, message: dict[str, Any]) -> list[dict[str, Any]]:
         method = message.get("method")
         request_id = message.get("id")
@@ -3419,6 +3491,8 @@ class McpConnection:
                     visible_names = {tool["name"] for tool in self.view.listed_tools()}
                     value = self.catalog.apply(arguments, visible_names=visible_names)
                     return [response(request_id, _connection_tool_result(value))]
+                if name == INVOKE_TOOL_NAME:
+                    return [response(request_id, self.invoke(arguments))]
                 return [response(request_id, tool_result(name, arguments))]
             except ValueError as error:
                 return [response(request_id, error={"code": -32602, "message": str(error)})]

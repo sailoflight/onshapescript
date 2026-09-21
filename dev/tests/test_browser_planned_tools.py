@@ -106,7 +106,7 @@ class PlannedRegistryTest(unittest.TestCase):
 
     def test_all_planned_names_are_registered_once(self):
         names = [tool["name"] for tool in server.TOOLS]
-        self.assertEqual(len(server.TOOLS), 110)
+        self.assertEqual(len(server.TOOLS), 111)
         self.assertEqual(len(names), len(set(names)))
         self.assertTrue(PLANNED_NAMES.issubset(names))
         self.assertTrue(PLANNED_NAMES.issubset(server.HANDLERS))

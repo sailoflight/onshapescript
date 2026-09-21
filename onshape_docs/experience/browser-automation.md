@@ -71,10 +71,20 @@ transaction → L6 deliverable recipe 排序。这样先复用完成的多事务
 普通上下文默认不暴露，但并非隐藏知识：开发、异常恢复或人工辅助需要时调用
 `browser_discover_tools` 并显式传 `semantic_levels=["L1"]` 或
 `semantic_levels=["L3"]`，再按返回的**精确注册名**直接调用（`mcp_tool_catalog`
-同样返回精确名与完整 schema）；没有单独的 invocation gateway 需要绕，发现步骤也
-不绕过确认、成本或 handler 验收。未分类工具继续有效并默认可见；`ONSHAPE_MCP_TOOL_EXPOSURE=static` 保留完整列表兼容模式。当前审阅
+同样返回精确名与完整 schema）；发现步骤不绕过确认、成本或 handler 验收。未分类工具继续有效并默认可见；`ONSHAPE_MCP_TOOL_EXPOSURE=static` 保留完整列表兼容模式。当前审阅
 元数据和非阻断 lint 在
 `onshape_browser_mode/semantics.py`。
+
+**「隐藏名仍可按名调用」是服务端事实，不是每个客户端的事实。** 2026-09-21 实测：
+某真实 MCP 客户端对不在 `tools/list` 中的已注册名返回
+`unknown tool "mcp__onshape__docs_list"`，而同一时刻服务端会照常 dispatch。因此
+`ONSHAPE_MCP_TOOL_EXPOSURE=gateway` 压缩视图内置一个**被展示**的通用入口
+`mcp_tool_invoke`（`{name, arguments}`）：它经同一个 `HANDLERS` 条目转发，目标的
+`confirm_mutation`、`dry_run`、quota、pacing 与验收门全部照常回答；连接级工具
+（`mcp_tool_view`、`mcp_tool_catalog`、它自己）被拒绝而不是递归。该入口在**每种展示模式**
+都被列出，因为对上述客户端而言“藏起来的逃生门”等于没有门。P5 合并
+`browser_invoke_discovered` 的理由（“能按名调用就不必多一跳”）对这类客户端不成立，
+两者不是同一个判断。
 
 ### 3.2 连接级动态展示约定
 
@@ -88,7 +98,8 @@ Operator 以 `ONSHAPE_MCP_TOOL_EXPOSURE=dynamic` 启动；client 在 initialize 
 窄化 browser semantic levels 时必须常驻 `browser_session` 和
 `browser_discover_tools`，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的
 兼容名不常驻，只能按精确名调用。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用
-固定 `semantic`/`profile` 或 discovery gateway，不要把“未展示”解释为“禁止”。
+固定 `semantic`/`profile` 或 discovery gateway，不要把“未展示”解释为“禁止”；若客户端拒绝未展示名，
+按精确名改走被展示的 `mcp_tool_invoke`（见 3.1 的实测）。
 
 ### 3.3 跨模块工具目录约定
 

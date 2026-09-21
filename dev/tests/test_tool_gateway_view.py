@@ -64,9 +64,12 @@ class GatewayViewSelectionTest(unittest.TestCase):
         self.assertEqual(state.mode, "gateway")
         listed = [tool["name"] for tool in state.listed_tools()]
         self.assertEqual(set(listed), set(GATEWAY_TOOL_NAMES))
-        # The core leads, then the curated order the mode declares.
-        self.assertEqual(listed[:2], ["mcp_tool_catalog", "mcp_tool_view"])
-        self.assertEqual(listed[2:], list(GATEWAY_CURATED_TOOL_NAMES))
+        # The core leads (catalog, view, invoker), then the curated order the mode
+        # declares.
+        self.assertEqual(
+            listed[:3], ["mcp_tool_catalog", "mcp_tool_view", "mcp_tool_invoke"]
+        )
+        self.assertEqual(listed[3:], list(GATEWAY_CURATED_TOOL_NAMES))
         self.assertEqual(state.status()["toolCount"], len(GATEWAY_TOOL_NAMES))
         self.assertEqual(state.status()["registryCount"], len(server.TOOLS))
 
@@ -102,7 +105,7 @@ class GatewayViewSelectionTest(unittest.TestCase):
         state = self.gateway()
         self.assertEqual(
             state.status()["listedNames"],
-            ["mcp_tool_catalog", "mcp_tool_view", *GATEWAY_CURATED_TOOL_NAMES],
+            ["mcp_tool_catalog", "mcp_tool_view", "mcp_tool_invoke", *GATEWAY_CURATED_TOOL_NAMES],
         )
         self.assertFalse(state.switching_available)
         self.assertFalse(state.list_changed_capability)
@@ -262,6 +265,113 @@ class GatewayConnectionTest(unittest.TestCase):
         tool = describe[0]["result"]["structuredContent"]["tool"]
         self.assertIn("inputSchema", tool)
         self.assertTrue(tool["knownNameCallAvailable"])
+
+
+class InvokeToolTest(unittest.TestCase):
+    """`mcp_tool_invoke`: the advertised door to a name a view does not list.
+
+    The measurement that forced this tool: a real MCP client (2026-09-21) refused
+    a registered-but-unadvertised name with `unknown tool`, so "hidden known-name
+    calls remain" was true of the SERVER and false of that client. The tests below
+    pin both halves -- the door is always advertised, and walking through it adds
+    no authority of its own.
+    """
+
+    def connection(self, mode: str = "gateway") -> server.McpConnection:
+        with mock.patch.dict(os.environ, {"ONSHAPE_MCP_TOOL_EXPOSURE": mode}):
+            return server.McpConnection(ToolViewState.from_environment(server.TOOLS))
+
+    def call(self, connection, request_id, name, arguments):
+        return connection.dispatch_messages({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        })
+
+    def test_the_invoker_is_advertised_in_every_view(self):
+        # A hidden escape hatch is no escape hatch for the client that needs it,
+        # and the semantic view hides 34 registered names of its own.
+        for mode in ("semantic", "dynamic", "profile", "gateway", "static"):
+            listed = [tool["name"] for tool in self.connection(mode).view.listed_tools()]
+            self.assertIn("mcp_tool_invoke", listed, mode)
+
+    def test_a_hidden_tool_answers_through_it_and_the_leg_is_named(self):
+        connection = self.connection()
+        listed = {tool["name"] for tool in connection.view.listed_tools()}
+        self.assertNotIn("docs_list", listed)
+        outgoing = self.call(connection, 1, "mcp_tool_invoke", {"name": "docs_list"})
+        self.assertNotIn("error", outgoing[0])
+        result = outgoing[0]["result"]
+        self.assertFalse(result["isError"])
+        structured = result["structuredContent"]
+        self.assertEqual(structured["invokedTool"], "docs_list")
+        # The target's own answer, not a summary of the forwarding.
+        self.assertIn("pages", structured)
+        self.assertIn("docs_list", result["content"][0]["text"])
+
+    def test_an_unknown_target_is_refused_with_the_lookup_hint(self):
+        outgoing = self.call(self.connection(), 1, "mcp_tool_invoke", {"name": "no_such_tool"})
+        self.assertEqual(outgoing[0]["error"]["code"], -32602)
+        self.assertIn("Unknown tool", outgoing[0]["error"]["message"])
+        self.assertIn("mcp_tool_catalog", outgoing[0]["error"]["message"])
+
+    def test_a_missing_or_non_object_target_is_refused(self):
+        connection = self.connection()
+        self.assertIn("name is required", self.call(
+            connection, 1, "mcp_tool_invoke", {}
+        )[0]["error"]["message"])
+        self.assertIn("name is required", self.call(
+            connection, 2, "mcp_tool_invoke", {"name": "   "}
+        )[0]["error"]["message"])
+        self.assertIn("must be an object", self.call(
+            connection, 3, "mcp_tool_invoke", {"name": "docs_list", "arguments": []}
+        )[0]["error"]["message"])
+
+    def test_connection_scoped_targets_are_refused_rather_than_recursed(self):
+        connection = self.connection()
+        for target in ("mcp_tool_invoke", "mcp_tool_view", "mcp_tool_catalog"):
+            outgoing = self.call(connection, 1, "mcp_tool_invoke", {"name": target})
+            self.assertIn("connection-scoped", outgoing[0]["error"]["message"], target)
+
+    def test_the_targets_own_confirmation_gate_still_answers(self):
+        # A mutating tool with no confirm_mutation must refuse exactly as it does
+        # when called directly: the forwarder is not a way around the gate.
+        outgoing = self.call(self.connection(), 1, "mcp_tool_invoke", {
+            "name": "browser_insert_custom_feature", "arguments": {"feature_name": "X"},
+        })
+        result = outgoing[0]["result"]
+        self.assertTrue(result["isError"])
+        self.assertIn("confirm_mutation", result["content"][0]["text"])
+
+    def test_a_dry_run_through_it_still_spends_nothing(self):
+        outgoing = self.call(self.connection(), 1, "mcp_tool_invoke", {
+            "name": "browser_delete_feature",
+            "arguments": {"feature_name": "X", "dry_run": True},
+        })
+        structured = outgoing[0]["result"]["structuredContent"]
+        self.assertEqual(structured["invokedTool"], "browser_delete_feature")
+        self.assertTrue(structured["dryRun"])
+        self.assertEqual(structured["estimatedApiRequests"], 0)
+
+    def test_the_response_boundary_still_runs_on_the_forwarded_leg(self):
+        # The projection lives in `server.tool_result`, which is the one entry the
+        # forwarder shares with a direct call, so forwarding cannot smuggle the
+        # duplicated row echo back into a transcript -- and the target's own
+        # opt-in field still restores the full evidence.
+        full = {"deleted": True, "featureRows": ["a", "b"], "beforeRows": ["a", "b"]}
+        with mock.patch.dict(server.HANDLERS, {"browser_delete_feature": lambda _: full}):
+            compact = self.call(self.connection(), 1, "mcp_tool_invoke", {
+                "name": "browser_delete_feature", "arguments": {"feature_name": "a"},
+            })[0]["result"]["structuredContent"]
+            verbose = self.call(self.connection(), 2, "mcp_tool_invoke", {
+                "name": "browser_delete_feature",
+                "arguments": {"feature_name": "a", "include_row_evidence": True},
+            })[0]["result"]["structuredContent"]
+        self.assertNotIn("featureRows", compact)
+        self.assertEqual(compact["enumeratedRowCount"], 2)
+        self.assertEqual(compact["invokedTool"], "browser_delete_feature")
+        self.assertIn("featureRows", verbose)
 
 
 if __name__ == "__main__":
