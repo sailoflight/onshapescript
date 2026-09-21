@@ -442,6 +442,75 @@ inventory is what separates R4 from sharp and 45 deg from a straight wall; the
 acceptance evidence is in
 `onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md`.
 
+**A quantity widget resolves a `#variable` ASYNCHRONOUSLY, so the read taken
+straight after the fill is stale.** Filling `#gf_pitch * 2` into a thin row's Value
+field and reading it back immediately returned `0 mm` — the field's own default,
+with no error — and the accept that followed committed that `0 mm` as the
+variable's value. The same dialog read the typed expression back verbatim once the
+widget had resolved it (~1.5 s later). A `#` value therefore has to be waited for,
+and the evidence is the DIALOG's readback after the wait, never the read taken right
+after the fill: `actions.wait_for_dialog_fields` polls `dialog_values` for at most
+20 s (1 s poll) and its verdict IS the fill verdict.
+
+**The settled readback is either the typed expression OR the evaluated number, so
+waiting for the text alone is not enough.** Measured live 2026-09-21, same session,
+two fields, opposite outcomes: the `Thin Variable` Value field settled to the typed
+`#gf_pitch * 2` verbatim, while a `Thin Sketch Rectangle` dimension settled to the
+resolved `36.3 mm` for a typed `#gf_socket` (the typed text appeared only in a read
+taken ~4 ms after the fill; 20 s later the widget read `36.3 mm`). A wait that
+accepts only the typed text therefore ended in a **false refusal**: the socket
+clearance sketch reported "parameter(s) cell_pitch, width, height, corner_radius
+hold an Onshape expression that the dialog never read back" after
+`elapsedMs: 20312`, with `parameters.uncommitted: []`, for a dialog that was in fact
+correct. The caller now states what each expression must EVALUATE to —
+`expect_values` (parameter id -> value, e.g. `{"width": "36.3 mm"}`) — and, for a key
+it states, that value is the **only** accepted settle signal; a key with no stated
+value is satisfied by the typed expression. Both are compared by
+`actions.quantities_match` (whitespace-collapsed text, unit must match, numbers
+within a relative 1e-9). A caller that states nothing for a *dimension* still gets
+the refusal, which is why every expression-bearing step of the rebuild fixture
+carries `expect_values`.
+
+That is what lets a geometry-style thin step — a `Thin Sketch Rectangle` whose
+`cell_pitch`/`width` are all variables, and whose feature has no name template and
+therefore no row text to check — be inserted at all, which the earlier "an
+expression must come with `expect_row`" rule made impossible. `expect_row` remains
+the alternative for a feature that writes its numbers into the row text.
+
+**A row can report `inserted: true` and still hold its dialog DEFAULTS.** Measured
+live 2026-09-21 by reading the rows back with `browser_read_feature_parameters`
+instead of trusting the insert result: in the variable-driven tab every
+`Thin Sketch Rectangle` created by the **insert** path had stored the dialog's
+defaults for its three expression fields, while its literal fields were correct.
+`TS Thin Sketch Rectangle 1` (the plate outline) read `width 100 mm`,
+`height 100 mm`, `corner_radius 0 mm` instead of `#gf_plate_size` = 84 mm and
+`#gf_plate_corner` = 4 mm, while `origin_z`/`grid_x`/`grid_y` were right. The
+literal-valued sibling of the same thin feature in the same document read
+`84 mm / 84 mm / 4 mm`, which is what made the two readings decisive. Cause: the
+settle gate accepted the typed `#variable` text, and the accept that followed
+committed the widget's previous value; the fill's own `after` readback confirmed the
+text, so the call could honestly report success. Consequences worth keeping:
+
+- **An insert's own `inserted` is not proof of the numbers.** Read the row back
+  (`browser_read_feature_parameters`) or measure the geometry; on this tab the
+  "verified" plate outline was a silent 100 mm default.
+- It is the same defect class as the `0 mm` variable above, so the fix belongs in
+  one place: `actions.wait_for_dialog_fields` now ignores the typed text for any key
+  the caller states in `expect_values`.
+- A literal-only chain is immune (there is no expression to race), which is why the
+  literal thin build passed B-rep acceptance while the variable-driven one silently
+  did not.
+
+**A `Feature Name Template` row cannot be addressed by its feature name.** A row
+rendered from a template shows the computed values, not the feature type:
+`TV #gf_pitch = 42 mm`, not `Thin Variable`. A name-matched row filter therefore
+matches ZERO rows for exactly the features that carry a name template, and the
+commit check has to count user rows and identify the created one by set difference
+against the pre-insert names (`actions.user_feature_rows`,
+`verify_insert_committed(baseline_names=…)`). The template is still the best place
+to read an expression's EVALUATED value, so `expect_row` is the strongest check for
+such a row and is optional only for a feature whose row states no numbers.
+
 **A styled checkbox is not clickable at the `input`.** A boolean parameter renders
 as `<input type="checkbox" class="os-param-checkbox-input" data-parameter-value="false">`
 that is not visible, so `Locator.click()` blocks for the full 30 s timeout
@@ -457,11 +526,22 @@ of the sketch thin feature reads back `""` whatever is chosen, so a select-style
 parameter cannot be driven or verified. A thin feature that needs to choose
 between cases should take a number or a boolean instead.
 
-**A refused insert still leaves a row.** The dropdown click creates the feature row
-before any parameter is filled, so a refusal (missing field, uncommitted field, or
-a failed readback) leaves a real default-valued row that survives a reload and
-pollutes the next attempt. Delete it before retrying — on the rebuild the polluted
-Part Studio had to be deleted and recreated.
+**A refused insert still leaves a row, and the refused dialog stays OPEN — which is
+how to repair it.** The dropdown click creates the feature row *before* any
+parameter is filled, so a refusal (missing field, uncommitted field, or a failed
+readback) leaves a real default-valued row that survives a reload. Measured live
+2026-09-21: the row `TS Thin Sketch Rectangle 2` was left behind by the false
+refusal above, and `browser_read_feature_parameters` then reported `read: false`
+with "a Parameter dialog is already open" — the fill had already committed every
+field (its `uncommitted` list was empty), only the accept had been withheld. So
+there is no need to delete the row and rebuild the Part Studio (this connection has
+no tool that deletes a feature row anyway): reopen the row with
+`browser_edit_feature_parameters` — the same fill then runs against the open dialog,
+`before` already showing the intended values — accept, and confirm with
+`browser_verify_feature_parameters` (`parametersApplied: true`, `regenerationOk`,
+`persistenceOk`). That keeps the row *in its original tree position*, which matters
+when the row sits between two steps of an ordered chain, and it costs one
+transaction pair instead of a rebuild.
 
 **The payoff: 14 rows reproduced the domain feature exactly.** With those rules in
 place, a chain of `Thin Sketch Rectangle` / `Thin Sketch Circle` / `Thin Extrude`
@@ -472,4 +552,15 @@ the same nine face families (4 x R4 outer corners, 16 cones at exactly 45.0 deg 
 each of three bands, and the 1.15 / 1.85 / 3.25 mm cylinders). Two independent
 construction paths agreeing to the last digit is the strongest evidence available
 that a feature tree mirrors the intended modelling steps.
+
+**The same plate rebuilt parameter-driven: 23 rows, nine of them variables.** The
+literal chain states every number in the row that uses it; the variable-driven chain
+first creates nine `Thin Variable` rows (`gf_pitch` 42 mm, `gf_plate_size` as
+`#gf_pitch * 2`, …) and then refers to them as Onshape expressions
+(`dev/fixtures-capture/gridfinity-thin-plate.json`). The consumed values are the
+same, so the same B-rep fingerprint is the acceptance test: export the tab to STEP
+and diff it against `gridfinity-domain-baseline-20260921`. This rebuild is the first
+place the count-based commit gate and the expression resolve wait are exercised
+together, on every one of its steps. The measured result of that comparison is in
+`onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md`.
 

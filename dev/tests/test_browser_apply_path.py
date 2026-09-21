@@ -26,6 +26,26 @@ if str(ROOT) not in sys.path:
 from onshape_browser_mode import actions, interaction, semantic, selectors, transactions  # noqa: E402
 
 
+class FakeClock:
+    """A monotonic clock that advances only when the page is waited on.
+
+    ``actions.wait_for_dialog_fields`` polls on real time, and the double's
+    ``wait_for_timeout`` returns instantly, so an expression that never resolves
+    would spin for the wait's whole budget in real seconds. Tying the clock to the
+    waits keeps the loop's shape (poll, read, check, stop) while making it free.
+    """
+
+    def __init__(self, step_ms: int = 1000) -> None:
+        self.now = 0.0
+        self.step = step_ms / 1000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self) -> None:
+        self.now += self.step
+
+
 class FakeField:
     """One named control inside the parameter dialog.
 
@@ -45,6 +65,13 @@ class FakeField:
     That is the measured behaviour that made the last field of a dialog silently keep
     its default (see ``_commit_field``), so a fake that committed on ``fill`` would
     hide the very bug this double exists to catch.
+
+    A key listed in the page's ``expression_keys`` is a QUANTITY widget: a ``#``
+    value resolves asynchronously, so one read after the fill still shows the old
+    text and the read after that shows what the widget settled on -- the typed
+    expression, or the number it evaluates to when the page lists it in
+    ``evaluated_expressions`` (both measured live 2026-09-21).
+    ``expression_never_resolves`` models the case that never settles.
     """
 
     def __init__(self, page: "FakePage", key: str, *, visible: bool = True,
@@ -57,6 +84,8 @@ class FakeField:
         self.fill_calls: list[str] = []
         self.blur_calls: list[dict] = []
         self.click_calls: list[dict] = []
+        self.press_calls: list[str] = []
+        self.typed_calls: list[dict] = []
 
     def fill(self, value: str) -> None:
         self.fill_calls.append(str(value))
@@ -64,9 +93,17 @@ class FakeField:
 
     def blur(self, **kwargs) -> None:
         self.blur_calls.append(kwargs)
-        if self.pending is not None:
+        if self.pending is None:
+            return
+        if self.key in self.page.expression_keys and "#" in self.pending:
+            # An expression RESOLVES ASYNCHRONOUSLY: the widget will hold the typed
+            # text, but the next read still shows the old one. Measured live
+            # 2026-09-21, the read straight after the fill was the field's old
+            # `0 mm` while the same dialog later read `#gf_pitch * 2` back exactly.
+            self.page.pending_expressions[self.key] = self.pending
+        else:
             self.page.dialog_fields[self.key] = self.pending
-            self.pending = None
+        self.pending = None
 
     def is_visible(self) -> bool:
         return self.visible
@@ -78,7 +115,9 @@ class FakeField:
         self.click_calls.append(kwargs)
         if not self.visible:
             raise TimeoutError("element is not visible")
-        self.page.dialog_fields[self.key] = "false" if self.is_checked() else "true"
+        # Only a checkbox toggles on click; a text/quantity field merely takes focus.
+        if self.key in self.page.checkbox_keys:
+            self.page.dialog_fields[self.key] = "false" if self.is_checked() else "true"
 
     def locator(self, selector: str) -> "FakeLocator":
         if self.wrapper is not None and selector.startswith("xpath="):
@@ -137,6 +176,13 @@ class FakeItem:
 
     def click(self, **kwargs) -> None:
         self.click_calls.append(kwargs)
+        if self.page is not None and self.selector == selectors.CUSTOM_FEATURE_MENU_ITEM:
+            # The dropdown click ALREADY adds the row (measured live 2026-09-20: a
+            # row with an unaccepted dialog is real and even survives a reload), so
+            # the row previews while its dialog is open. That is the state an
+            # expression's resolve wait reads; without it the double would hide the
+            # preview the wait exists for.
+            self.page.features = self.page.inserted_features
 
     def wait_for(self, **kwargs) -> None:
         self.wait_calls.append(kwargs)
@@ -191,12 +237,27 @@ class FakePage:
     def __init__(self, *, menu_items=("Bc",), menu_labels=None, features=None, accept=True,
                  tabs=("Feature Studio 1", "Part Studio 1"), menu_opens=True,
                  features_before_insert=None, features_after_reload=None,
-                 reload_fails=False, dialog_fields=None, checkbox_keys=()) -> None:
+                 reload_fails=False, dialog_fields=None, checkbox_keys=(),
+                 expression_keys=(), evaluated=None) -> None:
         self.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
         # A key named here is a styled checkbox: its native input is not visible, and
         # the visible element that owns the click is an ancestor. Every other key is a
         # plainly visible text field.
         self.checkbox_keys = set(checkbox_keys)
+        # A key named here is a quantity widget that a programmatic `fill` cannot
+        # carry an expression into; see FakeField.
+        self.expression_keys = set(expression_keys)
+        # Filled expressions waiting for the widget to resolve them, and how many
+        # times each has been read since.
+        self.pending_expressions: dict[str, str] = {}
+        self.expression_reads: dict[str, int] = {}
+        # A widget that never resolves its reference, for the refusal paths.
+        self.expression_never_resolves = False
+        # Typed expression -> the readback a SETTLED widget renders. A quantity
+        # widget resolves a `#variable` to its value, so a dimension reads back the
+        # number while a Variable feature's own value field keeps the expression
+        # (both measured live 2026-09-21).
+        self.evaluated_expressions: dict[str, str] = dict(evaluated or {})
         labels = list(menu_labels) if menu_labels is not None else [""] * len(menu_items)
         self.menu_items = [
             FakeItem(text, page=self, selector=selectors.CUSTOM_FEATURE_MENU_ITEM,
@@ -246,6 +307,7 @@ class FakePage:
         self.load_states: list[dict] = []
         self.wait_function_calls: list[dict] = []
         self.never_satisfied_minimum: int | None = None
+        self.clock = FakeClock()
 
     # -- reload surface (the commit-verify step) -------------------------
     def reload(self, **kwargs) -> None:
@@ -350,6 +412,7 @@ class FakePage:
 
     def wait_for_timeout(self, milliseconds: int) -> None:
         self.timeouts.append(milliseconds)
+        self.clock.advance()
 
     # -- evaluate surface ------------------------------------------------
     def evaluate(self, expression: str, *args):
@@ -360,7 +423,15 @@ class FakePage:
         if "workspace-custom-features button not found" in expression:
             return {"clicked": True}
         if ".feature-dialog" in expression:
-            # The dialog read behind dialog_values / fill_dialog_fields.
+            # The dialog read behind dialog_values / fill_dialog_fields. A pending
+            # expression settles ONE read after it was filled, which is the measured
+            # shape of the race the accept gate waits out.
+            for key, value in list(self.pending_expressions.items()):
+                self.expression_reads[key] = self.expression_reads.get(key, 0) + 1
+                if self.expression_reads[key] >= 2 and not self.expression_never_resolves:
+                    self.dialog_fields[key] = self.evaluated_expressions.get(value, value)
+                    del self.pending_expressions[key]
+                    self.expression_reads.pop(key, None)
             return dict(self.dialog_fields)
         if "accept button not found" in expression:
             self.accept_clicks.append({})
@@ -498,6 +569,254 @@ class InsertCustomFeatureTest(unittest.TestCase):
         self.assertEqual(result["parameters"]["uncommitted"], ["width"])
         self.assertEqual(page.accept_clicks, [])
 
+    def test_an_expression_is_waited_for_until_the_dialog_reads_it_back(self) -> None:
+        """The accept gate is the dialog's own readback, taken after a bounded wait.
+
+        Measured live 2026-09-21: filling `#gf_pitch * 2` into a thin Variable row's
+        Value field read back `0 mm` -- the field's own default, silently -- while
+        the SAME dialog read the typed expression back verbatim once the widget had
+        resolved it (~1.5 s later), and accepting before that stored the `0 mm` as
+        the variable's value. So the read that decides is the one taken after the
+        wait, and it is not exempt from anything: the wait's verdict IS the fill's
+        verdict.
+        """
+        after = {
+            "headerText": "特征 (3)",
+            "features": [
+                {"name": "TV #gf_pitch = 42 mm", "isUserFeature": True},
+                {"name": "TV #gf_plate_size = 84 mm", "isUserFeature": True},
+            ],
+            "partsText": "零件数 (0)",
+        }
+        before = {
+            "headerText": "特征 (2)",
+            "features": [{"name": "TV #gf_pitch = 42 mm", "isUserFeature": True}],
+            "partsText": "零件数 (0)",
+        }
+        page = FakePage(
+            menu_items=("Thin Variable",),
+            dialog_fields={"name": "", "value": "0 mm", "description": ""},
+            expression_keys={"value"},
+            evaluated={"#gf_pitch * 2": "84 mm"},
+            features_before_insert=before,
+            features=after,
+            features_after_reload=after,
+        )
+        result = self.apply(
+            page,
+            feature_name="Thin Variable",
+            parameters={
+                "name": "gf_plate_size",
+                "value": "#gf_pitch * 2",
+                "description": "2x2 plate outline",
+            },
+            expect_row="#gf_plate_size = 84 mm",
+            expect_values={"value": "84 mm"},
+        )
+        self.assertTrue(result["inserted"])
+        self.assertEqual(result["expressionFields"], ["value"])
+        self.assertTrue(result["rowVerified"])
+        self.assertEqual(result["createdRows"],
+                         [{"name": "TV #gf_plate_size = 84 mm", "hasError": False}])
+        # The fill's own read was the stale one; the resolve wait replaced it with the
+        # value the expression evaluates to, which is the only signal it accepts.
+        self.assertTrue(result["parameters"]["readbackOk"])
+        self.assertTrue(result["parameters"]["resolved"])
+        self.assertEqual(result["parameters"]["after"]["value"], "84 mm")
+        self.assertEqual(result["expectValues"], {"value": "84 mm"})
+        self.assertEqual(result["parameters"]["mismatched"], [])
+        self.assertEqual(result["parameters"]["committed"],
+                         ["name", "value", "description"])
+        self.assertEqual(len(page.accept_clicks), 1)
+        # The wait settles on its first read, so it costs no poll at all.
+        self.assertTrue(result["waits"]["expressionResolve"]["waited"])
+        self.assertEqual(result["waits"]["expressionResolve"]["condition"],
+                         "dialog_fields_readback")
+        self.assertEqual(result["waits"]["expressionResolve"]["keys"], ["value"])
+        self.assertEqual(result["waits"]["expressionResolve"]["elapsedMs"], 0)
+        self.assertEqual(page.timeouts, [])
+
+    def test_a_resolving_expression_needs_a_stated_value_but_no_expect_row(self) -> None:
+        """The dialog's own readback confirms it, which every thin row can do.
+
+        A row whose feature has no `Feature Name Template` displays no numbers at
+        all, so requiring a row expectation would make such a step unbuildable; the
+        dialog always can confirm -- but only against the value the expression
+        evaluates to, never against the text that was typed into it.
+        """
+        page = FakePage(
+            menu_items=("Thin Sketch Rectangle",),
+            dialog_fields={"width": "0 mm"},
+            expression_keys={"width"},
+            evaluated={"#gf_plate_size": "84 mm"},
+        )
+        result = self.apply(
+            page, feature_name="Thin Sketch Rectangle",
+            parameters={"width": "#gf_plate_size"},
+            expect_values={"width": "84 mm"},
+        )
+        self.assertTrue(result["inserted"])
+        self.assertEqual(result["expressionFields"], ["width"])
+        self.assertEqual(result["expectRow"], "")
+        self.assertTrue(result["parameters"]["readbackOk"])
+        self.assertEqual(result["parameters"]["after"]["width"], "84 mm")
+        self.assertEqual(len(page.accept_clicks), 1)
+
+    def test_an_expression_without_a_stated_value_refuses_before_accepting(self) -> None:
+        """An expression cannot be confirmed by its own text, so such a step refuses.
+
+        Measured live 2026-09-21: the widget shows the typed text for a moment and the
+        accept that follows commits the field's PREVIOUS value, so the dialog is left
+        unaccepted and the refusal says what is missing.
+        """
+        page = FakePage(
+            menu_items=("Thin Variable",),
+            dialog_fields={"value": "0 mm"},
+            expression_keys={"value"},
+        )
+        page.expression_never_resolves = True
+        with mock.patch.object(actions.time, "monotonic", page.clock.monotonic):
+            result = self.apply(
+                page, feature_name="Thin Variable", parameters={"value": "#a * 2"}
+            )
+        self.assertFalse(result["inserted"])
+        self.assertEqual(page.accept_clicks, [])
+        self.assertIn("expect_values", result["reason"])
+        self.assertEqual(result["expressionFields"], ["value"])
+        self.assertEqual(result["parameters"]["mismatched"], ["value"])
+        self.assertFalse(result["wait"]["waited"], "the field was never confirmed")
+        self.assertEqual(result["wait"]["condition"], "unstated_expression")
+        self.assertEqual(page.timeouts, [], "it refuses instead of spending the budget")
+
+    def test_a_row_without_the_expected_text_is_not_an_insert(self) -> None:
+        """Accepting is not enough: the row must state the value that was asked for.
+
+        A resolved dialog is not a promise about the model's evaluation, so the row
+        the model wrote is checked as well and a row stating another value is a real,
+        default-valued row that must be deleted.
+        """
+        after = {
+            "headerText": "特征 (1)",
+            "features": [{"name": "TV #gf_plate_size = 0 mm", "isUserFeature": True}],
+            "partsText": "",
+        }
+        page = FakePage(
+            menu_items=("Thin Variable",),
+            dialog_fields={"name": "", "value": "0 mm"},
+            expression_keys={"value"},
+            evaluated={"#gf_pitch * 2": "84 mm"},
+            features=after,
+            features_after_reload=after,
+        )
+        result = self.apply(
+            page,
+            feature_name="Thin Variable",
+            parameters={"name": "gf_plate_size", "value": "#gf_pitch * 2"},
+            expect_row="#gf_plate_size = 84 mm",
+            expect_values={"value": "84 mm"},
+        )
+        self.assertFalse(result["inserted"])
+        self.assertTrue(result["commit"]["committed"])
+        self.assertTrue(result["waits"]["expressionResolve"]["waited"],
+                        "the dialog did read the resolved value back")
+        self.assertFalse(result["rowVerified"])
+        self.assertIn("must be deleted", result["reason"])
+        self.assertIn("0 mm", result["reason"])
+
+    def test_the_commit_reload_can_be_skipped_without_claiming_success(self) -> None:
+        """A step whose confirmation outlives the transport returns no verdict.
+
+        Both waits are skipped, not just the reload. The regeneration wait's budget
+        scales with the element (30 s plus 2 s per custom feature), so on a large tree
+        it is itself longer than one call's transport budget: measured live 2026-09-21,
+        three short-path attempts at one heavy cut returned NOTHING, because the call
+        was cut off before it could return from the accept it had already clicked. The
+        short path therefore returns as soon as the accept landed and reports
+        `inserted: None` with `applyState: pending_verification`, so the caller confirms
+        the row itself instead of reading a false success or learning nothing.
+        """
+        page = FakePage()
+        result = self.apply(page, verify_commit=False)
+        self.assertIsNone(result["inserted"])
+        self.assertEqual(result["applyState"], "pending_verification")
+        self.assertFalse(result["verifyCommit"])
+        self.assertTrue(result["accepted"]["clicked"])
+        self.assertEqual(page.reload_calls, [], "the confirming reload was skipped")
+        self.assertEqual(
+            page.wait_function_calls, [], "the regeneration wait was skipped too"
+        )
+        self.assertTrue(result["waits"]["regeneration"]["skipped"])
+        self.assertEqual(result["waits"]["regeneration"]["minimum"], 1)
+        self.assertTrue(result["commit"]["skipped"])
+        self.assertFalse(result["commit"]["verified"])
+        self.assertIsNone(result["commit"]["committed"])
+        self.assertIn("confirm the new row", result["reason"])
+        # The read taken after the accept is still reported, as evidence only.
+        self.assertTrue(result["workbenchAppeared"])
+
+    def test_the_short_path_still_refuses_a_fill_that_did_not_land(self) -> None:
+        """Skipping the confirmation must not soften the fill verdict."""
+        page = FakePage(dialog_fields={"value": "0 mm"})
+        with mock.patch.object(actions, "dialog_values",
+                               return_value={"value": "0 mm"}):
+            result = self.apply(
+                page, parameters={"value": "42 mm"}, verify_commit=False
+            )
+        self.assertFalse(result["inserted"])
+        self.assertEqual(result["applyState"], "not_inserted")
+        self.assertEqual(page.accept_clicks, [])
+        self.assertIn("not filled exactly", result["reason"])
+
+    def test_a_skipped_call_reports_an_accept_that_did_not_land_as_failure(self) -> None:
+        """Only an accept that landed is `unknown`; a missing one is a failure."""
+        page = FakePage(accept=False)
+        result = self.apply(page, verify_commit=False)
+        self.assertFalse(result["inserted"], "a missing accept is not unknown")
+        self.assertEqual(result["applyState"], "not_inserted")
+        self.assertFalse(result["accepted"]["clicked"])
+
+    def test_a_plain_field_that_does_not_read_back_still_refuses(self) -> None:
+        """The expression exemption must not become a general exemption.
+
+        A stale read is modelled directly: the dialog is filled and the blur fires
+        (so the field is ``committed``) while the read still shows the old text. Only
+        a field holding an expression is allowed to disagree with its readback.
+        """
+        page = FakePage(dialog_fields={"value": "0 mm"})
+        with mock.patch.object(actions, "dialog_values",
+                               return_value={"value": "0 mm"}):
+            result = self.apply(page, parameters={"value": "42 mm"})
+        self.assertFalse(result["inserted"])
+        self.assertEqual(page.accept_clicks, [])
+        self.assertIn("not filled exactly", result["reason"])
+        self.assertEqual(result["expressionFields"], [])
+        self.assertEqual(result["parameters"]["mismatched"], ["value"])
+        self.assertEqual(result["parameters"]["committed"], ["value"])
+
+    def test_expect_row_is_checked_whenever_it_is_given(self) -> None:
+        """`expect_row` describes the ROW, so it does not depend on the fill.
+
+        A parameterless step still creates a row, and a caller that states what that
+        row must say gets the check rather than a silent pass.
+        """
+        row = {
+            "headerText": "特征 (1)",
+            "features": [{"name": "TV #gf_x = 1 mm", "isUserFeature": True}],
+            "partsText": "",
+        }
+        page = FakePage(features=row, features_after_reload=row)
+        result = self.apply(page, expect_row="#gf_x = 2 mm")
+        self.assertFalse(result["inserted"])
+        self.assertFalse(result["rowVerified"])
+        self.assertIn("must be deleted", result["reason"])
+
+        matching = self.apply(
+            FakePage(features=row, features_after_reload=row),
+            expect_row="#gf_x = 1 mm",
+        )
+        self.assertTrue(matching["inserted"])
+        self.assertTrue(matching["rowVerified"])
+
     def test_a_boolean_parameter_is_set_through_the_checkbox(self) -> None:
         page = FakePage(
             dialog_fields={"draft_inwards": "false", "depth": "10 mm"},
@@ -546,7 +865,16 @@ class InsertCustomFeatureTest(unittest.TestCase):
             "features": many + [{"name": "Origin", "isUserFeature": False}],
             "partsText": "零件数 (40)",
         }
-        page = FakePage(features_before_insert=before)
+        # The tree KEEPS its rows: the post-accept list is the 40 existing rows plus
+        # the new one, which is why the count gate is baseline + 1 rather than 1.
+        after = {
+            "headerText": "特征 (46)",
+            "features": many + [{"name": "Bc", "isUserFeature": True}],
+            "partsText": "零件数 (41)",
+        }
+        page = FakePage(
+            features_before_insert=before, features=after, features_after_reload=after
+        )
         result = self.apply(page)
         self.assertTrue(result["inserted"])
         self.assertEqual(result["budgets"]["customFeaturesRead"], 40)
@@ -606,8 +934,11 @@ class InsertCustomFeatureTest(unittest.TestCase):
         result = self.apply(page)
         self.assertFalse(result["inserted"])
         self.assertFalse(result["accepted"]["clicked"])
-        # No accept means no new row, so the pre-click list is still what is there.
-        self.assertFalse(result["listed"])
+        # An accept that did not land still leaves the row the dropdown click added
+        # (measured live 2026-09-20: an unaccepted row is real and survives a reload),
+        # so `listed` reports it -- which is exactly why `listed` alone is not the
+        # verdict and `inserted` is.
+        self.assertTrue(result["listed"])
         self.assertIn("accept click did not land", result["reason"])
 
     def test_row_badge_does_not_hide_the_feature_name(self) -> None:
@@ -835,8 +1166,10 @@ class InsertCommitVerificationTest(unittest.TestCase):
         """The live false-success: two existing rows satisfied a name-only wait.
 
         The Part Studio already showed `Bc 1` and `Bc 2`; the accept lands but the
-        workspace keeps nothing, so after the reload the count is still the
-        baseline of two and the insert must NOT be reported as committed.
+        workspace keeps nothing, so the row count stays at the baseline of two. A
+        name-matching wait would have been satisfied instantly by the OLD rows, so
+        the check counts rows instead: the reload brings back only the two that were
+        already there, and the insert is not reported.
         """
         existing = {
             "headerText": "特征 (7)",
@@ -857,7 +1190,76 @@ class InsertCommitVerificationTest(unittest.TestCase):
         self.assertFalse(result["inserted"])
         self.assertFalse(result["commit"]["committed"])
         self.assertTrue(result["commit"]["verified"])
-        self.assertIn("did not survive", result["reason"])
+        self.assertIn("never settled", result["reason"])
+        # Nothing new is in the reloaded list either, so no row is claimed as created.
+        self.assertEqual(result["createdRows"], [])
+        self.assertFalse(result["commit"]["createdRows"])
+
+    def test_a_template_named_row_is_a_commit_even_though_its_name_never_matches(
+        self,
+    ) -> None:
+        """The live false-failure: a Feature Name Template hides the type name.
+
+        Measured 2026-09-21, a `Thin Variable` row reads `TV #gf_probe = 42 mm`, so
+        a gate that looks for "Thin Variable" times out after the whole survival
+        budget on a row that is really there. Counting rows and subtracting the
+        pre-insert names is the same check with the blind spot removed.
+        """
+        before = {
+            "headerText": "特征 (0)",
+            "features": [],
+            "partsText": "零件数 (0)",
+        }
+        after = {
+            "headerText": "特征 (1)",
+            "features": [{"name": "TV #gf_probe = 42 mm", "isUserFeature": True}],
+            "partsText": "",
+        }
+        page = FakePage(
+            menu_items=("Thin Variable",),
+            features_before_insert=before,
+            features=after,
+            features_after_reload=after,
+        )
+        result = actions.insert_custom_feature(page, "Thin Variable")
+        self.assertTrue(result["inserted"])
+        self.assertTrue(result["commit"]["committed"])
+        self.assertTrue(result["listed"])
+        self.assertFalse(result["errored"])
+        self.assertEqual(
+            result["createdRows"], [{"name": "TV #gf_probe = 42 mm", "hasError": False}]
+        )
+        # The survival wait asks for a row COUNT, so its text filter is empty and
+        # the wait cannot be defeated by the template's display text.
+        survival = page.wait_function_calls[-1]["arg"]
+        self.assertEqual(survival["text"], "")
+        self.assertEqual(survival["minimum"], 1)
+
+    def test_a_template_named_row_that_disappears_is_never_called_inserted(
+        self,
+    ) -> None:
+        """The count check must not turn into a weaker check.
+
+        A template-named row is confirmed by counting, so the failure direction has
+        to stay strict: a row that the reload does not bring back is not an insert.
+        """
+        after = {
+            "headerText": "特征 (1)",
+            "features": [{"name": "TV #gf_probe = 42 mm", "isUserFeature": True}],
+            "partsText": "",
+        }
+        page = FakePage(
+            menu_items=("Thin Variable",),
+            features=after,
+            features_after_reload={"headerText": "特征 (0)", "features": [], "partsText": ""},
+        )
+        page.never_satisfied_minimum = 1
+        result = actions.insert_custom_feature(page, "Thin Variable")
+        self.assertFalse(result["inserted"])
+        self.assertTrue(result["commit"]["verified"])
+        self.assertFalse(result["commit"]["committed"])
+        self.assertFalse(result["listed"])
+        self.assertIn("never settled", result["reason"])
 
     def test_a_third_row_beyond_two_existing_ones_is_a_commit(self) -> None:
         before = {
@@ -925,7 +1327,7 @@ class InsertCommitVerificationTest(unittest.TestCase):
         self.assertTrue(result["commit"]["verified"])
         self.assertFalse(result["commit"]["committed"])
         self.assertFalse(result["listed"])
-        self.assertIn("did not survive", result["reason"])
+        self.assertIn("never settled", result["reason"])
 
     def test_a_failed_reload_is_unverified_rather_than_a_success(self) -> None:
         page = FakePage(reload_fails=True)
@@ -938,15 +1340,42 @@ class InsertCommitVerificationTest(unittest.TestCase):
         self.assertTrue(result["listed"])
         self.assertIsNone(result["commit"]["survived"])
 
-    def test_a_row_that_never_appeared_is_not_confirmed_with_a_reload(self) -> None:
-        page = FakePage(features={"headerText": "", "features": [], "partsText": ""})
+    def test_the_post_accept_read_is_evidence_and_not_the_gate(self) -> None:
+        """A mid-re-render read must not decide the insert.
+
+        Measured live 2026-09-21: the read taken straight after an accepted insert
+        returned ZERO user rows while the same insert survived the confirming reload
+        -- the accept starts a re-render that clears the list first. So the reload is
+        always spent once the accept landed, and the count it reads decides.
+        """
+        after = {"headerText": "特征 (1)",
+                 "features": [{"name": "Bc", "isUserFeature": True}],
+                 "partsText": "零件数 (1) Bc"}
+        # The read right after the accept is empty; the reload brings the row back.
+        page = FakePage(
+            features={"headerText": "", "features": [], "partsText": ""},
+            features_after_reload=after,
+        )
+        result = actions.insert_custom_feature(page, "Bc")
+        self.assertFalse(result["workbenchAppeared"],
+                         "the transient read is reported, and it was empty")
+        self.assertEqual(len(page.reload_calls), 1, "the reload is the deciding read")
+        self.assertTrue(result["commit"]["verified"])
+        self.assertTrue(result["commit"]["committed"])
+        self.assertTrue(result["inserted"])
+
+    def test_a_row_that_really_never_landed_is_still_rejected(self) -> None:
+        """The reload decides, so a genuinely absent row cannot pass either."""
+        page = FakePage(
+            features={"headerText": "", "features": [], "partsText": ""},
+            features_after_reload={"headerText": "", "features": [], "partsText": ""},
+        )
         page.never_satisfied_minimum = 1
         result = actions.insert_custom_feature(page, "Bc")
         self.assertFalse(result["inserted"])
-        # No reload is spent on a feature the workbench never showed.
-        self.assertEqual(page.reload_calls, [])
-        self.assertFalse(result["commit"]["verified"])
-        self.assertIn("never appeared", result["reason"])
+        self.assertTrue(result["commit"]["verified"])
+        self.assertFalse(result["commit"]["committed"])
+        self.assertIn("never settled", result["reason"])
 
     def test_the_verifier_alone_reports_uncommitted_and_unverified(self) -> None:
         listed = {
@@ -968,6 +1397,143 @@ class InsertCommitVerificationTest(unittest.TestCase):
         self.assertEqual(len(page.reload_calls), 1)
         self.assertTrue(committed["reload"]["reloaded"])
         self.assertTrue(committed["survived"]["waited"])
+
+    def test_the_survival_wait_can_drop_the_name_filter_it_cannot_satisfy(self) -> None:
+        """`match_name=False` is the arg shape the commit check depends on."""
+        page = FakePage(features_before_insert={
+            "headerText": "特征 (1)",
+            "features": [{"name": "TV #gf_probe = 42 mm", "isUserFeature": True}],
+            "partsText": "",
+        })
+        outcome = actions.wait_for_feature_rows(page, "Thin Variable", 1, 30_000,
+                                                match_name=False)
+        self.assertTrue(outcome["waited"])
+        self.assertFalse(outcome["matchName"])
+        self.assertEqual(
+            page.wait_function_calls[0]["arg"],
+            {"selector": selectors.PARTSTUDIO_FEATURE_ITEM, "text": "", "minimum": 1},
+        )
+        # And the name-matched form of the SAME wait cannot see that row at all,
+        # which is the live false-failure this argument exists to remove.
+        named = actions.wait_for_feature_rows(page, "Thin Variable", 1, 5)
+        self.assertFalse(named["waited"])
+        self.assertEqual(
+            page.wait_function_calls[-1]["arg"],
+            {"selector": selectors.PARTSTUDIO_FEATURE_ITEM,
+             "text": "Thin Variable", "minimum": 1},
+        )
+
+    def test_the_created_row_is_identified_by_name_set_difference(self) -> None:
+        """A count alone cannot say WHICH row is new, so the names are subtracted.
+
+        Two user rows exist before the insert and three after; the third one is the
+        created row even though none of the three names matches the feature type.
+        """
+        before = {
+            "headerText": "特征 (2)",
+            "features": [
+                {"name": "TV #a = 1 mm", "isUserFeature": True},
+                {"name": "TV #b = 2 mm", "isUserFeature": True},
+            ],
+            "partsText": "",
+        }
+        after = {
+            "headerText": "特征 (3)",
+            "features": [
+                {"name": "TV #a = 1 mm", "isUserFeature": True},
+                {"name": "TV #b = 2 mm", "isUserFeature": True},
+                {"name": "TV #c = 3 mm", "isUserFeature": True},
+            ],
+            "partsText": "",
+        }
+        page = FakePage(
+            features_before_insert=before, features=after, features_after_reload=after
+        )
+        commit = actions.verify_insert_committed(
+            page,
+            "Thin Variable",
+            survival_minimum=3,
+            baseline_names=[row["name"] for row in actions.user_feature_rows(before)],
+            appeared=True,
+        )
+        self.assertTrue(commit["verified"])
+        self.assertTrue(commit["committed"])
+        self.assertEqual(commit["createdRows"],
+                         [{"name": "TV #c = 3 mm", "hasError": False}])
+        # The name-matched state still reports nothing, which is precisely why the
+        # verdict cannot be taken from it.
+        self.assertFalse(commit["featureRows"] == commit["createdRows"])
+        self.assertEqual(len(commit["featureRows"]), 0)
+        # The wait asked for a count, not a name.
+        self.assertEqual(page.wait_function_calls[-1]["arg"]["text"], "")
+
+    def test_a_created_row_is_the_excess_over_a_baseline_multiset(self) -> None:
+        """A name two rows share must not hide the row this call created.
+
+        Measured live 2026-09-21: a run reported as a relay timeout kept running
+        server-side, its resume raced it, and the element ended up with two identical
+        ``TV #gf_lock = 37.7 mm 锁定面方孔边长`` rows. The set-difference verdict then
+        said the NEW row was "not created" because its name was already in the
+        baseline, which made the project runner fail that step on every resume. The
+        excess over the baseline NAME COUNTS is the row in question.
+        """
+        duplicated = "TV #gf_lock = 37.7 mm 锁定面方孔边长"
+        after = {
+            "headerText": "特征 (3)",
+            "features": [
+                {"name": duplicated, "isUserFeature": True},
+                {"name": duplicated, "isUserFeature": True},
+                {"name": duplicated, "isUserFeature": True},
+            ],
+            "partsText": "",
+        }
+        page = FakePage(features_after_reload=after)
+        commit = actions.verify_insert_committed(
+            page,
+            "Thin Variable",
+            survival_minimum=3,
+            baseline_names=[duplicated, duplicated],
+            appeared=True,
+        )
+        self.assertTrue(commit["verified"])
+        self.assertTrue(commit["committed"], "the third row is the one this call added")
+        self.assertEqual(commit["createdRows"],
+                         [{"name": duplicated, "hasError": False}])
+        self.assertEqual(commit["reason"], "")
+
+    def test_a_row_short_of_the_count_gate_is_a_non_verdict(self) -> None:
+        """A partial post-reload read must not be reported as a missing feature.
+
+        The Feature List is VIRTUALISED, so the read taken after the survival wait can
+        see fewer rows than the wait's own DOM predicate just counted (measured live
+        2026-09-21: a survival wait that had counted 7 user rows was followed by a
+        shorter read, and the old single message called the insert "not survived"
+        while the row was on screen twice). The verdict stays False -- an unreadable
+        page is never a success -- and the reason now names the READ that fell short
+        instead of blaming the workspace.
+        """
+        page = FakePage(features_after_reload={
+            "headerText": "特征 (2)",
+            "features": [
+                {"name": "TV #c = 3 mm", "isUserFeature": True},
+                {"name": "TV #d = 4 mm", "isUserFeature": True},
+            ],
+            "partsText": "",
+        })
+        partial = {
+            "headerText": "特征 (2)",
+            "features": [{"name": "TV #c = 3 mm", "isUserFeature": True}],
+            "partsText": "",
+        }
+        with mock.patch.object(
+            actions, "read_partstudio_features", return_value=partial
+        ):
+            commit = actions.verify_insert_committed(
+                page, "Thin Variable", survival_minimum=2, appeared=True
+            )
+        self.assertTrue(commit["verified"])
+        self.assertFalse(commit["committed"], "one row is short of the two-row gate")
+        self.assertIn("partial window", commit["reason"])
 
     def test_the_survival_wait_reports_its_own_timeout_as_evidence(self) -> None:
         page = FakePage()
@@ -1015,6 +1581,221 @@ class FeatureListedTest(unittest.TestCase):
         self.assertFalse(actions.feature_listed({}, "Bc"))
         self.assertFalse(actions.feature_listed({"features": "Bc"}, "Bc"))
         self.assertFalse(actions.feature_listed({"features": [None, 5]}, "Bc"))
+
+
+class SameQuantityTest(unittest.TestCase):
+    """The one comparison a literal and a settled expression both have to pass."""
+
+    def test_text_matches_case_insensitively_with_whitespace_collapsed(self):
+        self.assertTrue(actions.quantities_match(" 45 deg ", "45 DEG"))
+        self.assertTrue(actions.quantities_match("true", "true"))
+        self.assertFalse(actions.quantities_match("true", "false"))
+
+    def test_a_rendered_number_matches_the_same_number_written_differently(self):
+        self.assertTrue(actions.quantities_match("36.3 mm", "36.30 mm"))
+        self.assertTrue(actions.quantities_match("42 mm", "42 mm"))
+
+    def test_the_unit_is_part_of_the_value(self):
+        """Ignoring it would accept 36.3 in for a 36.3 mm dimension."""
+        self.assertFalse(actions.quantities_match("36.3 in", "36.3 mm"))
+        self.assertFalse(actions.quantities_match("36.3", "36.3 mm"))
+        # An empty readback is not evidence for a value that was asked for, while
+        # clearing a text field is a real request and reads back exactly empty.
+        self.assertFalse(actions.quantities_match("", "36.3 mm"))
+        self.assertTrue(actions.quantities_match("", ""))
+
+    def test_text_that_is_not_a_quantity_falls_back_to_text(self):
+        self.assertTrue(actions.quantities_match("#gf_socket", "#gf_socket"))
+        self.assertFalse(actions.quantities_match("#gf_socket", "#gf_pitch"))
+
+
+class DialogFieldResolveWaitTest(unittest.TestCase):
+    """The accept gate for an expression: the dialog's own readback, after a wait."""
+
+    def test_an_expression_with_no_stated_value_is_refused_without_a_wait(self):
+        """The typed text is not a settle signal, so such a key cannot be confirmed.
+
+        Measured live 2026-09-21: an accept taken while the field still showed the typed
+        `#gf_pitch * 2` committed the field's previous value, and the row landed as
+        `TV #gf_plate_size = 0 mm`. A caller that states no value therefore gets an
+        immediate, explicit refusal instead of a 20 s wait that ends in the same place.
+        """
+        page = FakePage(dialog_fields={"value": "0 mm"}, expression_keys={"value"})
+        filled = actions.fill_dialog_fields(page, {"value": "#gf_pitch * 2"})
+        self.assertEqual(filled["mismatched"], ["value"])
+        self.assertFalse(filled["readbackOk"])
+        self.assertFalse(filled["resolved"])
+        wait = filled["expressionWait"]
+        self.assertEqual(wait["condition"], "unstated_expression")
+        self.assertEqual(wait["unstatedExpressionKeys"], ["value"])
+        self.assertEqual(wait["elapsedMs"], 0)
+        self.assertEqual(page.timeouts, [], "it does not spend the expression budget")
+
+    def test_a_settled_widget_may_render_the_evaluated_number(self):
+        """A dimension reads back the resolved value, so the caller states it.
+
+        Measured live 2026-09-21: `#gf_socket` read back as `36.3 mm` once the widget
+        had resolved it, so a comparison against the typed text alone would call a
+        correct dimension a permanent mismatch.
+        """
+        page = FakePage(
+            dialog_fields={"width": "100 mm"},
+            expression_keys={"width"},
+            evaluated={"#gf_socket": "36.3 mm"},
+        )
+        filled = actions.fill_dialog_fields(
+            page, {"width": "#gf_socket"}, expect_values={"width": "36.30 mm"}
+        )
+        self.assertEqual(filled["after"]["width"], "36.3 mm")
+        self.assertEqual(filled["mismatched"], [])
+        self.assertTrue(filled["readbackOk"])
+        self.assertEqual(filled["expectValues"], {"width": "36.30 mm"})
+        self.assertEqual(filled["expressionWait"]["resolvedValues"],
+                         {"width": "36.30 mm"})
+        self.assertEqual(filled["expressionWait"]["strictKeys"], ["width"])
+        self.assertEqual(filled["expressionWait"]["elapsedMs"], 0,
+                         "the wait's own read is the one that settled")
+
+    def test_the_typed_expression_alone_never_confirms_a_stated_value(self):
+        """The live defect: the widget showed the typed `#expression`, defaults won.
+
+        Measured live 2026-09-21: a variable-driven `Thin Sketch Rectangle` stored its
+        100 mm / 100 mm / 0 mm dialog DEFAULTS while its literal-valued sibling in the
+        same document stored the requested 84 mm / 84 mm / 4 mm. The wait had accepted
+        the typed expression as a settle signal and the accept then committed the
+        field's previous value, so a key the caller states a value for is confirmed
+        ONLY by that value.
+        """
+        page = FakePage(
+            dialog_fields={"width": "100 mm"},
+            expression_keys={"width"},
+            evaluated={"#gf_lock": "#gf_lock"},
+        )
+        with mock.patch.object(actions.time, "monotonic", page.clock.monotonic):
+            filled = actions.fill_dialog_fields(
+                page, {"width": "#gf_lock"}, expect_values={"width": "37.7 mm"}
+            )
+        self.assertEqual(filled["after"]["width"], "#gf_lock")
+        self.assertEqual(filled["mismatched"], ["width"])
+        self.assertFalse(filled["readbackOk"])
+        self.assertFalse(filled["resolved"])
+
+    def test_a_literal_key_is_judged_by_its_text_and_an_expression_by_its_value(self):
+        """Only an expression is strict; a literal still reads back as what was typed."""
+        page = FakePage(
+            dialog_fields={"value": "#gf_pitch * 2", "depth": "0.35 mm"},
+            expression_keys={"value"},
+        )
+        with mock.patch.object(actions.time, "monotonic", page.clock.monotonic), \
+                mock.patch.object(actions, "dialog_values",
+                                  return_value={"value": "#gf_pitch * 2",
+                                                "depth": "0.35 mm"}):
+            outcome = actions.wait_for_dialog_fields(
+                page, {"value": "#gf_pitch * 2", "depth": "0.35 mm"},
+                ["value", "depth"], timeout_ms=0, resolved={"value": "84 mm"},
+            )
+        self.assertEqual(outcome["strictKeys"], ["value"])
+        self.assertEqual(outcome["mismatched"], ["value"],
+                         "the literal key matched its own text")
+
+    def test_without_a_stated_value_a_rendered_number_is_a_refusal(self):
+        """Nothing else can confirm it: the typed text never comes back."""
+        page = FakePage(
+            dialog_fields={"width": "100 mm"},
+            expression_keys={"width"},
+            evaluated={"#gf_socket": "36.3 mm"},
+        )
+        page.expression_never_resolves = True
+        with mock.patch.object(actions.time, "monotonic", page.clock.monotonic):
+            filled = actions.fill_dialog_fields(page, {"width": "#gf_socket"})
+        self.assertEqual(filled["mismatched"], ["width"])
+        self.assertFalse(filled["readbackOk"])
+        self.assertFalse(filled["resolved"])
+
+    def test_expect_values_is_only_consulted_for_expression_fields(self):
+        """A literal field is judged by what was typed, never by a stray entry."""
+        page = FakePage(dialog_fields={"width": "100 mm"})
+        filled = actions.fill_dialog_fields(
+            page, {"width": "100 mm"}, expect_values={"width": "36.3 mm"}
+        )
+        self.assertEqual(filled["mismatched"], [])
+        self.assertEqual(filled["expectValues"], {})
+        self.assertIsNone(filled["expressionWait"])
+        self.assertIsNone(filled["resolved"])
+
+    def test_an_unsettled_field_is_reported_and_never_raised(self):
+        page = FakePage(dialog_fields={"value": "0 mm"}, expression_keys={"value"})
+        page.expression_never_resolves = True
+        with mock.patch.object(actions.time, "monotonic", page.clock.monotonic):
+            outcome = actions.wait_for_dialog_fields(
+                page, {"value": "#gf_pitch * 2"}, ["value"], timeout_ms=3_000, poll_ms=1_000,
+                resolved={"value": "84 mm"},
+            )
+        self.assertFalse(outcome["waited"])
+        self.assertEqual(outcome["mismatched"], ["value"])
+        self.assertEqual(outcome["after"]["value"], "0 mm")
+        # The loop polls on a real clock and gives up at the budget, not before.
+        self.assertEqual([call for call in page.timeouts], [1_000, 1_000, 1_000])
+        self.assertEqual(outcome["timeoutMs"], 3_000)
+
+    def test_it_judges_only_the_keys_it_was_given(self):
+        """A literal field's own value is the fill verdict's business, not this wait's."""
+        page = FakePage(dialog_fields={"value": "0 mm", "name": "gf_plate_size"},
+                        expression_keys={"value"})
+        with mock.patch.object(actions, "dialog_values",
+                               return_value={"value": "0 mm", "name": "gf_plate_size"}):
+            outcome = actions.wait_for_dialog_fields(
+                page, {"value": "#gf_pitch * 2", "name": "gf_plate_size"}, ["value"],
+                timeout_ms=0, resolved={"value": "84 mm"},
+            )
+        self.assertFalse(outcome["waited"])
+        self.assertEqual(outcome["mismatched"], ["value"])
+        self.assertEqual(outcome["timeoutMs"], 0, "a zero budget reads once and stops")
+
+    def test_the_default_budget_is_the_measured_one(self):
+        self.assertEqual(actions.EXPRESSION_RESOLVE_WAIT_MS, 20_000)
+        self.assertEqual(actions.EXPRESSION_RESOLVE_POLL_MS, 1_000)
+
+
+class UserFeatureRowsTest(unittest.TestCase):
+    """Every user row, whatever it is called — the count the commit gate uses."""
+
+    def test_user_rows_carry_name_and_error_and_skip_the_defaults(self) -> None:
+        features = {"features": [
+            {"name": "默认几何图元", "isUserFeature": False},
+            {"name": "TV #gf_probe = 42 mm", "isUserFeature": True},
+            {"name": "GB GF Base Plate Body 1", "isUserFeature": True, "hasError": True},
+        ]}
+        self.assertEqual(
+            actions.user_feature_rows(features),
+            [
+                {"name": "TV #gf_probe = 42 mm", "hasError": False},
+                {"name": "GB GF Base Plate Body 1", "hasError": True},
+            ],
+        )
+
+    def test_a_missing_error_flag_is_false_not_absent(self) -> None:
+        rows = actions.user_feature_rows(
+            {"features": [{"name": "TV #a = 1 mm", "isUserFeature": True}]}
+        )
+        self.assertEqual(rows, [{"name": "TV #a = 1 mm", "hasError": False}])
+
+    def test_malformed_feature_lists_yield_no_rows(self) -> None:
+        for features in (None, {}, {"features": "TV"}, {"features": [None, 5]}):
+            self.assertEqual(actions.user_feature_rows(features), [])
+
+    def test_a_nameless_row_still_counts_so_the_gate_cannot_be_evaded(self) -> None:
+        """A row with no readable name is still a row: it must inflate the count.
+
+        ``feature_state`` finds no name match for it (so it is never called the
+        feature that was asked for), but the commit gate counts it, which keeps the
+        gate conservative in the "not inserted" direction.
+        """
+        rows = actions.user_feature_rows({"features": [{"isUserFeature": True}]})
+        self.assertEqual(rows, [{"name": "", "hasError": False}])
+        self.assertFalse(
+            actions.feature_state({"features": [{"isUserFeature": True}]}, "Bc")["listed"]
+        )
 
 
 class BuildPartAcceptanceTest(unittest.TestCase):
@@ -1244,10 +2025,16 @@ class FakeDialogLocator:
     def count(self) -> int:
         if self.selector == selectors.PS_USER_FEATURE:
             return self.page.locator_user_rows
+        if self.selector == selectors.TAB_CONTEXT_MENU:
+            return 1 if self.page.context_menu_open else 0
+        if self.selector == selectors.TAB_CONTEXT_MENU_ITEM:
+            return len(self.page.menu_labels) if self.page.context_menu_open else 0
         if self.selector == selectors.PS_FEATURE_DIALOG:
             return 1 if self.page.dialog_visible else 0
         if self.selector == selectors.PS_FEATURE_DIALOG_ACCEPT:
-            return 1
+            # The parameter dialog's accept button and a delete confirmation share
+            # this selector live, so the double gates it on either being on screen.
+            return 1 if (self.page.dialog_visible or self.page.confirm_dialog) else 0
         key = self._parameter_key()
         if key is None or not self.page.locator_sees_parameter:
             return 0
@@ -1276,6 +2063,8 @@ class FakeDialogLocator:
         self.page.dialog_waits.append({"state": state, "timeout": timeout})
         if self.selector == selectors.PS_FEATURE_DIALOG and not self.page.dialog_visible:
             raise TimeoutError("dialog not visible")
+        if self.selector == selectors.TAB_CONTEXT_MENU and not self.page.context_menu_open:
+            raise TimeoutError("context menu not visible")
         return True
 
     def fill(self, value: str) -> None:
@@ -1286,10 +2075,47 @@ class FakeDialogLocator:
 
     def click(self, **kwargs: object) -> None:
         if self.selector == selectors.PS_FEATURE_DIALOG_ACCEPT:
+            if self.page.confirm_dialog:
+                self.page.confirm_clicks.append("accept")
+                self.page.confirm_dialog = False
+                return
             # Accepting starts a regeneration; the dialog stays on screen until
             # the condition wait observes it gone. Closing it here would make the
             # timeout fallback look like a success.
             self.page.accept_clicks.append(True)
+            return
+        if self.selector == selectors.PS_USER_FEATURE:
+            self.page.right_clicks.append({"index": self.index, **kwargs})
+            if kwargs.get("button") == "right":
+                self.page.context_menu_open = self.page.menu_opens
+                self.page.context_menu_row_index = self.index
+            return
+        if self.selector == selectors.TAB_CONTEXT_MENU_ITEM:
+            labels = self.page.menu_labels
+            index = self.index if self.index is not None else 0
+            label = labels[index] if 0 <= index < len(labels) else ""
+            self.page.menu_clicks.append(label)
+            self.page.context_menu_open = False
+            if label in actions.PS_FEATURE_DELETE_MENU_TEXTS:
+                if self.page.deletes_row and self.page.context_menu_row_index is not None:
+                    self.page.remove_row(self.page.context_menu_row_index)
+            return
+    def is_visible(self) -> bool:
+        if self.selector == selectors.TAB_CONTEXT_MENU_ITEM:
+            return self.page.context_menu_open
+        if self.selector == selectors.TAB_CONTEXT_MENU:
+            return self.page.context_menu_open
+        return True
+
+    def inner_text(self) -> str:
+        """The row's name or the menu item's label, from the page's own model."""
+        if self.selector == selectors.PS_USER_FEATURE and self.index is not None:
+            rows = self.page.dom_rows
+            return rows[self.index] if 0 <= self.index < len(rows) else ""
+        if self.selector == selectors.TAB_CONTEXT_MENU_ITEM and self.index is not None:
+            labels = self.page.menu_labels
+            return labels[self.index] if 0 <= self.index < len(labels) else ""
+        return ""
 
     def is_checked(self) -> bool:
         return False
@@ -1326,6 +2152,10 @@ class FakeDialogPage:
         parameter_fields: tuple[str, ...] = ("baseRadius",),
         locator_sees_parameter: bool = True,
         reload_render_polls: int = 0,
+        menu_labels: tuple[str, ...] = ("编辑", "抑制", "删除", "重命名", "回滚到此"),
+        menu_opens: bool = True,
+        deletes_row: bool = True,
+        confirm_dialog: bool = False,
     ) -> None:
         self.rows = list(rows)
         self.nameless_rows = nameless_rows
@@ -1376,6 +2206,44 @@ class FakeDialogPage:
         self.rendered = True
         self.render_polls = 0
         self.keyboard = mock.Mock()
+        # The feature row's context menu: a right-click on a row opens the shared
+        # jQuery menu, whose items are labels. `context_menu_row_index` is the row
+        # the menu belongs to, so a delete removes THAT row rather than the row now
+        # sitting at the menu item's position.
+        self.menu_labels = list(menu_labels)
+        self.menu_opens = menu_opens
+        self.deletes_row = deletes_row
+        self.confirm_dialog = confirm_dialog
+        self.context_menu_open = False
+        self.context_menu_row_index: int | None = None
+        self.right_clicks: list[dict] = []
+        self.menu_clicks: list[str] = []
+        self.confirm_clicks: list[str] = []
+
+    def remove_row(self, index: int) -> None:
+        """Remove one row from BOTH views of the DOM, as a live delete does.
+
+        The enumeration reads ``dom_rows`` and a read reads ``read_features``, so
+        dropping the row from only one of them would model a page that cannot
+        exist and would hide exactly the disagreement the delete verdict checks.
+        """
+        if 0 <= index < len(self.dom_rows):
+            name = self.dom_rows.pop(index)
+            if name in self.rows:
+                self.rows.remove(name)
+            # ONE row leaves, not every row with that name: live, a delete removes the
+            # row that was clicked, so a duplicated name keeps its surviving twin in
+            # both views. Dropping them all here would make the read agree with a
+            # name-based verdict that is wrong for exactly that case.
+            kept = []
+            dropped = False
+            for row in self.read_features["features"]:
+                if not dropped and row["name"] == name:
+                    dropped = True
+                    continue
+                kept.append(row)
+            self.read_features["features"] = kept
+            self.locator_user_rows = max(0, self.locator_user_rows - 1)
 
     def evaluate(self, expression: str, arg: object = None) -> dict:
         if expression == actions._USER_FEATURE_ROWS_JS:
@@ -1391,7 +2259,14 @@ class FakeDialogPage:
             return dict(self.dialog_values) if self.dialog_visible else {}
         if not self.rendered:
             return {"headerText": "", "features": [], "partsText": "", "partItems": []}
-        return self.read_features
+        # A READ is a SNAPSHOT: live it is a fresh DOM query, so returning the
+        # page's live dict would let a later delete rewrite a read already taken
+        # (and would make the before/after counts of a delete disagree).
+        return {
+            **self.read_features,
+            "features": [dict(row) for row in self.read_features.get("features", [])],
+            "partItems": list(self.read_features.get("partItems", [])),
+        }
 
     def wait_for_function(self, expression: str, *, arg: object = None, timeout: float | None = None,
                           polling: object = None) -> bool:
@@ -1819,6 +2694,45 @@ class VerifyFeatureParametersTest(unittest.TestCase):
         self.assertFalse(verified["persistenceOk"])
         self.assertIn("did not regenerate cleanly", verified["reason"])
 
+    def test_a_row_renamed_by_its_edit_is_verified_under_its_new_text(self):
+        """A templated row prints its values, so a successful edit RENAMES it.
+
+        Measured live 2026-09-21: editing `TV #gf_plate_size = 0 mm` into
+        `#gf_pitch * 2` produced the row `TV #gf_plate_size = 84 mm`; the name-only
+        lookup then read 0 rows and reported `parametersApplied: false` for an edit that
+        had committed. `expect_row` names the text the row must now carry, and the
+        verdict is read from THAT row.
+        """
+        page = FakeDialogPage(
+            rows=("TV #gf_pitch = 42 mm", "TV #gf_plate_size = 84 mm")
+        )
+        page.dialog_values["baseRadius"] = "12 mm"
+        verified = transactions.verify_feature_parameters(
+            page,
+            "TV #gf_plate_size = 0 mm",
+            {"baseRadius": "12 mm"},
+            expect_row="#gf_plate_size = 84 mm",
+        )
+        self.assertEqual(verified["rowRenamed"], "TV #gf_plate_size = 84 mm")
+        self.assertEqual(verified["verifiedRowName"], "TV #gf_plate_size = 84 mm")
+        self.assertTrue(verified["verified"])
+        self.assertTrue(verified["parametersApplied"])
+        self.assertEqual(verified["persisted"], {"baseRadius": "12 mm"})
+
+    def test_a_renamed_row_is_still_unconfirmed_when_no_new_text_is_stated(self):
+        """The old name alone cannot confirm it: there is nothing to read."""
+        page = FakeDialogPage(
+            rows=("TV #gf_pitch = 42 mm", "TV #gf_plate_size = 84 mm")
+        )
+        verified = transactions.verify_feature_parameters(
+            page, "TV #gf_plate_size = 0 mm", {"baseRadius": "12 mm"}
+        )
+        self.assertNotIn("rowRenamed", verified)
+        self.assertEqual(verified["verifiedRowName"], "TV #gf_plate_size = 0 mm")
+        self.assertFalse(verified["verified"])
+        self.assertIs(verified["parametersApplied"], False)
+        self.assertIn("did not regenerate cleanly", verified["reason"])
+
     def test_values_that_do_not_survive_the_reopen_are_reported(self):
         page = FakeDialogPage()
         applied = transactions.edit_feature_parameters(
@@ -1952,6 +2866,315 @@ class ReadFeatureParametersTest(unittest.TestCase):
             "different sets; comparing them refused on every element live",
         )
 
+    def test_the_row_enumeration_walks_a_virtualised_feature_list(self):
+        """A windowed Feature List hides the tail from every name-addressed tool.
+
+        Measured live 2026-09-21 on a 25-row thin chain: the Feature List header read
+        `特征 (29)` while one `querySelectorAll` pass returned exactly the first 18
+        rows, so a stray row near the bottom could be neither read nor deleted (both
+        resolve through this enumeration) and a reload that re-rendered the top looked
+        like rows vanishing. The collector must therefore also scroll the row list.
+        """
+        js = actions._USER_FEATURE_ROWS_JS
+        self.assertTrue(js.lstrip().startswith("async ({selector})"), js[:40])
+        self.assertIn("scrollHeight - walk.clientHeight", js)
+        self.assertIn("container.scrollTop = origin", js)
+        self.assertIn("setTimeout", js)
+        # Bounded: a computed limit and a step loop, never an open-ended wait.
+        self.assertIn("for (let top = 0; top <= limit; top += step)", js)
+
+    def test_a_single_pass_answer_keeps_its_old_shape(self):
+        class _Page:
+            def __init__(self, answer):
+                self.answer = answer
+
+            def evaluate(self, expression, arg=None):
+                return self.answer
+
+        plain = actions.enumerate_user_feature_rows(_Page({"count": 2, "names": ["A", "B"]}), "sel")
+        self.assertEqual(plain, {"count": 2, "names": ["A", "B"]})
+        scrolled = actions.enumerate_user_feature_rows(
+            _Page({"count": 3, "names": ["A", "B", "C"], "scrolled": True}), "sel"
+        )
+        self.assertEqual(scrolled, {"count": 3, "names": ["A", "B", "C"], "scrolled": True})
+
+    def test_a_row_below_the_rendered_window_is_scrolled_into_view(self):
+        """The click layer indexes RENDERED rows, so a tail row must be rendered first.
+
+        Live 2026-09-21: a 26-row thin chain rendered 18 rows, the enumeration saw all
+        26 (after the scroll pass), and the old count comparison refused every tail row
+        -- which is what made the two stray rows of that chain undeletable.
+        """
+        page = _WindowedRowPage(["TE Thin Extrude 1", "TE Thin Extrude 2", "TE Thin Extrude 3"], window=2)
+        row, evidence = transactions._locate_feature_row(page, "TE Thin Extrude 3")
+        self.assertIsNotNone(row)
+        self.assertEqual(page.scrolls, ["TE Thin Extrude 3"])
+        self.assertEqual(evidence["locatorRows"], 2, "only the window is rendered")
+        self.assertEqual(evidence["featureRows"], page.rows, "the enumeration walks the list")
+        self.assertTrue(evidence["rowScroll"]["found"])
+        self.assertEqual(evidence["rowScroll"]["steps"], 2)
+        row.click(button="right")
+        self.assertEqual(page.clicks, [(1, "right")], "the index is the RENDERED one")
+
+    def test_a_windowed_row_that_never_renders_is_still_refused(self):
+        page = _WindowedRowPage(
+            ["TE Thin Extrude 3", "TE Thin Extrude 4", "TE Thin Extrude 5"], window=1
+        )
+        row, evidence = transactions._locate_feature_row(page, "TE Thin Extrude 4")
+        self.assertIsNone(row)
+        self.assertEqual(page.clicks, [])
+        self.assertIn("refusing to click a row that may be a different one", evidence["reason"])
+        self.assertIn("no unique rendered match", evidence["reason"])
+
+
+class _WindowedRowPage:
+    """A Feature List that renders only its first ``window`` rows.
+
+    Live-observed shape: the page enumeration walks the scroll container and sees every
+    row, while ``page.locator('.os-list-item.ns-user-feature').count()`` reports only the
+    rows the pane has rendered.
+    """
+
+    def __init__(self, rows, window=2):
+        self.rows = list(rows)
+        self.window = window
+        self.scrolls: list[str] = []
+        self.clicks: list[tuple[int, str]] = []
+
+    def evaluate(self, expression, arg=None):
+        if expression == actions._USER_FEATURE_ROWS_JS:
+            return {"count": len(self.rows), "names": list(self.rows), "scrolled": True}
+        if expression == actions._SCROLL_TO_USER_FEATURE_ROW_JS:
+            wanted = str((arg or {}).get("wanted", ""))
+            self.scrolls.append(wanted)
+            if wanted == self.rows[-1] and len(self.rows) > self.window:
+                rendered = [self.rows[-2], self.rows[-1]]
+                return {
+                    "found": True, "index": 1, "name": wanted, "rendered": rendered,
+                    "scrolled": True, "steps": 2,
+                }
+            return {
+                "found": False, "rendered": self.rows[: self.window], "scrolled": True,
+                "steps": 3, "reason": "no unique rendered match at any scroll position",
+            }
+        raise AssertionError(f"unexpected evaluate: {expression.strip()[:60]}")
+
+    def wait_for_function(self, expression, *, arg=None, timeout=None, polling=None):
+        return True
+
+    def locator(self, selector):
+        return _WindowedRows(self)
+
+
+class _WindowedRows:
+    def __init__(self, page):
+        self.page = page
+
+    def count(self):
+        return min(self.page.window, len(self.page.rows))
+
+    def nth(self, index):
+        page = self.page
+
+        class _Row:
+            def click(self, button=None):
+                page.clicks.append((index, button))
+
+        return _Row()
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeleteFeatureTest(unittest.TestCase):
+    """Deleting a feature row is an exact-identity transaction, or a refusal.
+
+    The row exists because a live insert can be reported as a relay timeout while
+    its accept HAD landed (measured 2026-09-21), and nothing else in the tool set
+    removes a feature row: the REST feature-list update spends annual quota and a
+    reload or rename changes nothing. So the destructive path has to be at least as
+    strict as the edit path, and it is: one enumeration supplies both the name and
+    the click index, the delete item must be unique in a bounded label ladder, and
+    the verdict is the NAME leaving the list.
+    """
+
+    ROWS = ("TV #gf_pitch = 42 mm", "TE Thin Extrude 5", "TE Thin Extrude 6")
+
+    def page(self, **kwargs) -> FakeDialogPage:
+        kwargs.setdefault("rows", self.ROWS)
+        # One nameless node FIRST is the strictly harder layout: the click index
+        # must still address the row the enumeration named.
+        kwargs.setdefault("nameless_rows", 1)
+        return FakeDialogPage(**kwargs)
+
+    def delete(self, page: FakeDialogPage, name: str = "TE Thin Extrude 6", **kwargs):
+        return transactions.delete_feature(page, name, **kwargs)
+
+    def test_the_named_row_is_deleted_and_verified_by_name(self) -> None:
+        page = self.page()
+        result = self.delete(page)
+        self.assertTrue(result["deleted"])
+        self.assertEqual(result["matchedName"], "TE Thin Extrude 6")
+        self.assertEqual(result["rowIndex"], 3)
+        self.assertEqual(result["matchedRows"], ["TE Thin Extrude 6"])
+        self.assertEqual(result["matchedItem"], "删除")
+        self.assertIn("删除", result["menuItems"])
+        self.assertEqual(result["rowCountBefore"], 3)
+        self.assertEqual(result["rowCountAfter"], 2)
+        self.assertEqual(len(result["featureRows"]), 4, "the enumeration keeps the nameless node")
+        self.assertNotIn("TE Thin Extrude 6", result["afterRows"])
+        self.assertIn("TE Thin Extrude 5", result["afterRows"])
+        self.assertEqual(result["removal"]["condition"], "user_feature_row_absent")
+        self.assertTrue(result["removal"]["waited"])
+        # The index came from the enumeration, and it is the row that was clicked.
+        self.assertEqual(page.right_clicks, [{"index": 3, "button": "right"}])
+        self.assertEqual(page.menu_clicks, ["删除"])
+
+    def test_the_row_is_clicked_at_its_enumerated_position(self) -> None:
+        """A nameless node ahead of it must not shift the click onto a row above."""
+        page = self.page(nameless_last=False)
+        self.delete(page, "TE Thin Extrude 5")
+        self.assertEqual(page.right_clicks[0]["index"], 2)
+        self.assertNotIn("TE Thin Extrude 5", page.dom_rows)
+        self.assertIn("TE Thin Extrude 6", page.dom_rows)
+
+    def test_a_menu_without_a_delete_label_refuses_and_reports_the_labels(self) -> None:
+        page = self.page(menu_labels=("编辑", "抑制", "重命名", "回退"))
+        result = self.delete(page)
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["menuItems"], ["编辑", "抑制", "重命名", "回退"])
+        self.assertEqual(page.menu_clicks, [], "nothing may be clicked without a delete item")
+        self.assertIn("no unique visible delete item", result["reason"])
+        self.assertIn("回退", result["reason"])
+        self.assertIn("TE Thin Extrude 6", page.dom_rows)
+
+    def test_two_identical_rows_are_refused_rather_than_guessed(self) -> None:
+        """Thin rows repeat: two rows can carry the very same parameters."""
+        page = self.page(rows=("TE Thin Extrude 5", "TE Thin Extrude 5"))
+        result = self.delete(page, "TE Thin Extrude 5")
+        self.assertFalse(result["deleted"])
+        self.assertEqual(result["exactMatchCount"], 2)
+        self.assertIn("matched 2 of", result["reason"])
+        self.assertEqual(page.right_clicks, [])
+        self.assertIn("matched 2 of 3 custom-feature rows", result["reason"])
+
+    def test_an_occurrence_selects_one_of_two_identical_rows(self) -> None:
+        """A shared name is addressable when the caller says WHICH row it means.
+
+        Measured live 2026-09-21: an interrupted run and its resume both landed the
+        same ``Thin Variable`` insert, so the element held two textually identical
+        ``TV #gf_lock = 37.7 mm 锁定面方孔边长`` rows and no name-addressed tool could
+        remove either. The occurrence is the caller's statement; the row it selects is
+        still verified by name, and the removal verdict becomes a COUNT because
+        deleting one of two identical rows leaves the name in the list.
+        """
+        page = self.page(rows=("TE Thin Extrude 5", "TE Thin Extrude 5"))
+        result = self.delete(page, "TE Thin Extrude 5", occurrence=2)
+        self.assertTrue(result["deleted"])
+        self.assertEqual(result["occurrence"], 2)
+        self.assertEqual(result["matchedIndex"], 2)
+        self.assertEqual(result["matchedName"], "TE Thin Extrude 5")
+        self.assertEqual(result["rowIndex"], 2)
+        self.assertEqual(page.right_clicks, [{"index": 2, "button": "right"}])
+        self.assertEqual(result["removal"]["condition"], "user_feature_row_count_below")
+        self.assertEqual(result["nameCountBefore"], 2)
+        self.assertEqual(result["nameCountAfter"], 1)
+        self.assertEqual(
+            page.dom_rows.count("TE Thin Extrude 5"), 1,
+            "one of the two identical rows is left in place",
+        )
+
+    def test_an_occurrence_beyond_the_matches_is_refused(self) -> None:
+        """A caller asking for a row that is not there must not get a different one."""
+        page = self.page(rows=("TE Thin Extrude 5", "TE Thin Extrude 5"))
+        result = self.delete(page, "TE Thin Extrude 5", occurrence=3)
+        self.assertFalse(result["deleted"])
+        self.assertEqual(page.right_clicks, [])
+        self.assertIn("fewer than the 3 occurrence(s) requested", result["reason"])
+        self.assertEqual(page.dom_rows.count("TE Thin Extrude 5"), 2)
+
+    def test_the_scroll_probe_asks_for_the_requested_occurrence(self) -> None:
+        """Below the rendered window a duplicated name must be reachable by occurrence.
+
+        The occurrence is passed into the in-page walk, not applied afterwards: only the
+        walk knows how many matches a given scroll position renders, so it is what has to
+        decide when the wanted occurrence is on screen.
+        """
+
+        class _Probe:
+            def __init__(self) -> None:
+                self.calls: list[dict] = []
+
+            def evaluate(self, expression, arg=None):
+                self.calls.append(arg)
+                assert expression is actions._SCROLL_TO_USER_FEATURE_ROW_JS
+                return {
+                    "found": True, "index": 3, "name": "TV #dup = 1 mm", "matches": 2,
+                    "rendered": ["a", "b", "TV #dup = 1 mm", "TV #dup = 1 mm"],
+                    "scrolled": True, "steps": 4,
+                }
+
+        page = _Probe()
+        answer = actions.scroll_to_user_feature_row(
+            page, selectors.PS_USER_FEATURE, "TV #dup = 1 mm", occurrence=2
+        )
+        self.assertEqual(
+            page.calls,
+            [{"selector": selectors.PS_USER_FEATURE, "wanted": "TV #dup = 1 mm",
+              "occurrence": 2}],
+        )
+        self.assertTrue(answer["found"])
+        self.assertEqual(answer["index"], 3)
+        self.assertEqual(answer["matches"], 2)
+        self.assertEqual(answer["occurrence"], 2)
+        self.assertIn("occurrence", actions._SCROLL_TO_USER_FEATURE_ROW_JS)
+
+    def test_a_name_that_matches_nothing_still_names_the_rows(self) -> None:
+        page = self.page()
+        result = self.delete(page, "TE Thin Extrude 9")
+        self.assertFalse(result["deleted"])
+        self.assertIn("TE Thin Extrude 5", result["userRows"])
+        self.assertIn("TE Thin Extrude 6", result["userRows"])
+        self.assertEqual(result["exactMatchCount"], 0)
+        self.assertEqual(page.right_clicks, [])
+
+    def test_a_stale_enumeration_refuses_instead_of_clicking_a_different_row(self) -> None:
+        """The locator re-queries the page, so a disagreement is not clicked through."""
+        page = self.page(locator_delta=1)
+        result = self.delete(page)
+        self.assertFalse(result["deleted"])
+        self.assertEqual(page.right_clicks, [])
+        self.assertIn("refusing to click a row that may be a different one", result["reason"])
+
+    def test_an_open_parameter_dialog_is_refused(self) -> None:
+        """Its accept button shares the selector a delete confirmation uses."""
+        page = self.page(dialog_already_open=True)
+        result = self.delete(page)
+        self.assertFalse(result["deleted"])
+        self.assertEqual(page.right_clicks, [])
+        self.assertIn("Parameter dialog is open", result["reason"])
+
+    def test_a_menu_that_never_opens_is_reported(self) -> None:
+        page = self.page(menu_opens=False)
+        result = self.delete(page)
+        self.assertFalse(result["deleted"])
+        self.assertFalse(result["contextMenuOpened"])
+        self.assertEqual(result["menuItems"], [])
+        self.assertEqual(page.menu_clicks, [])
+
+    def test_a_row_that_survives_the_removal_wait_is_not_a_delete(self) -> None:
+        page = self.page(deletes_row=False)
+        result = self.delete(page, timeout_ms=1)
+        self.assertFalse(result["deleted"])
+        self.assertFalse(result["removal"]["waited"])
+        self.assertEqual(result["stillListedNames"], ["TE Thin Extrude 6"])
+        self.assertIn("is still in the feature list", result["reason"])
+        self.assertTrue(page.timeouts, "the removal wait polls instead of sleeping once")
+
+    def test_a_confirmation_dialog_is_accepted_when_one_appears(self) -> None:
+        page = self.page(confirm_dialog=True)
+        outcome = self.delete(page)
+        self.assertTrue(outcome["deleted"])
+        self.assertEqual(outcome["confirmDialog"], {"present": True, "clicked": True})
+        self.assertEqual(page.confirm_clicks, ["accept"])

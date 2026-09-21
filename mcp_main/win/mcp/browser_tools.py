@@ -328,6 +328,7 @@ def browser_edit_feature_parameters(arguments: dict[str, Any]) -> dict[str, Any]
         parameters,
         accept=True,
         wait_for_regeneration=wait_for_regeneration,
+        expect_values=_expect_values(arguments),
     )
 
 
@@ -343,6 +344,9 @@ def browser_verify_feature_parameters(arguments: dict[str, Any]) -> dict[str, An
         if not isinstance(dialog_timeout_ms, int) or not 1 <= dialog_timeout_ms <= 60_000:
             raise ValueError("dialog_timeout_ms must be an integer from 1 to 60000")
     options: dict[str, Any] = {}
+    stated = _expect_values(arguments)
+    if stated:
+        options["expect_values"] = stated
     if dialog_timeout_ms is not None:
         options["dialog_timeout_ms"] = dialog_timeout_ms
     if "allow_reload" in arguments:
@@ -350,6 +354,11 @@ def browser_verify_feature_parameters(arguments: dict[str, Any]) -> dict[str, An
         if not isinstance(allow_reload, bool):
             raise ValueError("allow_reload must be a boolean")
         options["allow_reload"] = allow_reload
+    expect_row = arguments.get("expect_row", "")
+    if not isinstance(expect_row, str):
+        raise ValueError("expect_row must be a string")
+    if expect_row:
+        options["expect_row"] = expect_row
     page, _ = _page()
     from onshape_browser_mode.transactions import verify_feature_parameters
     return verify_feature_parameters(page, feature_name.strip(), parameters, **options)
@@ -733,6 +742,36 @@ def browser_delete_element(arguments: dict[str, Any]) -> dict[str, Any]:
     return delete_element(page, element_id.strip())
 
 
+def browser_delete_feature(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Delete exactly one USER feature row through its context menu (0 quota)."""
+    feature_name = arguments.get("feature_name", "")
+    if not isinstance(feature_name, str) or not feature_name.strip():
+        raise ValueError("feature_name is required")
+    occurrence: int | None = None
+    requested_occurrence = arguments.get("occurrence")
+    if requested_occurrence is not None and requested_occurrence != "":
+        try:
+            occurrence = int(requested_occurrence)
+        except (TypeError, ValueError):
+            raise ValueError("occurrence must be an integer")
+        if occurrence < 1:
+            raise ValueError("occurrence must be at least 1")
+    preview = _mutation_plan("browser_delete_feature", arguments, [
+        "read the feature list and match exactly one user feature row",
+        "right-click that row and read its context menu",
+        "click the unique delete item",
+        "verify the row name left the feature list",
+    ])
+    if preview:
+        return preview
+    page, _ = _page()
+    from onshape_browser_mode import transactions
+
+    return transactions.delete_feature(
+        page, feature_name.strip(), occurrence=occurrence
+    )
+
+
 def _ensure_tab(page: Any, tab_name: str, tab_type: str) -> dict[str, Any]:
     from onshape_browser_mode import actions, selectors
 
@@ -849,6 +888,30 @@ def _feature_parameters(arguments: dict[str, Any]) -> dict[str, Any] | None:
     return dict(parameters)
 
 
+def _expect_values(arguments: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize the "value this expression must evaluate to" map, or refuse it.
+
+    A settled quantity widget renders the resolved NUMBER rather than the typed
+    ``#variable`` (measured live 2026-09-21), so a caller that fills an expression has
+    to state what it must evaluate to before the dialog's readback can confirm it.
+    The ids are dialog field ids, so they carry the same CSS-safe rule as
+    ``parameters``.
+    """
+    values = arguments.get("expect_values")
+    if values is None:
+        return None
+    if not isinstance(values, dict):
+        raise ValueError("expect_values must be an object of parameter ids to values")
+    if not values:
+        return None
+    for key, value in values.items():
+        if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", key):
+            raise ValueError("expect_values ids must be CSS-safe identifiers")
+        if not isinstance(value, (str, int, float, bool)):
+            raise ValueError("expect_values entries must be strings, numbers, or booleans")
+    return dict(values)
+
+
 def browser_insert_custom_feature(arguments: dict[str, Any]) -> dict[str, Any]:
     """Insert a custom FeatureScript feature, with its parameters, in one transaction.
 
@@ -875,6 +938,11 @@ def browser_insert_custom_feature(arguments: dict[str, Any]) -> dict[str, Any]:
         arguments.get("feature_name", "Branch cable trophy display"),
         arguments.get("part_studio_tab") or None,
         parameters,
+        arguments.get("expect_row") or "",
+        _expect_values(arguments),
+        # Keyword on purpose: `inserted` becomes the tri-state None on this path, so
+        # it must not be reachable by a positional argument either.
+        verify_commit=bool(arguments.get("verify_commit", True)),
     )
 
 
@@ -1339,6 +1407,23 @@ _ACKNOWLEDGE = {
 }
 _FRAME = {"type": "string", "default": "", "description": "Substring of the target Playwright frame URL; empty means the main page."}
 _STRING_ARRAY = {"type": "array", "items": {"type": "string"}, "minItems": 1}
+# A quantity widget resolves a cited variable ASYNCHRONOUSLY, and the settled widget renders
+# the EVALUATED number rather than the typed `#name`; the caller therefore states what each
+# expression parameter must evaluate to. See onshape_browser_mode.actions.quantities_match.
+_EXPECT_VALUES = {
+    "type": "object",
+    "default": {},
+    "description": (
+        "Parameter ids mapped to the value an expression parameter must EVALUATE to, e.g. "
+        "{'width': '36.3 mm'}. A settled quantity widget renders the resolved number rather than "
+        "the typed `#variable`, so this is what confirms an expression-driven edit; numbers compare "
+        "with a relative 1e-9 tolerance and the unit must match. For a key it states this is the "
+        "ONLY accepted confirmation, because the widget shows the typed expression for a moment "
+        "before it parses it and accepting then commits the field's previous value. Ignored for "
+        "parameters that hold no expression."
+    ),
+    "additionalProperties": {"type": ["string", "number", "boolean"]},
+}
 
 
 def _tool(name: str, description: str, properties: dict[str, Any], *, mutating: bool, seconds: int, required: list[str] | None = None, destructive: bool = False, network: str = "browser", schema_extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1386,8 +1471,8 @@ BROWSER_TOOLS = [
     _tool("browser_fs_insert_snippet", "Invoke the verified Feature Studio 插入代码段 context command at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_fs_insert_parameter", "Insert the verified Length parameter template at an Ace position and verify the source delta plus Commit dirty state.", {"row": {"type": "integer", "minimum": 0}, "column": {"type": "integer", "minimum": 0}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=10),
     _tool("browser_fs_toggle_fold", "Fold, unfold, or toggle a FeatureScript Ace fold and return the resulting folded ranges.", {"action": {"type": "string", "enum": ["toggle", "fold", "unfold"], "default": "toggle"}, "row": {"type": "integer", "minimum": 0}}, mutating=False, seconds=5),
-    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback, and accept. By default it returns as soon as the accept button is clicked, with applyState='pending_verification' and parametersApplied=null, never false, because that click IS the commit and waiting for the panel to close can outlive the transport limit (measured live: a one-shot call reached 61.7 s against a 60 s relay limit). The panel's closure is not a completion signal for an edit that changes a parameter: measured live 2026-09-20, such an edit had committed while the panel was still present 95 s later, where an accept that changed nothing closed it in 4-5 ms. Confirm it with browser_verify_feature_parameters; pass wait_for_regeneration=true to keep the one-shot wait-and-verify behaviour.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "wait_for_regeneration": {"type": "boolean", "default": False, "description": "Keep the apply call waiting for the dialog to close and verify persistence in the same call. Only use it when the transport budget is known to allow a wait that scales with the element's feature count."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
-    _tool("browser_verify_feature_parameters", "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that a freshly reopened dialog shows the requested values. It never guesses. The accepted panel's removal is NOT the completion signal (measured live 2026-09-20: an edit that changed a parameter had committed while the panel was still present 95 s later, where an accept that changed nothing closed it in 4-5 ms), so the condition is probed briefly and then, by default, recovered by one bounded page reload. That reload discards the open panel without reverting the commit (measured), yields a row list that cannot be the pre-accept DOM, and spends 0 API quota. A non-verdict reached after that reload is returned as parametersApplied=null with retryVerify=true, never as a failure, because the reload may have raced the commit. Pass allow_reload=false to refuse the navigation and keep the previous 'call again' behaviour. Zero REST API quota.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "dialog_timeout_ms": {"type": "integer", "minimum": 1, "maximum": 60000, "description": "Bounded probe for the accepted dialog to report closed; defaults to 3000 ms because the measured latency is bimodal (4-5 ms when nothing changed, beyond every budget when a parameter did)."}, "allow_reload": {"type": "boolean", "default": True, "description": "Allow the recovery page reload when the accepted panel is still open. Set false when the caller's page must not be navigated; the result then stays parametersApplied=null with retryVerify=true."}}, mutating=False, seconds=45, required=["feature_name", "parameters"]),
+    _tool("browser_edit_feature_parameters", "Open a custom feature dialog, update named scalar fields, verify readback, and accept. By default it returns as soon as the accept button is clicked, with applyState='pending_verification' and parametersApplied=null, never false, because that click IS the commit and waiting for the panel to close can outlive the transport limit (measured live: a one-shot call reached 61.7 s against a 60 s relay limit). The panel's closure is not a completion signal for an edit that changes a parameter: measured live 2026-09-20, such an edit had committed while the panel was still present 95 s later, where an accept that changed nothing closed it in 4-5 ms. Confirm it with browser_verify_feature_parameters; pass wait_for_regeneration=true to keep the one-shot wait-and-verify behaviour. A field citing a variable resolves asynchronously, so state `expect_values` with the number it must evaluate to whenever the fill would otherwise read back the resolved value instead of the typed expression.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "expect_values": _EXPECT_VALUES, "wait_for_regeneration": {"type": "boolean", "default": False, "description": "Keep the apply call waiting for the dialog to close and verify persistence in the same call. Only use it when the transport budget is known to allow a wait that scales with the element's feature count."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["feature_name", "parameters"]),
+    _tool("browser_verify_feature_parameters", "Second stage of browser_edit_feature_parameters: confirm that an accepted parameter edit regenerated cleanly and that a freshly reopened dialog shows the requested values. It never guesses. The accepted panel's removal is NOT the completion signal (measured live 2026-09-20: an edit that changed a parameter had committed while the panel was still present 95 s later, where an accept that changed nothing closed it in 4-5 ms), so the condition is probed briefly and then, by default, recovered by one bounded page reload. That reload discards the open panel without reverting the commit (measured), yields a row list that cannot be the pre-accept DOM, and spends 0 API quota. A non-verdict reached after that reload is returned as parametersApplied=null with retryVerify=true, never as a failure, because the reload may have raced the commit. Pass allow_reload=false to refuse the navigation and keep the previous 'call again' behaviour. State `expect_values` for any value that cites a variable: a settled quantity widget reads the resolved number, not the typed expression, so the persisted readback is compared against either. Zero REST API quota.", {"feature_name": {"type": "string"}, "parameters": {"type": "object", "additionalProperties": {}}, "expect_values": _EXPECT_VALUES, "expect_row": {"type": "string", "default": "", "description": "Substring of the row text the edited row must now carry. A row rendered from a 'Feature Name Template' prints its computed values, so an edit that changes one RENAMES the row and a name-only lookup then finds nothing; state the new text to verify such an edit (the result reports the name it used under rowRenamed)."}, "dialog_timeout_ms": {"type": "integer", "minimum": 1, "maximum": 60000, "description": "Bounded probe for the accepted dialog to report closed; defaults to 3000 ms because the measured latency is bimodal (4-5 ms when nothing changed, beyond every budget when a parameter did)."}, "allow_reload": {"type": "boolean", "default": True, "description": "Allow the recovery page reload when the accepted panel is still open. Set false when the caller's page must not be navigated; the result then stays parametersApplied=null with retryVerify=true."}}, mutating=False, seconds=45, required=["feature_name", "parameters"]),
     _tool("browser_read_feature_parameters", "Read one custom feature's current parameter values without changing the model: open the row's parameter dialog, read its named fields, and cancel it with Escape. Zero REST API quota and no cloud mutation. It reads only from a dialog it opened itself, because a dialog's fields show what was last typed rather than what is persisted. When a parameter dialog is already open it reads nothing and says so — an accept that changes a parameter can leave the panel open long after committing — so clear it first, pass allow_reload=true to let this tool perform the same bounded recovery reload browser_verify_feature_parameters uses, or call that tool directly.", {"feature_name": {"type": "string"}, "allow_reload": {"type": "boolean", "default": False, "description": "Permit one bounded page reload to discard an already-open panel (which does not revert a committed edit) before reading."}}, mutating=False, seconds=20, required=["feature_name"]),
     _tool("browser_activate_tab", "Make one EXISTING document tab the active tab by exact name or tab data-id, and verify the switch by reading that tab's own active class. Read tools and browser_edit_feature_parameters act on whatever tab is active, and no other tool could select one: browser_rename_tab double-clicks a tab name yet leaves the previously active tab active (measured live). Selection is by data-id whenever the tab listing supplies one, never by position, because the tab strip renumbers when a tab is added or removed. content='partstudio' additionally waits for the Feature List title and its rows, since a switched-to Part Studio renders in stages and an immediate read sees zero rows. Zero REST API quota.", {"element_id": {"type": "string", "default": "", "description": "Tab data-id from browser_get_page_tabs; pass exactly one of element_id or name."}, "name": {"type": "string", "default": "", "description": "Exact visible tab name, which must match exactly one tab."}, "content": {"type": "string", "enum": ["any", "partstudio"], "default": "any"}}, mutating=False, seconds=20),
     _tool("browser_fs_watch_part_studio", "Select the exact watched/configured Part Studio through the Feature Studio toolbar dropdown and verify the toolbar readback.", {"part_studio": {"type": "string"}, "mode": {"type": "string", "enum": ["watch", "configure"], "default": "watch"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=15, required=["part_studio"]),
@@ -1415,6 +1500,7 @@ BROWSER_TOOLS = [
     _tool("browser_create_drawing", "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["source_tab"]),
     _tool("browser_add_drawing_dimension", "Deprecated compatibility wrapper: use browser_draw_part_with_views with a one-entry dimensions array (flat tool/geometry/placement arguments are normalized the same way). Kept so an existing caller keeps working; it runs a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verifies a selector-count or canvas-image change.", {**_DIMENSION_PROPERTIES, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20),
     _tool("browser_delete_element", "Delete a visible document element by its tab data-id and verify that the tab disappears.", {"element_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["element_id"], destructive=True),
+    _tool("browser_delete_feature", "Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. Zero REST API quota. It is the only way to undo a row that a refused, interrupted, or relay-timed-out insert left behind (measured live 2026-09-21: an insert whose confirmation reload outlived the transport budget was reported as a timeout while the accept HAD landed, leaving a duplicate row that no other tool can remove). Identity is exact, or it refuses: the row is chosen by position from one enumeration of the user-feature rows, feature_name must match exactly one row (exact text first, the shared substring rule only as a fallback), and the context-menu item is clicked only when exactly one visible label equals a bounded delete label. Pass occurrence (1-based) only when several rows carry the SAME text -- two identical rows cannot be told apart by a name, and a variable row inserted twice is exactly that case; the choice is then by position in the enumerated list and the row at that position must still carry the name. Every visible menu label is returned as menuItems either way, so a differently-worded menu is diagnosed from evidence instead of a guessed click.", {"feature_name": {"type": "string", "description": "Visible user feature row name; must match exactly one row unless occurrence is given."}, "occurrence": {"type": "integer", "minimum": 1, "description": "1-based occurrence among rows whose text equals feature_name, for a name that several identical rows share; omit to require exactly one match."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"], destructive=True),
     _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with bounded `values` and no script; a capability generates its own source, name, and local check.", {"script": {"type": "string"}, "capability": {"type": "string", "description": "Capability id or alias, e.g. custom.fillet or 圆角. Mutually exclusive with script."}, "values": {"type": "object", "description": "Bounded capability values; unknown names and out-of-range numbers are refused."}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM, fs_check.ACKNOWLEDGEMENT_ARGUMENT: _ACKNOWLEDGE}, mutating=True, seconds=90, required=[], destructive=True, schema_extra={"anyOf": [{"required": ["script", "feature_name"]}, {"required": ["capability"]}]}),
     _tool("browser_build_part", "Ensure a Part Studio, apply a custom feature, and return normalized part count and names.", {"feature_name": {"type": "string"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"]),
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),
@@ -1468,6 +1554,7 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_create_drawing": browser_create_drawing,
     "browser_add_drawing_dimension": browser_add_drawing_dimension,
     "browser_delete_element": browser_delete_element,
+    "browser_delete_feature": browser_delete_feature,
     "browser_deploy_and_apply_featurescript": browser_deploy_and_apply_featurescript,
     "browser_build_part": browser_build_part,
     "browser_assemble": browser_assemble,

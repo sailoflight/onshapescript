@@ -328,7 +328,9 @@ def _dialog_values(page: Any) -> dict[str, str]:
     return actions.dialog_values(page)
 
 
-def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[str, Any]]:
+def _locate_feature_row(
+    page: Any, feature_name: str, occurrence: int | None = None
+) -> tuple[Any | None, dict[str, Any]]:
     """Locate exactly one custom-feature row from ONE enumeration of the DOM.
 
     Identity and position must come from the same enumeration, because a read that
@@ -374,24 +376,57 @@ def _locate_feature_row(page: Any, feature_name: str) -> tuple[Any | None, dict[
             reason += f"; the panel never rendered rows: {panel_ready.get('error', '')}"
         evidence["reason"] = reason
         return None, evidence
-    if len(indices) != 1:
+    if occurrence is None and len(indices) != 1:
         evidence["reason"] = (
             f"feature {feature_name!r} matched {len(indices)} of "
             f"{len(names)} custom-feature rows: "
             f"{[names[index] for index in indices]}"
         )
         return None, evidence
+    # A duplicated row name is a real state (an interrupted run and its resume can both
+    # land the same insert, or two features can render identical text), and then no
+    # name-addressed tool can act. ``occurrence`` is how the caller states which of the
+    # matches it means; without it the rule above still requires exactly one.
+    wants = 1 if occurrence is None else max(1, int(occurrence))
+    evidence["occurrence"] = occurrence
+    if len(indices) < wants:
+        evidence["reason"] = (
+            f"feature {feature_name!r} matched {len(indices)} of {len(names)} "
+            f"custom-feature rows, fewer than the {wants} occurrence(s) requested: "
+            f"{[names[index] for index in indices]}"
+        )
+        return None, evidence
+    chosen = indices[0] if occurrence is None else indices[wants - 1]
+    evidence["matchedIndex"] = chosen
+    evidence["matchedName"] = names[chosen]
     rows = page.locator(selectors.PS_USER_FEATURE)
     seen = rows.count()
     evidence["locatorRows"] = seen
-    if seen != enumerated["count"]:
-        evidence["reason"] = (
-            f"the page enumeration lists {enumerated['count']} custom-feature rows "
-            f"but the row locator sees {seen}; refusing to click a row that may be "
-            "a different one"
-        )
-        return None, evidence
-    return rows.nth(indices[0]), evidence
+    if seen == enumerated["count"]:
+        return rows.nth(chosen), evidence
+    # The Feature List is VIRTUALISED, so the locator sees only the rendered window
+    # (measured live 2026-09-21: 18 rendered of 26 on a thin chain). Scroll the wanted
+    # row into view and take its index from the list that is on screen NOW, requiring
+    # the exact name back: an index from a different scroll position would click a
+    # different row. This is what makes a stray row at the bottom of a long tree
+    # deletable at all -- no other tool addresses a row the pane has not rendered.
+    wanted = names[chosen]
+    resolved = actions.scroll_to_user_feature_row(
+        page, selectors.PS_USER_FEATURE, wanted, occurrence=wants
+    )
+    evidence["rowScroll"] = resolved
+    resolved_name = str(resolved.get("name") or "")
+    index = resolved.get("index")
+    if resolved.get("found") and resolved_name == wanted and isinstance(index, int) and not isinstance(index, bool):
+        return page.locator(selectors.PS_USER_FEATURE).nth(index), evidence
+    evidence["reason"] = (
+        f"the page enumeration lists {enumerated['count']} custom-feature rows but the "
+        f"row locator sees {seen}, and scrolling the list did not render "
+        f"{wants} occurrence(s) of {wanted!r} "
+        f"({resolved.get('reason') or 'no such match'}); refusing to "
+        "click a row that may be a different one"
+    )
+    return None, evidence
 
 
 def _wait_for_dialog_close(page: Any, timeout_ms: int) -> dict[str, Any]:
@@ -427,6 +462,7 @@ def edit_feature_parameters(
     *,
     accept: bool = True,
     wait_for_regeneration: bool = False,
+    expect_values: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Open a custom feature dialog, update named fields, and accept it.
 
@@ -479,7 +515,7 @@ def edit_feature_parameters(
     # The fill itself is shared with browser_insert_custom_feature, which fills this
     # same dialog on a row it has just added; only the accept decision below is this
     # transaction's own.
-    matched = actions.fill_dialog_fields(page, parameters)
+    matched = actions.fill_dialog_fields(page, parameters, expect_values=expect_values)
     updated = matched["updated"]
     missing = matched["missing"]
     before = matched["before"]
@@ -554,7 +590,7 @@ def edit_feature_parameters(
         try:
             reopened.wait_for(state="visible", timeout=PS_REOPEN_TIMEOUT_MS)
             persisted = _dialog_values(page)
-            persistence_ok = all(str(persisted.get(key, "")).lower() == value.lower() for key, value in desired.items())
+            persistence_ok = _values_match(persisted, desired, expect_values)
         except Exception:
             persistence_ok = False
         finally:
@@ -582,23 +618,37 @@ def edit_feature_parameters(
         "regenerationOk": regeneration_ok,
         "persisted": persisted,
         "persistenceOk": persistence_ok,
+        "expectValues": matched["expectValues"],
         "featureState": matching_features,
         "featureRow": evidence,
     }
 
 
-def _values_match(persisted: dict[str, Any], requested: dict[str, Any]) -> bool:
-    """Compare a read-back against the requested values, case-insensitively.
+def _values_match(
+    persisted: dict[str, Any],
+    requested: dict[str, Any],
+    expect_values: dict[str, Any] | None = None,
+) -> bool:
+    """Compare a read-back against the requested values, by the one shared rule.
 
-    A checkbox yields ``"true"``/``"false"``, and a length arrives already formatted
-    (``"12 mm"``), so an exact comparison is the only honest one: no unit is guessed and
-    no value is coerced.
+    A checkbox yields ``"true"``/``"false"`` and a length arrives already formatted
+    (``"12 mm"``), so no unit is guessed and no value is coerced: the comparison is
+    ``actions.quantities_match``, the same rule the insert path judges a fill by.
+
+    ``expect_values`` maps a parameter id to the value the expression it holds must
+    EVALUATE to. A quantity widget that has resolved a ``#variable`` renders the
+    resolved NUMBER rather than the typed expression (measured live 2026-09-21), so
+    without this the re-opened dialog would never show what was asked for.
     """
-    return all(
-        str(persisted.get(key, "")).lower()
-        == (str(value).lower() if isinstance(value, bool) else str(value)).lower()
-        for key, value in requested.items()
-    )
+    for key, value in requested.items():
+        wanted = str(value).lower() if isinstance(value, bool) else str(value)
+        if actions.quantities_match(persisted.get(key, ""), wanted):
+            continue
+        stated = (expect_values or {}).get(key)
+        if stated is not None and actions.quantities_match(persisted.get(key, ""), stated):
+            continue
+        return False
+    return True
 
 
 def _open_and_read_parameters(page: Any, feature_name: str) -> dict[str, Any]:
@@ -730,6 +780,8 @@ def verify_feature_parameters(
     *,
     dialog_timeout_ms: int = PS_VERIFY_PROBE_TIMEOUT_MS,
     allow_reload: bool = True,
+    expect_values: dict[str, Any] | None = None,
+    expect_row: str = "",
 ) -> dict[str, Any]:
     """Second stage of :func:`edit_feature_parameters`: confirm what was applied.
 
@@ -753,6 +805,14 @@ def verify_feature_parameters(
     raced the commit. The next call finds the panel already gone, reads a committed
     page, and can then answer definitively. Only a non-verdict read without a recovery
     reload is a definitive ``False``.
+
+    ``expect_row`` is for a row whose edit RENAMES it: a ``Feature Name Template`` row
+    prints its computed values, so an edit that changes one leaves the row under a new
+    name and a name-only lookup finds nothing -- editing ``TV #gf_plate_size = 0 mm``
+    into ``#gf_pitch * 2`` produces ``TV #gf_plate_size = 84 mm`` and the first live
+    run of this called that successful edit a failure (measured 2026-09-21). State the
+    text the row must now carry and the verification reads THAT row; ``rowRenamed``
+    reports the name it used.
     """
     close = _wait_for_dialog_close(page, dialog_timeout_ms)
     recovery: dict[str, Any] | None = None
@@ -811,13 +871,31 @@ def verify_feature_parameters(
         feature_list = actions.wait_for_feature_list(
             page, actions.PARTSTUDIO_PANEL_READY_TIMEOUT_MS, selector=selectors.PS_USER_FEATURE
         )
-    state = actions.feature_state(actions.read_partstudio_features(page), feature_name)
+    features = actions.read_partstudio_features(page)
+    # A row rendered from a "Feature Name Template" prints its computed values, so an edit
+    # that changes one RENAMES the row. `expect_row` names the text the row must now
+    # carry, and it is the only way to keep verifying such an edit by reading the row
+    # back: a name-only lookup finds NOTHING after a successful rename (measured live
+    # 2026-09-21, editing `TV #gf_plate_size = 0 mm` into `#gf_pitch * 2`).
+    effective_name = feature_name
+    renamed_to = ""
+    if expect_row:
+        candidates = [
+            row["name"]
+            for row in actions.user_feature_rows(features)
+            if str(expect_row) in row["name"]
+        ]
+        if len(candidates) == 1 and candidates[0] != feature_name:
+            effective_name = candidates[0]
+            renamed_to = candidates[0]
+    state = actions.feature_state(features, effective_name)
     rows = state["rows"]
     regeneration_ok = len(rows) == 1 and not state["errored"]
     result: dict[str, Any] = {
         "verified": False,
         "parametersApplied": None,
         "featureName": feature_name,
+        "verifiedRowName": effective_name,
         "dialogClosed": close,
         "regenerationOk": regeneration_ok,
         "persistenceOk": None,
@@ -825,6 +903,12 @@ def verify_feature_parameters(
         "persisted": {},
         "featureRow": {},
     }
+    if renamed_to:
+        # A row rendered from a "Feature Name Template" prints its computed values, so
+        # an edit that changes one RENAMES the row: editing `#gf_plate_size = 0 mm` to
+        # `#gf_pitch * 2` leaves `#gf_plate_size = 84 mm`, and a name-only lookup would
+        # report 0 rows and call a successful edit a failure (measured live 2026-09-21).
+        result["rowRenamed"] = renamed_to
     if recovered_by:
         result["recoveredBy"] = recovered_by
         result["recovery"] = recovery
@@ -833,11 +917,11 @@ def verify_feature_parameters(
     if not regeneration_ok:
         result["persistenceOk"] = False
         failure = (
-            f"the accepted edit left {len(rows)} row(s) named {feature_name!r} and "
+            f"the accepted edit left {len(rows)} row(s) named {effective_name!r} and "
             f"errored={state['errored']}, so it did not regenerate cleanly"
         )
     else:
-        read = _open_and_read_parameters(page, feature_name)
+        read = _open_and_read_parameters(page, effective_name)
         result["featureRow"] = read["featureRow"]
         if not read["read"]:
             result["retryVerify"] = True
@@ -849,7 +933,7 @@ def verify_feature_parameters(
                 result["error"] = read["error"]
             return result
         persisted = read["parameters"]
-        persistence_ok = _values_match(persisted, parameters)
+        persistence_ok = _values_match(persisted, parameters, expect_values)
         result["persisted"] = persisted
         result["persistenceOk"] = persistence_ok
         result["verified"] = persistence_ok
@@ -874,6 +958,220 @@ def verify_feature_parameters(
     result["reason"] = failure
     return result
 
+
+
+#: Bounded ladder of the context-menu labels a USER feature row can show for
+#: deletion. It is clicked only when exactly ONE ladder label has exactly one
+#: visible match; every visible label is reported either way, so a differently
+#: worded menu is diagnosed from evidence instead of from a guessed click.
+FEATURE_DELETE_MENU_TEXTS = actions.PS_FEATURE_DELETE_MENU_TEXTS
+
+#: Menu-open bound for the feature row's context menu, and the removal bound. The
+#: menu is the same jQuery context menu the tab strips use; the removal wait is
+#: longer because deleting a row regenerates the whole feature list.
+FEATURE_MENU_TIMEOUT_MS = actions.CONTEXT_MENU_TIMEOUT_MS
+FEATURE_DELETE_TIMEOUT_MS = actions.FEATURE_DELETE_TIMEOUT_MS
+
+
+def _visible_menu_labels(page: Any) -> list[str]:
+    """The visible context-menu item labels, whitespace-collapsed."""
+    rows = page.locator(selectors.TAB_CONTEXT_MENU_ITEM)
+    labels: list[str] = []
+    for index in range(rows.count()):
+        item = rows.nth(index)
+        try:
+            if not item.is_visible():
+                continue
+            label = " ".join(str(item.inner_text()).split())
+        except Exception:  # noqa: BLE001 - a detached row is not a label
+            continue
+        if label:
+            labels.append(label)
+    return labels
+
+
+def delete_feature(
+    page: Any,
+    feature_name: str,
+    *,
+    occurrence: int | None = None,
+    timeout_ms: int = FEATURE_DELETE_TIMEOUT_MS,
+) -> dict[str, Any]:
+    """Delete exactly one USER feature row through its row context menu (0 quota).
+
+    This is the only way to undo a row a refused, interrupted, or relay-timed-out
+    insert left behind. Measured live 2026-09-21: an insert whose confirmation
+    reload outlived the ~60-70 s transport budget was reported as a timeout while
+    the accept HAD landed, leaving a duplicate row (same parameters as its
+    predecessor, ``not-computed`` because the cut had already been made) that no
+    other tool removes -- the REST feature-list update spends annual quota, and a
+    reload or a rename changes nothing.
+
+    A duplicate row is textually identical to its twin, so a name cannot separate
+    them: pass ``occurrence`` (1-based, in the enumerated row order) to say which of
+    them you mean. Without it, a name that matches more than one row is refused --
+    the same rule as before, so nothing else changes. A variable row that was defined
+    twice is the case this exists for: both rows set the same value, so removing one
+    of them leaves the document variable and its dependents untouched.
+
+    Identity is an exact question, so this refuses rather than guesses:
+
+    * the row comes from ``_locate_feature_row``, the edit path's own resolver:
+      one enumeration, one match, plus the locator staleness check that catches a
+      row changing between the read and the click;
+    * the delete item is clicked only when exactly one label of
+      :data:`FEATURE_DELETE_MENU_TEXTS` has exactly one visible match, and every
+      visible label is returned as ``menuItems`` on every path;
+    * an open Parameter dialog is a refusal, because its accept button and a
+      delete confirmation share the dialog accept selector;
+    * the verdict is the row NAME leaving the visible feature list, never the
+      click landing.
+    """
+    before = actions.read_partstudio_features(page)
+    if page.locator(selectors.PS_FEATURE_DIALOG).count() > 0:
+        return {
+            "deleted": False,
+            "featureName": feature_name,
+            "reason": (
+                "a Parameter dialog is open, and its accept button shares the "
+                "selector a delete confirmation uses; close it first"
+            ),
+            "pageUrl": page.url,
+        }
+    row, evidence = _locate_feature_row(page, feature_name, occurrence)
+    if row is None:
+        rows = evidence.get("featureRows") or []
+        return {
+            "deleted": False,
+            "featureName": feature_name,
+            #: How many rows carry the name VERBATIM. A thin chain repeats its
+            #: parameters, so two rows can be textually identical and the caller
+            #: then has to disambiguate by position rather than by this tool.
+            "exactMatchCount": sum(1 for name in rows if name == feature_name),
+            "userRows": rows,
+            **evidence,
+            "reason": evidence.get("reason", "feature row not resolved"),
+        }
+    matched_name = evidence.get("matchedName") or evidence["matchedRows"][0]
+    # The row's POSITION, from the same enumeration that supplied its name, so the
+    # evidence says which row was clicked rather than only which name matched.
+    feature_rows = evidence.get("featureRows") or []
+    row_index = evidence.get("matchedIndex")
+    if row_index is None:
+        row_index = feature_rows.index(matched_name) if matched_name in feature_rows else None
+    actions.dismiss_stale_context_menu(page)
+    try:
+        row.click(button="right")
+    except Exception as exc:  # noqa: BLE001 - structured browser failure
+        return {"deleted": False, "featureName": feature_name, "matchedName": matched_name,
+                **evidence, "menuItems": [],
+                "reason": f"right-click on the feature row failed: {type(exc).__name__}: {exc}",
+                "pageUrl": page.url}
+    opened = False
+    try:
+        page.locator(selectors.TAB_CONTEXT_MENU).first.wait_for(
+            state="visible", timeout=FEATURE_MENU_TIMEOUT_MS
+        )
+        opened = True
+    except Exception:  # noqa: BLE001 - reported as data below
+        opened = False
+    menu_items = _visible_menu_labels(page)
+    base = {
+        "featureName": feature_name,
+        "matchedName": matched_name,
+        "rowIndex": row_index,
+        "contextMenuOpened": opened and bool(menu_items),
+        "menuItems": menu_items,
+        **evidence,
+    }
+    if not base["contextMenuOpened"]:
+        return {"deleted": False, **base,
+                "reason": "the feature row context menu did not open",
+                "pageUrl": page.url}
+
+    candidates = [
+        (label, _exact_text(page.locator(selectors.TAB_CONTEXT_MENU_ITEM), label))
+        for label in FEATURE_DELETE_MENU_TEXTS
+    ]
+    unique = [(label, item) for label, item in candidates if item is not None]
+    if len(unique) != 1:
+        page.keyboard.press("Escape")
+        return {
+            "deleted": False,
+            **base,
+            "reason": (
+                "no unique visible delete item in the feature row context menu: "
+                f"{len(unique)} of the accepted labels {list(FEATURE_DELETE_MENU_TEXTS)} "
+                f"matched, and the menu showed {menu_items}"
+            ),
+            "pageUrl": page.url,
+        }
+    matched_item, item = unique[0]
+    confirm = {"present": False, "clicked": False}
+    try:
+        item.click()
+        accept = page.locator(selectors.DIALOG_ACCEPT)
+        if accept.count() > 0:
+            confirm = {"present": True, "clicked": True}
+            accept.first.click()
+    except Exception as exc:  # noqa: BLE001
+        return {"deleted": False, **base, "matchedItem": matched_item,
+                "reason": f"delete click failed: {type(exc).__name__}: {exc}",
+                "pageUrl": page.url}
+
+    before_rows = [row_["name"] for row_ in actions.user_feature_rows(before)]
+    # How many rows carried this exact text BEFORE the click: with a shared name the
+    # verdict has to be a COUNT, because deleting one of two identical rows leaves the
+    # name in the list and the name-based verdict would call a correct delete a failure.
+    before_count = sum(1 for name in before_rows if name == matched_name)
+    removal = actions.wait_for_feature_row_removed(
+        page,
+        matched_name,
+        timeout_ms=timeout_ms,
+        selector=selectors.PS_USER_FEATURE,
+        name_count_below=None if occurrence is None else before_count,
+    )
+    after = actions.read_partstudio_features(page)
+    remaining = [row_["name"] for row_ in actions.user_feature_rows(after)]
+    still_listed = [name for name in remaining if name == matched_name]
+    if occurrence is None:
+        removed_ok = not still_listed
+    else:
+        removed_ok = len(still_listed) < before_count
+    result = {
+        "deleted": bool(removal.get("waited")) and removed_ok,
+        **base,
+        "matchedItem": matched_item,
+        "confirmDialog": confirm,
+        "removal": removal,
+        "stillListedNames": still_listed,
+        "nameCountBefore": before_count,
+        "nameCountAfter": len(still_listed),
+        # `featureRows` (from the resolver) is the ENUMERATION and includes a
+        # nameless node the read drops; `beforeRows`/`afterRows` are the named rows
+        # a read reports. Reporting both keeps the two counts from looking like a
+        # disagreement when they are two different questions.
+        "featureRows": evidence.get("featureRows", []),
+        "beforeRows": before_rows,
+        "afterRows": remaining,
+        "rowCountBefore": len(before_rows),
+        "rowCountAfter": len(remaining),
+        "pageUrl": page.url,
+    }
+    if not result["deleted"]:
+        if occurrence is None:
+            result["reason"] = (
+                f"the row {matched_name!r} is still in the feature list after "
+                f"{removal.get('elapsedMs')} ms"
+            )
+        else:
+            result["reason"] = (
+                f"{len(still_listed)} of the {before_count} row(s) named "
+                f"{matched_name!r} are still in the feature list after "
+                f"{removal.get('elapsedMs')} ms: the requested occurrence was not "
+                "the one removed"
+            )
+    return result
 
 
 def fs_watch_part_studio(

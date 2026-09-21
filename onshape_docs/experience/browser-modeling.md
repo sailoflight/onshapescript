@@ -602,3 +602,114 @@ z = 4.90 交点 +3.95 mm（倒角段 3.25 + 0.7）、z = 3.00 交点 +3.25 mm（
 
 **没有浏览器/GUI 也能看图**：`temp/stl_render.py` 是纯标准库的软件光栅器（正交轴测 + 背面
 剔除 + z-buffer + 平面着色），把几何包里的 STL 直接渲成 PNG，改前/改后各出一张即可肉眼对账。
+
+## 20. 项目 runner 会死在 relay 超时上：中途孤儿行与「逐行直接调用」兜底（实测 2026-09-21）
+
+`browser_run_project` 的每一步都返回完整特征树，而单次 MCP 调用受传输上限约束
+（本环境实测约 60 s）。23 步的 Gridfinity 变量化重建跑到第 4 步左右，整个调用以
+`downstream_timeout` 结束，随后 2.5 分钟没有推进——**最后一步的行已经建好，但没有写进
+checkpoint**（孤儿行）。三个必须知道的边界：
+
+- 恢复必须 `resume=true`；存活的 checkpoint 会让一次全新 run 直接
+  `ValueError: Checkpoint already exists`；
+- 只要 fixture 改过（哪怕只是参数），resume 会拒绝：
+  `Project fixture changed after checkpoint creation`；
+- 于是「重跑一遍」不是幂等的：孤儿行会留在树里，被下一次同名等待或提交计数当成既有行。
+
+结论：**步骤多、每步都贵的构建，逐行直接调 `browser_insert_custom_feature`**（每行
+10-20 s，稳定低于传输上限），runner 留给步骤少或单步轻的项目。孤儿行要么补记到证据里，
+要么在重试前删除。
+
+## 21. 四个会误判的工具行为（实测 2026-09-21）
+
+- **`browser_create_tab` 可能对新标签报 `created: false`，但它其实已经建好了**（新标签
+  还没渲染出来）。照返回值重试就会留下重复标签：以 `browser_get_page_tabs` 复读为准，
+  不要重试创建。
+- **`browser_delete_element` 可能已经 `deleted: true`，列表里却还在**（返回里的
+  `stillListedIds` 就是这点）——用一次 `browser_get_page_tabs` 确认移除再往下走。
+- **会话超时气泡和卡死页面是两回事**：气泡要 `browser_session(action="reconnect")` 点
+  「重新连接」；`action="reload"` 是给卡住/加载过久的页面用的。混用会把超时当成卡死。
+- **`browser_rename_tab` 曾按「名字前缀包含」选目标，不是精确匹配**：实测把 `name` 传成
+  `GF Thin Plate` 时，被改名的是排在前面的 `GF Thin Plate literal (old)`（它**包含**该
+  子串），而真正叫 `GF Thin Plate` 的标签页没动；两次连续调用因此把好好的标签页改成了
+  错名字。**该缺陷已修**（2026-09-21）：`actions.resolve_exact_tab` 用标签条列表做
+  **全名精确**匹配，命中数 != 1 就拒绝并在 reason 里列出全部名字与子串候选，点击走命中
+  标签自己的 `data-id`；`rename_tab` 与 `step_export.export_browser_step` 都走它
+  （导出侧同一缺陷的症状是把根因藏成后续步骤的 URL 不匹配报错，见第 24 节）。
+  改名前后仍要用返回的 `tabs` 复读确认。
+- **`browser_verify_feature_parameters` 会把自己的改名当成失败**：带
+  `Feature Name Template` 的行把算出来的值印在行名里，所以「改一个值」等于「改行名」。
+  实测 2026-09-21 把 `TV #gf_plate_size = 0 mm` 改成 `#gf_pitch * 2`，行名变成
+  `TV #gf_plate_size = 84 mm`，于是旧名字按名查 0 行，工具报
+  `parametersApplied: false` 而这次改动其实成功了。现在传 `expect_row`（行名必须包含的新
+  文本）即可按新行名复读，返回里会多一个 `rowRenamed` 字段。
+
+## 22. 接受点击之后的那次读是证据、不是判据（实测 2026-09-21）
+
+参数对话框 accept 之后立刻读特征树，可能读到 **0 行**：accept 会先把列表清空再重绘，
+而同一行在随后的确认性 reload 里活得好好的。所以确认性 reload 必须**无条件**做一次
+（不要用「刚才读到行了吗」来决定做不做），并把那次中间读作为 `workbenchAppeared`
+证据上报，而不是作为提交判据。提交判据只有 reload 之后的行数 + 名字差集。
+
+对话框侧的两个对应结论（表达式异步解析的 accept 门、`Feature Name Template` 行无法按
+特征名寻址）见 `onshape_docs/experience/featurescript.md` 的「Driving a thin feature's
+dialog」一节。
+
+**同一类的第二个症状：重算中间态的零件表。** accept 之后立刻读**零件**列表，1 个实体
+可以读成 5 个、甚至 17 个（`Part 2 … Part 17` 全都带 `edited` 类名），看上去像「切除退化
+成了加料」。实测 2026-09-21：那次 insert 的 `partItems` 是 `Part 1 … Part 17`，而同一
+元素上**一两秒后的第二次读**和**一次 reload 之后的读**都稳定回到 `零件数 (1)`；此后
+按 22 行→23 行继续插入，最终导出的 B-rep 与基线逐族一致。所以短路径
+（`verify_commit=false`）下不要用 accept 后第一次读的零件数判对错，要用**稳定态**：
+第二次读或 reload 后的读。
+
+## 23. 参数能不能中文：标签不行，id 不行，值和名字行（实测 2026-09-21）
+
+用户问「参数能不能中文嘞」。三个位置要分开答，证据都在
+`onshape_docs/experience/featurescript.md` 的「Annotation strings are ASCII-only;
+body strings are not」一节（四次 deploy 的对照表）：
+
+- **参数标签不行。** 字段名来自 `annotation { "Name" : ... }`，只允许可打印 ASCII；
+  中文标签会让 precondition 分析失败，并丢掉这个自定义特征的**全部**参数规格
+  （实测 deploy 2：类型名保持 ASCII，只有参数标签是中文，仍然 0 个 feature spec）。
+  特征名（`"Feature Type Name"`）和行模板（`"Feature Name Template"`）同理。
+- **参数 id 不行，而且必须是 CSS 安全 ASCII。** MCP 是靠
+  `[data-parameter-id="<id>"]` 这种选择器填值的（`browser_tools._expect_values` /
+  insert 参数校验都强制 `[A-Za-z_][A-Za-z0-9_.-]*`），id 进 CSS 选择器，中文会直接
+  不匹配。
+- **值可以。** 参数**值**里的字符串是 body 数据，不是标注：零件名
+  （`setProperty(..., PropertyType.NAME)`）实测中文编译通过且零件列表显示中文；
+  `Thin Variable` 的 `Description` 也是 string 值，所以变量行可以带中文说明。
+  变量**名**（`gf_pitch`）必须是标识符，中文不行。
+
+所以「中文参数」的可行形态是：ASCII 标签 + ASCII id + 中文说明/中文零件名。
+
+## 24. 虚拟化的特征表：行数看表头，行集看滚动并集，读序不是树序（实测 2026-09-21）
+
+Feature List 是虚拟列表，一次读只给你**一个窗口**。同一个 23 行元素上的两组实测：
+
+| 读法 | 结果 |
+|---|---|
+| insert 调用内部的那次读 | 23 行全在 |
+| 同一天 reload 之后的独立读 | 只有 18 行（尾部 5 行没渲染），但 `headerText` 仍是 `特征 (27)` |
+
+`特征 (27)` = 23 个用户特征 + 4 个基准面（`默认几何图元` 是分组行，不计入计数），
+所以：
+
+- **行数用表头**（`特征 (N)`、`零件数 (N)`）：表头不受窗口影响，是最便宜的全量计数，
+  也是「这一步到底落地了没有」的第一个判据。
+- **行集用滚动并集收集器**（`_USER_FEATURE_ROWS_JS`）；它的**顺序会轮转**，只能当集合用。
+  只有同一个已渲染窗口内的 DOM 顺序才是真顺序；而「薄拉伸取它前面最近一个薄草图发布的
+  区域」这条规则让**先后是语义判据**（第 21 节），所以绝不能拿跨窗口拼出来的顺序推树序。
+
+**丢失判决的重复行可以认出来。** 一次 insert 的判决在 relay 超时里丢了，但它的行**已经
+落在树的那个位置**；resume 再插入的是正确的那一行，于是这个类型多出一行，而行名计数器
+会**跳号**且表头比预期多 1。实测：期望 `TSR1, TE1, TSR2(第 11 步), TE2, …`，实际
+`TSR1, TE1, TSR2, TSR3, TE2, TSR4, TE3, TSR5, TE4`（表头 23 = 期望 22 + 1）。
+定位方式是逐个读该行参数（`browser_read_feature_parameters`，0 配额）：重复的那行参数
+与相邻步骤**完全相同**（`TSR2` 与 `TSR3` 都是 z=5 / 2×2 / 36.3 / r1.15）。
+
+**未被消费的薄草图是几何惰性的。** 薄拉伸消费的是「它前面最近一个薄草图」发布的区域，
+被下一张草图覆盖的旧区域没有任何人消费。把那行孤儿草图删掉后重新导出 STEP，B-rep 与
+删前**逐族相同**（体积 `39547.5903` mm³、面积 `20002.2154` mm²、194 面、45° 锥面三族
+37.32/223.5216/415.1424）。删除前仍要读一次参数，确认它确实没有被某个后续拉伸消费。

@@ -2828,11 +2828,17 @@ TOOLS: list[dict[str, Any]] = [
             "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO "
             "Onshape API quota. Optionally switches to the given Part Studio tab, opens the workspace custom-feature "
             "toolbar dropdown, selects the exact named feature, then accepts its parameter dialog so the row computes. "
-            "It counts the matching feature rows before the click and requires one more after regeneration and again after one "
+            "It counts the element's USER feature rows before the click and requires one more after regeneration and again after one "
             "bounded page reload, because a browser-inserted feature is not committed to the workspace until a reload and a "
             "same-named row already on screen is not this insert; the returned `inserted` means the workspace kept the feature, "
             "and `baselineRows` plus the `commit` block report that check (`verified`, `committed`) separately from the rows "
-            "seen before the reload. Both waits scale with the element's custom-feature count (30 s floor, plus 2 s per "
+            "seen before the reload. The counts are of user rows rather than of name matches, because a feature carrying a "
+            "`Feature Name Template` does not display its Feature Type Name at all (measured live 2026-09-21: a `Thin Variable` "
+            "row reads `TV #gf_probe = 42 mm`), so the created row is identified by subtracting the pre-insert row names. The "
+            "read taken straight after the accept is reported as `workbenchAppeared` and deliberately does not gate that reload: "
+            "measured live 2026-09-21 it returned zero user rows for an insert that then survived, because the accept re-renders "
+            "the list. "
+            "Both waits scale with the element's custom-feature count (30 s floor, plus 2 s per "
             "feature for regeneration and 8 s per feature for the reload, capped), because a reload re-evaluates every "
             "feature: on a 5-feature Part Studio the survival wait needed 18.4 s of a fixed 30 s budget, so a fixed "
             "budget would call a committed feature missing as the document grows. The returned `budgets` block reports the "
@@ -2843,9 +2849,28 @@ TOOLS: list[dict[str, Any]] = [
             "Pass `parameters` to fill the new row's dialog before it is accepted, so ONE transaction creates the row "
             "with its numbers rather than with the dialog defaults. A thin custom feature is exactly a row of a few "
             "numbers, and insert-then-edit would cost two browser transactions per row. A parameter id that cannot be "
-            "located, or whose readback does not match, refuses the insert and leaves the dialog unaccepted "
-            "(`inserted: false` with the `parameters` evidence); the fill and its readback are the same code path "
-            "browser_edit_feature_parameters uses."
+            "located, whose value cannot be committed, or whose readback does not match, refuses the insert and leaves "
+            "the dialog unaccepted (`inserted: false` with the `parameters` evidence); the fill and its readback are the "
+            "same code path browser_edit_feature_parameters uses. An Onshape EXPRESSION value (one containing '#') is "
+            "NOT confirmed by the read taken straight after the fill: the quantity widget resolves a `#variable` "
+            "reference ASYNCHRONOUSLY, so that read still shows the field's old text and accepting then commits the old "
+            "value as a silently wrong number (measured live 2026-09-21: `#gf_pitch * 2` was filled, the accept landed, "
+            "and the model stored `0 mm` after the dialog's own preview had shown `84 mm`). Every expression field is "
+            "therefore WAITED for, bounded at 20 s, until the dialog settles, and that read IS the fill verdict "
+            "(`parameters.resolved`, `parameters.readbackOk`, `waits.expressionResolve`). A field is satisfied by the "
+            "typed expression OR by the value the expression must EVALUATE to, which the caller states in "
+            "`expect_values` (parameter id -> value): a settled quantity widget renders the resolved number, not the "
+            "expression (measured live 2026-09-21, the same field read the typed `#gf_socket` 4 ms after the fill and "
+            "`36.3 mm` 20 s later), so without `expect_values` a correctly resolved dimension reads as a permanent "
+            "mismatch. An expression field that reaches neither readback refuses the insert unless `expect_row` can "
+            "confirm it. `expect_row` is the independent check that the ROW the model wrote carries what the caller "
+            "asked for, which is stronger evidence where the feature has a `Feature Name Template`: a row that does not "
+            "match it is reported `inserted: false` and is REAL, so it must be deleted before the step is retried. It "
+            "is not required for a feature whose row states no numbers, because the dialog readback already confirms "
+            "that case. `expressionFields` names the fields holding an expression. "
+            "Pass `verify_commit=false` for a step whose confirmation outlives the transport: the call then "
+            "returns `inserted: null` / `applyState: pending_verification` right after the accept, and the "
+            "caller confirms the row itself."
         ),
         "inputSchema": object_schema({
             "feature_name": {
@@ -2863,14 +2888,63 @@ TOOLS: list[dict[str, Any]] = [
                 "default": {},
                 "description": (
                     "Parameter ids mapped to values; filled into the dialog before it is accepted. "
-                    "Strings, numbers, and booleans only."
+                    "Strings, numbers, and booleans only. A value containing '#' is an Onshape "
+                    "expression and resolves asynchronously; it is waited for until the dialog "
+                    "settles (bounded at 20 s), satisfying the wait with the value the expression "
+                    "must EVALUATE to when the caller states one in `expect_values` -- the typed "
+                    "text alone is not enough, because accepting on it commits the field's "
+                    "PREVIOUS value -- or with the typed text when no value is stated. The insert "
+                    "is refused when the wait never settles."
                 ),
                 "additionalProperties": {"type": ["string", "number", "boolean"]},
+            },
+            "expect_values": {
+                "type": "object",
+                "default": {},
+                "description": (
+                    "Parameter ids mapped to the value an expression parameter must EVALUATE to, "
+                    'e.g. {"width": "36.3 mm"}. A settled quantity widget renders the resolved '
+                    "number rather than the typed `#variable`, so this is what confirms an "
+                    "expression-driven dimension; numbers compare with a relative 1e-9 tolerance and "
+                    "the unit must match. For a key it states it is the ONLY accepted confirmation: "
+                    "the widget shows the typed expression for a moment before it parses it, and "
+                    "accepting in that window commits the field's previous value (measured live "
+                    "2026-09-21). Ignored for parameters that hold no expression."
+                ),
+                "additionalProperties": {"type": ["string", "number", "boolean"]},
+            },
+            "expect_row": {
+                "type": "string",
+                "default": "",
+                "description": (
+                    "Substring the created feature row must contain, checked after the accept. A "
+                    "feature with a 'Feature Name Template' writes its computed values into its row "
+                    "text, so this is where an expression's evaluated value is read and the strongest "
+                    "check for such a row; optional for a feature whose row states no numbers, which "
+                    "the dialog readback already confirms. A row that does not match it is reported "
+                    "inserted=false (and is real, so it must be deleted before a retry)."
+                ),
             },
             "dry_run": {
                 "type": "boolean",
                 "default": False,
                 "description": "Return the transaction plan without opening the browser or writing anything.",
+            },
+            "verify_commit": {
+                "type": "boolean",
+                "default": True,
+                "description": (
+                    "Keep the confirming reload (regeneration wait, then a reload whose survival "
+                    "wait proves the workspace kept the row). Set false only for an element whose "
+                    "confirmation is known to outlive the ~60-70 s transport budget of one MCP "
+                    "call: the call then returns as soon as the accept landed, `inserted` is null "
+                    "(unknown, never a false success) and `applyState` is `pending_verification`, "
+                    "and the caller must prove the new row itself with "
+                    "browser_read_feature_parameters or a feature-list read before the next step. "
+                    "Measured live 2026-09-21: a 45-degree-draft subtract extrude of 2.15 mm "
+                    "timed out twice at a clean tree and created NO row, while four thinner "
+                    "instances of the same feature in the same element completed."
+                ),
             },
             "confirm_mutation": mutating_confirmation(),
         }, ["confirm_mutation"]),

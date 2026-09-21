@@ -171,6 +171,7 @@ _classify(
         "browser_group_instances",
         "browser_create_drawing",
         "browser_delete_element",
+        "browser_delete_feature",
         "browser_export_step",
     ),
     "L4",

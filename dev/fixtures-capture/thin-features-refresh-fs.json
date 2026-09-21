@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "thin-features-refresh-fs",
+  "description": "Refresh the THIN feature source (dev/fixtures-capture/thin-native-features.fs) into the 'Thin Native Features' Feature Studio of the OPEN document, so the thin rows already inserted recompute from the edited source and a NEW thin feature (Thin Variable) becomes offered by the workspace custom-feature dropdown. apply=false: this project creates no document, adds no feature row and creates no version, so the target's feature tree keeps exactly the rows it had. feature_studio_tab names the studio explicitly, because browser_deploy_featurescript writes whichever editor is on screen and would clobber a different studio if the wrong tab were active. The deploy step reads the source from disk, so the committed bytes are the packaged file, not a transcription. The runner cannot report this step as ok: TOOL_OUTCOME_KEYS requires 'built' from browser_deploy_and_apply_featurescript, and an apply=false call builds nothing; success is verified afterwards with browser_get_fs_compile_status (compiled true, 0 blocking notices), browser_read_featurescript (sha matches the file on disk) and a fresh STEP export.",
+  "steps": [
+    {
+      "id": "refresh-thin-native-features",
+      "tool": "browser_deploy_and_apply_featurescript",
+      "args": {
+        "script_file": "dev/fixtures-capture/thin-native-features.fs",
+        "feature_name": "Thin Variable",
+        "feature_studio_tab": "Thin Native Features",
+        "part_studio_tab": "GF Thin Plate",
+        "apply": false,
+        "create_version": false,
+        "confirm_mutation": true
+      }
+    }
+  ]
+}

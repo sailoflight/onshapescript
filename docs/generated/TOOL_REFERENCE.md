@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **109**
+- Registered tools: **110**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=69, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=26, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
+- Capability counts: `browser`=70, `featurescript`=11, `other`=2, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
 
 ## Safety interpretation
 
@@ -39,6 +39,7 @@
 | `browser_create_drawing` | `browser` | `L4 onshape_transaction` | `source_tab` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame. |
 | `browser_create_tab` | `browser` | `L4 onshape_transaction` | `confirm_mutation` | network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes; concurrency=exclusive_workflow/browser_profile | Create a Feature Studio, Part Studio, or Assembly tab and verify that a new visible tab appears. Zero Onshape API quota. Adding a tab creates a document element, so confirm_muta... |
 | `browser_delete_element` | `browser` | `L4 onshape_transaction` | `element_id` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Delete a visible document element by its tab data-id and verify that the tab disappears. |
+| `browser_delete_feature` | `browser` | `L4 onshape_transaction` | `feature_name` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. Zero REST API quota. It is the only way... |
 | `browser_delete_tab` | `browser` | `L4 onshape_transaction` | `name`, `confirm_mutation` | network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes; concurrency=exclusive_workflow/browser_profile | Deprecated compatibility wrapper: resolve one exact unique visible tab name to its observed data-id, then execute the same exact-ID deletion core as browser_delete_element. Ambi... |
 | `browser_deploy_and_apply_featurescript` | `browser` | `L5 onshape_workflow` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with boun... |
 | `browser_deploy_featurescript` | `browser` | `L4 onshape_transaction` | `script` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document... |

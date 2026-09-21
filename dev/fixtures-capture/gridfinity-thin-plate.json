@@ -1,230 +1,400 @@
 {
-  "schemaVersion": 1,
-  "name": "gridfinity-thin-plate",
-  "description": "Build the Gridfinity 2x2 baseplate as a feature tree of THIN custom features that mirror the native modelling steps (sketch, then extrude): one rounded 84x84 body, the 45 deg socket profile as four stacked subtraction layers (clearance, ramp, lock face, flare), and the magnet pockets as a shaft plus a 45 deg mouth chamfer. Every row carries its numbers in the ONE transaction that creates it, so no row is ever added with defaults and edited afterwards. After the run, success is verified outside the runner with browser_get_partstudio_features, a STEP export and the geometry package. This project deliberately contains NO source-refresh step. Committing dev/fixtures-capture/thin-native-features.fs is a separate action, because browser_deploy_and_apply_featurescript reports success only as built=true, which requires the apply to leave at least one COMPUTED PART: its outcome key counts parts, and a sketch-only row creates a sketch with no part, so an in-project refresh is rejected as 'the Part Studio reports no computed parts' even though the commit itself was accepted and the source compiled (measured 2026-09-20). The refresh that preceded this build was proven by content, not by that flag: the compiled source's sha256 was dcd1971d1a3c365a27f895b8d5ae40b73f2617f02d0738a7d08585e261aaa3ac with 0 diagnostics, byte-identical to dev/fixtures-capture/thin-native-features.fs on this disk. Every step below therefore only inserts rows.",
-  "steps": [
-    {
-      "id": "01-plate-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Rectangle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_x": "0 mm",
-          "origin_y": "0 mm",
-          "origin_z": "0 mm",
-          "grid_x": 1,
-          "grid_y": 1,
-          "cell_pitch": "42 mm",
-          "width": "84 mm",
-          "height": "84 mm",
-          "corner_radius": "4 mm"
-        },
-        "confirm_mutation": true
-      }
+ "schemaVersion": 1,
+ "name": "gridfinity-thin-plate",
+ "description": "Build the Gridfinity 2x2 baseplate as a feature tree of THIN custom features that mirror the native modelling steps (variable, sketch, extrude): a head of `Thin Variable` rows names every number the profile repeats, then one rounded body sketch, the 45 deg socket profile as four stacked subtraction layers (clearance, ramp, lock face, flare) and the magnet pockets as a shaft plus a 45 deg mouth chamfer. Repeated numbers are cited as `#variable` rather than retyped, so a human changes the cell pitch in ONE row and the whole plate follows; the one-off numbers (layer heights, a layer's own depth) stay literal. Every row carries its numbers in the ONE transaction that creates it, so no row is ever added with defaults and edited afterwards. After the run, success is verified outside the runner with browser_get_partstudio_features, a STEP export and a B-rep face inventory (the mesh report cannot tell an R4 corner from a sharp one). This project deliberately contains NO source-refresh step: committing dev/fixtures-capture/thin-native-features.fs is the separate project thin-features-refresh-fs, because browser_deploy_and_apply_featurescript reports success only as built=true, which requires the apply to leave at least one COMPUTED PART, and a sketch-only row creates a sketch with no part (measured 2026-09-20). Every step below therefore only inserts rows. Every step that fills an Onshape expression also states expect_values, the value that expression must EVALUATE to, because a settled quantity widget renders the resolved number rather than the typed `#variable` and the typed text is only the pre-parse state -- an accept taken on it commits the field's previous value (measured live 2026-09-21). A variable's `description` is a string VALUE, so it carries the Chinese text: only annotations are restricted to printable ASCII, and a non-ASCII annotation kills the whole feature (onshape_docs/experience/featurescript.md).",
+ "steps": [
+  {
+   "id": "00-var-pitch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_pitch",
+     "value": "42 mm",
+     "description": "格距：相邻格子中心距"
     },
-    {
-      "id": "02-plate-extrude",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "10 mm"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "01-var-plate-size",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_plate_size",
+     "value": "#gf_pitch * 2",
+     "description": "2×2 底板外形尺寸"
     },
-    {
-      "id": "03-socket-clearance-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Rectangle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_z": "5 mm",
-          "grid_x": 2,
-          "grid_y": 2,
-          "cell_pitch": "42 mm",
-          "width": "36.3 mm",
-          "height": "36.3 mm",
-          "corner_radius": "1.15 mm"
-        },
-        "confirm_mutation": true
-      }
+    "expect_row": "#gf_plate_size = 84 mm",
+    "expect_values": {
+     "value": "84 mm"
     },
-    {
-      "id": "04-socket-clearance-cut",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "0.35 mm",
-          "subtract": true
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "02-var-plate-corner",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_plate_corner",
+     "value": "4 mm",
+     "description": "外角圆角半径"
     },
-    {
-      "id": "05-socket-ramp-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Rectangle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_z": "5.35 mm",
-          "grid_x": 2,
-          "grid_y": 2,
-          "cell_pitch": "42 mm",
-          "width": "36.3 mm",
-          "height": "36.3 mm",
-          "corner_radius": "1.15 mm"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "03-var-socket-bottom",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_socket",
+     "value": "36.3 mm",
+     "description": "插槽间隙方孔边长"
     },
-    {
-      "id": "06-socket-ramp-cut",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "0.7 mm",
-          "subtract": true,
-          "draft_angle": "45 deg"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "04-var-socket-radius",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_socket_r",
+     "value": "1.15 mm",
+     "description": "插槽圆角半径"
     },
-    {
-      "id": "07-socket-lock-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Rectangle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_z": "6.05 mm",
-          "grid_x": 2,
-          "grid_y": 2,
-          "cell_pitch": "42 mm",
-          "width": "37.7 mm",
-          "height": "37.7 mm",
-          "corner_radius": "1.85 mm"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "05-var-lock-size",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_lock",
+     "value": "37.7 mm",
+     "description": "锁定面方孔边长"
     },
-    {
-      "id": "08-socket-lock-cut",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "1.8 mm",
-          "subtract": true
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "06-var-lock-radius",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_lock_r",
+     "value": "1.85 mm",
+     "description": "锁定面圆角半径"
     },
-    {
-      "id": "09-socket-flare-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Rectangle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_z": "7.85 mm",
-          "grid_x": 2,
-          "grid_y": 2,
-          "cell_pitch": "42 mm",
-          "width": "37.7 mm",
-          "height": "37.7 mm",
-          "corner_radius": "1.85 mm"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "07-var-magnet-diameter",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_magnet_d",
+     "value": "6.5 mm",
+     "description": "磁铁孔直径"
     },
-    {
-      "id": "10-socket-flare-cut",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "2.15 mm",
-          "subtract": true,
-          "draft_angle": "45 deg"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "08-var-magnet-from-side",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Variable",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "name": "gf_magnet_side",
+     "value": "8 mm",
+     "description": "磁铁中心到格子边的距离"
     },
-    {
-      "id": "11-magnet-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Circle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_z": "2.6 mm",
-          "grid_x": 2,
-          "grid_y": 2,
-          "cell_pitch": "42 mm",
-          "holes_x": 2,
-          "holes_y": 2,
-          "hole_from_side": "8 mm",
-          "diameter": "6.5 mm"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "09-plate-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Rectangle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_x": "0 mm",
+     "origin_y": "0 mm",
+     "origin_z": "0 mm",
+     "grid_x": 1,
+     "grid_y": 1,
+     "cell_pitch": "#gf_pitch",
+     "width": "#gf_plate_size",
+     "height": "#gf_plate_size",
+     "corner_radius": "#gf_plate_corner"
     },
-    {
-      "id": "12-magnet-shaft-cut",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "2.4 mm",
-          "subtract": true
-        },
-        "confirm_mutation": true
-      }
-    },
-    {
-      "id": "13-magnet-chamfer-sketch",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Sketch Circle",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "origin_z": "4.2 mm",
-          "grid_x": 2,
-          "grid_y": 2,
-          "cell_pitch": "42 mm",
-          "holes_x": 2,
-          "holes_y": 2,
-          "hole_from_side": "8 mm",
-          "diameter": "6.5 mm"
-        },
-        "confirm_mutation": true
-      }
-    },
-    {
-      "id": "14-magnet-chamfer-cut",
-      "tool": "browser_insert_custom_feature",
-      "args": {
-        "feature_name": "Thin Extrude",
-        "part_studio_tab": "GF Thin Plate",
-        "parameters": {
-          "depth": "0.8 mm",
-          "subtract": true,
-          "draft_angle": "45 deg"
-        },
-        "confirm_mutation": true
-      }
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "width": "84 mm",
+     "height": "84 mm",
+     "corner_radius": "4 mm"
     }
-  ]
+   }
+  },
+  {
+   "id": "10-plate-extrude",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "10 mm"
+    },
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "11-socket-clearance-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Rectangle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_z": "5 mm",
+     "grid_x": 2,
+     "grid_y": 2,
+     "cell_pitch": "#gf_pitch",
+     "width": "#gf_socket",
+     "height": "#gf_socket",
+     "corner_radius": "#gf_socket_r"
+    },
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "width": "36.3 mm",
+     "height": "36.3 mm",
+     "corner_radius": "1.15 mm"
+    }
+   }
+  },
+  {
+   "id": "12-socket-clearance-cut",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "0.35 mm",
+     "subtract": true
+    },
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "13-socket-ramp-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Rectangle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_z": "5.35 mm",
+     "grid_x": 2,
+     "grid_y": 2,
+     "cell_pitch": "#gf_pitch",
+     "width": "#gf_socket",
+     "height": "#gf_socket",
+     "corner_radius": "#gf_socket_r"
+    },
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "width": "36.3 mm",
+     "height": "36.3 mm",
+     "corner_radius": "1.15 mm"
+    }
+   }
+  },
+  {
+   "id": "14-socket-ramp-cut",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "0.7 mm",
+     "subtract": true,
+     "draft_angle": "45 deg"
+    },
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "15-socket-lock-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Rectangle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_z": "6.05 mm",
+     "grid_x": 2,
+     "grid_y": 2,
+     "cell_pitch": "#gf_pitch",
+     "width": "#gf_lock",
+     "height": "#gf_lock",
+     "corner_radius": "#gf_lock_r"
+    },
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "width": "37.7 mm",
+     "height": "37.7 mm",
+     "corner_radius": "1.85 mm"
+    }
+   }
+  },
+  {
+   "id": "16-socket-lock-cut",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "1.8 mm",
+     "subtract": true
+    },
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "17-socket-flare-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Rectangle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_z": "7.85 mm",
+     "grid_x": 2,
+     "grid_y": 2,
+     "cell_pitch": "#gf_pitch",
+     "width": "#gf_lock",
+     "height": "#gf_lock",
+     "corner_radius": "#gf_lock_r"
+    },
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "width": "37.7 mm",
+     "height": "37.7 mm",
+     "corner_radius": "1.85 mm"
+    }
+   }
+  },
+  {
+   "id": "18-socket-flare-cut",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "2.15 mm",
+     "subtract": true,
+     "draft_angle": "45 deg"
+    },
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "19-magnet-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Circle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_z": "2.6 mm",
+     "grid_x": 2,
+     "grid_y": 2,
+     "cell_pitch": "#gf_pitch",
+     "holes_x": 2,
+     "holes_y": 2,
+     "hole_from_side": "#gf_magnet_side",
+     "diameter": "#gf_magnet_d"
+    },
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "hole_from_side": "8 mm",
+     "diameter": "6.5 mm"
+    }
+   }
+  },
+  {
+   "id": "20-magnet-shaft-cut",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "1.6 mm",
+     "subtract": true
+    },
+    "confirm_mutation": true
+   }
+  },
+  {
+   "id": "21-magnet-chamfer-sketch",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Sketch Circle",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "origin_z": "4.2 mm",
+     "grid_x": 2,
+     "grid_y": 2,
+     "cell_pitch": "#gf_pitch",
+     "holes_x": 2,
+     "holes_y": 2,
+     "hole_from_side": "#gf_magnet_side",
+     "diameter": "#gf_magnet_d"
+    },
+    "confirm_mutation": true,
+    "expect_values": {
+     "cell_pitch": "42 mm",
+     "hole_from_side": "8 mm",
+     "diameter": "6.5 mm"
+    }
+   }
+  },
+  {
+   "id": "22-magnet-chamfer-cut",
+   "tool": "browser_insert_custom_feature",
+   "args": {
+    "feature_name": "Thin Extrude",
+    "part_studio_tab": "GF Thin Plate",
+    "parameters": {
+     "depth": "0.8 mm",
+     "subtract": true,
+     "draft_angle": "45 deg"
+    },
+    "confirm_mutation": true
+   }
+  }
+ ]
 }

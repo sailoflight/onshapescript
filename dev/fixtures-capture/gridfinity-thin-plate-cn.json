@@ -1,0 +1,432 @@
+{
+  "schemaVersion": 1,
+  "name": "gridfinity-thin-plate-cn",
+  "description": "Rebuild the Gridfinity 2x2 baseplate as a feature tree of THIN custom features into a Chinese-named Part Studio, so every Thin Variable row renders its Chinese description in the Feature List (the row template carries #description).",
+  "steps": [
+    {
+      "id": "00-var-pitch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_pitch",
+          "value": "42 mm",
+          "description": "格距：相邻格子中心距"
+        },
+        "confirm_mutation": true,
+        "expect_row": "42 mm 格距：相邻格子中心距",
+        "expect_values": {
+          "value": "42 mm"
+        }
+      }
+    },
+    {
+      "id": "01-var-plate-size",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_plate_size",
+          "value": "#gf_pitch * 2",
+          "description": "2×2 底板外形尺寸"
+        },
+        "expect_row": "84 mm 2×2 底板外形尺寸",
+        "expect_values": {
+          "value": "84 mm"
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "02-var-plate-corner",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_plate_corner",
+          "value": "4 mm",
+          "description": "外角圆角半径"
+        },
+        "confirm_mutation": true,
+        "expect_row": "4 mm 外角圆角半径",
+        "expect_values": {
+          "value": "4 mm"
+        }
+      }
+    },
+    {
+      "id": "03-var-socket-bottom",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_socket",
+          "value": "36.3 mm",
+          "description": "插槽间隙方孔边长"
+        },
+        "confirm_mutation": true,
+        "expect_row": "36.3 mm 插槽间隙方孔边长",
+        "expect_values": {
+          "value": "36.3 mm"
+        }
+      }
+    },
+    {
+      "id": "04-var-socket-radius",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_socket_r",
+          "value": "1.15 mm",
+          "description": "插槽圆角半径"
+        },
+        "confirm_mutation": true,
+        "expect_row": "1.15 mm 插槽圆角半径",
+        "expect_values": {
+          "value": "1.15 mm"
+        }
+      }
+    },
+    {
+      "id": "05-var-lock-size",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_lock",
+          "value": "37.7 mm",
+          "description": "锁定面方孔边长"
+        },
+        "confirm_mutation": true,
+        "expect_row": "37.7 mm 锁定面方孔边长",
+        "expect_values": {
+          "value": "37.7 mm"
+        }
+      }
+    },
+    {
+      "id": "06-var-lock-radius",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_lock_r",
+          "value": "1.85 mm",
+          "description": "锁定面圆角半径"
+        },
+        "confirm_mutation": true,
+        "expect_row": "1.85 mm 锁定面圆角半径",
+        "expect_values": {
+          "value": "1.85 mm"
+        }
+      }
+    },
+    {
+      "id": "07-var-magnet-diameter",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_magnet_d",
+          "value": "6.5 mm",
+          "description": "磁铁孔直径"
+        },
+        "confirm_mutation": true,
+        "expect_row": "6.5 mm 磁铁孔直径",
+        "expect_values": {
+          "value": "6.5 mm"
+        }
+      }
+    },
+    {
+      "id": "08-var-magnet-from-side",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "name": "gf_magnet_side",
+          "value": "8 mm",
+          "description": "磁铁中心到格子边的距离"
+        },
+        "confirm_mutation": true,
+        "expect_row": "8 mm 磁铁中心到格子边的距离",
+        "expect_values": {
+          "value": "8 mm"
+        }
+      }
+    },
+    {
+      "id": "09-plate-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_x": "0 mm",
+          "origin_y": "0 mm",
+          "origin_z": "0 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "cell_pitch": "#gf_pitch",
+          "width": "#gf_plate_size",
+          "height": "#gf_plate_size",
+          "corner_radius": "#gf_plate_corner"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "width": "84 mm",
+          "height": "84 mm",
+          "corner_radius": "4 mm"
+        }
+      }
+    },
+    {
+      "id": "10-plate-extrude",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "10 mm"
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "11-socket-clearance-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_z": "5 mm",
+          "grid_x": 2,
+          "grid_y": 2,
+          "cell_pitch": "#gf_pitch",
+          "width": "#gf_socket",
+          "height": "#gf_socket",
+          "corner_radius": "#gf_socket_r"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "width": "36.3 mm",
+          "height": "36.3 mm",
+          "corner_radius": "1.15 mm"
+        }
+      }
+    },
+    {
+      "id": "12-socket-clearance-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "0.35 mm",
+          "subtract": true
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "13-socket-ramp-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_z": "5.35 mm",
+          "grid_x": 2,
+          "grid_y": 2,
+          "cell_pitch": "#gf_pitch",
+          "width": "#gf_socket",
+          "height": "#gf_socket",
+          "corner_radius": "#gf_socket_r"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "width": "36.3 mm",
+          "height": "36.3 mm",
+          "corner_radius": "1.15 mm"
+        }
+      }
+    },
+    {
+      "id": "14-socket-ramp-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "0.7 mm",
+          "subtract": true,
+          "draft_angle": "45 deg"
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "15-socket-lock-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_z": "6.05 mm",
+          "grid_x": 2,
+          "grid_y": 2,
+          "cell_pitch": "#gf_pitch",
+          "width": "#gf_lock",
+          "height": "#gf_lock",
+          "corner_radius": "#gf_lock_r"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "width": "37.7 mm",
+          "height": "37.7 mm",
+          "corner_radius": "1.85 mm"
+        }
+      }
+    },
+    {
+      "id": "16-socket-lock-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "1.8 mm",
+          "subtract": true
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "17-socket-flare-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_z": "7.85 mm",
+          "grid_x": 2,
+          "grid_y": 2,
+          "cell_pitch": "#gf_pitch",
+          "width": "#gf_lock",
+          "height": "#gf_lock",
+          "corner_radius": "#gf_lock_r"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "width": "37.7 mm",
+          "height": "37.7 mm",
+          "corner_radius": "1.85 mm"
+        }
+      }
+    },
+    {
+      "id": "18-socket-flare-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "2.15 mm",
+          "subtract": true,
+          "draft_angle": "45 deg"
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "19-magnet-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Circle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_z": "2.6 mm",
+          "grid_x": 2,
+          "grid_y": 2,
+          "cell_pitch": "#gf_pitch",
+          "holes_x": 2,
+          "holes_y": 2,
+          "hole_from_side": "#gf_magnet_side",
+          "diameter": "#gf_magnet_d"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "hole_from_side": "8 mm",
+          "diameter": "6.5 mm"
+        }
+      }
+    },
+    {
+      "id": "20-magnet-shaft-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "1.6 mm",
+          "subtract": true
+        },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "21-magnet-chamfer-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Circle",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "origin_z": "4.2 mm",
+          "grid_x": 2,
+          "grid_y": 2,
+          "cell_pitch": "#gf_pitch",
+          "holes_x": 2,
+          "holes_y": 2,
+          "hole_from_side": "#gf_magnet_side",
+          "diameter": "#gf_magnet_d"
+        },
+        "confirm_mutation": true,
+        "expect_values": {
+          "cell_pitch": "42 mm",
+          "hole_from_side": "8 mm",
+          "diameter": "6.5 mm"
+        }
+      }
+    },
+    {
+      "id": "22-magnet-chamfer-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "网格底板 2×2",
+        "parameters": {
+          "depth": "0.8 mm",
+          "subtract": true,
+          "draft_angle": "45 deg"
+        },
+        "confirm_mutation": true
+      }
+    }
+  ]
+}

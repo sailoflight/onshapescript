@@ -100,9 +100,9 @@ project fixtures (`native-plate-sketch`, `native-plate-extrude`), a
 `modeling_transactions` module driving 草图 → plane row → rectangle → typed
 dimensions → 拉伸 depth, per-stage screenshots for cross-host review, and its own
 test module — roughly 700 lines of tests that kept every viewport click inside the
-graphics box. The spike was **rejected and reverted**; the patch is kept as
-`temp/native-spike-rejected.patch` (local-only, `temp/` is gitignored, so the
-decision record here is the durable part, not the file).
+graphics box. The spike was **rejected and reverted**, and its patch was deleted on
+2026-09-21 (asked for as leftover scratch); this record is what remains of it, which
+is why it states what the spike was rather than pointing at a file.
 
 The requirement it was meant to satisfy is satisfied a different way, and this is
 the part worth keeping: **a native modeling step and a thin custom feature call the

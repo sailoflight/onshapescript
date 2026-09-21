@@ -106,10 +106,23 @@ class ExplodingContext:
 
 
 class FakePage:
-    def __init__(self, download=None, context=None):
+    def __init__(self, download=None, context=None, tabs=None):
         self.url = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element1"
         self.download = download or FakeDownload()
         self.context = context if context is not None else FakeContext()
+        self.tab_selectors = []
+        self.evaluations = []
+        self.tabs_payload = tabs if tabs is not None else {
+            "tabs": [
+                {
+                    "id": "element1",
+                    "name": "Part Studio 1",
+                    "elementType": "PARTSTUDIO",
+                    "active": True,
+                }
+            ],
+            "hasDocumentTabsToolButton": True,
+        }
         self.locators = {
             selectors.TAB_BAR_TAB: FakeLocator(),
             selectors.TAB_CONTEXT_MENU_ITEM: FakeLocator(),
@@ -128,7 +141,16 @@ class FakePage:
         self.download_timeouts = []
 
     def locator(self, selector):
+        if selector.startswith(selectors.TAB_BAR_TAB):
+            # The exact-name path clicks the matched tab's own data-id, so every
+            # tab-strip selector is recorded and shares the one tab locator.
+            self.tab_selectors.append(selector)
+            return self.locators[selectors.TAB_BAR_TAB]
         return self.locators[selector]
+
+    def evaluate(self, expression, arg=None):
+        self.evaluations.append(expression)
+        return self.tabs_payload
 
     def expect_download(self, *, timeout):
         self.download_timeouts.append(timeout)
@@ -258,6 +280,84 @@ class BrowserStepExportTest(unittest.TestCase):
                     output_root=root,
                 )
             self.assertFalse((root / "export1").exists())
+
+    def _tabs_payload(self, *rows):
+        return {
+            "tabs": [
+                {"id": element_id, "name": name, "elementType": "PARTSTUDIO", "active": index == 0}
+                for index, (element_id, name) in enumerate(rows)
+            ],
+            "hasDocumentTabsToolButton": True,
+        }
+
+    def _export(self, page, tmp, source_tab="Part Studio 1"):
+        return export_browser_step(
+            page,
+            source_tab=source_tab,
+            export_id="export1",
+            document_id="doc1",
+            workspace_id="workspace1",
+            element_id="element1",
+            output_root=Path(tmp),
+        )
+
+    def test_export_click_targets_the_exact_tab_not_a_name_prefix_collision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            page = FakePage(
+                tabs=self._tabs_payload(
+                    ("tab-old", "GF Thin Plate (old, 14 rows)"),
+                    ("tab-plate", "GF Thin Plate"),
+                )
+            )
+            result = self._export(page, tmp, source_tab="GF Thin Plate")
+        self.assertTrue(result["exported"])
+        # The tab is resolved once and both clicks (select then right-click) use
+        # that one locator, which names the intended tab's own data-id; the
+        # colliding tab is never addressed. A substring match plus .first picked
+        # the first row instead.
+        self.assertEqual(
+            page.tab_selectors,
+            [f'{selectors.TAB_BAR_TAB}[data-id="tab-plate"]'],
+        )
+        self.assertEqual(
+            page.locators[selectors.TAB_BAR_TAB].clicks, [{}, {"button": "right"}]
+        )
+        self.assertFalse(any("tab-old" in selector for selector in page.tab_selectors))
+
+    def test_export_refuses_an_ambiguous_exact_tab_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            page = FakePage(
+                tabs=self._tabs_payload(("tab-a", "Part Studio 1"), ("tab-b", "Part Studio 1"))
+            )
+            with self.assertRaises(ValueError) as ctx:
+                self._export(page, tmp)
+            self.assertFalse((Path(tmp) / "export1").exists())
+        self.assertIn("exactly one visible tab name", str(ctx.exception))
+        self.assertIn("matchCount=2", str(ctx.exception))
+        self.assertEqual(page.locators[selectors.TAB_BAR_TAB].clicks, [])
+        self.assertEqual(page.tab_selectors, [])
+
+    def test_export_refuses_a_tab_that_is_only_a_substring(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            page = FakePage(
+                tabs=self._tabs_payload(("tab-old", "GF Thin Plate (old, 14 rows)"))
+            )
+            with self.assertRaises(ValueError) as ctx:
+                self._export(page, tmp, source_tab="GF Thin Plate")
+            self.assertFalse((Path(tmp) / "export1").exists())
+        message = str(ctx.exception)
+        self.assertIn("matchCount=0", message)
+        # The refusal names what it saw, including the substring candidates.
+        self.assertIn("GF Thin Plate (old, 14 rows)", message)
+        self.assertEqual(page.locators[selectors.TAB_BAR_TAB].clicks, [])
+
+    def test_export_refuses_a_matched_tab_without_a_data_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            page = FakePage(tabs=self._tabs_payload(("", "Part Studio 1")))
+            with self.assertRaisesRegex(ValueError, "carries no data-id"):
+                self._export(page, tmp)
+            self.assertFalse((Path(tmp) / "export1").exists())
+        self.assertEqual(page.locators[selectors.TAB_BAR_TAB].clicks, [])
 
     def test_registration_rejects_secret_bearing_page_url(self):
         with tempfile.TemporaryDirectory() as tmp:

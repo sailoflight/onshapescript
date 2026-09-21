@@ -340,7 +340,7 @@ class DeployToolCapabilityTest(unittest.TestCase):
         from mcp_main.win.mcp import server
 
         names = [tool["name"] for tool in server.TOOLS]
-        self.assertEqual(len(names), 109)
+        self.assertEqual(len(names), 110)
         self.assertEqual(len(capabilities.CAPABILITIES), 4)
         # The capability route lives on the existing deploy tool.
         deploy = next(tool for tool in server.TOOLS if tool["name"] == "browser_deploy_and_apply_featurescript")

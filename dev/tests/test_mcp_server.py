@@ -93,7 +93,7 @@ class McpServerTest(unittest.TestCase):
         # Tripwire: the ordinary view advertises one entry per surviving
         # capability. Absorbed compatibility names stay registered but are not
         # advertised, so this number must only change when a merge lands.
-        self.assertEqual(len(tools), 75)
+        self.assertEqual(len(tools), 76)
         self.assertNotIn("browser_fix_instances", names)
         self.assertNotIn("browser_group_instances", names)
         self.assertNotIn("browser_geometry_status", names)
@@ -284,7 +284,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(stderr, "")
         result = responses[0]["result"]
         self.assertEqual(result["exposureMode"], "static")
-        self.assertEqual(len(result["tools"]), 109)
+        self.assertEqual(len(result["tools"]), 110)
         self.assertIn("browser_inspect", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_read_notices", {tool["name"] for tool in result["tools"]})
         self.assertIn("browser_fs_capture_diagnostic", {tool["name"] for tool in result["tools"]})

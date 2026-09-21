@@ -11,6 +11,7 @@ All functions take a Playwright sync `page` object obtained from
 
 from __future__ import annotations
 
+import collections
 import re
 import time
 from typing import Any
@@ -59,6 +60,20 @@ _ACE_GET_EDITOR_JS = """
 CUSTOM_FEATURE_MENU_TIMEOUT_MS = 8_000
 FEATURE_DIALOG_TIMEOUT_MS = 15_000
 
+#: Context-menu and delete bounds for the Part Studio feature list. The menu is the
+#: shared jQuery context menu the tab strips already use, so it opens as fast as a
+#: tab menu; the removal wait is generous because deleting a row regenerates the
+#: whole feature list.
+CONTEXT_MENU_TIMEOUT_MS = 5_000
+FEATURE_DELETE_TIMEOUT_MS = 30_000
+FEATURE_DELETE_POLL_MS = 500
+
+#: Bounded ladder of the context-menu labels a USER feature row can show for
+#: deletion. The item is clicked only when exactly one visible label matches, and
+#: every visible label is returned either way, so a differently-worded menu is
+#: diagnosed from evidence instead of from a guessed click.
+PS_FEATURE_DELETE_MENU_TEXTS = ("删除", "删除特征", "删除…", "Delete", "Delete feature")
+
 #: Floor of both post-insert wait budgets, and the whole budget when the custom
 #: feature count cannot be read. A reload discards the workbench, so the
 #: post-reload read happens only after the feature rows are back; a short default
@@ -102,7 +117,12 @@ _PANEL_ROW_COUNT_PREDICATE = """
 #: row this call creates from a same-named row that was already in the Part
 #: Studio: measured live 2026-09-20, a Part Studio already holding two
 #: ``Spiral ridge`` rows satisfied the old name-only regeneration wait in 12 ms.
-#: ``minimum`` is therefore the pre-insert baseline plus one.
+#: ``minimum`` is therefore the pre-insert baseline plus one. An EMPTY ``text``
+#: drops the name filter and counts every user row; the post-reload commit wait
+#: uses that mode, because a feature with a ``"Feature Name Template"`` displays
+#: its template instead of its Feature Type Name and so can never satisfy a name
+#: filter (measured live 2026-09-21: a ``Thin Variable`` row read
+#: ``TV #gf_probe = 42 mm``).
 _ROW_COUNT_PREDICATE = """
 ({selector, text, minimum}) => {
   const wanted = (text || '').trim().toLowerCase();
@@ -167,17 +187,58 @@ _TAB_REMOVED_PREDICATE = """
 #: ``querySelectorAll`` is document order, which is the order the row locator
 #: resolves in, so a click index taken from this list addresses the row the name
 #: came from.
+#:
+#: The Feature List is a VIRTUALISED scroller, so one pass sees only the rows the
+#: pane currently renders. Measured live 2026-09-21 on a 25-row thin chain: the
+#: list header read ``特征 (29)`` while ``querySelectorAll`` returned exactly the
+#: first 18 rows, and because ``browser_read_feature_parameters``,
+#: ``browser_delete_feature`` and the insert commit gate all resolve rows through
+#: THIS enumeration, a row near the bottom of the tree could be neither read nor
+#: deleted -- and a reload that re-rendered the top looked like rows disappearing.
+#: The collector therefore also walks the row list's own scroll container in
+#: bounded steps and unions what it sees, restoring the original scroll position
+#: afterwards. A pass that already saw everything (the common case, and what every
+#: stub-DOM test exercises) returns byte-for-byte the old answer: the node count
+#: plus the names in document order. Only a pass that DISCOVERED more rows switches
+#: to the union, where ``count`` is the number of distinct rows seen and
+#: ``scrolled`` is reported so a caller can say which read it got.
 _USER_FEATURE_ROWS_JS = """
-({selector}) => {
-  const rows = Array.from(document.querySelectorAll(selector)).filter(
+async ({selector}) => {
+  const text = (el) => (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100);
+  const nodes = () => Array.from(document.querySelectorAll(selector)).filter(
     el => String(el.className || '').includes('ns-user-feature')
   );
-  return {
-    count: rows.length,
-    names: rows.map(el =>
-      (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100)
-    ),
-  };
+  const first = nodes();
+  const firstNames = first.map(text);
+  let container = null;
+  let walk = first.length ? first[0].parentElement : null;
+  while (walk) {
+    if (walk.scrollHeight - walk.clientHeight > 8) { container = walk; break; }
+    walk = walk.parentElement;
+  }
+  if (!container) return { count: first.length, names: firstNames, scrolled: false };
+  const step = Math.max(40, Math.floor(container.clientHeight * 0.8));
+  const limit = container.scrollHeight + step;
+  const origin = container.scrollTop;
+  const order = firstNames.slice();
+  const seen = new Set(order);
+  let discovered = 0;
+  try {
+    container.scrollTop = 0;
+    await new Promise(resolve => setTimeout(resolve, 120));
+    for (let top = 0; top <= limit; top += step) {
+      container.scrollTop = top;
+      await new Promise(resolve => setTimeout(resolve, 120));
+      for (const name of nodes().map(text)) {
+        if (!seen.has(name)) { seen.add(name); order.push(name); discovered += 1; }
+      }
+      if (top > 0 && container.scrollTop + container.clientHeight >= container.scrollHeight - 1) break;
+    }
+  } finally {
+    container.scrollTop = origin;
+  }
+  if (discovered === 0) return { count: first.length, names: firstNames, scrolled: true };
+  return { count: order.length, names: order, scrolled: true };
 }
 """
 
@@ -963,11 +1024,28 @@ def rename_tab(page: Any, name: str, new_name: str) -> dict[str, Any]:
     if not new_name:
         return {"renamed": False, "reason": "new_name must be non-empty", "pageUrl": page.url}
 
-    # 1. Right-click the tab and pick 重命名.
+    # 1. Right-click the tab and pick 重命名. The tab is resolved by exact name
+    # through the tab strip, so a name that only PREFIXES another tab's name is a
+    # refusal rather than a rename of the wrong tab (see resolve_exact_tab).
     try:
-        tab = page.locator(TAB_BAR_TAB).filter(has_text=name)
-        if tab.count() == 0:
-            return {"renamed": False, "reason": f"tab {name!r} not found", "pageUrl": page.url}
+        resolved = resolve_exact_tab(page, name)
+        if resolved["matchCount"] != 1:
+            return {
+                "renamed": False,
+                "reason": (
+                    f"tab {name!r} must match exactly one visible tab name (exact): "
+                    f"matchCount={resolved['matchCount']}, "
+                    f"containingName={resolved['contains']}, tabs={resolved['names']}"
+                ),
+                "pageUrl": page.url,
+            }
+        if not resolved["id"]:
+            return {
+                "renamed": False,
+                "reason": f"the matched tab {name!r} carries no data-id",
+                "pageUrl": page.url,
+            }
+        tab = page.locator(f'{TAB_BAR_TAB}[data-id="{resolved["id"]}"]')
         dismiss_stale_context_menu(page)
         tab.first.click(button="right")
         page.wait_for_timeout(2000)
@@ -994,6 +1072,33 @@ def rename_tab(page: Any, name: str, new_name: str) -> dict[str, Any]:
     tabs = list_document_tabs(page)
     renamed = any(t.get("name") == new_name for t in tabs.get("tabs", []))
     return {"renamed": renamed, **tabs, "pageUrl": page.url}
+
+
+def resolve_exact_tab(page: Any, name: str) -> dict[str, Any]:
+    """Resolve one visible tab by EXACT name; never by a substring.
+
+    A substring filter plus ``.first`` can never report ambiguity: ``.first``
+    narrows the locator to at most one element, so a following ``count() != 1``
+    check can only ever see 0 or 1 and a colliding name is silently accepted.
+    Measured live 2026-09-21: a STEP export asked for ``GF Thin Plate`` while
+    ``GF Thin Plate (old, 14 rows)`` also existed; the substring click hit the
+    other tab and the run failed later with an unrelated URL-mismatch error. The
+    tab-strip listing is the authority and the caller clicks the returned id.
+
+    Returns the single match's id (empty when the name is absent or ambiguous),
+    the exact match count, every visible name, and the substring candidates so a
+    refusal can name what it saw.
+    """
+    tabs = list_document_tabs(page).get("tabs", [])
+    names = [tab.get("name", "") for tab in tabs]
+    matches = [tab for tab in tabs if tab.get("name") == name]
+    return {
+        "id": matches[0].get("id", "") if len(matches) == 1 else "",
+        "name": matches[0].get("name", "") if len(matches) == 1 else "",
+        "matchCount": len(matches),
+        "names": names,
+        "contains": [candidate for candidate in names if name and name in candidate],
+    }
 
 
 def _tab_locators_by_id(page: Any, element_id: str) -> list[Any]:
@@ -1080,6 +1185,70 @@ def delete_element_by_id(page: Any, element_id: str) -> dict[str, Any]:
             f"{removal.get('elapsedMs')} ms"
         )
     return result
+
+
+def wait_for_feature_row_removed(
+    page: Any,
+    feature_name: str,
+    timeout_ms: int = FEATURE_DELETE_TIMEOUT_MS,
+    selector: str = "",
+    name_count_below: int | None = None,
+) -> dict[str, Any]:
+    """Wait until the named USER feature row leaves the visible feature list.
+
+    The verdict is the NAME, not a position: deleting a row re-numbers every row
+    below it, which is the same ``ng-repeat`` hazard the tab-strip removal wait
+    documents. Timeout is returned as data, never raised.
+
+    ``name_count_below`` switches the verdict from "the name is gone" to "fewer than
+    this many rows carry the name". That is the only correct verdict when the name is
+    SHARED: two identical rows are a real state (an interrupted run and its resume can
+    both land the same insert, measured live 2026-09-21 with two identical
+    ``TV #gf_lock = ...`` rows), and deleting one of them cannot make the name
+    disappear. Waiting for absence there would burn the whole timeout and then report a
+    correct delete as a failure.
+    """
+    from onshape_browser_mode.selectors import PS_USER_FEATURE
+
+    wanted = str(feature_name or "")
+    counted = name_count_below is not None
+    condition = "user_feature_row_count_below" if counted else "user_feature_row_absent"
+    started = time.monotonic()
+    last: list[str] = []
+    while True:
+        enumerated = enumerate_user_feature_rows(page, selector or PS_USER_FEATURE)
+        last = [str(name) for name in enumerated.get("names", [])]
+        matches = sum(1 for name in last if name == wanted)
+        done = bool(wanted) and (
+            matches < int(name_count_below) if counted else wanted not in last
+        )
+        if done:
+            return {
+                "waited": True,
+                "condition": condition,
+                "featureName": wanted,
+                "elapsedMs": int((time.monotonic() - started) * 1000),
+                "rowCount": enumerated.get("count"),
+                "nameCount": matches,
+            }
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        if elapsed_ms >= timeout_ms:
+            return {
+                "waited": False,
+                "condition": condition,
+                "featureName": wanted,
+                "elapsedMs": elapsed_ms,
+                "rowCount": enumerated.get("count"),
+                "nameCount": matches,
+                "nameCountBelow": name_count_below,
+                "rows": last,
+                "reason": (
+                    f"{matches} row(s) named {wanted!r} are still listed after "
+                    f"{timeout_ms} ms"
+                    + (f" (the wait required fewer than {name_count_below})" if counted else "")
+                ),
+            }
+        page.wait_for_timeout(FEATURE_DELETE_POLL_MS)
 
 
 def wait_for_tab_removed(
@@ -1412,6 +1581,15 @@ def enumerate_user_feature_rows(page: Any, selector: str) -> dict[str, Any]:
 
     A malformed answer is returned as an empty enumeration instead of raised: the
     caller has to report "0 rows" as evidence rather than crash on it.
+
+    The in-page collector (see :data:`_USER_FEATURE_ROWS_JS`) walks the Feature
+    List's own scroll container when one pass sees fewer rows than the list holds,
+    because that list is virtualised: on a 25-row chain only the first 18 rows were
+    in the DOM, and every name-addressed tool -- this function feeds
+    ``browser_read_feature_parameters``, ``browser_delete_feature`` and the insert
+    commit gate -- was blind to the rest. ``scrolled`` is added to the answer only
+    when the collector actually had to scroll, so the ordinary small-list answer
+    keeps exactly its old shape.
     """
     result = page.evaluate(_USER_FEATURE_ROWS_JS, {"selector": selector})
     if not isinstance(result, dict):
@@ -1422,7 +1600,108 @@ def enumerate_user_feature_rows(page: Any, selector: str) -> dict[str, Any]:
         count = max(0, int(result.get("count", len(names))))
     except (TypeError, ValueError):
         count = len(names)
-    return {"count": count, "names": names}
+    answer: dict[str, Any] = {"count": count, "names": names}
+    if result.get("scrolled"):
+        answer["scrolled"] = True
+    return answer
+
+
+#: Bounded scroll-and-match for a VIRTUALISED Feature List. The click layer addresses
+#: a row by its index in the RENDERED node list, so a row that is not rendered cannot
+#: be clicked at all: measured live 2026-09-21, the page enumeration saw 26 rows while
+#: `page.locator('.os-list-item.ns-user-feature')` counted 18, and the staleness check
+#: (correctly) refused rather than click the wrong row. This walks the row list's own
+#: scroll container until ``occurrence`` rendered rows carry the wanted name and
+#: returns the LAST of them -- the index the caller clicks -- so a row the pane has not
+#: rendered is still addressable. A name that two rows share is real: an interrupted
+#: run and its resume can both land the same insert, and then only the caller knows
+#: which occurrence it means (measured live 2026-09-21, two identical
+#: `TV #gf_lock = ...` rows). The default ``occurrence`` of 1 therefore keeps the old
+#: exact-one-match behaviour for every other caller. The scroll position is left where
+#: the row was found (restoring it there would un-render the row again) and is put back
+#: only when no such occurrence was found.
+_SCROLL_TO_USER_FEATURE_ROW_JS = """
+async ({selector, wanted, occurrence}) => {
+  const want = Math.max(1, Number(occurrence) || 1);
+  const text = (el) => (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100);
+  const nodes = () => Array.from(document.querySelectorAll(selector)).filter(
+    el => String(el.className || '').includes('ns-user-feature')
+  );
+  const rendered = () => nodes().map(text);
+  const needle = String(wanted || '').trim().toLowerCase();
+  const hits = () => rendered().map((name, index) => [name, index]).filter(
+    pair => pair[0].toLowerCase().includes(needle)
+  );
+  const start = nodes();
+  let container = null;
+  let walk = start.length ? start[0].parentElement : null;
+  while (walk) {
+    if (walk.scrollHeight - walk.clientHeight > 8) { container = walk; break; }
+    walk = walk.parentElement;
+  }
+  const now = hits();
+  if (now.length >= want) {
+    const hit = now[want - 1];
+    return { found: true, index: hit[1], name: hit[0], matches: now.length, rendered: rendered(), scrolled: false, steps: 0 };
+  }
+  if (!container) {
+    return { found: false, rendered: rendered(), scrolled: false, steps: 0, reason: 'the row list has no scroll container' };
+  }
+  const step = Math.max(40, Math.floor(container.clientHeight * 0.8));
+  const limit = container.scrollHeight + step;
+  const origin = container.scrollTop;
+  container.scrollTop = 0;
+  await new Promise(resolve => setTimeout(resolve, 120));
+  let steps = 0;
+  let most = now.length;
+  for (let top = 0; top <= limit; top += step) {
+    container.scrollTop = top;
+    await new Promise(resolve => setTimeout(resolve, 120));
+    steps += 1;
+    const found = hits();
+    most = Math.max(most, found.length);
+    if (found.length >= want) {
+      const hit = found[want - 1];
+      return { found: true, index: hit[1], name: hit[0], matches: found.length, rendered: rendered(), scrolled: true, steps: steps };
+    }
+    if (top > 0 && container.scrollTop + container.clientHeight >= container.scrollHeight - 1) break;
+  }
+  container.scrollTop = origin;
+  return { found: false, rendered: rendered(), scrolled: true, steps: steps, matches: most, reason: 'no scroll position rendered occurrence ' + want + ' of that name (at most ' + most + ' match(es))' };
+}
+"""
+
+
+def scroll_to_user_feature_row(
+    page: Any, selector: str, feature_name: str, occurrence: int = 1
+) -> dict[str, Any]:
+    """Scroll the Feature List until ``occurrence`` rendered rows match ``feature_name``.
+
+    Returns the LAST matching row's index in the CURRENT rendered node list (the index
+    the click layer uses), plus the rendered names it was chosen from, how many matches
+    that scroll position rendered, and whether scrolling was needed. ``occurrence`` is
+    1-based, so the default requires exactly one match, which is the behaviour every
+    existing caller relies on. A malformed answer is returned as ``found: False``: an
+    unreadable page is evidence, not an exception.
+    """
+    result = page.evaluate(
+        _SCROLL_TO_USER_FEATURE_ROW_JS,
+        {"selector": selector, "wanted": feature_name, "occurrence": occurrence},
+    )
+    if not isinstance(result, dict):
+        return {"found": False, "rendered": [], "reason": "the row-list scroll probe returned no map"}
+    names = result.get("rendered")
+    return {
+        "found": bool(result.get("found")),
+        "index": result.get("index"),
+        "name": result.get("name"),
+        "matches": result.get("matches"),
+        "occurrence": occurrence,
+        "rendered": [str(name) for name in names] if isinstance(names, list) else [],
+        "scrolled": bool(result.get("scrolled")),
+        "steps": result.get("steps"),
+        "reason": result.get("reason", ""),
+    }
 
 
 def feature_state(features: Any, feature_name: str) -> dict[str, Any]:
@@ -1444,14 +1723,10 @@ def feature_state(features: Any, feature_name: str) -> dict[str, Any]:
     items = features.get("features")
     if not isinstance(items, list):
         return empty
-    candidates = [
-        {
-            "name": str(item.get("name", "")),
-            "hasError": bool(item.get("hasError")),
-        }
-        for item in items
-        if isinstance(item, dict) and item.get("isUserFeature")
-    ]
+    # The SAME user-row rule the count-based commit gate uses: one rule for "a
+    # user-feature row", so the name-matched verdict and the count can never
+    # disagree about which rows exist.
+    candidates = user_feature_rows(features)
     names = [row["name"] for row in candidates]
     rows = [candidates[index] for index in match_user_feature_row_indices(names, feature_name)]
     return {
@@ -1688,6 +1963,70 @@ def count_custom_features(features: Any) -> int:
     )
 
 
+def user_feature_rows(features: Any) -> list[dict[str, Any]]:
+    """Every user-feature row of a read Feature List, whatever it is CALLED.
+
+    A custom feature may declare a ``"Feature Name Template"``, and then its row
+    does not display its Feature Type Name at all. Measured live 2026-09-21 on
+    the thin ``Thin Variable`` feature, whose template is the native Variable
+    feature's own ``###name = #value``: the row read ``TV #gf_probe = 42 mm``, so
+    a search for "Thin Variable" can never find the row it is meant to confirm.
+    Callers therefore identify the row a call created by the MULTISET difference
+    against the pre-insert row names (``created_user_feature_rows``) and gate on a
+    row COUNT.
+    """
+    if not isinstance(features, dict):
+        return []
+    items = features.get("features")
+    if not isinstance(items, list):
+        return []
+    return [
+        {"name": str(item.get("name", "")), "hasError": bool(item.get("hasError"))}
+        for item in items
+        if isinstance(item, dict) and item.get("isUserFeature")
+    ]
+
+
+def created_user_feature_rows(
+    rows: Any, baseline_names: Any
+) -> list[dict[str, Any]]:
+    """The rows of ``rows`` that EXCEED the pre-click name MULTISET.
+
+    A name-set difference is not enough, and it fails in the one case this check
+    exists for. The row a custom feature writes is not unique: two ``Thin Variable``
+    rows that define the same variable with the same value render the identical
+    text, and a run that was interrupted and resumed can leave exactly that. Measured
+    live 2026-09-21: a resume raced a still-running first run, the element held two
+    identical ``TV #gf_lock = 37.7 mm 锁定面方孔边长`` rows, and the set difference
+    then reported the NEW third row as "not created" because its name was already in
+    the baseline -- which made the runner fail that step forever, however often it was
+    retried. Counting per name fixes it: the excess over the baseline is the row this
+    call created, whether or not a same-named row was there before.
+
+    Rows with no baseline counterpart are always created. The answer keeps the read's
+    order so a caller can report the row text.
+    """
+    # A ``Counter`` is copied WITH its counts; anything else is counted here. Iterating a
+    # Counter yields its distinct keys, so treating one as a plain name list would drop
+    # every duplicate -- exactly the row this helper exists to find.
+    if isinstance(baseline_names, collections.Counter):
+        remaining: dict[str, int] = collections.Counter(baseline_names)
+    else:
+        remaining = collections.Counter(
+            str(name) for name in (baseline_names or ())
+        )
+    created: list[dict[str, Any]] = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("name", ""))
+        if remaining.get(key, 0) > 0:
+            remaining[key] -= 1
+            continue
+        created.append(row)
+    return created
+
+
 def wait_for_panel_rows(
     page: Any,
     timeout_ms: int,
@@ -1796,6 +2135,8 @@ def wait_for_feature_rows(
     feature_name: str,
     minimum: int,
     timeout_ms: int,
+    *,
+    match_name: bool = True,
 ) -> dict[str, Any]:
     """Wait (bounded, inside the page) until ``minimum`` matching rows exist.
 
@@ -1804,6 +2145,14 @@ def wait_for_feature_rows(
     there (it satisfies a "row with this name is visible" wait immediately) and a
     workbench that renders its title before its rows (a read straight after a
     reload can see an empty list). Both were measured live on 2026-09-20.
+
+    ``match_name=False`` drops the name filter and counts user-feature rows only.
+    That is what the post-reload commit check needs, because a feature with a
+    ``"Feature Name Template"`` does not display its Feature Type Name at all
+    (measured live 2026-09-21: a ``Thin Variable`` row read
+    ``TV #gf_probe = 42 mm``), so a name filter can never be satisfied by the very
+    row the check exists to confirm. The name filter stays for the pre-accept
+    regeneration wait, where the row is the open dialog's own row.
     """
     started = time.monotonic()
     try:
@@ -1811,7 +2160,7 @@ def wait_for_feature_rows(
             _ROW_COUNT_PREDICATE,
             arg={
                 "selector": PARTSTUDIO_FEATURE_ITEM,
-                "text": feature_name,
+                "text": feature_name if match_name else "",
                 "minimum": minimum,
             },
             timeout=timeout_ms,
@@ -1822,6 +2171,7 @@ def wait_for_feature_rows(
     return {
         "waited": waited,
         "condition": "user_feature_row_count",
+        "matchName": match_name,
         "minimum": minimum,
         "timeoutMs": timeout_ms,
         "elapsedMs": round((time.monotonic() - started) * 1000),
@@ -1834,6 +2184,8 @@ def verify_insert_committed(
     feature_name: str,
     *,
     minimum: int = 1,
+    survival_minimum: int | None = None,
+    baseline_names: Any = (),
     appeared: bool = False,
     timeout_ms: int = PARTSTUDIO_RELOAD_TIMEOUT_MS,
 ) -> dict[str, Any]:
@@ -1857,6 +2209,17 @@ def verify_insert_committed(
     reported ``verified: False`` and never as inserted — the recorded defect was
     exactly a false positive in this direction. ``timeout_ms`` is the caller's
     budget, normally the adaptive one from ``partstudio_wait_budget_ms``.
+
+    The post-reload gate counts ROWS, not name matches, and identifies the created
+    row as the one whose name was not in ``baseline_names``. A feature carrying a
+    ``"Feature Name Template"`` does not display its Feature Type Name, so a
+    name-matching gate times out on a row that is really there: measured live
+    2026-09-21, a ``Thin Variable`` insert (row ``TV #gf_probe = 42 mm``, no
+    error, variable really created) was reported ``inserted: False`` after the
+    full 30 s survival budget because the filter looked for "Thin Variable".
+    ``survival_minimum`` is the pre-insert USER-ROW count plus one and is what the
+    wait and the verdict use; ``minimum`` keeps its name-matched meaning for the
+    pre-accept wait the caller runs.
     """
     if not appeared:
         return {
@@ -1867,24 +2230,32 @@ def verify_insert_committed(
             "features": None,
             "listed": False,
             "errored": False,
+            "createdRows": [],
+            "userRows": [],
             "featureRows": [],
             "reason": (
                 f"the custom feature {feature_name!r} never appeared in the "
                 "Feature List, so there was nothing to confirm"
             ),
         }
+    target = minimum if survival_minimum is None else survival_minimum
+    baseline = collections.Counter(str(name) for name in baseline_names)
     reload_result = reload_page(page)
     survived = None
     if reload_result.get("reloaded"):
         survived = wait_for_feature_rows(
-            page, feature_name, minimum, timeout_ms
+            page, feature_name, target, timeout_ms, match_name=False
         )
     verified = bool(reload_result.get("reloaded"))
     # A best-effort read even when the row never came back: the returned lists are
     # evidence for the caller, while the wait above stays the gate.
     features = read_partstudio_features(page)
     state = feature_state(features, feature_name)
-    committed = verified and bool((survived or {}).get("waited")) and state["listed"]
+    rows = user_feature_rows(features)
+    created = created_user_feature_rows(rows, baseline)
+    waited = bool((survived or {}).get("waited"))
+    counted = verified and waited and len(rows) >= target
+    committed = counted and bool(created)
     if committed:
         reason = ""
     elif not verified:
@@ -1893,20 +2264,37 @@ def verify_insert_committed(
             "the workspace state is unverified and the insert is not reported "
             "as applied"
         )
+    elif not waited:
+        reason = (
+            f"the survival wait for {feature_name!r} never settled within its "
+            "budget, so the workspace state is unverified and the insert is not "
+            "reported as applied"
+        )
+    elif len(rows) < target:
+        reason = (
+            f"the post-reload read found {len(rows)} user row(s) where the survival "
+            f"wait required {target}: the Feature List is virtualised and a read taken "
+            "right after a reload can see only a partial window, so this call reports "
+            "neither success nor failure -- re-read the list before retrying"
+        )
     else:
         reason = (
-            f"the feature {feature_name!r} did not survive the confirming page "
-            "reload: the workspace did not keep it, so the insert was not "
-            "committed"
+            f"the reloaded Feature List shows {len(rows)} user row(s) and none of them "
+            f"is beyond the pre-click baseline of {sum(baseline.values())} row(s), so "
+            "this call cannot point at a row it created"
         )
     return {
         "verified": verified,
         "committed": committed,
+        # ``listed``/``errored`` describe the row this call created, so a
+        # template-named row is reported as listed even though no name matched.
+        "listed": bool(created) or state["listed"],
+        "errored": state["errored"] or any(row["hasError"] for row in created),
+        "createdRows": created,
+        "userRows": rows,
         "reload": reload_result,
         "survived": survived,
         "features": features,
-        "listed": state["listed"],
-        "errored": state["errored"],
         "featureRows": state["rows"],
         "reason": reason,
     }
@@ -1969,6 +2357,18 @@ _BOOLEAN_CLICK_TARGETS = (
 #: cannot set.
 _BOOLEAN_CLICK_TIMEOUT_MS = 2500
 
+#: Bounded wait for an Onshape quantity widget to RESOLVE the expressions it was
+#: just filled with, and the interval it re-reads the dialog on. A widget resolves
+#: ``#variable`` asynchronously, and the accept click races that resolution:
+#: measured live 2026-09-21, accepting straight after the fill committed the field's
+#: OLD value (the row read ``TV #gf_plate_size = 0 mm``) although the same dialog's
+#: live preview showed ``84 mm``. Once it has resolved, the widget echoes the typed
+#: expression VERBATIM -- the same build read ``#gf_plate_size = 84 mm`` in the row
+#: and ``#gf_pitch * 2`` in the dialog -- so a satisfied wait means the text the
+#: accept will commit is exactly the text that was asked for.
+EXPRESSION_RESOLVE_WAIT_MS = 20_000
+EXPRESSION_RESOLVE_POLL_MS = 1_000
+
 
 def _boolean_state(locator: Any) -> bool | None:
     """Read a checkbox's state; visibility is not required to read it."""
@@ -2024,7 +2424,156 @@ def _commit_field(target: Any) -> bool:
         return False
 
 
-def fill_dialog_fields(page: Any, parameters: dict[str, Any]) -> dict[str, Any]:
+_QUANTITY_RE = re.compile(r"^([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(.*)$")
+
+
+def quantities_match(actual: Any, expected: Any) -> bool:
+    """Whether a dialog readback is the value that was asked for.
+
+    Two shapes have to match, and they are not the same comparison:
+
+    * a literal field reads back exactly the text that was typed;
+    * a QUANTITY widget that has evaluated an expression reads back the resolved
+      NUMBER, not the expression. Measured live 2026-09-21 on the same dialog: the
+      read taken 4 ms after the fill still held the typed `#gf_socket`, while the
+      same field read `36.3 mm` 20 s later. Both are the expression having taken
+      effect; only the second one is settled.
+
+    Text is compared case-insensitively with whitespace collapsed, and two numbers
+    compare equal within a relative 1e-9 so a caller may write `36.30 mm` for a
+    widget that renders `36.3 mm`. The unit must match: ignoring it would accept
+    `36.3 in` for `36.3 mm`.
+    """
+    left = " ".join(str(actual).split()).lower()
+    right = " ".join(str(expected).split()).lower()
+    if left == right:
+        return True
+    found = _QUANTITY_RE.match(left)
+    wanted = _QUANTITY_RE.match(right)
+    if not found or not wanted or found.group(2) != wanted.group(2):
+        return False
+    try:
+        a = float(found.group(1))
+        b = float(wanted.group(1))
+    except (TypeError, ValueError):  # pragma: no cover - the regex already guards this
+        return False
+    return abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+
+
+def wait_for_dialog_fields(
+    page: Any,
+    desired: dict[str, Any],
+    keys: list[str],
+    timeout_ms: int = EXPRESSION_RESOLVE_WAIT_MS,
+    poll_ms: int = EXPRESSION_RESOLVE_POLL_MS,
+    resolved: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Wait, bounded, until the dialog reads ``desired`` back for ``keys``.
+
+    This is the accept gate for an expression value. The quantity widget resolves a
+    ``#variable`` reference asynchronously, so the read taken straight after a fill
+    still shows the field's OLD text and the accept click would then commit that old
+    value -- silently, as a wrong number (see ``EXPRESSION_RESOLVE_WAIT_MS`` for the
+    measurement). Waiting on the DIALOG's own readback is what makes the wait usable
+    for every thin row: a row whose feature has no ``Feature Name Template``
+    displays no numbers at all, so the row text cannot serve as the signal, while the
+    dialog always can.
+
+    A stated ``resolved`` value is the ONLY accepted signal for that key, and it has to
+    be stated for EVERY expression key. The widget shows the typed expression for a
+    moment before it parses it, so "the field reads the text I typed" is not evidence
+    that the value was taken -- measured live 2026-09-21, the accept that followed such
+    a read committed the field's PREVIOUS value, silently. Two live instances of that
+    defect: a variable-driven ``Thin Sketch Rectangle`` came out 100 mm x 100 mm with a
+    0 mm corner radius (its dialog defaults) while its literal-valued sibling in the
+    same document stored 84 mm / 4 mm, and a ``Thin Variable`` row landed as
+    ``#gf_plate_size = 0 mm``. Both were accepted by the typed-text rule. Hence an
+    expression key the caller states a value for is satisfied ONLY by the value the
+    expression must EVALUATE to (``quantities_match``) -- a settled widget renders the
+    number, not the text (a correctly stored ``#gf_pitch * 2`` reads back ``84 mm``) --
+    and an expression key the caller states NOTHING for can never be confirmed, so the
+    wait refuses immediately with ``condition: "unstated_expression"`` instead of
+    spending its budget and instead of accepting the text. A literal key keeps the
+    exact-text rule. ``resolved`` is keyed by parameter id and is only consulted for the
+    given ``keys``.
+
+    Failure is reported, never raised, and the caller decides what an unresolved
+    field means: the returned ``after``/``mismatched`` are the same read the fill
+    verdict is taken from.
+    """
+    expectations: dict[str, list[Any]] = {}
+    strict_keys: list[str] = []
+    unstated: list[str] = []
+    for key in keys:
+        name = str(key)
+        if resolved and key in resolved:
+            expectations[name] = [resolved[key]]
+            strict_keys.append(name)
+        elif "#" in str(desired.get(key, "")):
+            # An expression is NEVER confirmed by the text that was typed into it. A
+            # variable's Value field settles to the EVALUATED number too: measured live
+            # 2026-09-21, a correctly stored `#gf_pitch * 2` reads back `84 mm`, and the
+            # insert that accepted while the field still showed the text committed the
+            # field's previous value and produced the row `TV #gf_plate_size = 0 mm`.
+            # So a caller that states nothing for an expression key cannot confirm it,
+            # and this waits for nothing: it refuses immediately and says so.
+            expectations[name] = []
+            strict_keys.append(name)
+            unstated.append(name)
+        else:
+            expectations[name] = [desired.get(key, "")]
+    if unstated:
+        return {
+            "waited": False,
+            "condition": "unstated_expression",
+            "keys": [str(key) for key in keys],
+            "strictKeys": strict_keys,
+            "unstatedExpressionKeys": unstated,
+            "resolvedValues": {
+                key: resolved[key] for key in expectations if resolved and key in resolved
+            },
+            "timeoutMs": timeout_ms,
+            "pollMs": poll_ms,
+            "elapsedMs": 0,
+            "after": dialog_values(page),
+            "mismatched": unstated,
+        }
+    started = time.monotonic()
+    read: dict[str, Any] = {}
+    mismatched: list[str] = []
+    while True:
+        read = dialog_values(page)
+        mismatched = [
+            key
+            for key, options in expectations.items()
+            if not any(quantities_match(read.get(key, ""), option) for option in options)
+        ]
+        elapsed = round((time.monotonic() - started) * 1000)
+        if not mismatched or elapsed >= timeout_ms:
+            break
+        page.wait_for_timeout(poll_ms)
+    return {
+        "waited": not mismatched,
+        "condition": "dialog_fields_readback",
+        "keys": [str(key) for key in keys],
+        "strictKeys": strict_keys,
+        "unstatedExpressionKeys": [],
+        "resolvedValues": {
+            key: resolved[key] for key in expectations if resolved and key in resolved
+        },
+        "timeoutMs": timeout_ms,
+        "pollMs": poll_ms,
+        "elapsedMs": elapsed,
+        "after": read,
+        "mismatched": mismatched,
+    }
+
+
+def fill_dialog_fields(
+    page: Any,
+    parameters: dict[str, Any],
+    expect_values: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Fill the open parameter dialog's named fields and read the values back.
 
     One implementation for both callers, because "which control carries this
@@ -2037,6 +2586,24 @@ def fill_dialog_fields(page: Any, parameters: dict[str, Any]) -> dict[str, Any]:
     Nothing is accepted here: the caller decides, and ``readbackOk`` plus
     ``missing`` are the evidence it decides on. ``before`` is read before any
     fill so a caller can report what the row held.
+
+    A field holding an Onshape EXPRESSION (``#gf_socket``) is WAITED for before the
+    verdict is taken, because the quantity widget shows the typed text for a moment
+    before it parses it: the read straight after the fill is stale, and accepting on it
+    commits the field's PREVIOUS value as a silently wrong number (measured live
+    2026-09-21 -- a variable-driven sketch came out at its 100 mm defaults while its
+    literal-valued sibling stored 84 mm). ``expect_values`` maps a parameter id to the
+    value the expression must EVALUATE to, which is what a settled widget renders, and
+    for a key it states it is the ONLY accepted signal; a key with no stated value is
+    satisfied by the typed text, which is the settled state of a field whose stored
+    value IS the expression (a variable's Value field). Both the wait and its verdict
+    are returned (``expressionWait``, ``resolved``).
+
+    ``mismatched`` names the fields whose ``after`` read does not match the request,
+    by the one comparison both callers share (``quantities_match``): exact text for a
+    literal, and for an expression the stated ``expect_values`` value (or the typed
+    text when none is stated). It is reported rather than judged, because the caller
+    decides what a refusal means.
     """
     before = dialog_values(page)
     dialog = page.locator(PS_FEATURE_DIALOG).first
@@ -2074,18 +2641,49 @@ def fill_dialog_fields(page: Any, parameters: dict[str, Any]) -> dict[str, Any]:
         key: str(value).lower() if isinstance(value, bool) else str(value)
         for key, value in parameters.items()
     }
-    readback_ok = all(
-        str(after.get(key, "")).lower() == value.lower() for key, value in desired.items()
-    )
+    expression_fields = [
+        str(key)
+        for key, value in parameters.items()
+        if not isinstance(value, bool) and "#" in str(value)
+    ]
+    resolved_values = {
+        str(key): value
+        for key, value in (expect_values or {}).items()
+        if str(key) in expression_fields
+    }
+    mismatched = [
+        key
+        for key, value in desired.items()
+        if not quantities_match(after.get(key, ""), value)
+    ]
+    # 2c. Let the widget RESOLVE what was just filled before anything is judged. The
+    #     read above was taken immediately, so for an expression it is the stale one.
+    expression_wait = None
+    if expression_fields:
+        expression_wait = wait_for_dialog_fields(
+            page, desired, expression_fields, resolved=resolved_values
+        )
+        after = expression_wait["after"]
+        unsettled = set(expression_wait["mismatched"])
+        mismatched = [
+            key
+            for key in desired
+            if key in unsettled or (key not in expression_fields and key in mismatched)
+        ]
     return {
         "updated": updated,
         "missing": missing,
         "committed": committed,
         "uncommitted": uncommitted,
+        "mismatched": mismatched,
         "before": before,
         "after": after,
         "desired": desired,
-        "readbackOk": readback_ok,
+        "readbackOk": not mismatched,
+        "expressionFields": expression_fields,
+        "expressionWait": expression_wait,
+        "expectValues": resolved_values,
+        "resolved": None if expression_wait is None else not expression_wait["mismatched"],
     }
 
 
@@ -2094,6 +2692,9 @@ def insert_custom_feature(
     feature_name: str,
     part_studio_tab: str | None = None,
     parameters: dict[str, Any] | None = None,
+    expect_row: str = "",
+    expect_values: dict[str, Any] | None = None,
+    verify_commit: bool = True,
 ) -> dict[str, Any]:
     """Apply a custom FeatureScript feature into a Part Studio (0 API quota).
 
@@ -2104,10 +2705,13 @@ def insert_custom_feature(
     The 添加自定义特征 picker alone only inserts a not-computed row.
 
     ``inserted`` means the workspace kept the feature, not that a click landed:
-    the pre-click matching-row count is read first, both waits require that count
-    to grow, and after the row and the part appear the page is reloaded once and
-    the count must survive that reload (see ``verify_insert_committed`` for the
-    measured reason).
+    the pre-click USER-ROW count and names are read first, both waits require that
+    count to grow, and after the row and the part appear the page is reloaded once
+    and the new row must survive that reload (see ``verify_insert_committed`` for
+    the measured reason and for why the check counts rows instead of matching the
+    feature's name). The read taken immediately after the accept is reported as
+    ``workbenchAppeared`` but deliberately does NOT gate that reload: it can be
+    empty mid-re-render even when the insert really landed.
 
     ``parameters`` fills the dialog's named fields before it is accepted, so the
     row is created with its numbers instead of with the dialog's defaults. A
@@ -2118,11 +2722,50 @@ def insert_custom_feature(
     readback does not match, is reported as ``inserted: False`` with the fill
     evidence and the dialog is NOT accepted.
 
+    A value containing ``#`` is an Onshape EXPRESSION, and it RESOLVES
+    ASYNCHRONOUSLY: the read taken straight after the fill still shows the field's
+    old text, and accepting then commits that old value as a silently wrong number.
+    Measured live 2026-09-21 on ``#gf_pitch * 2``: the accept landed and the model
+    stored ``0 mm`` after the dialog's own preview had shown ``84 mm``. So an
+    expression field is waited for (see ``wait_for_dialog_fields``), and the wait is
+    satisfied by the typed text or, when the caller states it, by the value the
+    expression must EVALUATE to: a settled widget renders the resolved number, so
+    ``expect_values`` (parameter id -> value) is what lets a dimension-driven step be
+    confirmed at all -- measured live 2026-09-21, the same field read the typed
+    ``#gf_socket`` 4 ms after the fill and ``36.3 mm`` 20 s later. A field that never
+    reaches either readback is a refusal, unless ``expect_row`` covers it: that is the
+    ROW text the model writes, produced by the feature's ``Feature Name Template``
+    from the computed parameter, which is the strongest evidence for a feature whose
+    row states numbers.
+
     Careful with what a refusal means, because it was measured (2026-09-21): the
     dropdown click has ALREADY added the row, and a row with an unaccepted dialog
     keeps its dialog DEFAULTS and survives a reload. So a refusal leaves a real,
     default-valued row in the tree that satisfies ``inserted`` on a later call and
     contributes geometry; it must be deleted, not ignored.
+
+    ``verify_commit=False`` skips that confirming reload. It exists because the
+    two-wait confirmation (regeneration, then a reload plus its survival wait) can
+    exceed the ~60-70 s transport budget of one MCP call on a step whose geometry is
+    expensive to recompute: measured live 2026-09-21, a 45-degree-draft subtract
+    extrude of 2.15 mm at z 5.0 timed out twice at a clean tree and created NO row,
+    while four thinner instances of the same feature in the same element completed.
+    A timed-out call returns no verdict at all, so the caller is left unable to tell
+    an unsent step from a landed one. With the reload skipped the call returns as
+    soon as the accept landed, ``inserted`` is ``None`` (unknown, never a false
+    success) and ``applyState`` is ``pending_verification``; the caller then proves
+    the row with ``browser_read_feature_parameters`` or a feature-list read before
+    the next step. Use it only for a step whose confirmation is known to outlive the
+    transport, never to avoid a refusal.
+
+    The SHORT path also skips the post-accept regeneration wait, and it has to: that
+    wait's budget scales with the element (30 s plus 2 s per custom feature, see
+    ``partstudio_wait_budget_ms``), so on an element of ~20 rows it is already longer
+    than one call's transport budget -- measured live 2026-09-21, three short-path
+    attempts at one heavy cut on a 20-row tree returned NO verdict at all, because the
+    call never got as far as returning from the accept it had already clicked. What
+    the short path guarantees is therefore "the accept click was made", not "the model
+    finished recomputing", and the caller's own row read is what decides.
     """
     if part_studio_tab:
         # Same switch the tool ``browser_activate_tab`` exposes, so both paths share
@@ -2146,6 +2789,7 @@ def insert_custom_feature(
             )
             return {
                 "inserted": False,
+                "applyState": "not_inserted",
                 "reason": reason,
                 "panelReady": panel_ready,
                 "activation": activation,
@@ -2163,9 +2807,19 @@ def insert_custom_feature(
     #    below require the matching row count to grow past this number (measured
     #    live 2026-09-20: two `Spiral ridge` rows already existed and satisfied a
     #    name-only regeneration wait in 12 ms).
+    #
+    #    The waits gate on the WHOLE user-row count, not on a name match, because a
+    #    feature with a "Feature Name Template" does not display its Feature Type
+    #    Name: a `Thin Variable` row reads `TV #gf_probe = 42 mm`, so a wait for
+    #    "Thin Variable" could never be satisfied by the row it was waiting for
+    #    (measured live 2026-09-21; see verify_insert_committed). Counting rows and
+    #    subtracting the pre-insert names is the same check without that blind spot.
     baseline_read = read_partstudio_features(page)
+    baseline_rows = user_feature_rows(baseline_read)
+    baseline_names = [row["name"] for row in baseline_rows]
     baseline = len(feature_state(baseline_read, feature_name)["rows"])
     minimum = baseline + 1
+    survival_minimum = len(baseline_rows) + 1
     # Both waits scale with the element's recompute load: a fixed budget gets
     # thinner as the document grows, and it fails by calling a committed feature
     # missing (measured live 2026-09-20, see PARTSTUDIO_RELOAD_WAIT).
@@ -2197,6 +2851,7 @@ def insert_custom_feature(
     if not opened.get("waited"):
         return {
             "inserted": False,
+            "applyState": "not_inserted",
             "reason": "custom-feature dropdown did not open",
             "menu": opened,
         }
@@ -2223,6 +2878,7 @@ def insert_custom_feature(
         if len(rows) != 1:
             return {
                 "inserted": False,
+                "applyState": "not_inserted",
                 "reason": (
                     f"feature {feature_name!r} must match exactly one workspace "
                     "dropdown item"
@@ -2231,7 +2887,11 @@ def insert_custom_feature(
             }
         rows[0].click()
     except Exception as exc:  # noqa: BLE001 - surface as structured result
-        return {"inserted": False, "reason": f"feature dropdown click failed: {exc}"}
+        return {
+            "inserted": False,
+            "applyState": "not_inserted",
+            "reason": f"feature dropdown click failed: {exc}",
+        }
     dialog = interaction.wait_for_condition(
         page,
         condition="visible",
@@ -2244,18 +2904,48 @@ def insert_custom_feature(
     #     just created. A fill that did not land exactly is a refusal, not a
     #     silent default-valued row.
     filled = None
+    expression_fields: list[str] = []
+    expression_wait = None
     if parameters:
-        filled = fill_dialog_fields(page, parameters)
-        if filled["missing"] or filled["uncommitted"] or not filled["readbackOk"]:
-            return {
-                "inserted": False,
-                "reason": (
+        # The fill WAITS for every expression field before the verdict is taken: the
+        # read straight after the fill is the stale one that used to be accepted and
+        # committed as a wrong number. Both the wait and its verdict live in the one
+        # shared implementation, so the edit path gets the same gate.
+        filled = fill_dialog_fields(page, parameters, expect_values=expect_values)
+        expression_fields = filled["expressionFields"]
+        expression_wait = filled["expressionWait"]
+        unresolved = [
+            key for key in filled["mismatched"] if key not in expression_fields
+        ]
+        unconfirmed = [
+            key for key in filled["mismatched"] if key in expression_fields
+        ]
+        if filled["missing"] or filled["uncommitted"] or unresolved or (
+            unconfirmed and not expect_row
+        ):
+            if unconfirmed and not expect_row:
+                reason = (
+                    f"parameter(s) {', '.join(unconfirmed)} hold an Onshape "
+                    "expression whose resolved value the dialog never showed, so the "
+                    "value could not be confirmed before the accept; pass "
+                    "expect_values with the value each expression must EVALUATE to "
+                    "(the settled widget renders the number, not the expression), or "
+                    "expect_row with the row text the model should write"
+                )
+            else:
+                reason = (
                     "the parameter dialog was not filled exactly; the dialog was left "
                     "unaccepted"
-                ),
+                )
+            return {
+                "inserted": False,
+                "applyState": "not_inserted",
+                "reason": reason,
                 "parameters": filled,
+                "expressionFields": expression_fields,
                 "available": available,
                 "dialog": dialog,
+                "wait": expression_wait,
                 "panelReady": panel_ready,
                 "toolbarReady": toolbar_ready,
             }
@@ -2274,34 +2964,124 @@ def insert_custom_feature(
     # Regeneration is asynchronous: wait for the row COUNT to pass the baseline
     # instead of sleeping a fixed 15s, and instead of waiting for one row whose
     # name may already be on screen.
-    regenerated = wait_for_feature_rows(
-        page, feature_name, minimum, regenerate_budget
-    )
+    #
+    # On the SHORT path this wait is SKIPPED, because it is what breaks the short
+    # path's own promise. The budget scales with the element (30 s plus 2 s per
+    # custom feature), so on an element with ~20 rows it is already ~70 s -- longer
+    # than the ~60-70 s a single MCP call gets, which is exactly the case the caller
+    # asked to avoid (measured live 2026-09-21: three `verify_commit=False` attempts
+    # at one heavy cut on a 20-row element returned no verdict at all, and the call
+    # never reached the accept-click it was supposed to return from). The caller of
+    # the short path has explicitly taken over confirmation, so the wait is not a
+    # gate it needs; the accept click is the last mandatory step, and everything
+    # reported below is evidence the caller is told not to trust as a verdict.
+    if verify_commit:
+        regenerated = wait_for_feature_rows(
+            page, feature_name, survival_minimum, regenerate_budget, match_name=False
+        )
+    else:
+        regenerated = {
+            "skipped": True,
+            "condition": "user_feature_row_count",
+            "minimum": survival_minimum,
+            "budgetMs": regenerate_budget,
+            "reason": (
+                "the regeneration wait was skipped on the short path "
+                "(verify_commit=false): its adaptive budget can exceed one call's "
+                "transport budget and the caller has taken over confirmation"
+            ),
+        }
 
     features = read_partstudio_features(page)
     state = feature_state(features, feature_name)
+    created = created_user_feature_rows(user_feature_rows(features), baseline_names)
     accepted_ok = bool(accepted.get("clicked"))
+    # The read taken straight after the accept is NOT authoritative, and it does not
+    # gate the confirming reload. Measured live 2026-09-21: it returned ZERO user rows
+    # 25 ms after an accepted insert that then survived the reload, because the accept
+    # starts a re-render that clears the list before re-rendering it. It is reported
+    # as `workbenchAppeared` evidence; the reload is what decides.
+    workbench_appeared = len(user_feature_rows(features)) >= survival_minimum
 
     # A row in the workbench is not a workspace commit (verify_insert_committed):
     # reload once and require the row to survive, then report that read.
-    commit = verify_insert_committed(
-        page,
-        feature_name,
-        minimum=minimum,
-        appeared=accepted_ok and state["listed"],
-        timeout_ms=survival_budget,
-    )
+    if verify_commit:
+        commit = verify_insert_committed(
+            page,
+            feature_name,
+            minimum=minimum,
+            survival_minimum=survival_minimum,
+            baseline_names=baseline_names,
+            appeared=accepted_ok,
+            timeout_ms=survival_budget,
+        )
+    else:
+        # The caller chose the short path because this element's confirmation is
+        # known to outlive the transport (see the docstring). This is reported as
+        # evidence, never as a passed check: `committed` stays None so nothing below
+        # can read it as a success.
+        commit = {
+            "verified": False,
+            "committed": None,
+            "skipped": True,
+            "reason": (
+                "the confirming reload was skipped (verify_commit=false): on an "
+                "element where it outlives the ~60 s transport limit a timed-out call "
+                "returns no verdict at all while possibly having created a real row. "
+                "The reads above are evidence, not a verdict -- confirm the new row "
+                "and its values (browser_read_feature_parameters, or a feature-list "
+                "read) before the next step."
+            ),
+        }
     if isinstance(commit.get("features"), dict):
         features = commit["features"]
         state = feature_state(features, feature_name)
+        created = created_user_feature_rows(
+            user_feature_rows(features), baseline_names
+        )
+
+    # `listed`/`errored` describe the row this call created. Reporting the
+    # name-matched state alone would call a template-named row (which never
+    # displays its Feature Type Name) absent, and miss an error on it.
+    listed = state["listed"] or bool(created)
+    errored = state["errored"] or any(row["hasError"] for row in created)
+    created_names = [row["name"] for row in created]
+    # The model's own statement of the values it took: a feature with a "Feature
+    # Name Template" writes them into its row text, which is the only place an
+    # expression's evaluated value can be read (see the docstring).
+    row_verified = True if not expect_row else any(
+        str(expect_row) in name for name in created_names
+    )
+    # `inserted` is a tri-state on the short path: None means the row may or may not
+    # be there and the caller has to confirm it itself. It is never True there,
+    # because the evidence that makes it True (the survived reload) was not taken.
+    if not accepted_ok:
+        inserted: bool | None = False
+    elif not verify_commit:
+        inserted = None
+    else:
+        inserted = bool(commit["committed"]) and row_verified
 
     result = {
-        "inserted": accepted_ok and bool(commit["committed"]),
+        "inserted": inserted,
+        "applyState": (
+            "pending_verification"
+            if inserted is None
+            else ("verified" if inserted else "not_inserted")
+        ),
         "accepted": accepted,
         "parameters": filled,
-        "listed": state["listed"],
-        "errored": state["errored"],
+        "expressionFields": expression_fields,
+        "expectRow": expect_row,
+        "expectValues": filled["expectValues"] if filled else {},
+        "rowVerified": row_verified,
+        "verifyCommit": verify_commit,
+        "expressionWait": expression_wait,
+        "listed": listed,
+        "errored": errored,
+        "workbenchAppeared": workbench_appeared,
         "featureRows": state["rows"],
+        "createdRows": created,
         "baselineRows": baseline,
         "commit": {key: value for key, value in commit.items() if key != "features"},
         "waits": {
@@ -2309,6 +3089,7 @@ def insert_custom_feature(
             "dialog": dialog,
             "regeneration": regenerated,
             "commitSurvival": commit.get("survived"),
+            "expressionResolve": expression_wait,
         },
         "panelReady": panel_ready,
         "toolbarReady": toolbar_ready,
@@ -2320,7 +3101,7 @@ def insert_custom_feature(
         "features": features,
         "pageUrl": page.url,
     }
-    if state["errored"]:
+    if errored:
         # Reported, never retried: an error row may still be regenerating, and a
         # second accept click would add a second feature instead of fixing this
         # one. semantic.build_part turns this into an explicit non-acceptance.
@@ -2333,8 +3114,19 @@ def insert_custom_feature(
             "the parameter dialog's accept click did not land, so no feature "
             "was created"
         )
+    elif commit.get("skipped"):
+        result["reason"] = str(commit.get("reason") or "")
     elif not commit["committed"]:
         result["reason"] = str(commit.get("reason") or "")
+    elif not row_verified:
+        # The dialog WAS accepted, so this row is real and computed: it carries
+        # values the caller did not ask for. It has to be deleted, not ignored --
+        # the same rule as a refusal's default-valued row.
+        result["reason"] = (
+            f"the created row does not carry the expected text {expect_row!r}; it "
+            f"reads {created_names!r}, so this row holds values the caller did not "
+            "ask for and must be deleted before the step is retried"
+        )
     return result
 
 

@@ -61,12 +61,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 62 |
+| `Keep` | 63 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **109** |
+| **total** | **110** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -83,6 +83,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_create_drawing` | `Keep` | - | Creates a Drawing from a named source and template; a complete, self-contained document step. |
 | `browser_create_tab` | `Keep` | - | Creates Feature Studio/Part Studio/Assembly tabs; the composition step every browser workflow needs. |
 | `browser_delete_element` | `Keep` | - | Deletes a document element by tab id; the general cleanup path that supersedes browser_delete_tab. |
+| `browser_delete_feature` | `Keep` | - | Deletes exactly one USER feature row by its row context menu and verifies the row NAME left the list. It is the only cleanup for a row a refused, interrupted, or relay-timed-out insert left behind: measured live 2026-09-21 an insert whose confirmation reload outlived the transport was reported as a timeout while the accept HAD landed, and no other tool removes a feature row (the REST feature-list update spends annual quota, a reload or rename changes nothing). Identity is exact or it refuses. |
 | `browser_delete_tab` | `Internal-only` | - | Deprecated compatibility wrapper kept for older callers; `browser_delete_element` covers the same job through the current path. Hidden because it is destructive, not because it is useless, so it stays reachable by exact name. |
 | `browser_deploy_and_apply_featurescript` | `Capability` | - | End-to-end deploy-and-apply with verification; the capability a caller actually wants, not its five constituent steps. |
 | `browser_deploy_featurescript` | `Keep` | - | Deploy through the UI at zero REST quota, with the local check attached; the browser leg's core operation. |

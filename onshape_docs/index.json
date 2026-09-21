@@ -1408,7 +1408,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "c95e6a718f474900d37a788246c841652a6c6822e184d2efdd4a35958bcc6b53",
+   "sha256": "6558e4ff644e04701919b8c2622da2ebc0d5c804c787d7674c1cf1184e9cc169",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1943,6 +1943,43 @@
       },
       {
        "type": "para",
+       "text": "A quantity widget resolves a #variable ASYNCHRONOUSLY, so the read taken straight after the fill is stale. Filling #gf_pitch * 2 into a thin row's Value field and reading it back immediately returned 0 mm — the field's own default, with no error — and the accept that followed committed that 0 mm as the variable's value. The same dialog read the typed expression back verbatim once the widget had resolved it (~1.5 s later). A # value therefore has to be waited for, and the evidence is the DIALOG's readback after the wait, never the read taken right after the fill: actions.wait_for_dialog_fields polls dialog_values for at most 20 s (1 s poll) and its verdict IS the fill verdict."
+      },
+      {
+       "type": "para",
+       "text": "The settled readback is either the typed expression OR the evaluated number, so waiting for the text alone is not enough. Measured live 2026-09-21, same session, two fields, opposite outcomes: the Thin Variable Value field settled to the typed #gf_pitch * 2 verbatim, while a Thin Sketch Rectangle dimension settled to the resolved 36.3 mm for a typed #gf_socket (the typed text appeared only in a read taken ~4 ms after the fill; 20 s later the widget read 36.3 mm). A wait that accepts only the typed text therefore ended in a false refusal: the socket clearance sketch reported \"parameter(s) cell_pitch, width, height, corner_radius hold an Onshape expression that the dialog never read back\" after elapsedMs: 20312, with parameters.uncommitted: [], for a dialog that was in fact correct. The caller now states what each expression must EVALUATE to — expect_values (parameter id -> value, e.g. {\"width\": \"36.3 mm\"}) — and, for a key it states, that value is the only accepted settle signal; a key with no stated value is satisfied by the typed expression. Both are compared by actions.quantities_match (whitespace-collapsed text, unit must match, numbers within a relative 1e-9). A caller that states nothing for a dimension still gets the refusal, which is why every expression-bearing step of the rebuild fixture carries expect_values."
+      },
+      {
+       "type": "para",
+       "text": "That is what lets a geometry-style thin step — a Thin Sketch Rectangle whose cell_pitch/width are all variables, and whose feature has no name template and therefore no row text to check — be inserted at all, which the earlier \"an expression must come with expect_row\" rule made impossible. expect_row remains the alternative for a feature that writes its numbers into the row text."
+      },
+      {
+       "type": "para",
+       "text": "A row can report inserted: true and still hold its dialog DEFAULTS. Measured live 2026-09-21 by reading the rows back with browser_read_feature_parameters instead of trusting the insert result: in the variable-driven tab every Thin Sketch Rectangle created by the insert path had stored the dialog's defaults for its three expression fields, while its literal fields were correct. TS Thin Sketch Rectangle 1 (the plate outline) read width 100 mm, height 100 mm, corner_radius 0 mm instead of #gf_plate_size = 84 mm and #gf_plate_corner = 4 mm, while origin_z/grid_x/grid_y were right. The literal-valued sibling of the same thin feature in the same document read 84 mm / 84 mm / 4 mm, which is what made the two readings decisive. Cause: the settle gate accepted the typed #variable text, and the accept that followed committed the widget's previous value; the fill's own after readback confirmed the text, so the call could honestly report success. Consequences worth keeping:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "An insert's own inserted is not proof of the numbers. Read the row back (browser_read_feature_parameters) or measure the geometry; on this tab the \"verified\" plate outline was a silent 100 mm default.",
+         "depth": 0
+        },
+        {
+         "text": "It is the same defect class as the 0 mm variable above, so the fix belongs in one place: actions.wait_for_dialog_fields now ignores the typed text for any key the caller states in expect_values.",
+         "depth": 0
+        },
+        {
+         "text": "A literal-only chain is immune (there is no expression to race), which is why the literal thin build passed B-rep acceptance while the variable-driven one silently did not.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "A Feature Name Template row cannot be addressed by its feature name. A row rendered from a template shows the computed values, not the feature type: TV #gf_pitch = 42 mm, not Thin Variable. A name-matched row filter therefore matches ZERO rows for exactly the features that carry a name template, and the commit check has to count user rows and identify the created one by set difference against the pre-insert names (actions.user_feature_rows, verify_insert_committed(baseline_names=…)). The template is still the best place to read an expression's EVALUATED value, so expect_row is the strongest check for such a row and is optional only for a feature whose row states no numbers."
+      },
+      {
+       "type": "para",
        "text": "A styled checkbox is not clickable at the input. A boolean parameter renders as <input type=\"checkbox\" class=\"os-param-checkbox-input\" data-parameter-value=\"false\"> that is not visible, so Locator.click() blocks for the full 30 s timeout (\"element is not visible\"). The visible hit target is an ancestor. Walk xpath=.., xpath=../.., xpath=ancestor::label[1], xpath=ancestor::*[contains(@class,'checkbox')][1] with a short per-candidate timeout (2500 ms) and judge by the resulting state, not by the click returning (_click_boolean); verified by the parameter reading back \"true\"."
       },
       {
@@ -1951,11 +1988,15 @@
       },
       {
        "type": "para",
-       "text": "A refused insert still leaves a row. The dropdown click creates the feature row before any parameter is filled, so a refusal (missing field, uncommitted field, or a failed readback) leaves a real default-valued row that survives a reload and pollutes the next attempt. Delete it before retrying — on the rebuild the polluted Part Studio had to be deleted and recreated."
+       "text": "A refused insert still leaves a row, and the refused dialog stays OPEN — which is how to repair it. The dropdown click creates the feature row before any parameter is filled, so a refusal (missing field, uncommitted field, or a failed readback) leaves a real default-valued row that survives a reload. Measured live 2026-09-21: the row TS Thin Sketch Rectangle 2 was left behind by the false refusal above, and browser_read_feature_parameters then reported read: false with \"a Parameter dialog is already open\" — the fill had already committed every field (its uncommitted list was empty), only the accept had been withheld. So there is no need to delete the row and rebuild the Part Studio (this connection has no tool that deletes a feature row anyway): reopen the row with browser_edit_feature_parameters — the same fill then runs against the open dialog, before already showing the intended values — accept, and confirm with browser_verify_feature_parameters (parametersApplied: true, regenerationOk, persistenceOk). That keeps the row in its original tree position, which matters when the row sits between two steps of an ordered chain, and it costs one transaction pair instead of a rebuild."
       },
       {
        "type": "para",
        "text": "The payoff: 14 rows reproduced the domain feature exactly. With those rules in place, a chain of Thin Sketch Rectangle / Thin Sketch Circle / Thin Extrude rows produced a solid whose exact B-rep is identical to the three-row domain baseline built from the verified FeatureScript: volume 39547.5903 mm³, surface area 20002.2154 mm², 194 faces, delta 0 in every one of those measures, and the same nine face families (4 x R4 outer corners, 16 cones at exactly 45.0 deg in each of three bands, and the 1.15 / 1.85 / 3.25 mm cylinders). Two independent construction paths agreeing to the last digit is the strongest evidence available that a feature tree mirrors the intended modelling steps."
+      },
+      {
+       "type": "para",
+       "text": "The same plate rebuilt parameter-driven: 23 rows, nine of them variables. The literal chain states every number in the row that uses it; the variable-driven chain first creates nine Thin Variable rows (gf_pitch 42 mm, gf_plate_size as #gf_pitch * 2, …) and then refers to them as Onshape expressions (dev/fixtures-capture/gridfinity-thin-plate.json). The consumed values are the same, so the same B-rep fingerprint is the acceptance test: export the tab to STEP and diff it against gridfinity-domain-baseline-20260921. This rebuild is the first place the count-based commit gate and the expression resolve wait are exercised together, on every one of its steps. The measured result of that comparison is in onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md."
       }
      ]
     }
@@ -3152,7 +3193,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "5745d5c0b3de7a513b0e0ced5fb1cd75b7a7ce7122638f81ad342a7aba3f2c00",
+   "sha256": "f7cdfeef3b0c106e68073b4c73ea7176367801907c293190f3c505b5a0f430fe",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4086,6 +4127,169 @@
       {
        "type": "para",
        "text": "没有浏览器/GUI 也能看图：temp/stl_render.py 是纯标准库的软件光栅器（正交轴测 + 背面 剔除 + z-buffer + 平面着色），把几何包里的 STL 直接渲成 PNG，改前/改后各出一张即可肉眼对账。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "20. 项目 runner 会死在 relay 超时上：中途孤儿行与「逐行直接调用」兜底（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_run_project 的每一步都返回完整特征树，而单次 MCP 调用受传输上限约束 （本环境实测约 60 s）。23 步的 Gridfinity 变量化重建跑到第 4 步左右，整个调用以 downstream_timeout 结束，随后 2.5 分钟没有推进——最后一步的行已经建好，但没有写进 checkpoint（孤儿行）。三个必须知道的边界："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "恢复必须 resume=true；存活的 checkpoint 会让一次全新 run 直接 ValueError: Checkpoint already exists；",
+         "depth": 0
+        },
+        {
+         "text": "只要 fixture 改过（哪怕只是参数），resume 会拒绝： Project fixture changed after checkpoint creation；",
+         "depth": 0
+        },
+        {
+         "text": "于是「重跑一遍」不是幂等的：孤儿行会留在树里，被下一次同名等待或提交计数当成既有行。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "结论：步骤多、每步都贵的构建，逐行直接调 browser_insert_custom_feature（每行 10-20 s，稳定低于传输上限），runner 留给步骤少或单步轻的项目。孤儿行要么补记到证据里， 要么在重试前删除。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "21. 四个会误判的工具行为（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_create_tab 可能对新标签报 created: false，但它其实已经建好了（新标签 还没渲染出来）。照返回值重试就会留下重复标签：以 browser_get_page_tabs 复读为准， 不要重试创建。",
+         "depth": 0
+        },
+        {
+         "text": "browser_delete_element 可能已经 deleted: true，列表里却还在（返回里的 stillListedIds 就是这点）——用一次 browser_get_page_tabs 确认移除再往下走。",
+         "depth": 0
+        },
+        {
+         "text": "会话超时气泡和卡死页面是两回事：气泡要 browser_session(action=\"reconnect\") 点 「重新连接」；action=\"reload\" 是给卡住/加载过久的页面用的。混用会把超时当成卡死。",
+         "depth": 0
+        },
+        {
+         "text": "browser_rename_tab 曾按「名字前缀包含」选目标，不是精确匹配：实测把 name 传成 GF Thin Plate 时，被改名的是排在前面的 GF Thin Plate literal (old)（它包含该 子串），而真正叫 GF Thin Plate 的标签页没动；两次连续调用因此把好好的标签页改成了 错名字。该缺陷已修（2026-09-21）：actions.resolve_exact_tab 用标签条列表做 全名精确匹配，命中数 != 1 就拒绝并在 reason 里列出全部名字与子串候选，点击走命中 标签自己的 data-id；rename_tab 与 step_export.export_browser_step 都走它 （导出侧同一缺陷的症状是把根因藏成后续步骤的 URL 不匹配报错，见第 24 节）。 改名前后仍要用返回的 tabs 复读确认。",
+         "depth": 0
+        },
+        {
+         "text": "browser_verify_feature_parameters 会把自己的改名当成失败：带 Feature Name Template 的行把算出来的值印在行名里，所以「改一个值」等于「改行名」。 实测 2026-09-21 把 TV #gf_plate_size = 0 mm 改成 #gf_pitch * 2，行名变成 TV #gf_plate_size = 84 mm，于是旧名字按名查 0 行，工具报 parametersApplied: false 而这次改动其实成功了。现在传 expect_row（行名必须包含的新 文本）即可按新行名复读，返回里会多一个 rowRenamed 字段。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "22. 接受点击之后的那次读是证据、不是判据（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "参数对话框 accept 之后立刻读特征树，可能读到 0 行：accept 会先把列表清空再重绘， 而同一行在随后的确认性 reload 里活得好好的。所以确认性 reload 必须无条件做一次 （不要用「刚才读到行了吗」来决定做不做），并把那次中间读作为 workbenchAppeared 证据上报，而不是作为提交判据。提交判据只有 reload 之后的行数 + 名字差集。"
+      },
+      {
+       "type": "para",
+       "text": "对话框侧的两个对应结论（表达式异步解析的 accept 门、Feature Name Template 行无法按 特征名寻址）见 onshape_docs/experience/featurescript.md 的「Driving a thin feature's dialog」一节。"
+      },
+      {
+       "type": "para",
+       "text": "同一类的第二个症状：重算中间态的零件表。 accept 之后立刻读零件列表，1 个实体 可以读成 5 个、甚至 17 个（Part 2 … Part 17 全都带 edited 类名），看上去像「切除退化 成了加料」。实测 2026-09-21：那次 insert 的 partItems 是 Part 1 … Part 17，而同一 元素上一两秒后的第二次读和一次 reload 之后的读都稳定回到 零件数 (1)；此后 按 22 行→23 行继续插入，最终导出的 B-rep 与基线逐族一致。所以短路径 （verify_commit=false）下不要用 accept 后第一次读的零件数判对错，要用稳定态： 第二次读或 reload 后的读。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "23. 参数能不能中文：标签不行，id 不行，值和名字行（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户问「参数能不能中文嘞」。三个位置要分开答，证据都在 onshape_docs/experience/featurescript.md 的「Annotation strings are ASCII-only; body strings are not」一节（四次 deploy 的对照表）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "参数标签不行。 字段名来自 annotation { \"Name\" : ... }，只允许可打印 ASCII； 中文标签会让 precondition 分析失败，并丢掉这个自定义特征的全部参数规格 （实测 deploy 2：类型名保持 ASCII，只有参数标签是中文，仍然 0 个 feature spec）。 特征名（\"Feature Type Name\"）和行模板（\"Feature Name Template\"）同理。",
+         "depth": 0
+        },
+        {
+         "text": "参数 id 不行，而且必须是 CSS 安全 ASCII。 MCP 是靠 [data-parameter-id=\"<id>\"] 这种选择器填值的（browser_tools._expect_values / insert 参数校验都强制 [A-Za-z_][A-Za-z0-9_.-]*），id 进 CSS 选择器，中文会直接 不匹配。",
+         "depth": 0
+        },
+        {
+         "text": "值可以。 参数值里的字符串是 body 数据，不是标注：零件名 （setProperty(..., PropertyType.NAME)）实测中文编译通过且零件列表显示中文； Thin Variable 的 Description 也是 string 值，所以变量行可以带中文说明。 变量名（gf_pitch）必须是标识符，中文不行。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "所以「中文参数」的可行形态是：ASCII 标签 + ASCII id + 中文说明/中文零件名。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "24. 虚拟化的特征表：行数看表头，行集看滚动并集，读序不是树序（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Feature List 是虚拟列表，一次读只给你一个窗口。同一个 23 行元素上的两组实测："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "读法",
+         "结果"
+        ],
+        [
+         "insert 调用内部的那次读",
+         "23 行全在"
+        ],
+        [
+         "同一天 reload 之后的独立读",
+         "只有 18 行（尾部 5 行没渲染），但 headerText 仍是 特征 (27)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "特征 (27) = 23 个用户特征 + 4 个基准面（默认几何图元 是分组行，不计入计数）， 所以："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "行数用表头（特征 (N)、零件数 (N)）：表头不受窗口影响，是最便宜的全量计数， 也是「这一步到底落地了没有」的第一个判据。",
+         "depth": 0
+        },
+        {
+         "text": "行集用滚动并集收集器（_USER_FEATURE_ROWS_JS）；它的顺序会轮转，只能当集合用。 只有同一个已渲染窗口内的 DOM 顺序才是真顺序；而「薄拉伸取它前面最近一个薄草图发布的 区域」这条规则让先后是语义判据（第 21 节），所以绝不能拿跨窗口拼出来的顺序推树序。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "丢失判决的重复行可以认出来。 一次 insert 的判决在 relay 超时里丢了，但它的行已经 落在树的那个位置；resume 再插入的是正确的那一行，于是这个类型多出一行，而行名计数器 会跳号且表头比预期多 1。实测：期望 TSR1, TE1, TSR2(第 11 步), TE2, …，实际 TSR1, TE1, TSR2, TSR3, TE2, TSR4, TE3, TSR5, TE4（表头 23 = 期望 22 + 1）。 定位方式是逐个读该行参数（browser_read_feature_parameters，0 配额）：重复的那行参数 与相邻步骤完全相同（TSR2 与 TSR3 都是 z=5 / 2×2 / 36.3 / r1.15）。"
+      },
+      {
+       "type": "para",
+       "text": "未被消费的薄草图是几何惰性的。 薄拉伸消费的是「它前面最近一个薄草图」发布的区域， 被下一张草图覆盖的旧区域没有任何人消费。把那行孤儿草图删掉后重新导出 STEP，B-rep 与 删前逐族相同（体积 39547.5903 mm³、面积 20002.2154 mm²、194 面、45° 锥面三族 37.32/223.5216/415.1424）。删除前仍要读一次参数，确认它确实没有被某个后续拉伸消费。"
       }
      ]
     }
@@ -8852,6 +9056,317 @@
    ]
   },
   {
+   "page": "thin-feature-chinese-ui-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/thin-feature-chinese-ui-2026-09-21.md",
+   "sha256": "bfae7a9e3edd66a164e4e5b117a3717a8842acdbfc56cd5f1deb1736de0b82b4",
+   "title": "薄特征链的「中文 UI」版重建与 B-rep 验收（2026-09-21）",
+   "sections": [
+    {
+     "level": 2,
+     "title": "1. 目标与判定标准",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户的原话是「我其实就是 UI 上显示中文就行」，所以判定标准有两条，缺一不可："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "界面可见：Part Studio 标签名、23 行特征树的行名（特征表里读到的 name）必须是中文； 只在夹具注释、参数说明或文档里出现中文不算。",
+         "depth": 0
+        },
+        {
+         "text": "几何不变：重建出来的实体必须与已验证的英文链（GF Thin Plate）以及域基线 逐族一致，否则「中文」只是一个长得像的板子。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 目标身份（活证据）",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "项",
+         "值"
+        ],
+        [
+         "documentId",
+         "1ef2be8f3d45e6f996af24ab"
+        ],
+        [
+         "workspaceId",
+         "bac7c0bf31912a956c44d15a"
+        ],
+        [
+         "elementId（新 Part Studio）",
+         "72023dd3363ff9b18c8c73bc"
+        ],
+        [
+         "标签名",
+         "网格底板 2×2"
+        ],
+        [
+         "Feature Studio（活定义）",
+         "Thin Native Features / e8291d6887c1ffb321f4f868"
+        ],
+        [
+         "用户特征行数",
+         "23（表头 特征 (27) = 23 用户 + 4 基准面）"
+        ],
+        [
+         "实体",
+         "零件数 (1) Part 1，无任何 hasError 行"
+        ],
+        [
+         "Onshape REST 配额",
+         "0（全程浏览器腿）"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "树序（reload 后的稳定读，逐行核对过参数）："
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "TV #gf_pitch = 42 mm 格距：相邻格子中心距\nTV #gf_plate_size = 84 mm 2×2 底板外形尺寸\nTV #gf_plate_corner = 4 mm 外角圆角半径\nTV #gf_socket = 36.3 mm 插槽间隙方孔边长\nTV #gf_socket_r = 1.15 mm 插槽圆角半径\nTV #gf_lock = 37.7 mm 锁定面方孔边长\nTV #gf_lock_r = 1.85 mm 锁定面圆角半径\nTV #gf_magnet_d = 6.5 mm 磁铁孔直径\nTV #gf_magnet_side = 8 mm 磁铁中心到格子边的距离\nTS Thin Sketch Rectangle 1        板体草图（84×84 r4）\nTE Thin Extrude 1                 +10 mm 板体\nTS Thin Sketch Rectangle 3        插槽间隙草图 z=5    36.3 r1.15\nTE Thin Extrude 2                 -0.35 mm 间隙\nTS Thin Sketch Rectangle 4        斜坡草图 z=5.35\nTE Thin Extrude 3                 -0.7 mm 45°\nTS Thin Sketch Rectangle 5        锁定面草图 z=6.05  37.7 r1.85\nTE Thin Extrude 4                 -1.8 mm 锁定面\nTS Thin Sketch Rectangle 2        喇叭口草图 z=7.85\nTE Thin Extrude 5                 -2.15 mm 45° 喇叭口\nTS Thin Sketch Circle 1           磁铁孔草图 z=2.6    ⌀6.5 距边 8\nTE Thin Extrude 6                 -1.6 mm 孔柱段\nTS Thin Sketch Circle 2           磁铁倒角草图 z=4.2\nTE Thin Extrude 7                 -0.8 mm 45° 倒角"
+      },
+      {
+       "type": "para",
+       "text": "TS/TE 的行名模板仍是 ASCII 的（annotation 只允许可打印 ASCII），中文在变量行的 值/说明上——这正是用户要的「UI 上显示中文」，规则与实测见 onshape_docs/experience/browser-modeling.md 第 23 节。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 为什么必须重建，而不是改注释",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Feature Name Template 是在特征被创建时算进行名的：改 FS 源码不会给已插入的行改名。 本次先按错误假设（「已插入的行会随源码重算」）改过模板，实测证伪——22 行老行名原封不动， 只有新插入的行带上中文说明。于是："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "dev/fixtures-capture/thin-native-features.fs 里那条错误注释已改正，写明「模板在创建时 生效，旧行保持出生时的名字，中文必须重新插入」。",
+         "depth": 0
+        },
+        {
+         "text": "中文界面只能靠重新插一遍得到，这就是本页记录的重建。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "FS 的云端源码与本地文件目前只差这条注释（注释不参与编译，编译结果 0 notice）， 因此没有为此再花一次部署。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 落地方式（两次夹具 + 短路径逐行）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "新建 网格底板 2×2 标签，手插 00-var-pitch、01-var-plate-size（#gf_pitch * 2 实测解析为 84 mm）。",
+         "depth": 0
+        },
+        {
+         "text": "用轻量夹具 dev/fixtures-capture/gridfinity-thin-plate-cn-light.json（steps[2:16]， 14 步）把 02…15 走完，runner 报 14/14，每步 零件数 都是 1。",
+         "depth": 0
+        },
+        {
+         "text": "16…22 这 7 步改用逐行直接调用的短路径（verify_commit=false）：一次调用一个特征， 接受后立刻返回，随后由本代理读特征表确认行数与行名。原因是重算等待的自适应预算随 自定义特征数增长（23 行时 regenerationMs 已达 64–74 s、commitSurvivalMs 166–206 s）， 已经超过单次调用的传输预算，而 runner 的判据要求 inserted 为真（短路径下是 null）， 所以 runner 无法走这条路。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "4.1 一个丢失判决的重复行",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "14 步跑完后表头比预期多 1：期望 17 行，实际 18 行，且行名计数器跳号 （TSR1, TE1, TSR2, TSR3, TE2, …）。逐行读参数确认 TSR2 与 TSR3 参数完全相同 （z=5 / 2×2 / 36.3 / r1.15），即同一个「插槽间隙草图」步骤插了两次：第一次的判决在 relay 超时里丢了（行已落地、checkpoint 未记），resume 又插了第二次。 browser_delete_feature 删掉这行孤儿草图（命中数唯一，无需 occurrence）， 删后 17 行、零件数 (1)。删除是安全的：它被下一张草图覆盖，没有被任何拉伸消费—— 这一条由最终 B-rep 逐族相同反证。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. B-rep 验收：与域基线逐族一致",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "text",
+       "text": "STEP: onshape_browser_mode/outputs/step_exports/cn-gridfinity-2x2-thin-native/model.step\nsha256: 926463e7f88b45f4068ac9917a21a82d819ae0cdd1a329cd788709c2baa96d10   (AP242, mm)"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "族",
+         "面数",
+         "面积 mm²",
+         "备注"
+        ],
+        [
+         "plane",
+         "94",
+         "18458.3352",
+         "水平面 z = 0 / 2.6 / 5.0 / 10.0"
+        ],
+        [
+         "cone 45°",
+         "16",
+         "37.3200",
+         "插槽斜坡 z 5.35→6.05，ref r1.15"
+        ],
+        [
+         "cone 45°",
+         "16",
+         "223.5216",
+         "喇叭口 z 7.85→10.0，ref r1.85"
+        ],
+        [
+         "cone 45°",
+         "16",
+         "415.1424",
+         "磁铁倒角 z 4.2→5.0，ref r3.25"
+        ],
+        [
+         "cylinder",
+         "16",
+         "10.1152",
+         "r1.15"
+        ],
+        [
+         "cylinder",
+         "16",
+         "83.6928",
+         "r1.85"
+        ],
+        [
+         "cylinder",
+         "16",
+         "522.7616",
+         "r3.25（磁铁孔）"
+        ],
+        [
+         "cylinder",
+         "4",
+         "251.3276",
+         "r4.00（板体外角）"
+        ]
+       ]
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "体积 39547.5903 mm³、面积 20002.2154 mm²、面数 194，与 onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md 记录的英文链 （STEP sha 6378ff1b609fef98f0f4187dd3a96c582d26942cac275c638f3a643003028239） 完全相同。",
+         "depth": 0
+        },
+        {
+         "text": "因此「中文界面」与「几何正确」两条判定标准同时成立：行名/标签名是中文，B-rep 与基线 逐族一致。这条链对顺序敏感（薄拉伸消费它前面最近一个薄草图发布的区域），逐族相等 也就证明了 23 行的树序是语义正确的。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "复现："
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "/home/lijq/code/CadQ/.venv/bin/python onshape_docs/scripts/verify_step_brep.py \\\n  /mnt/c/MCP/onshapescript/onshape_browser_mode/outputs/step_exports/cn-gridfinity-2x2-thin-native/model.step"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 本次一并修掉的代码缺陷（离线 849 测试，0 次真实调用）",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "缺陷",
+         "修法",
+         "覆盖"
+        ],
+        [
+         "判决丢失后 resume 会插出重复行，而按名字集合做差集判定时，重复行让该步骤每次都判失败",
+         "created_user_feature_rows 改成多重集差值（Counter 带计数）",
+         "test_a_created_row_is_the_excess_over_a_baseline_multiset"
+        ],
+        [
+         "两个同名行无法只删一个",
+         "browser_delete_feature 增加 occurrence，判据改为计数下降",
+         "test_an_occurrence_selects_one_of_two_identical_rows 等"
+        ],
+        [
+         "重算等待预算超过单次调用传输预算，重步骤在 runner 里永远跑不完",
+         "verify_commit=false 短路径跳过重算等待并如实上报 skipped",
+         "test_the_commit_reload_can_be_skipped_without_claiming_success"
+        ],
+        [
+         "标签按子串 + .first 选目标，撞名时点到别的标签，检查 count() != 1 永远发现不了",
+         "actions.resolve_exact_tab 全名精确匹配 + 按命中 data-id 点击；rename_tab、export_browser_step 都改用它",
+         "4 条新用例（撞前缀、精确重名、只匹配子串、命中无 id）"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "step_export.py 的这条修法同时消掉了「导出报错信息指向后续步骤」的问题：之前撞名会点到 GF Thin Plate (old, 14 rows)，然后以 RuntimeError: active Part Studio URL does not match requested document/workspace/element IDs 失败，把根因藏了起来。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "7. 边界（本页不声明的东西）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "本页只验收这一个元素与这一份 STEP；不声明任意夹具、任意顺序都能得到同样 B-rep。",
+         "depth": 0
+        },
+        {
+         "text": "云端 Thin Native Features 的源码与仓库里 thin-native-features.fs 只差一条注释， 没有为这条注释重新部署；若将来要按源码 sha 做字节级比对，需重新部署一次。",
+         "depth": 0
+        },
+        {
+         "text": "逐行插入期间出现过中间态读数（零件数 (5) / (17)，Part 2…17 带 edited 类名）， 这是重算中间态而非真实几何：第二次读与 reload 后都回到 零件数 (1)，最终 STEP 亦为单实体。",
+         "depth": 0
+        },
+        {
+         "text": "没有对其它并发会话使用的共享桥做任何代码修改；本次未 push。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "page": "live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/live/README.md",
@@ -9567,7 +10082,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "f0f477fdc357ff03a852036ba9d5cd36f100e7cc97503004a5602f23cad6f441",
+   "sha256": "295f6acee58a7217050a0ee7b755b3e4790c37bcb13562351012298fa8817b0f",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -9588,7 +10103,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 109",
+         "text": "Registered tools: 110",
          "depth": 0
         },
         {
@@ -9600,11 +10115,11 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=69, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
+         "text": "Capability counts: browser=70, featurescript=11, other=2, project_docs=3, rest_operations=18, rest_reference=6",
          "depth": 0
         },
         {
-         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=26, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
+         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=27, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
          "depth": 0
         }
        ]
@@ -9772,6 +10287,14 @@
          "element_id",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
          "Delete a visible document element by its tab data-id and verify that the tab disappears."
+        ],
+        [
+         "browser_delete_feature",
+         "browser",
+         "L4 onshape_transaction",
+         "feature_name",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
+         "Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. Zero REST API quota. It is the only way..."
         ],
         [
          "browser_delete_tab",

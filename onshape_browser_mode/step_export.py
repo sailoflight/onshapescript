@@ -169,9 +169,23 @@ def export_browser_step(
     if not plan["destinationAvailable"]:
         raise ValueError("browser STEP staging destination already exists")
 
-    tab = page.locator(selectors.TAB_BAR_TAB).filter(has_text=source_tab).first
-    if tab.count() != 1:
-        raise ValueError(f"Part Studio tab not found uniquely: {source_tab!r}")
+    # The tab is selected by EXACT visible name and clicked through its own
+    # data-id. `.filter(has_text=...).first` matched substrings, and `.first`
+    # defeated the count check below it, so a name that prefixes another tab's
+    # name selected the wrong tab and failed later with a URL mismatch.
+    from onshape_browser_mode.actions import resolve_exact_tab
+
+    resolved = resolve_exact_tab(page, source_tab)
+    if resolved["matchCount"] != 1:
+        raise ValueError(
+            f"Part Studio tab {source_tab!r} must match exactly one visible tab name "
+            f"(exact match): matchCount={resolved['matchCount']}, "
+            f"containingName={resolved['contains']}, tabs={resolved['names']}"
+        )
+    if not resolved["id"]:
+        raise ValueError(f"the matched Part Studio tab {source_tab!r} carries no data-id")
+    target_id = resolved["id"]
+    tab = page.locator(f'{selectors.TAB_BAR_TAB}[data-id="{target_id}"]')
     tab.click()
     from onshape_browser_mode.actions import parse_document_url
 

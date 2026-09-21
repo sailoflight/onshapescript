@@ -5,6 +5,8 @@ import(path : "onshape/std/geometry.fs", version : "3029.0");
 import(path : "onshape/std/sketch.fs", version : "3029.0");
 import(path : "onshape/std/extrude.fs", version : "3029.0");
 import(path : "onshape/std/queryVariable.fs", version : "3029.0");
+import(path : "onshape/std/feature.fs", version : "3029.0");
+import(path : "onshape/std/variable.fs", version : "3029.0");
 // A type that appears in a precondition is part of this module's interface, and the
 // compiler then requires it to be reachable through an export import: at the first
 // live compile a plain import of tool.fs (where tool.fs:66 declares
@@ -395,4 +397,65 @@ export const thinSketchCircle = defineFeature(function(context is Context, id is
         skSolve(sketch);
 
         setQueryVariable(context, THIN_SKETCH_REGION_VARIABLE, qSketchRegion(id + "sketch"));
+    });
+
+// ===========================================================================
+// Thin Variable ("薄变量"): the row that lets every later row cite a number
+// instead of repeating it, so a human changes the cell pitch once.
+//
+// This one is a thin feature in the strictest sense available: Onshape's OWN
+// Variable feature is already nothing but a wrapper, so there is no geometry to
+// mirror. variable.fs:825 publishVariableValue is that feature's publisher, and
+// its body is exactly
+//     setVariable(context, name, value, description);
+//     setFeatureComputedParameter(context, id, { "name" : "value", "value" : ... });
+// which is the whole of this body. Two consequences:
+//   * a variable set here IS the document variable a later feature's field cites
+//     as `#name` (context.fs:setVariable -- "Attach a variable to the context,
+//     which can be retrieved by another feature defined later"), and
+//   * the computed parameter is what makes the Feature List row read
+//     `gf_pitch = 42 mm`, because variable.fs:156 hands the NATIVE feature the
+//     same "Feature Name Template" : "###name = #value".
+//
+// variable.fs:810 verifyVariableName is the native validation: a name must be an
+// identifier and must not already be a query variable. Reusing it keeps the
+// error text the user already knows from the native feature.
+// ===========================================================================
+
+// A variable's value is a quantity here, so its default is 0 and it needs the
+// origin-style symmetric spec rather than a size spec (see the bound-spec note
+// above: the second element is the dialog default).
+export const THIN_VARIABLE_BOUNDS = { (millimeter) : [-1000000, 0, 1000000] } as LengthBoundSpec;
+
+// The row template carries the DESCRIPTION as well as the value. `#description` is a
+// string parameter, and variable.fs's own Tooltip Template -- "###name = #value
+// #description" (variable.fs:157) -- is the standard-library precedent for rendering
+// it. The description is the ONLY slot in this family that may hold non-ASCII text (an
+// `annotation { "Name" }` containing a Chinese character kills the whole feature:
+// "Invalid character in 'Name' annotation: only printable ASCII allowed"), so putting
+// it in the row is what makes the Chinese visible in the Feature List itself rather
+// than only inside the feature dialog. The template is applied when a feature is
+// CREATED: measured live 2026-09-21, editing this annotation afterwards does NOT
+// relabel rows that are already inserted -- each such row keeps the name it was born
+// with, and only features inserted after the edit render the new template. Visible
+// Chinese therefore requires re-insertion, which is why the Chinese plate was rebuilt
+// from scratch (see onshape_docs/verification/thin-feature-chinese-ui-2026-09-21.md).
+annotation { "Feature Type Name" : "Thin Variable", "Feature Name Template" : "###name = #value #description" }
+export const thinVariable = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition
+    {
+        annotation { "Name" : "Name", "MaxLength" : 10000 }
+        definition.name is string;
+
+        annotation { "Name" : "Value" }
+        isLength(definition.value, THIN_VARIABLE_BOUNDS);
+
+        annotation { "Name" : "Description" }
+        definition.description is string;
+    }
+    {
+        verifyVariableName(context, definition.name, "name");
+        setVariable(context, definition.name, definition.value,
+                    (definition.description is string) ? definition.description : "");
+        setFeatureComputedParameter(context, id, { "name" : "value", "value" : definition.value });
     });
