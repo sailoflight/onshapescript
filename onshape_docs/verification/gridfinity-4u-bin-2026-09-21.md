@@ -215,3 +215,98 @@ TS 9, TE 6, TS 10, TE 7, TS 11, TE 8`，每个拉伸紧跟自己那条草图。
 ```
 
 夹具级离线守卫见 `dev/tests/test_gridfinity_4u_bin_fixture.py`。
+
+## 10. 中文行名版重建：`网格盒子 4U`（2026-09-21 追加，0 REST 配额）
+
+第 8 节证明了「中文说明能进行名」，但它同时也说明**只有新插入的行才带中文**：既有
+`GF 4U 盒子` 的 16 个几何行是在中文参数与模板落地之前插入的，birth name 永远是
+`TS Thin Sketch Rectangle 1` / `TE Thin Extrude 1` 这类英文名。用户要求「重建一下」，
+于是本节把同一份夹具在**新标签页**里完整重放一遍，得到中文行名的同几何模型。
+
+### 10.1 目标身份
+
+| 项 | 值 |
+|---|---|
+| 标签名（中文） | 网格盒子 4U |
+| elementId | `a3cf38f64376156ef242dba3` |
+| 文档 / 工作区 | `1ef2be8f3d45e6f996af24ab` / `bac7c0bf31912a956c44d15a` |
+| 行数 | **23 用户特征**（`locatorRows: 23`：7 变量 + 8 薄草图 + 8 薄拉伸），无 `hasError` |
+| 实体 | 零件数 (4) = 4 段增料各自成体 |
+| 旧页 | `GF 4U 盒子`（`59f6cc99890dd2fea26d5471`）**未改动**，英文行名仍在 |
+
+### 10.2 落地方式（夹具逐行重放，短路径）
+
+夹具 `dev/fixtures-capture/gridfinity-4u-bin.json` 早已是中文版（第 8 节把它整份补上了
+`description`），所以**不需要改夹具**：23 步原样重放，只把 `part_studio_tab` 指向新标签页。
+
+- 每步一次 `browser_insert_custom_feature`，`verify_commit=false`（第 7.4 节：23 行时
+  再生预算 74 s、存活预算 206 s，都超过单次调用的传输窗口），`confirm_mutation=true`；
+- 三个含 `#变量` 表达式的步骤带上夹具的 `expect_values`（第 13/14/15/17 步），
+  实测全部解析成功：盒体 41.5 mm / 圆角 3.75 mm、外壳 27.65 mm、内腔 39.6 mm /
+  2.8 mm、唇斜面 z=28 mm；
+- 过程约束：浏览器动作限速 **8 次/分**，逐行调用被 `ActionRateExceeded` 挡过一次，
+  之后按 ~9 s 间隔稳定推进；23 步全部一次接受。
+
+### 10.3 行名（表内读到，即 UI 显示）
+
+```text
+TV #gf_pitch = 42 mm 格距：相邻单元格中心距
+TV #gf_gap = 0.5 mm 每单元总间隙（单侧 0.25）
+TV #corner_r = 3.75 mm 盒体外圆角半径
+TV #base_h = 7 mm 1U 底脚高（含加强段）
+TV #bin_h = 28 mm 4U 盒体高（含底脚）
+TV #lip_h = 4.4 mm 堆叠唇高（位于盒体之上）
+TV #wall_t = 0.95 mm 壁厚（内圆角 2.8）
+TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm      TE 底脚斜面 45° 0.8 mm
+TS 锁扣段 37.2 mm x 37.2 mm @z=0.8 mm      TE 锁扣段竖直 1.8 mm
+TS 外扩段起始 37.2 mm x 37.2 mm @z=2.6 mm  TE 外扩段斜面 45° 2.15 mm
+TS 盒体 41.5 mm x 41.5 mm @z=4.75 mm       TE 盒体外壳 27.65 mm
+TS 内腔 39.6 mm x 39.6 mm @z=7 mm          TE 内腔切除 21 mm
+TS 唇斜面起始 36.3 mm x 36.3 mm @z=28 mm   TE 唇斜面切除 45° 0.7 mm
+TS 唇锁扣 37.7 mm x 37.7 mm @z=28.7 mm     TE 唇锁扣切除 1.8 mm
+TS 唇外扩起始 37.7 mm x 37.7 mm @z=30.5 mm TE 唇外扩切除 45° 1.9 mm
+```
+
+**接受点击时的行名不是证据。** 短路径下每一步的返回里，刚接受的行先渲染成占位符
+（`TV Thin Variable`、随后一次读到 `TV # = 0 mm`）且 `hasError: true`；下一次读表
+（或重算完成）才定型为上面的行名并 `hasError: false`。这与第 8 节「行名在再生之后才
+定型」是同一条规律，本次在变量行上也复现了一次。
+
+### 10.4 STEP 验收：与英文版逐位一致
+
+`browser_export_step source_tab="网格盒子 4U" export_id=gf-4u-bin-cn-a3cf38f6-1`
+（导出器自己报 `apiRequests: 0`），离线核验：
+
+| 量 | 本节（中文行名版） | 第 5 节基线 |
+|---|---|---|
+| `volumeMm3` | **14882.3969** | 14882.3969 |
+| `surfaceAreaMm2` | **21369.6862** | 21369.6862 |
+| `boundingBoxMm` | x/y ±20.75、z −0→32.4 | 同 |
+| `faceCount` | **73** | 73 |
+| `horizontalPlaneZs` | 0 / 0.8 / 2.6 / 4.75 / 7 / 28 | 同 |
+| 面族 | 平面 41（20193.4916）；锥 45° R0.8 / R1.6 / R1.15 / R1.85 各 4；柱 r1.6 / r1.85 / r2.8 / r3.75 各 4 | 同 |
+
+体积、面积、包围盒、面数与全部面族逐项相同 ⇒ **「行名中文」与「几何不变」同时成立**，
+且这次的证据是「同一夹具在另一个标签页重建出同一 B-rep」，比基线更直接。
+
+### 10.5 复现
+
+```bash
+# 文档内新建 Part Studio → 改名「网格盒子 4U」
+# 逐行重放 dev/fixtures-capture/gridfinity-4u-bin.json 的 23 步
+#   browser_insert_custom_feature part_studio_tab="网格盒子 4U" verify_commit=false
+#   （含表达式的步骤带 expect_values；浏览器动作限速 8/min，间隔 ~9 s）
+# browser_read_feature_parameters 读回 locatorRows == 23 且行名全中文
+# 导出（0 REST 配额）
+#   browser_export_step source_tab="网格盒子 4U" export_id=gf-4u-bin-cn-a3cf38f6-1
+/home/lijq/code/CadQ/.venv/bin/python onshape_docs/scripts/verify_step_brep.py \
+  /mnt/c/MCP/onshapescript/onshape_browser_mode/outputs/step_exports/gf-4u-bin-cn-a3cf38f6-1/model.step
+```
+
+### 10.6 边界
+
+- 本次只重放夹具、未改夹具、未改 FeatureScript、未改任何既有行的参数；`GF 4U 盒子`
+  与 `网格底板 2×2` 保持原样。
+- 不声明别的几何链也能这样重放：中文行名依赖 FS 的 `Feature Name Template` 以
+  `#description` 开头（第 8 节），没有模板的特征仍会显示英文类型名。
+- 全程 0 次 Onshape REST 调用；`browser_export_step` 走的是浏览器导出对话框。
