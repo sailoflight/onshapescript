@@ -10403,7 +10403,7 @@
    "page": "mcp-gateway-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/mcp-gateway-live-2026-09-21.md",
-   "sha256": "980470e1b73748fdc354a5e1735d90c21a61b82e07e92611e7eca2d8da36a116",
+   "sha256": "1b486dac6d93365401aefde70987585b58d8741dc8148b13825bd28f94e4661a",
    "title": "压缩视图与空闲会话检测器的实机验收（2026-09-21）",
    "sections": [
     {
@@ -10441,7 +10441,7 @@
        "type": "list",
        "items": [
         {
-         "text": "部署：/mnt/c/MCP/onshapescript，deployment id 20260921T120000Z-invoke， shippedFiles: 16 / changed: 16 / unmatched: 0（verify 报 mismatched: []）。",
+         "text": "部署：/mnt/c/MCP/onshapescript。本页最初的 deployment id 是 20260921T120000Z-invoke（shippedFiles: 16 / changed: 16 / unmatched: 0）， 随后两次修复/扩容为 20260921T130000Z-dialog 与 20260921T150000Z-depth， 每次 verify 都报 mismatched: []。",
          "depth": 0
         },
         {
@@ -10645,6 +10645,62 @@
      ]
     },
     {
+     "level": 3,
+     "title": "5.2 25 个入口版本的实机确认（generation 93）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "按 docs/roadmap/LOOKUP_DEPTH_RESEARCH.md 把策展集补到 22 之后，同一台 Windows 部署 再验收一次（deployment id 20260921T150000Z-depth，changed: 12 / added: 3 / unchangedLeftAlone: 609，verify → mismatched: []）。桥从 92 重启到 93 （preservedClients: 5、toolsListChangedNotifiedClients: 5、 force-kill: not-needed），随后 bridge_library expand → toolCount: 25、 catalogStatus: \"verified\"。"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "检查",
+         "结果"
+        ],
+        [
+         "展示入口数",
+         "expand 报 25（此前 16）"
+        ],
+        [
+         "往返一致性",
+         "collapse 的 removedTools 逐字列出定稿的 25 个名字；再 expand 的 addedTools 同样是这 25 个（stateRevision 14 → 16）"
+        ],
+        [
+         "新策展名可直接调用",
+         "直接调 docs_section（不经 mcp_tool_invoke）成功返回 mcp-consumer 的小节——只有在客户端刷新后确实拿到 25 个的列表时才可能"
+        ],
+        [
+         "未展示名仍可达",
+         "mcp_tool_invoke {name: \"docs_list\"} → invokedTool: \"docs_list\"，count: 31"
+        ],
+        [
+         "docs_list 精简默认",
+         "每页只有 page/category/path/title/sectionCount，没有 sections 数组，sectionsIncluded: false，并带「需要整份目录才用 include_sections=true」的新提示"
+        ],
+        [
+         "fs_get_function 边界",
+         "extrude / opExtrude 返回结构化 parameters + 有界 description（正文不再无上限）"
+        ],
+        [
+         "空闲会话检测器",
+         "新进程照例 browser_not_running → action=login 恢复页面 → verdict: \"ok\"（roundTripMs: 40、timeoutDialogActionable: false、标题 `Gridfinity 2x2 baseplate",
+         "GF 4U 盒子`）"
+        ],
+        [
+         "桥健康",
+         "peer: \"connected\"、activeStreams: 10，queueDroppedEvents / capacityRejectedStreams / oversizedMessages / degradedDirections 全 0"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "本轮同样是 0 次真实 REST 调用、0 次云端数据变更；docs_section 与 fs_get_function 是离线索引，browser_session action=health 只做一次只读往返探针。"
+      }
+     ]
+    },
+    {
      "level": 2,
      "title": "6. 边界（本页不声明的东西）",
      "blocks": [
@@ -10666,6 +10722,10 @@
         {
          "text": "会话恢复后未再执行任何建模或写操作；本轮 0 次真实 REST 调用、0 次云端变更。",
          "depth": 0
+        },
+        {
+         "text": "§5.2 的「25」是展示入口数，不是 registry 总数（111）：少掉的 86 个名字仍可被直接 调用或被 mcp_tool_invoke 转送。",
+         "depth": 0
         }
        ]
       }
@@ -10678,7 +10738,7 @@
       {
        "type": "code",
        "language": "bash",
-       "text": "# 离线：量测 + 全部测试\npython3 dev/tools/context_cost.py > onshape_docs/verification/context-cost-surfaces-2026-09-21.json\nPYTHONPATH=temp/browser-common-site python3 -m unittest discover -s dev/tests\n\n# 部署（Windows 宿主）\npython3 temp/deploy_refresh/deploy.py plan  --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py apply --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py verify --deployment-id <id>   # mismatched: []\n\n# 实机（0 REST）\n#   bridge_control restart → bridge_library expand\n#   mcp_tool_invoke {name: \"docs_list\"}       # 25 个入口里仍未展示的名字\n#   browser_session action=health   （必要时 login → 再 health）"
+       "text": "# 离线：量测 + 全部测试\npython3 dev/tools/context_cost.py > onshape_docs/verification/context-cost-surfaces-2026-09-21.json\nPYTHONPATH=temp/browser-common-site python3 -m unittest discover -s dev/tests\n\n# 部署（Windows 宿主）\npython3 temp/deploy_refresh/deploy.py plan  --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py apply --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py verify --deployment-id <id>   # mismatched: []\n\n# 实机（0 REST）\n#   bridge_control restart → bridge_library expand\n#   mcp_tool_invoke {name: \"docs_list\"}       # 25 个入口里仍未展示的名字\n#   docs_section {page: \"mcp-consumer\", section: \"gateway\"}   # 新策展名可直接调用\n#   bridge_library collapse / expand        # 应逐字报出同样的 25 个名字\n#   browser_session action=health   （必要时 login → 再 health）"
       }
      ]
     }

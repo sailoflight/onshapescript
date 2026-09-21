@@ -13,8 +13,10 @@
 
 ## 2. 环境与身份
 
-- 部署：`/mnt/c/MCP/onshapescript`，deployment id `20260921T120000Z-invoke`，
-  `shippedFiles: 16 / changed: 16 / unmatched: 0`（`verify` 报 `mismatched: []`）。
+- 部署：`/mnt/c/MCP/onshapescript`。本页最初的 deployment id 是
+  `20260921T120000Z-invoke`（`shippedFiles: 16 / changed: 16 / unmatched: 0`），
+  随后两次修复/扩容为 `20260921T130000Z-dialog` 与 `20260921T150000Z-depth`，
+  每次 `verify` 都报 `mismatched: []`。
 - 宿主开关（不在仓库、不随部署下发）：
   `mcp_main/win/mcp/config/tool_views.local.toml` → `[exposure] mode = "gateway"`。
 - 桥：`bridge_control(action="restart", id="onshape", expectedGeneration=90)`
@@ -142,6 +144,29 @@ mcp_tool_invoke { "name": "onshape_api_list_tags", "arguments": {} }
 部署后宿主开关仍是 `tool_views.local.toml` → `[exposure] mode = "gateway"`
 （该文件不随部署下发，因此不会被覆盖）。
 
+### 5.2 25 个入口版本的实机确认（generation 93）
+
+按 `docs/roadmap/LOOKUP_DEPTH_RESEARCH.md` 把策展集补到 22 之后，同一台 Windows 部署
+再验收一次（deployment id `20260921T150000Z-depth`，`changed: 12 / added: 3 /
+unchangedLeftAlone: 609`，`verify` → `mismatched: []`）。桥从 **92 重启到 93**
+（`preservedClients: 5`、`toolsListChangedNotifiedClients: 5`、
+`force-kill: not-needed`），随后 `bridge_library expand` → `toolCount: 25`、
+`catalogStatus: "verified"`。
+
+| 检查 | 结果 |
+|---|---|
+| 展示入口数 | `expand` 报 **25**（此前 16） |
+| 往返一致性 | `collapse` 的 `removedTools` 逐字列出定稿的 25 个名字；再 `expand` 的 `addedTools` 同样是这 25 个（`stateRevision` 14 → 16） |
+| 新策展名可直接调用 | **直接**调 `docs_section`（不经 `mcp_tool_invoke`）成功返回 `mcp-consumer` 的小节——只有在客户端刷新后确实拿到 25 个的列表时才可能 |
+| 未展示名仍可达 | `mcp_tool_invoke {name: "docs_list"}` → `invokedTool: "docs_list"`，`count: 31` |
+| `docs_list` 精简默认 | 每页只有 `page/category/path/title/sectionCount`，**没有** `sections` 数组，`sectionsIncluded: false`，并带「需要整份目录才用 `include_sections=true`」的新提示 |
+| `fs_get_function` 边界 | `extrude` / `opExtrude` 返回结构化 `parameters` + 有界 `description`（正文不再无上限） |
+| 空闲会话检测器 | 新进程照例 `browser_not_running` → `action=login` 恢复页面 → `verdict: "ok"`（`roundTripMs: 40`、`timeoutDialogActionable: false`、标题 `Gridfinity 2x2 baseplate | GF 4U 盒子`） |
+| 桥健康 | `peer: "connected"`、`activeStreams: 10`，`queueDroppedEvents` / `capacityRejectedStreams` / `oversizedMessages` / `degradedDirections` 全 0 |
+
+本轮同样是 **0 次真实 REST 调用、0 次云端数据变更**；`docs_section` 与
+`fs_get_function` 是离线索引，`browser_session action=health` 只做一次只读往返探针。
+
 ## 6. 边界（本页不声明的东西）
 
 - 不声明 Onshape 会话过期的**时长**：本页只记录两种状态与正确动作，没有测出间隔。
@@ -149,6 +174,8 @@ mcp_tool_invoke { "name": "onshape_api_list_tags", "arguments": {} }
   tokenizer 可校准。
 - `mcp_tool_invoke` 只保证「送达同一个 handler」，不保证目标工具在语义上适合被调用。
 - 会话恢复后未再执行任何建模或写操作；本轮 0 次真实 REST 调用、0 次云端变更。
+- §5.2 的「25」是**展示入口数**，不是 registry 总数（111）：少掉的 86 个名字仍可被直接
+  调用或被 `mcp_tool_invoke` 转送。
 
 ## 7. 复现
 
@@ -165,5 +192,7 @@ python3 temp/deploy_refresh/deploy.py verify --deployment-id <id>   # mismatched
 # 实机（0 REST）
 #   bridge_control restart → bridge_library expand
 #   mcp_tool_invoke {name: "docs_list"}       # 25 个入口里仍未展示的名字
+#   docs_section {page: "mcp-consumer", section: "gateway"}   # 新策展名可直接调用
+#   bridge_library collapse / expand        # 应逐字报出同样的 25 个名字
 #   browser_session action=health   （必要时 login → 再 health）
 ```
