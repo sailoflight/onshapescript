@@ -22,6 +22,7 @@ from onshape_browser_mode.selectors import (
     CONTEXT_MENU_LAYER,
     CUSTOM_FEATURE_MENU_ITEM,
     CUSTOM_FEATURE_MENU_LABEL,
+    DOCUMENT_TABS_BUTTON,
     FEATURE_DIALOG_OK,
     FS_COMMIT_BUTTON,
     FS_MODULE_OUTLINE,
@@ -104,6 +105,25 @@ PARTSTUDIO_RELOAD_WAIT = {"baseMs": 30_000, "perFeatureMs": 8_000, "maxMs": 900_
 #: model recompute.
 PARTSTUDIO_PANEL_READY_TIMEOUT_MS = 30_000
 PARTSTUDIO_TOOLBAR_TIMEOUT_MS = 30_000
+
+#: How long the document shell itself may take to render after a reload. A reload
+#: is the only zero-quota proof that a browser-inserted feature reached the
+#: workspace, but the page it lands on is not instantly usable: the tab strip and
+#: the Feature List arrive after the app boots. Measured live 2026-09-21, a reload
+#: fired straight after a parameter accept left BOTH unrendered for more than 30 s
+#: -- the survival wait then counted zero user rows for its whole budget and
+#: reported a committed feature as not inserted -- while an idle reload of the same
+#: page rendered its tab strip within ~3 s. A boot is not a model recompute, so it
+#: gets its own gate instead of eating the row budget; the fast path pays nothing,
+#: because the predicate is already true on a rendered page.
+DOCUMENT_READY_TIMEOUT_MS = 45_000
+
+#: In-page readiness predicate for the document shell: the tab-strip tools button
+#: is absent while the document is still loading and present once it has rendered
+#: (measured live 2026-09-21, in both directions).
+_DOCUMENT_READY_PREDICATE = """
+({selector}) => !!document.querySelector(selector)
+"""
 
 #: In-page readiness predicate: at least ``minimum`` Feature List rows exist.
 _PANEL_ROW_COUNT_PREDICATE = """
@@ -1849,6 +1869,41 @@ def reload_page(page: Any) -> dict[str, Any]:
     }
 
 
+def wait_for_document_ready(
+    page: Any, timeout_ms: int = DOCUMENT_READY_TIMEOUT_MS
+) -> dict[str, Any]:
+    """Wait (bounded, inside the page) until the document shell has rendered.
+
+    A reload is the cheapest zero-quota proof that a browser-inserted feature is
+    committed, but the reloaded page is not instantly readable: the tab-strip tools
+    button (and with it the Feature List) appears only once the app has booted, and
+    a read taken before that sees an empty document. Measured live 2026-09-21 on a
+    document carrying a live Feature Studio: a reload fired immediately after an
+    accept left the shell unrendered for more than 30 s, so the survival wait that
+    followed counted 0 rows and reported the insert as not applied, although the
+    same page reloaded from idle rendered in ~3 s. Waiting here first is what keeps
+    a slow boot out of the row verdict. Never raises: a timeout is evidence.
+    """
+    started = time.monotonic()
+    try:
+        page.wait_for_function(
+            _DOCUMENT_READY_PREDICATE,
+            arg={"selector": DOCUMENT_TABS_BUTTON},
+            timeout=timeout_ms,
+        )
+        waited, error = True, ""
+    except Exception as exc:  # noqa: BLE001 - a timeout is evidence, not a crash
+        waited, error = False, f"{type(exc).__name__}: {exc}"
+    return {
+        "waited": waited,
+        "condition": "document_tabs_button",
+        "selector": DOCUMENT_TABS_BUTTON,
+        "timeoutMs": timeout_ms,
+        "elapsedMs": round((time.monotonic() - started) * 1000),
+        **({"error": error} if error else {}),
+    }
+
+
 def open_insert_custom_feature_dialog(page: Any) -> dict[str, Any]:
     """Click the Part Studio toolbar's "添加自定义特征" button to open the dialog.
 
@@ -2220,11 +2275,20 @@ def verify_insert_committed(
     ``survival_minimum`` is the pre-insert USER-ROW count plus one and is what the
     wait and the verdict use; ``minimum`` keeps its name-matched meaning for the
     pre-accept wait the caller runs.
+
+    No row is counted until the reloaded document shell has rendered: a reload
+    fired straight after an accept can land on a page whose Feature List has not
+    appeared yet (measured live 2026-09-21: >30 s on a document carrying a live
+    Feature Studio, while an idle reload of the same page rendered in ~3 s). A
+    shell that never renders is reported ``bootReady: False`` with no row verdict,
+    so a caller can tell "the row is missing" from "the row could not be counted".
     """
     if not appeared:
         return {
             "verified": False,
             "committed": False,
+            "bootReady": None,
+            "documentReady": None,
             "reload": None,
             "survived": None,
             "features": None,
@@ -2241,12 +2305,20 @@ def verify_insert_committed(
     target = minimum if survival_minimum is None else survival_minimum
     baseline = collections.Counter(str(name) for name in baseline_names)
     reload_result = reload_page(page)
+    document_ready = None
     survived = None
     if reload_result.get("reloaded"):
-        survived = wait_for_feature_rows(
-            page, feature_name, target, timeout_ms, match_name=False
-        )
+        # Wait for the shell before counting rows: a reload fired right after an
+        # accept can land on a document that has not rendered yet (see
+        # DOCUMENT_READY_TIMEOUT_MS), and a row count taken then reads 0 for a
+        # reason that has nothing to do with this feature.
+        document_ready = wait_for_document_ready(page)
+        if document_ready.get("waited"):
+            survived = wait_for_feature_rows(
+                page, feature_name, target, timeout_ms, match_name=False
+            )
     verified = bool(reload_result.get("reloaded"))
+    booted = document_ready is None or bool(document_ready.get("waited"))
     # A best-effort read even when the row never came back: the returned lists are
     # evidence for the caller, while the wait above stays the gate.
     features = read_partstudio_features(page)
@@ -2263,6 +2335,14 @@ def verify_insert_committed(
             "the page reload needed to confirm the insert did not complete, so "
             "the workspace state is unverified and the insert is not reported "
             "as applied"
+        )
+    elif not booted:
+        reason = (
+            "the reload needed to confirm the insert landed on a document whose UI "
+            f"had not rendered within {document_ready['timeoutMs']} ms, so the "
+            "Feature List could never be counted: the row may or may not be "
+            "committed, and this call reports neither -- re-read the Part Studio "
+            "before retrying"
         )
     elif not waited:
         reason = (
@@ -2286,6 +2366,8 @@ def verify_insert_committed(
     return {
         "verified": verified,
         "committed": committed,
+        "bootReady": booted,
+        "documentReady": document_ready,
         # ``listed``/``errored`` describe the row this call created, so a
         # template-named row is reported as listed even though no name matched.
         "listed": bool(created) or state["listed"],
@@ -3059,6 +3141,13 @@ def insert_custom_feature(
         inserted: bool | None = False
     elif not verify_commit:
         inserted = None
+    elif commit.get("bootReady") is False:
+        # The confirming reload landed on a document that never rendered its UI, so
+        # the row was never counted. That is a non-verdict, not a failure: measured
+        # live 2026-09-21, a slow post-accept boot made every step of a 23-row build
+        # report ``inserted: False`` while the rows were in fact committed, and only
+        # a re-read showed them. Never claim an outcome the read could not observe.
+        inserted = None
     else:
         inserted = bool(commit["committed"]) and row_verified
 
@@ -3113,6 +3202,12 @@ def insert_custom_feature(
         result["reason"] = (
             "the parameter dialog's accept click did not land, so no feature "
             "was created"
+        )
+    elif commit.get("bootReady") is False:
+        result["reason"] = (
+            f"{commit.get('reason') or ''} The row was never counted, so this call "
+            "reports neither success nor failure: re-read the Part Studio (or re-run "
+            "the step) before assuming the feature was not applied."
         )
     elif commit.get("skipped"):
         result["reason"] = str(commit.get("reason") or "")

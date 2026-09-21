@@ -307,6 +307,11 @@ class FakePage:
         self.load_states: list[dict] = []
         self.wait_function_calls: list[dict] = []
         self.never_satisfied_minimum: int | None = None
+        #: Whether the document shell has rendered after a reload. Live 2026-09-21 a
+        #: reload fired straight after an accept left the tab strip and the Feature
+        #: List unrendered for more than 30 s, so the double has to be able to model
+        #: a shell that never comes up.
+        self.document_ready = True
         self.clock = FakeClock()
 
     # -- reload surface (the commit-verify step) -------------------------
@@ -350,15 +355,27 @@ class FakePage:
             if any(tab.get("id") == wanted and tab.get("active") for tab in self.tabs):
                 return True
             raise TimeoutError(f"tab {wanted!r} never became the active tab")
+        if (arg or {}).get("selector") == selectors.DOCUMENT_TABS_BUTTON:
+            # The document shell's readiness, which is its own gate and NOT a row
+            # count: a slow boot must never be read as a missing feature.
+            if self.document_ready:
+                return True
+            raise TimeoutError("the document shell never rendered")
         minimum = int((arg or {}).get("minimum", 1))
-        if self.never_satisfied_minimum is not None and minimum >= self.never_satisfied_minimum:
-            raise TimeoutError(f"row count never reached {minimum}")
         # Two different in-page predicates reach this method, and the double
         # dispatches on the same thing the page does: which rows the JS counts.
         # `ns-user-feature` is the user-row count (regeneration, survival);
         # anything else is the panel-readiness row count, which includes the
         # default planes, the part list and the count markers.
         if "ns-user-feature" in expression:
+            # ``never_satisfied_minimum`` models THE ROW COUNT never reaching N, so
+            # it applies here and nowhere else: applying it to every wait would also
+            # fail the shell gate and change which verdict a test is exercising.
+            if (
+                self.never_satisfied_minimum is not None
+                and minimum >= self.never_satisfied_minimum
+            ):
+                raise TimeoutError(f"row count never reached {minimum}")
             wanted = str((arg or {}).get("text", "")).strip().lower()
             seen = self._matching_rows(wanted)
         else:
@@ -477,22 +494,41 @@ class InsertCustomFeatureTest(unittest.TestCase):
             actions.FEATURE_DIALOG_TIMEOUT_MS,
         )
         self.assertEqual(len(page.accept_clicks), 1)
-        # Two in-page count waits (regeneration, then survival), both asking for
-        # one row more than the baseline, each on its own adaptive budget (the
-        # double reports one custom feature, so the budget is base + 1 step).
+        # Three in-page waits, in this order: the regeneration count, the
+        # document-shell gate the reload needs, then the survival count. The shell
+        # gate sits between them because live 2026-09-21 a reload fired straight
+        # after an accept left the Feature List unrendered for longer than the
+        # survival budget, which counted 0 rows for a reason unrelated to the row.
+        self.assertEqual(
+            [call["arg"].get("selector") for call in page.wait_function_calls],
+            [
+                selectors.PARTSTUDIO_FEATURE_ITEM,
+                selectors.DOCUMENT_TABS_BUTTON,
+                selectors.PARTSTUDIO_FEATURE_ITEM,
+            ],
+        )
+        # Both count waits ask for one row more than the baseline, each on its own
+        # adaptive budget (the double reports one custom feature, so the budget is
+        # base + 1 step); the shell gate is not a recompute and uses its own.
         self.assertEqual(
             [call["timeout"] for call in page.wait_function_calls],
             [
                 actions.partstudio_wait_budget_ms(
                     actions.PARTSTUDIO_REGENERATE_WAIT, features_read
                 ),
+                actions.DOCUMENT_READY_TIMEOUT_MS,
                 actions.partstudio_wait_budget_ms(
                     actions.PARTSTUDIO_RELOAD_WAIT, features_read
                 ),
             ],
         )
         self.assertEqual(
-            [call["arg"]["minimum"] for call in page.wait_function_calls], [1, 1]
+            [
+                call["arg"]["minimum"]
+                for call in page.wait_function_calls
+                if "minimum" in call["arg"]
+            ],
+            [1, 1],
         )
         self.assertEqual(result["baselineRows"], 0)
         self.assertEqual(
@@ -500,7 +536,7 @@ class InsertCustomFeatureTest(unittest.TestCase):
             {
                 "customFeaturesRead": features_read,
                 "regenerationMs": page.wait_function_calls[0]["timeout"],
-                "commitSurvivalMs": page.wait_function_calls[1]["timeout"],
+                "commitSurvivalMs": page.wait_function_calls[2]["timeout"],
             },
         )
         # And the insert is confirmed by exactly one bounded reload.
@@ -882,7 +918,11 @@ class InsertCustomFeatureTest(unittest.TestCase):
         self.assertEqual(result["budgets"]["commitSurvivalMs"], 350_000)
         self.assertEqual(
             [call["timeout"] for call in page.wait_function_calls],
-            [result["budgets"]["regenerationMs"], result["budgets"]["commitSurvivalMs"]],
+            [
+                result["budgets"]["regenerationMs"],
+                actions.DOCUMENT_READY_TIMEOUT_MS,
+                result["budgets"]["commitSurvivalMs"],
+            ],
         )
 
     def test_an_unreadable_feature_count_keeps_the_previous_fixed_budget(self) -> None:
@@ -1285,7 +1325,14 @@ class InsertCommitVerificationTest(unittest.TestCase):
         result = actions.insert_custom_feature(page, "Bc")
         self.assertEqual(result["baselineRows"], 2)
         self.assertEqual(
-            [call["arg"]["minimum"] for call in page.wait_function_calls], [3, 3]
+            [
+                call["arg"]["minimum"]
+                for call in page.wait_function_calls
+                if "minimum" in call["arg"]
+            ],
+            [3, 3],
+            "both count waits ask for one row more than the 2-row baseline; the "
+            "document-shell gate between them carries no count",
         )
         self.assertTrue(result["inserted"])
 
@@ -1377,6 +1424,41 @@ class InsertCommitVerificationTest(unittest.TestCase):
         self.assertFalse(result["commit"]["committed"])
         self.assertIn("never settled", result["reason"])
 
+    def test_a_slow_post_reload_boot_is_a_non_verdict_not_a_missing_row(self) -> None:
+        """The shell gate keeps a slow boot out of the row verdict.
+
+        Measured live 2026-09-21: a reload fired straight after an accept left the
+        tab strip and the Feature List unrendered for more than 30 s on a document
+        that carries a live Feature Studio, so the survival wait counted 0 user rows
+        and reported every step of a 23-row build as ``inserted: False`` while the
+        rows were in fact committed. A page that never rendered is evidence about
+        the page, so the insert claims neither outcome and says which read failed.
+        """
+        row = {
+            "headerText": "特征 (1)",
+            "features": [{"name": "Bc 1", "isUserFeature": True}],
+            "partsText": "零件数 (1) Bc",
+        }
+        page = FakePage(
+            features=row,
+            features_before_insert={"headerText": "特征 (0)", "features": [], "partsText": ""},
+            features_after_reload=row,
+        )
+        page.document_ready = False
+        result = actions.insert_custom_feature(page, "Bc")
+        self.assertIsNone(result["inserted"], "an unrendered page proves nothing")
+        self.assertEqual(result["applyState"], "pending_verification")
+        self.assertFalse(result["commit"]["bootReady"])
+        self.assertFalse(result["commit"]["committed"])
+        self.assertIn("had not rendered", result["reason"])
+        self.assertIn("neither success nor failure", result["reason"])
+        # The row wait is never issued on an unrendered page: there is no list to
+        # count, and a count taken now is what produced the false failure.
+        self.assertEqual(
+            [call["arg"].get("selector") for call in page.wait_function_calls],
+            [selectors.PARTSTUDIO_FEATURE_ITEM, selectors.DOCUMENT_TABS_BUTTON],
+        )
+
     def test_the_verifier_alone_reports_uncommitted_and_unverified(self) -> None:
         listed = {
             "headerText": "特征 (1)",
@@ -1464,8 +1546,17 @@ class InsertCommitVerificationTest(unittest.TestCase):
         # verdict cannot be taken from it.
         self.assertFalse(commit["featureRows"] == commit["createdRows"])
         self.assertEqual(len(commit["featureRows"]), 0)
-        # The wait asked for a count, not a name.
-        self.assertEqual(page.wait_function_calls[-1]["arg"]["text"], "")
+        # The wait asked for a count, not a name. The LAST in-page call is the
+        # document-shell gate, which carries no row count, so this looks at the
+        # survival wait itself.
+        self.assertEqual(
+            [
+                call["arg"]["text"]
+                for call in page.wait_function_calls
+                if "minimum" in call["arg"]
+            ][-1],
+            "",
+        )
 
     def test_a_created_row_is_the_excess_over_a_baseline_multiset(self) -> None:
         """A name two rows share must not hide the row this call created.
