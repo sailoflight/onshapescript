@@ -199,6 +199,14 @@ still answer; connection-scoped tools are refused rather than recursed into). It
 listed in EVERY exposure mode, because a hidden escape hatch is no escape hatch. It
 compresses the advertised list, and it does not change any tool's authority.
 
+**Layer depth, priced.** How many lookup layers and how many entry points are
+worth it is answered separately and with measurements in
+`LOOKUP_DEPTH_RESEARCH.md`: one extra round costs the whole prefix (~20.8k
+estimated tokens at the documented defaults) against 427-1,000 tokens/step for a
+tool schema, so the rule is "list what nearly every session uses, look the rest up
+per name", a prescribed chain must be listed completely or not at all, and
+widening the surface costs 16.8-60.7 single-name lookups over a 30-step tail.
+
 **Response side.** The same token audit applies to a mutation ANSWER, not only to
 the tool list. A delete used to repeat one row set four times (enumeration,
 pre-state names, post-state names, and the resolver's own resolved list) and an
