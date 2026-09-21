@@ -3193,7 +3193,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "4e716ead43b3bf37ccf74ef3713657d91d8bb59d14ffe4107ea8f564d84dceb8",
+   "sha256": "854ad078b5b44c611fa36ff8c5ec8d4d9a47dc117464f7c49fb6323cd9ccc989",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4136,7 +4136,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "browser_run_project 的每一步都返回完整特征树，而单次 MCP 调用受传输上限约束 （本环境实测约 60 s）。23 步的 Gridfinity 变量化重建跑到第 4 步左右，整个调用以 downstream_timeout 结束，随后 2.5 分钟没有推进——最后一步的行已经建好，但没有写进 checkpoint（孤儿行）。三个必须知道的边界："
+       "text": "browser_run_project 的每一步都返回完整特征树，而单次 MCP 调用受传输上限约束 （本环境实测约 60 s）。23 步的 Gridfinity 变量化重建跑到第 4 步左右，整个调用以 downstream_timeout 结束，随后 2.5 分钟没有推进——最后一步的行已经建好，但没有写进 checkpoint（孤儿行）。五个必须知道的边界："
       },
       {
        "type": "list",
@@ -4146,7 +4146,15 @@
          "depth": 0
         },
         {
-         "text": "只要 fixture 改过（哪怕只是参数），resume 会拒绝： Project fixture changed after checkpoint creation；",
+         "text": "checkpoint 把夹具指纹绑定为夹具 JSON 的 sha256，所以改夹具的任何一个字节 （哪怕只是参数）都会作废检查点，resume 拒绝： ValueError: \"Project fixture changed after checkpoint creation; start a new run\"；",
+         "depth": 0
+        },
+        {
+         "text": "每个步骤都必须返回一个真值 outcome key（TOOL_OUTCOME_KEYS，v1/v2 两版 schema 都要求）：browser_insert_custom_feature 的键是 inserted。短路径 （verify_commit: false）故意返回 inserted: null，所以它永远过不了 runner 的完成门 ——这样的步骤只能放到 fixture 之外跑，或改用完整校验路径；",
+         "depth": 0
+        },
+        {
+         "text": "MCP error -32001: downstream_timeout 是客户端放弃而服务端调用仍在继续，所以行可能 在超时报错之后才落地：这个报错说的是「不知道」，不是「写失败」；",
          "depth": 0
         },
         {
@@ -4310,7 +4318,90 @@
       },
       {
        "type": "para",
-       "text": "未被消费的薄草图是几何惰性的。 薄拉伸消费的是「它前面最近一个薄草图」发布的区域， 被下一张草图覆盖的旧区域没有任何人消费。把那行孤儿草图删掉后重新导出 STEP，B-rep 与 删前逐族相同（体积 39547.5903 mm³、面积 20002.2154 mm²、194 面、45° 锥面三族 37.32/223.5216/415.1424）。删除前仍要读一次参数，确认它确实没有被某个后续拉伸消费。"
+       "text": "未被消费的薄草图是几何惰性的。 薄拉伸消费的是「它前面最近一个薄草图」发布的区域， 被下一张草图覆盖的旧区域没有任何人消费。把那行孤儿草图删掉后重新导出 STEP，B-rep 与 删前逐族相同（体积 39547.5903 mm³、面积 20002.2154 mm²、194 面、45° 锥面三族 37.32/223.5216/415.1424）。删除前仍要读一次参数，确认它确实没有被某个后续拉伸消费。 因此重复对里删靠前的那条是安全的，删掉被某个拉伸消费的那条会让那个拉伸报错。 实测（4U 盒子）：TS 6 读回 41.5 × 41.5, R3.75, z=4.75，与消费者 TS 7 完全一致， 删掉 TS 6 后树是干净的 23 行。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "25. 页面没渲染出来，就不是关于特征的证据（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "插入接受后，工具会重载页面来证明行留在工作区（§22）。但重载后的页面不是立刻可读的： 长会话里这次重载可能让 Onshape 外壳 30 s 以上不渲染——文档标签条与特征列表同时为空； 而空闲重载同一文档只要 3–6 s，浏览器重启后同一步的外壳在 1139–2004 ms 内就绪。 于是「存活等待」被耗在应用启动上：23 步构建的每一步都报 inserted: false，而行其实都已提交。"
+      },
+      {
+       "type": "para",
+       "text": "修复在 verify_insert_committed：重载与 wait_for_feature_rows 之间加一道外壳门 wait_for_document_ready，判据是文档标签按钮 .document-tabs-button 存在，预算 DOCUMENT_READY_TIMEOUT_MS = 45_000。外壳没就绪时给出明确的未判定而不是假失败： inserted: null、applyState: \"pending_verification\"、commit.bootReady: false （appeared=false 的提前返回路径是 bootReady: null），理由文本单独说明「had not rendered … neither success nor failure」。dev/tests/test_browser_apply_path.py 的 test_a_slow_post_reload_boot_is_a_non_verdict_not_a_missing_row 钉住这条：外壳未就绪时 连存活行等待都不会发出（等待序列里只有再生等待的行选择器与外壳门的 .document-tabs-button）。"
+      },
+      {
+       "type": "para",
+       "text": "规则：页面没渲染出来，不构成关于特征的任何证据——「数不到」不等于「没有」。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "26. 被拒绝的插入会留下打开的参数对话框和一行（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_insert_custom_feature 的拒绝路径不是干净的：下拉点击已经把行加进了树， 而拒绝（参数填充不满足、对话框未接受）时参数对话框不会自动关闭，那行保留对话框默认值 并在重载后存活（代码注释的原话：must be deleted, not ignored）。两个后果："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_read_feature_parameters 在已有对话框打开时读不到东西：它只从自己打开的 对话框读（对话框字段显示的是「最后输入」的值而不是已持久化的值），此时返回 read: false、 retryable: true，理由要求先清掉对话框；只有 allow_reload=true 才允许它用一次有界 重载丢弃面板再读。",
+         "depth": 0
+        },
+        {
+         "text": "因此对同一特征再插一次可能留下重复行（本次 4U 盒子出现了 3 条重复薄草图，其中一条 就是被拒收后仍留在列表里的挂起行）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "规则：读之前先清掉对话框（或重载）；拒绝之后立刻看到的行还不算已证明——它可能是 默认值的悬挂行，要么删除，要么当作待证状态。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "27. 自适应等待会长过一次 MCP 调用（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "再生等待与存活等待的预算随元素的自定义特征数 N 增长（partstudio_wait_budget_ms： baseMs + perFeatureMs × N）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "等待",
+         "实测公式",
+         "常量"
+        ],
+        [
+         "再生（accept 后）",
+         "30 s + 2 s × N",
+         "PARTSTUDIO_REGENERATE_WAIT"
+        ],
+        [
+         "存活（reload 后）",
+         "30 s + 8 s × N",
+         "PARTSTUDIO_RELOAD_WAIT"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "到第 22 个特征时两者已达 74 s / 206 s，远超单次调用的 ~60–70 s 传输窗口， 所以完整校验路径会跑出一次调用（返回 no verdict，而不是 inserted: false）。"
+      },
+      {
+       "type": "para",
+       "text": "规则：大树上有意走短路径（verify_commit=false，本次每步 5–15 s 返回、 readbackOk: true 并给出新行名），事后用一次稳定的特征树复读证明结果，最好再补一次 几何导出验收（如 §17 的几何包质心/体积断言）——短路径的 inserted 是 null，不是判据。"
       }
      ]
     }
@@ -9625,6 +9716,392 @@
          "depth": 0
         }
        ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "gridfinity-4u-bin-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/gridfinity-4u-bin-2026-09-21.md",
+   "sha256": "93128f85e53dda0b1e68a6e73415bbe3c746312dfa041d1a35e64208543ca27a",
+   "title": "Gridfinity 4U 高盒子：同文档特征树构建 + 解析值级 B-rep 验收（2026-09-21）",
+   "sections": [
+    {
+     "level": 2,
+     "title": "1. 这次要验证什么",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户要求：重启桥之后，在同一个文档里做一个 Gridfinity 的 4U 高盒子，验证工具链正常 （原话先误写成「4U 的盒子」，随即更正为「gridinfinity 的 4U 高盒子」，所以本页是收纳盒， 不是 19 吋机箱——前者另见 4u-box-2026-09-21.md）。"
+      },
+      {
+       "type": "para",
+       "text": "本页记三件事："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "工具链端到端正常：夹具驱动 → 7 个变量 → 8 组「草图 + 拉伸」（4 增料 + 4 切除）→ STEP 导出，全程浏览器腿，Onshape REST 配额 0；",
+         "depth": 0
+        },
+        {
+         "text": "几何与解析公式逐位相等（第 5 节：体积 14882.3969 mm³，不是「接近」）；",
+         "depth": 0
+        },
+        {
+         "text": "本次暴露并修掉的 3 个工具缺陷（第 7 节），其中第 1 个是本页最有价值的部分。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 目标身份",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "项",
+         "值"
+        ],
+        [
+         "documentId / workspaceId",
+         "1ef2be8f3d45e6f996af24ab / bac7c0bf31912a956c44d15a"
+        ],
+        [
+         "Part Studio elementId",
+         "59f6cc99890dd2fea26d5471"
+        ],
+        [
+         "标签名（中文）",
+         "GF 4U 盒子"
+        ],
+        [
+         "行数",
+         "23 用户特征（特征 (27) = 23 + 4 基准面），无 hasError"
+        ],
+        [
+         "实体",
+         "零件数 (4) = 4 段增料各自成体（见第 6 节）"
+        ],
+        [
+         "夹具",
+         "dev/fixtures-capture/gridfinity-4u-bin.json，sha256 9d34f8d397c58200d94b2cd8b6a50420714abdafbd32e8b57786b19e4aa65b40"
+        ],
+        [
+         "STEP",
+         "onshape_browser_mode/outputs/step_exports/gf-4u-bin-59f6cc99-1/model.step，sha256 b9ec383f722ebd812fc92fa5edb08ecb3987919033453a67ee2cd0518861c057（AP242, mm）"
+        ],
+        [
+         "导出清单",
+         "同目录 step-manifest.json；导出结果 apiRequests: 0"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 特征树（夹具 23 步 = 7 变量 + 8 组）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "UI 行名即下表的 name / description；尺寸里带 # 的是表达式，行上显示的是求值后的数字。"
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "TV #gf_pitch = 42 mm   格距：相邻单元格中心距\nTV #gf_gap   = 0.5 mm  每单元总间隙（单侧 0.25）\nTV #corner_r = 3.75 mm 盒体外圆角半径\nTV #base_h   = 7 mm    1U 底脚高（含加强段）\nTV #bin_h    = 28 mm   4U 盒体高（含底脚）\nTV #lip_h    = 4.4 mm  堆叠唇高（位于盒体之上）\nTV #wall_t   = 0.95 mm 壁厚（内圆角 2.8）\n\nTS 1 / TE 1  底脚    35.6 R0.8 @ z=0    +0.8      45° 底脚斜面\nTS 3 / TE 2  锁扣    37.2 R1.6 @ z=0.8  +1.8      竖直\nTS 5 / TE 3  外扩    37.2 R1.6 @ z=2.6  +2.15     45° 展开到 41.5 R3.75\nTS 7 / TE 4  盒体    41.5 R3.75 @ z=4.75 +27.65   45.5 − 4.75（顶到 32.4）\nTS 8 / TE 5  内腔    39.6 R2.8 @ z=7     −21       subtract（内底 z=7）\nTS 9 / TE 6  唇斜面  36.3 R1.15 @ z=28   −0.7      subtract，45°\nTS 10 / TE 7 唇锁扣  37.7 R1.85 @ 28.7   −1.8      subtract，竖直\nTS 11 / TE 8 唇外扩  37.7 R1.85 @ 30.5   −1.9      subtract，45° → 顶部收成尖边"
+      },
+      {
+       "type": "para",
+       "text": "设计尺寸（kennetek/gridfinity-rebuilt-openscad 为准）：GRID_DIMENSIONS_MM=[42,42]、 TOLLERANCE=0.02、BASE_HEIGHT=7（1U）、BASE_TOP_DIMENSIONS=[41.5,41.5]、 BASE_TOP_RADIUS=3.75、BASE_BOTTOM_RADIUS=0.8、d_wall=0.95、STACKING_LIP_HEIGHT=4.4； 总高 4×7 + 4.4 = 32.4。"
+      },
+      {
+       "type": "para",
+       "text": "两个关键字面走 #变量 表达式，expect_values 确认解析后的数值（对话框稳定后显示的是 求值结果，不是 #表达式 本身）：盒体草图 width/height 41.5 mm（#gf_pitch - #gf_gap）、 corner_radius 3.75 mm；内腔草图 39.6 mm（#gf_pitch - #gf_gap - 2 * #wall_t）、 2.8 mm（#corner_r - #wall_t）；拉伸深度 27.65 mm（#bin_h + #lip_h - 4.75 mm）。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 薄特征的树序语义（夹具成立的前提）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "「薄草图」发布一个区域，「薄拉伸」消费它前面最近的一条薄草图的区域。因此："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "每组必须严格 草图 → 拉伸 紧邻排列，树序即几何语义；",
+         "depth": 0
+        },
+        {
+         "text": "未被消费的薄草图对几何完全无影响（第 7.3 节据此安全删掉了重复行）；",
+         "depth": 0
+        },
+        {
+         "text": "每条增料拉伸各自产生一个实体，所以 零件数 (4) 与 4 段增料一一对应，4 段面面贴合 （上一段末端截面 = 下一段起始截面），体积之和等于整体解析体积。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. 解析值级验收：体积逐位相等",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "解析式用圆角矩形精确面积 A(w,r) = w² − (4−π)r² 沿 z 积分（45° 段 w、r 同时线性变化， 积分被 Simpson 精确求出）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "分量",
+         "体积 mm³"
+        ],
+        [
+         "外实体（4 段叠加）",
+         "54151.0132"
+        ],
+        [
+         "内腔",
+         "−32790.0318"
+        ],
+        [
+         "堆叠唇 3 次切除",
+         "−6478.5844"
+        ],
+        [
+         "盒子总体积",
+         "14882.3969"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "导出的 STEP 实测："
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{ \"volumeMm3\": 14882.3969, \"surfaceAreaMm2\": 21369.6862,\n  \"boundingBoxMm\": { \"x\": [-20.75, 20.75], \"y\": [-20.75, 20.75], \"z\": [-0.0, 32.4] },\n  \"faceCount\": 73,\n  \"horizontalPlaneZs\": [0.0, 0.8, 2.6, 4.75, 7.0, 28.0] }"
+      },
+      {
+       "type": "para",
+       "text": "体积四位小数完全相同。这一个数字就同时锁住了：4 段截面的宽度/圆角、两处 45° 斜面、 内腔截面与深度、以及唇部三次切除的全部尺寸——任一处错，体积都会偏。"
+      },
+      {
+       "type": "para",
+       "text": "面族与 z 区间也逐项对上（measure 对锥面是半角、对柱面是半径）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "族",
+         "数量",
+         "半径/半角",
+         "z 区间"
+        ],
+        [
+         "平面",
+         "41",
+         "—",
+         "面积 20193.4916（含全部竖直壁）"
+        ],
+        [
+         "锥面",
+         "4",
+         "45°，R0.8",
+         "0 → 0.8（底脚斜面）"
+        ],
+        [
+         "锥面",
+         "4",
+         "45°，R1.6",
+         "2.6 → 4.75（盒体外扩）"
+        ],
+        [
+         "锥面",
+         "4",
+         "45°，R1.15",
+         "28 → 28.7（唇斜面）"
+        ],
+        [
+         "锥面",
+         "4",
+         "45°，R1.85",
+         "30.5 → 32.4（唇外扩）"
+        ],
+        [
+         "圆柱面",
+         "4",
+         "r1.6",
+         "0.8 → 2.6（锁扣）"
+        ],
+        [
+         "圆柱面",
+         "4",
+         "r1.85",
+         "28.7 → 30.5（唇锁扣）"
+        ],
+        [
+         "圆柱面",
+         "4",
+         "r2.8",
+         "7 → 28（内腔角）"
+        ],
+        [
+         "圆柱面",
+         "4",
+         "r3.75",
+         "4.75 → 32.4（盒体角）"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "faceCount 73 可以手工复原，说明拓扑也正确（4 个实体）："
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "底脚段 z0→0.8    : 上下面 2 + 4 直壁 + 4 锥角 = 10\n锁扣段 z0.8→2.6  : 10\n外扩段 z2.6→4.75 : 10\n盒体段           : 底 1 + 外壁 8 + 内底 1 + 内壁 8\n                 + z=28 唇下环面 1 + 唇内三面 24 = 43\n                   ------------------------------------\n                   10 + 10 + 10 + 43 = 73  ✓"
+      },
+      {
+       "type": "para",
+       "text": "水平面只有 0 / 0.8 / 2.6 / 4.75 / 7 / 28：z=28 是唇的环形下表面（槽口处的台阶）， 而 z=32.4 没有面——唇外扩与盒体外壁在同一条棱上相交，顶部是尖边，与设计一致。 z=28.7 / 30.5 也没有面，因为唇内表面是一条连续曲面（锥→柱→锥），转折处只有棱。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 与底板的互操作（落座间隙）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "底脚外表面与底板插槽的间隙（单侧）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "z",
+         "盒脚",
+         "宽度间隙",
+         "半径间隙"
+        ],
+        [
+         "0.0",
+         "竖直 35.6",
+         "0.70",
+         "0.35"
+        ],
+        [
+         "0.8",
+         "锁扣 37.2",
+         "0.50",
+         "0.25"
+        ],
+        [
+         "4.75",
+         "外扩 41.5",
+         "0.50",
+         "0.25"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "唇的内表面半径族是 36.3 (R1.15) → 37.7 (R1.85) → 41.5 (R3.75)，与底板插槽 （36.3 (R1.15) … 42.0 (R4.00)，即 socket_bottom_radius 2.3 − offset 1.15）同族， 所以另一个盒子的底脚能落进这个唇里 → 可堆叠。唇底处壁厚 (39.6−36.3)/2 = 1.65 mm， 唇以下壁厚 0.95 mm（= #wall_t）。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "7.1 接受后的重载把「应用启动」当成了「特征没提交」（已修）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "插入接受后，工具会重载页面以证明行留在工作区。长会话里这次重载可能让 Onshape 外壳 30 s 以上不渲染（标签条与特征列表都空），而空闲重载同一文档只要 3–6 s；浏览器重启后 同一步的外壳在 1139–2004 ms 内就绪。于是「存活等待」被耗在应用启动上，每一步都报 inserted: false，而实际上行都提交了。"
+      },
+      {
+       "type": "para",
+       "text": "修复（onshape_browser_mode/actions.py）：重载与 wait_for_feature_rows 之间加一道 外壳门 wait_for_document_ready（判定「文档标签按钮存在」，预算 45 s），并且启动未就绪 时给出明确的未判定而不是假失败：inserted: null、applyState: \"pending_verification\"、 commit.bootReady: false（提前返回路径为 null），理由文本独立。 规则：页面没渲染出来，不构成关于特征的任何证据。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "7.2 表达式参数必须给 expect_values，否则整步被拒",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_insert_custom_feature 对任何含 # 的参数值，要求同一参数 id 出现在 expect_values （声明它必须求值成多少），因为稳定后的控件显示的是求值结果。夹具最初漏了 height， 第 13 步被拒：unstatedExpressionKeys: [\"height\"]。已补齐（第 3 节列出全部三处）。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "7.3 客户端超时留下的重复行（惰性，可安全删除）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "MCP error -32001: downstream_timeout 是客户端放弃，服务端调用仍在继续，行可能在超时报错 之后才落地。本次因此出现 3 条重复薄草图（其中一条来自被拒收后仍留在列表里的挂起行—— 被拒收时参数对话框不会自动关闭）。处理与依据："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "读真实特征列表；删除所有超出检查点已完成计数的行（否则续跑会变成重复）；",
+         "depth": 0
+        },
+        {
+         "text": "重复对里靠前的那条是惰性的（拉伸消费的是最近的前一条薄草图，见第 4 节）， 删除安全；删除被消费的那条会让拉伸报错——所以删前用 browser_read_feature_parameters 读回参数，确认两条参数完全相同（本次 TS 6 读回 41.5 × 41.5, R3.75, z=4.75，与消费者 TS 7 完全一致）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "最终树是干净的 23 行：TS 1, TE 1, TS 3, TE 2, TS 5, TE 3, TS 7, TE 4, TS 8, TE 5, TS 9, TE 6, TS 10, TE 7, TS 11, TE 8，每个拉伸紧跟自己那条草图。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "7.4 附带约束：自适应等待会超过一次传输预算",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "再生/存活预算随特征数增长（实测公式：再生 = 30 s + 2 s×N，存活 = 30 s + 8 s×N）。 到第 22 个特征时已达 74 s / 206 s，远超单次调用的 ~60–70 s 传输窗口，所以完整校验路径 会跑出一次调用。本次后半程改用短路径（verify_commit=false，每步 5–15 s 返回、 readbackOk: true 且给出新行名），最终证明由稳定态特征树读取 + STEP 导出承担—— 这是第 5 节存在的意义。另注：运行器把检查点的夹具指纹绑定为夹具 sha256，改夹具即作废 检查点（Project fixture changed after checkpoint creation）；且 TOOL_OUTCOME_KEYS 要求 每步有一个真值结果键，所以 inserted: null 的短路径步骤无法满足运行器完成门。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "8. 复现",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "# 夹具 → 浏览器（文档内新建 Part Studio 后，把标签名设为 GF 4U 盒子）\n# 逐段插入：7 个 Thin Variable + 8 组 Thin Sketch Rectangle / Thin Extrude\n# 导出（0 REST 配额）\n#   browser_export_step  source_tab=\"GF 4U 盒子\"  export_id=gf-4u-bin-59f6cc99-1\n# 离线几何核验\n/home/lijq/code/CadQ/.venv/bin/python onshape_docs/scripts/verify_step_brep.py \\\n  /mnt/c/MCP/onshapescript/onshape_browser_mode/outputs/step_exports/gf-4u-bin-59f6cc99-1/model.step"
+      },
+      {
+       "type": "para",
+       "text": "夹具级离线守卫见 dev/tests/test_gridfinity_4u_bin_fixture.py。"
       }
      ]
     }

@@ -608,12 +608,19 @@ z = 4.90 交点 +3.95 mm（倒角段 3.25 + 0.7）、z = 3.00 交点 +3.25 mm（
 `browser_run_project` 的每一步都返回完整特征树，而单次 MCP 调用受传输上限约束
 （本环境实测约 60 s）。23 步的 Gridfinity 变量化重建跑到第 4 步左右，整个调用以
 `downstream_timeout` 结束，随后 2.5 分钟没有推进——**最后一步的行已经建好，但没有写进
-checkpoint**（孤儿行）。三个必须知道的边界：
+checkpoint**（孤儿行）。五个必须知道的边界：
 
 - 恢复必须 `resume=true`；存活的 checkpoint 会让一次全新 run 直接
   `ValueError: Checkpoint already exists`；
-- 只要 fixture 改过（哪怕只是参数），resume 会拒绝：
-  `Project fixture changed after checkpoint creation`；
+- checkpoint 把夹具指纹绑定为**夹具 JSON 的 sha256**，所以**改夹具的任何一个字节**
+  （哪怕只是参数）都会作废检查点，resume 拒绝：
+  `ValueError: "Project fixture changed after checkpoint creation; start a new run"`；
+- **每个步骤都必须返回一个真值 outcome key**（`TOOL_OUTCOME_KEYS`，v1/v2 两版 schema
+  都要求）：`browser_insert_custom_feature` 的键是 `inserted`。短路径
+  （`verify_commit: false`）故意返回 `inserted: null`，所以**它永远过不了 runner 的完成门**
+  ——这样的步骤只能放到 fixture 之外跑，或改用完整校验路径；
+- `MCP error -32001: downstream_timeout` 是**客户端放弃**而服务端调用仍在继续，所以行可能
+  在超时报错**之后**才落地：这个报错说的是「不知道」，不是「写失败」；
 - 于是「重跑一遍」不是幂等的：孤儿行会留在树里，被下一次同名等待或提交计数当成既有行。
 
 结论：**步骤多、每步都贵的构建，逐行直接调 `browser_insert_custom_feature`**（每行
@@ -726,3 +733,57 @@ Feature List 是虚拟列表，一次读只给你**一个窗口**。同一个 23
 被下一张草图覆盖的旧区域没有任何人消费。把那行孤儿草图删掉后重新导出 STEP，B-rep 与
 删前**逐族相同**（体积 `39547.5903` mm³、面积 `20002.2154` mm²、194 面、45° 锥面三族
 37.32/223.5216/415.1424）。删除前仍要读一次参数，确认它确实没有被某个后续拉伸消费。
+因此重复对里删**靠前**的那条是安全的，删掉被某个拉伸消费的那条会让**那个拉伸报错**。
+实测（4U 盒子）：`TS 6` 读回 `41.5 × 41.5, R3.75, z=4.75`，与消费者 `TS 7` 完全一致，
+删掉 `TS 6` 后树是干净的 23 行。
+
+## 25. 页面没渲染出来，就不是关于特征的证据（实测 2026-09-21）
+
+插入接受后，工具会**重载页面**来证明行留在工作区（§22）。但重载后的页面不是立刻可读的：
+长会话里这次重载可能让 Onshape 外壳 **30 s 以上**不渲染——文档标签条与特征列表**同时为空**；
+而**空闲重载**同一文档只要 **3–6 s**，浏览器重启后同一步的外壳在 **1139–2004 ms** 内就绪。
+于是「存活等待」被耗在应用启动上：23 步构建的每一步都报 `inserted: false`，而行其实都已提交。
+
+修复在 `verify_insert_committed`：重载与 `wait_for_feature_rows` 之间加一道**外壳门**
+`wait_for_document_ready`，判据是文档标签按钮 `.document-tabs-button` 存在，预算
+`DOCUMENT_READY_TIMEOUT_MS = 45_000`。外壳没就绪时给出**明确的未判定**而不是假失败：
+`inserted: null`、`applyState: "pending_verification"`、`commit.bootReady: false`
+（`appeared=false` 的提前返回路径是 `bootReady: null`），理由文本单独说明「had not
+rendered … neither success nor failure」。`dev/tests/test_browser_apply_path.py` 的
+`test_a_slow_post_reload_boot_is_a_non_verdict_not_a_missing_row` 钉住这条：外壳未就绪时
+连存活行等待都不会发出（等待序列里只有再生等待的行选择器与外壳门的 `.document-tabs-button`）。
+
+规则：**页面没渲染出来，不构成关于特征的任何证据**——「数不到」不等于「没有」。
+
+## 26. 被拒绝的插入会留下打开的参数对话框和一行（实测 2026-09-21）
+
+`browser_insert_custom_feature` 的**拒绝路径不是干净的**：下拉点击**已经**把行加进了树，
+而拒绝（参数填充不满足、对话框未接受）时**参数对话框不会自动关闭**，那行保留对话框默认值
+并在重载后存活（代码注释的原话：must be deleted, not ignored）。两个后果：
+
+- `browser_read_feature_parameters` 在已有对话框打开时**读不到东西**：它只从自己打开的
+  对话框读（对话框字段显示的是「最后输入」的值而不是已持久化的值），此时返回 `read: false`、
+  `retryable: true`，理由要求先清掉对话框；只有 `allow_reload=true` 才允许它用一次有界
+  重载丢弃面板再读。
+- 因此对同一特征再插一次可能留下**重复行**（本次 4U 盒子出现了 3 条重复薄草图，其中一条
+  就是被拒收后仍留在列表里的挂起行）。
+
+规则：**读之前先清掉对话框（或重载）**；**拒绝之后立刻看到的行还不算已证明**——它可能是
+默认值的悬挂行，要么删除，要么当作待证状态。
+
+## 27. 自适应等待会长过一次 MCP 调用（实测 2026-09-21）
+
+再生等待与存活等待的预算随元素的**自定义特征数 N** 增长（`partstudio_wait_budget_ms`：
+`baseMs + perFeatureMs × N`）：
+
+| 等待 | 实测公式 | 常量 |
+|---|---|---|
+| 再生（accept 后） | 30 s + 2 s × N | `PARTSTUDIO_REGENERATE_WAIT` |
+| 存活（reload 后） | 30 s + 8 s × N | `PARTSTUDIO_RELOAD_WAIT` |
+
+到第 **22** 个特征时两者已达 **74 s / 206 s**，远超单次调用的 **~60–70 s** 传输窗口，
+所以**完整校验路径会跑出一次调用**（返回 no verdict，而不是 `inserted: false`）。
+
+规则：**大树上有意走短路径**（`verify_commit=false`，本次每步 5–15 s 返回、
+`readbackOk: true` 并给出新行名），**事后用一次稳定的特征树复读证明结果**，最好再补一次
+几何导出验收（如 §17 的几何包质心/体积断言）——短路径的 `inserted` 是 `null`，不是判据。
