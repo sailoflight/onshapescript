@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "name": "4u-box",
+  "description": "4U 19-inch open-top box (482.6 x 300 x 177.8 mm outer, 3 mm walls) as an 8-row thin-feature tree in an existing Part Studio. Tool-chain regression fixture: variables -> rectangle sketch -> additive extrude -> inner rectangle sketch -> subtract extrude. Browser leg only, 0 Onshape REST quota. Measured B-rep: volume 1248838.08 mm^3, area 837254.32 mm^2, 11 faces, horizontal planes z = 0 / 3 / 177.8 (see onshape_docs/verification/4u-box-2026-09-21.md).",
+  "steps": [
+    {
+      "id": "00-var-width",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": { "name": "box_w", "value": "482.6 mm", "description": "19 吋机箱宽度" },
+        "expect_row": "#box_w = 482.6 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "01-var-depth",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": { "name": "box_d", "value": "300 mm", "description": "箱体深度" },
+        "expect_row": "#box_d = 300 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "02-var-height",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": { "name": "box_h", "value": "177.8 mm", "description": "4U 高度（1U = 44.45）" },
+        "expect_row": "#box_h = 177.8 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "03-var-wall",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": { "name": "box_t", "value": "3 mm", "description": "壁厚" },
+        "expect_row": "#box_t = 3 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "04-outer-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": {
+          "origin_z": "0 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "#box_w",
+          "height": "#box_d",
+          "corner_radius": "0 mm"
+        },
+        "expect_values": { "width": "482.6 mm", "height": "300 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "05-outer-extrude",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": { "depth": "#box_h" },
+        "expect_values": { "depth": "177.8 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "06-inner-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": {
+          "origin_z": "#box_t",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "#box_w - 2 * #box_t",
+          "height": "#box_d - 2 * #box_t",
+          "corner_radius": "0 mm"
+        },
+        "expect_values": { "origin_z": "3 mm", "width": "476.6 mm", "height": "294 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "07-inner-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "4U 机箱盒子",
+        "parameters": { "depth": "#box_h", "subtract": true },
+        "expect_values": { "depth": "177.8 mm" },
+        "confirm_mutation": true
+      }
+    }
+  ]
+}

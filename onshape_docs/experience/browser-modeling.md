@@ -620,6 +620,19 @@ checkpoint**（孤儿行）。三个必须知道的边界：
 10-20 s，稳定低于传输上限），runner 留给步骤少或单步轻的项目。孤儿行要么补记到证据里，
 要么在重试前删除。
 
+**补充（实测 2026-09-21，8 步 / 4 个自定义特征的 4U 盒子）**：checkpoint 静止 ≠ 恢复安全。
+那次 `downstream_timeout` 之后 checkpoint 的 `updatedAt` 静止了两分多钟，但它只记到
+`04-outer-sketch`，而真实树里**第 5 步的行已经在了**（`TE Thin Extrude 1` + `Part 1`）。
+只按 checkpoint 判断就会重跑第 5 步，多出一个实体。恢复前的对齐动作是两条：
+
+1. 读真实树（`browser_get_partstudio_features`，表头计数 + 行名）与 checkpoint 的
+   `completed` 对照，找出「已落地但未入账」的行；
+2. 用受支持的工具删掉这些行（`browser_delete_feature`，判据是行离开列表），再
+   `resume=true`。
+
+按这个顺序做完，8 步一次跑完，每步都是 `inserted: true`（见
+`onshape_docs/verification/4u-box-2026-09-21.md`）。
+
 ## 21. 四个会误判的工具行为（实测 2026-09-21）
 
 - **`browser_create_tab` 可能对新标签报 `created: false`，但它其实已经建好了**（新标签

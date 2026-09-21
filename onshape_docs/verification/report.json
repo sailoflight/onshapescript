@@ -79,7 +79,7 @@
   {
    "name": "Project docs index.json page sha256 all match",
    "ok": true,
-   "detail": "28 pages ok"
+   "detail": "29 pages ok"
   },
   {
    "name": "Project docs sections well-formed (title + blocks)",
@@ -284,14 +284,14 @@
    ]
   },
   "docs": {
-   "pages": 28,
-   "sections": 315,
+   "pages": 29,
+   "sections": 321,
    "categories": {
     "example": 6,
     "experience": 4,
     "guide": 6,
     "reference": 3,
-    "verification": 9
+    "verification": 10
    },
    "pageNames": [
     "documentation-map",
@@ -312,6 +312,7 @@
     "downloads-hub-nonblocking-verification",
     "thin-feature-rebuild-verification",
     "thin-feature-chinese-ui-verification",
+    "four-u-box-verification",
     "live-verification",
     "quick-reference",
     "mcp-tool-reference",

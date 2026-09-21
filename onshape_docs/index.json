@@ -3193,7 +3193,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "f7cdfeef3b0c106e68073b4c73ea7176367801907c293190f3c505b5a0f430fe",
+   "sha256": "4e716ead43b3bf37ccf74ef3713657d91d8bb59d14ffe4107ea8f564d84dceb8",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4158,6 +4158,27 @@
       {
        "type": "para",
        "text": "结论：步骤多、每步都贵的构建，逐行直接调 browser_insert_custom_feature（每行 10-20 s，稳定低于传输上限），runner 留给步骤少或单步轻的项目。孤儿行要么补记到证据里， 要么在重试前删除。"
+      },
+      {
+       "type": "para",
+       "text": "补充（实测 2026-09-21，8 步 / 4 个自定义特征的 4U 盒子）：checkpoint 静止 ≠ 恢复安全。 那次 downstream_timeout 之后 checkpoint 的 updatedAt 静止了两分多钟，但它只记到 04-outer-sketch，而真实树里第 5 步的行已经在了（TE Thin Extrude 1 + Part 1）。 只按 checkpoint 判断就会重跑第 5 步，多出一个实体。恢复前的对齐动作是两条："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "读真实树（browser_get_partstudio_features，表头计数 + 行名）与 checkpoint 的 completed 对照，找出「已落地但未入账」的行；",
+         "depth": 0
+        },
+        {
+         "text": "用受支持的工具删掉这些行（browser_delete_feature，判据是行离开列表），再 resume=true。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "按这个顺序做完，8 步一次跑完，每步都是 inserted: true（见 onshape_docs/verification/4u-box-2026-09-21.md）。"
       }
      ]
     },
@@ -9358,6 +9379,249 @@
         },
         {
          "text": "没有对其它并发会话使用的共享桥做任何代码修改；本次未 push。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "four-u-box-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/4u-box-2026-09-21.md",
+   "sha256": "feaeb60c582ea6a841fddec2a669d97c60e4bffe7bdec719290ef78fefab52a0",
+   "title": "4U 机箱盒子：同文档回归构建 + 解析值级 B-rep 验收（2026-09-21）",
+   "sections": [
+    {
+     "level": 2,
+     "title": "1. 这次要验证什么",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户要求：重启桥之后，在同一个文档里做一个 4U 的盒子，验证工具链正常。所以本页同时 记两件事："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "桥重启后跑的是新代码（有一个可判别的探针，见第 3 节）；",
+         "depth": 0
+        },
+        {
+         "text": "工具链端到端正常：夹具驱动 → 变量 → 草图 → 加料拉伸 → 内腔草图 → 切除拉伸 → STEP 导出，并且几何与解析公式逐位相等（第 5 节）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 目标身份",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "项",
+         "值"
+        ],
+        [
+         "documentId / workspaceId",
+         "1ef2be8f3d45e6f996af24ab / bac7c0bf31912a956c44d15a"
+        ],
+        [
+         "新 Part Studio elementId",
+         "053130c9363a96adc2500379"
+        ],
+        [
+         "标签名（中文）",
+         "4U 机箱盒子"
+        ],
+        [
+         "行数 / 实体",
+         "8 用户特征（特征 (12) = 8 + 4 基准面）/ 零件数 (1)，无 hasError"
+        ],
+        [
+         "夹具",
+         "dev/fixtures-capture/4u-box.json，sha256 f991a11be6f9675b1b570d226a880e1b06fe776e86a66da2bc9e45fb73c19e65"
+        ],
+        [
+         "STEP",
+         "outputs/step_exports/4u-box/model.step，sha256 49e3498fa84c6eed74271fa053cb726e7c9b83d67d0ea22205fd1569438e5ae7（AP242, mm）"
+        ],
+        [
+         "Onshape REST 配额",
+         "0（全程浏览器腿）"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "设计尺寸：外形 482.6（19 吋）× 300 × 177.8 mm（4U，1U = 44.45 mm），壁厚 3 mm，开口向上。 薄特征只能「在某个 z 平面上画矩形 + 沿 +Z 拉伸」，所以盒子的高度方向就是挤出方向。"
+      },
+      {
+       "type": "para",
+       "text": "特征树（行名即 UI 显示）："
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "TV #box_w = 482.6 mm 19 吋机箱宽度\nTV #box_d = 300 mm 箱体深度\nTV #box_h = 177.8 mm 4U 高度（1U = 44.45）\nTV #box_t = 3 mm 壁厚\nTS Thin Sketch Rectangle 1    外框草图 482.6 × 300 @ z=0\nTE Thin Extrude 1             +177.8（depth = #box_h）\nTS Thin Sketch Rectangle 2    内腔草图 @ z=#box_t，476.6 × 294\nTE Thin Extrude 2             -177.8 切除（subtract，depth = #box_h，通顶开口）"
+      },
+      {
+       "type": "para",
+       "text": "两个关键字面都走 #变量 表达式，expect_values 确认解析后的数值（对话框读回的是 求值结果，不是 #表达式 本身）：origin_z 3 mm、width 476.6 mm、height 294 mm （#box_w - 2 * #box_t）、depth 177.8 mm。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 桥重启，以及「跑的是新代码」的判别",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "重启前：ownedGeneration 80、activeClients 5；重启后：stoppedGeneration 80 / startedGeneration 81，preservedClients 5，reconnectRequired false。",
+         "depth": 0
+        },
+        {
+         "text": "判别探针（只有新代码会这样拒绝）：browser_export_step(source_tab=\"网格底板\", …)， 文档里存在 网格底板 2×2。",
+         "depth": 0
+        },
+        {
+         "text": "实测返回：`ValueError: Part Studio tab '网格底板' must match exactly one visible tab name (exact match): matchCount=0, containingName=['网格底板 2×2'], tabs=[…]`；",
+         "depth": 1
+        },
+        {
+         "text": "旧代码（子串 + .first）会命中 网格底板 2×2 并继续导出，不会拒绝。 所以这条拒绝同时证明：部署的新代码在跑，且浏览器腿在重启后自动接回（探针顺带列出了 6 个存活标签，含已删除项不再出现）。",
+         "depth": 1
+        },
+        {
+         "text": "同一轮还实测了新的改名路径：Part Studio 2 → 4U 机箱盒子（精确匹配 + 按 data-id 右键），返回 renamed: true 且标签条复读一致。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. runner 的传输超时与「落地无收据」行",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "夹具首次 run_project 在客户端侧以 MCP error -32001: downstream_timeout 结束，服务端继续 执行；checkpoint updatedAt 静止两分多钟后只记到 04-outer-sketch（completed 5 项）， 但真实树里已经有第 5 步的行（TE Thin Extrude 1 + Part 1，表头 特征 (10)）。"
+      },
+      {
+       "type": "para",
+       "text": "处理（只用受支持的工具）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "browser_delete_feature(\"TE Thin Extrude 1\") → 判据「行离开列表」，树回到 5 行，与 checkpoint 的 5 项对齐；",
+         "depth": 0
+        },
+        {
+         "text": "run_project(resume=true) → 8/8 完成，ok: true，每步 inserted: true、 applyState: \"verified\"，06-inner-sketch 的表达式解析为 3 mm / 476.6 mm / 294 mm， 07-inner-cut 结束后 零件数 (1)。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "这条补进了 onshape_docs/experience/browser-modeling.md 第 20 节的补充段：checkpoint 静止不等于恢复安全，恢复前要把真实树与 completed 对齐。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. 验收：STEP 与解析公式逐位相等",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "解析（开口向上的长方形盒，W=482.6, D=300, H=177.8, t=3）："
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "体积 = W·D·H − (W−2t)(D−2t)(H−t)              = 1248838.08 mm³\n面积 = 底 + 外墙 + 顶环 + 内墙 + 内底          = 837254.32 mm²\n面数 = 外底1 + 外墙4 + 顶环1 + 内墙4 + 内底1   = 11\n水平面 z = 0 / 3 / 177.8"
+      },
+      {
+       "type": "para",
+       "text": "STEP 实测（onshape_docs/scripts/verify_step_brep.py）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "量",
+         "STEP 实测",
+         "解析值"
+        ],
+        [
+         "volumeMm3",
+         "1248838.08",
+         "1248838.08"
+        ],
+        [
+         "surfaceAreaMm2",
+         "837254.32",
+         "837254.32"
+        ],
+        [
+         "faceCount",
+         "11",
+         "11"
+        ],
+        [
+         "horizontalPlaneZs",
+         "[0.0, 3.0, 177.8]",
+         "[0, 3, 177.8]"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "逐位相等。也就是说这次构建不仅「跑通了」，而且尺寸驱动的表达式链路（#box_t、 #box_w - 2 * #box_t、#box_h）确实进了几何，而不是只进了对话框。"
+      },
+      {
+       "type": "para",
+       "text": "复现："
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "/home/lijq/code/CadQ/.venv/bin/python onshape_docs/scripts/verify_step_brep.py \\\n  /mnt/c/MCP/onshapescript/onshape_browser_mode/outputs/step_exports/4u-box/model.step\n# 夹具驱动（需要在存在 4U 机箱盒子 标签的文档上运行；tab 名在夹具内）\n#   browser_run_project(project=\"4u-box\", confirm_mutation=true)"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 边界（本页不声明的东西）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "只验收这一个尺寸组合；不声明任意尺寸、任意壁厚都能得到解析值（公式本身与本构型 一致，但薄特征的取整/求解容差未做扫掠）。",
+         "depth": 0
+        },
+        {
+         "text": "4U = 177.8 mm 取自 1U = 44.45 mm（19 吋机架惯例）；19 吋 = 482.6 mm 是外形宽度， 未建模导轨间隙或面板孔。",
+         "depth": 0
+        },
+        {
+         "text": "盒子是开口向上的槽体，不是六面封闭的壳体；开口方向由「切除拉伸通顶」实现。",
+         "depth": 0
+        },
+        {
+         "text": "本页的桥重启是共享桥的一次生命周期操作：5 个客户端被保留，未修改桥代码。",
          "depth": 0
         }
        ]

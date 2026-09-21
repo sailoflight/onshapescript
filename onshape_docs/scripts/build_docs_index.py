@@ -61,6 +61,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "downloads-hub-nonblocking-verification": "onshape_docs/verification/downloads-hub-nonblocking-2026-09-20.md",
         "thin-feature-rebuild-verification": "onshape_docs/verification/thin-feature-rebuild-brep-2026-09-21.md",
         "thin-feature-chinese-ui-verification": "onshape_docs/verification/thin-feature-chinese-ui-2026-09-21.md",
+        "four-u-box-verification": "onshape_docs/verification/4u-box-2026-09-21.md",
         "live-verification": "onshape_docs/verification/live/README.md",
     },
     "reference": {
