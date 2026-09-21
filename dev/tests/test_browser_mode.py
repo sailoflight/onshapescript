@@ -307,7 +307,9 @@ class BrowserSessionReleaseTest(unittest.TestCase):
         self.assertEqual(session.start_calls, 0)
 
     def test_browser_session_rejects_unknown_action_with_release_guidance(self) -> None:
-        with self.assertRaisesRegex(ValueError, "status, login, release, reconnect, or reload"):
+        with self.assertRaisesRegex(
+            ValueError, "status, login, release, reconnect, reload, or health"
+        ):
             server._browser_session({"action": "close"})
 
     def test_session_reconnect_action_runs_the_absorbed_core(self) -> None:
@@ -323,6 +325,19 @@ class BrowserSessionReleaseTest(unittest.TestCase):
         reconnect.assert_called_once()
         self.assertEqual(session.start_calls, 1)
         self.assertEqual(guard.pace_calls, 1)
+
+    def test_session_health_action_is_a_read_that_passes_its_budget(self) -> None:
+        session = FakeSession(FakePage())
+        session.health = mock.Mock(  # type: ignore[attr-defined]
+            return_value={"verdict": "ok", "quota": 0}
+        )
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session):
+            result = server._browser_session({"action": "health", "probe_timeout_ms": 2500})
+        self.assertEqual(result["verdict"], "ok")
+        session.health.assert_called_once_with(probe_timeout_ms=2500)
+        # Health must not start or pace a browser: it reports what is already held.
+        self.assertEqual(session.start_calls, 0)
 
     def test_absorbed_session_names_keep_their_contract_and_say_where_they_went(self) -> None:
         """A merge keeps the old name callable: same behaviour, plus a pointer."""
@@ -1257,6 +1272,63 @@ class ActivateTabTest(unittest.TestCase):
             actions.activate_tab(page, name="Part Studio 1", content="assembly")
 
 
+class PartStudioFeatureReadReadinessTest(unittest.TestCase):
+    """The read must say whether it saw the whole virtualised list or one window.
+
+    Measured live 2026-09-21: one read of a 23-row element saw only 18 rows, and
+    two consecutive reads of the same page differed in membership, so ``features``
+    alone must never be read as "the row is absent".
+    """
+
+    @staticmethod
+    def _read(header_text: str, user_rows: int, tabs_button: bool = True) -> dict:
+        payload = {
+            "headerText": header_text,
+            "features": [
+                {"name": f"Sr Spiral ridge {i}", "isUserFeature": True, "hasError": False}
+                for i in range(1, user_rows + 1)
+            ],
+            "partsText": "零件数 (1) 螺旋凸棱柱",
+            "partItems": ["螺旋凸棱柱"],
+            "documentTabsButtonPresent": tabs_button,
+        }
+        return actions.read_partstudio_features(FakePage(evaluate_result=payload))
+
+    def test_a_complete_read_reports_the_whole_list(self):
+        result = self._read("特征 (27)", 23)
+        self.assertEqual(result["headerCount"], 27)
+        self.assertTrue(result["rowsComplete"])
+        self.assertTrue(result["ready"])
+        self.assertEqual(len(result["features"]), 23, "the existing row list is unchanged")
+        self.assertEqual(result["partsText"], "零件数 (1) 螺旋凸棱柱")
+        self.assertNotIn(
+            "documentTabsButtonPresent", result,
+            "the in-page shell flag is internal; only the three documented keys are added",
+        )
+
+    def test_a_windowed_read_is_not_complete(self):
+        result = self._read("特征 (27)", 18)
+        self.assertEqual(result["headerCount"], 27)
+        self.assertFalse(result["rowsComplete"])
+        self.assertTrue(result["ready"])
+
+    def test_a_booting_page_reports_unknown_not_absent(self):
+        result = self._read("", 0, tabs_button=False)
+        self.assertIsNone(result["headerCount"])
+        self.assertIsNone(result["rowsComplete"])
+        self.assertFalse(result["ready"])
+
+    def test_an_unrecognised_header_never_invents_a_count(self):
+        result = self._read("零件数 (3)", 0)
+        self.assertIsNone(result["headerCount"])
+        self.assertIsNone(result["rowsComplete"])
+
+    def test_the_english_header_form_is_accepted(self):
+        result = self._read("Features (5)", 1)
+        self.assertEqual(result["headerCount"], 5)
+        self.assertTrue(result["rowsComplete"])
+
+
 class BrowserReloadTest(unittest.TestCase):
     def test_reload_is_read_only_and_paces(self) -> None:
         session = FakeSession(FakePage())
@@ -1355,7 +1427,8 @@ class BrowserMetadataTest(unittest.TestCase):
         tool = self.by_name["browser_session"]
         action = tool["inputSchema"]["properties"]["action"]
         self.assertEqual(
-            action["enum"], ["status", "login", "release", "reconnect", "reload"]
+            action["enum"],
+            ["status", "login", "release", "reconnect", "reload", "health"],
         )
         self.assertIn("release", action["description"])
         self.assertIn("browser_process_release", tool["cost"]["side_effects"])

@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "d83c5205e15aec1b6e17dd3d7577c6e92efb189b279f1c52d5f440b492df903d",
+   "sha256": "3fb82ea8d7002562f02dc8e1ae00509d636c7cbda576d2740c029fb4edb990ff",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -714,6 +714,37 @@
       {
        "type": "para",
        "text": "Project control is outside L1-L6 and coordinates one or more L6 nodes. Ordinary selection ranks L5 workflows first, then L4 verified transactions/observations, then L2 generic browser transactions, then L6 deliverable recipes. This maximizes reuse of completed workflows while reserving L6 for an explicitly requested independent artifact/manifest boundary; do not decompose a suitable candidate into lower levels automatically. L1/L3 are omitted from ordinary discovery to save context, but their existence and purpose are not secret: call browser_discover_tools with semantic_levels=[\"L1\"] or semantic_levels=[\"L3\"], inspect the returned exact schema, then call that candidate by its exact registered name; mcp_tool_catalog returns the same exact name and full schema. There is no separate invocation entry point to route through, and no discovery step bypasses confirmation or handler acceptance. An Internal-only tool is hidden the same way: browser_fix_instances and browser_group_instances act on a selection context that only browser_assemble establishes, so they are callable by exact name and visible through browser_discover_tools at their explicit level, but absent from the ordinary list. Unclassified tools remain valid and visible by default. Set ONSHAPE_MCP_TOOL_EXPOSURE=static only for complete-registry compatibility or debugging."
+      }
+     ]
+    },
+    {
+     "level": 5,
+     "title": "Compressed entry points (ONSHAPE_MCP_TOOL_EXPOSURE=gateway)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "For a client whose context budget matters more than a visible list, gateway advertises exactly two tools — mcp_tool_catalog and mcp_tool_view — while keeping every other registered name callable. The flow is:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "mcp_tool_catalog with action=search and a short query. It searches the complete registry and marks each summary visibleInCurrentView: false.",
+         "depth": 0
+        },
+        {
+         "text": "action=describe with the exact name for its full schema.",
+         "depth": 0
+        },
+        {
+         "text": "Call that exact name as a normal tools/call. The handler's own confirm_mutation, dry-run, cost, and acceptance gates are what answer, so the gateway changes only what is advertised.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the same registry renders as 221,956 chars for 110 tools in static, 161,938 chars for 76 tools in semantic, and 4,891 chars for 2 tools in gateway (a 45.4x and 33.1x reduction respectively). Use semantic instead when the client cannot call an unadvertised name."
       }
      ]
     },
@@ -3193,7 +3224,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "854ad078b5b44c611fa36ff8c5ec8d4d9a47dc117464f7c49fb6323cd9ccc989",
+   "sha256": "d6b1f1de9af34778d62e280e2555df6d409b69611ce0050610bb84d64095e713",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4319,6 +4350,10 @@
       {
        "type": "para",
        "text": "未被消费的薄草图是几何惰性的。 薄拉伸消费的是「它前面最近一个薄草图」发布的区域， 被下一张草图覆盖的旧区域没有任何人消费。把那行孤儿草图删掉后重新导出 STEP，B-rep 与 删前逐族相同（体积 39547.5903 mm³、面积 20002.2154 mm²、194 面、45° 锥面三族 37.32/223.5216/415.1424）。删除前仍要读一次参数，确认它确实没有被某个后续拉伸消费。 因此重复对里删靠前的那条是安全的，删掉被某个拉伸消费的那条会让那个拉伸报错。 实测（4U 盒子）：TS 6 读回 41.5 × 41.5, R3.75, z=4.75，与消费者 TS 7 完全一致， 删掉 TS 6 后树是干净的 23 行。"
+      },
+      {
+       "type": "para",
+       "text": "「行数看表头」现在由读工具自己给出（2026-09-21 修复）。 上面两条都是人工纪律， 只要调用方忘了就会把「窗口里没有」当成「树里没有」。browser_get_partstudio_features 的返回值现在多三个键：headerCount（从 特征 (N) / Features (N) 解出的全量表头计数， 形状不认识时为 null 而不是猜一个数）、rowsComplete（len(features) == headerCount - 4 才为 true，没有表头可依据时为 null）、ready（文档外壳是否已渲染，只读不等待）。 于是「一行不在返回列表里」只有在 rowsComplete: true 时才等于「它不在树里」； ready: false 或 rowsComplete: null/false 时正确的动作是再读一次，不是下结论。 三个键在同一次 page.evaluate 里返回，没有额外往返，也不新增等待——读工具不得为了 一次读去启动页面。"
       }
      ]
     },
@@ -4402,6 +4437,93 @@
       {
        "type": "para",
        "text": "规则：大树上有意走短路径（verify_commit=false，本次每步 5–15 s 返回、 readbackOk: true 并给出新行名），事后用一次稳定的特征树复读证明结果，最好再补一次 几何导出验收（如 §17 的几何包质心/体积断言）——短路径的 inserted 是 null，不是判据。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "28. 中文说明真的落到了行上：行模板 + 计算参数 + 「再生后才定名」（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "第 23 节答的是「中文能不能用」；这一节是实现与它的两个坑。用户的要求是 「我其实就是 UI 上显示中文就行」+「工具默认产生中文说明前置」，实现方式只有一条路： annotation { \"Name\" } 只能 ASCII，所以中文必须走参数值，而把值放进行名的是 \"Feature Name Template\"。"
+      },
+      {
+       "type": "para",
+       "text": "三个薄特征各自拿到（dev/fixtures-capture/thin-native-features.fs）："
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "Thin Sketch Rectangle  \"Feature Name Template\" : \"#description #width x #height @z=#origin_z\"\nThin Extrude           \"Feature Name Template\" : \"#description #depth\"\nThin Sketch Circle     \"Feature Name Template\" : \"#description #diameter @z=#origin_z\"\nThin Variable          \"Feature Name Template\" : \"###name = #value #description\""
+      },
+      {
+       "type": "para",
+       "text": "模板语法两种都要用：###<param> 直接渲染定义字符串（说明文字走这条）， #<param> 取的是 setFeatureComputedParameter(context, id, {\"name\": …, \"value\": …}) 注册的值（width/height/origin_z/depth/diameter/value；variable.fs:156、 queryVariable.fs:333、hole.fs:354 是同一个先例）。实测行文本："
+      },
+      {
+       "type": "code",
+       "language": "text",
+       "text": "TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm\nTE 底脚斜面 45° 0.8 mm\nTV #gf_pitch = 42 mm 格距：相邻单元格中心距"
+      },
+      {
+       "type": "para",
+       "text": "坑一：Feature Name Template 会替换默认行名。 行文本 = 特征类型名的自动缩写 （TS/TE/TV）+ 模板输出，原始类型名不再显示——所以「行里看不到 Thin Extrude」 是设计结果，不是丢行。变量行把 #value 放在 #description 前面是为了可读 （#gf_pitch = 42 mm 格距…）；几何行则description 前置。"
+      },
+      {
+       "type": "para",
+       "text": "坑二：行名在再生之后才定型。 接受点击后立刻读到的是占位值，实测： TS 底脚平面 100 mm x 100 mm @z=0 mm → 再生后 TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm （TE 10 mm → TE 底脚斜面 45° 0.8 mm）。所以 verify_commit=false 的短路径上， 行名不是验收证据；要用 browser_verify_feature_parameters(expect_row=…) 或一次稳定的 特征树复读来证明，且 expect_row 必须写再生后的文本。"
+      },
+      {
+       "type": "para",
+       "text": "每个定义都要声明 definition.description is string;，而且它必须是参数表的第一项。 未声明的参数 id 会被插入对话框拒绝；dev/tests/test_gridfinity_4u_bin_fixture.py 现在 两侧都锁：23 步全部带中文 description、三个几何模板以 #description 开头、变量模板 ###name = #value 在前、definition.description is string; 的条数等于 defineFeature( 的条数。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "29. 空闲会话会在服务端过期：先探一次，再决定要不要动手（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "浏览器腿是主执行腿（0 REST 配额），代价是它常驻：一个持久化 profile 加一个工作页 跨调用复用。于是有一种故障在别处看不见——页面看着是开的，服务端会话已经过期， 而它只在被触碰时才暴露：Onshape 超时对话框（您的 Onshape 会话已超时…单击此处重新连接。） 的重新连接只有被点击才生效，页面不会自己恢复。社区报告一致认为 Onshape 会话静置后 会要求重新登录（1、 2）， 但没有任何公开页面给出可用的时长——所以探针不假设时长，只测量。"
+      },
+      {
+       "type": "para",
+       "text": "browser_session action=health 就是这个探针（0 配额、只读）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "不启动浏览器、不导航、不点击。 会自己启动浏览器的探针没法回答「现在启动它安不安全」； 没有活动页时它的答案就是 browser_not_running + recommendedAction: browser_session action=login。",
+         "depth": 0
+        },
+        {
+         "text": "一次有界的往返（probe_timeout_ms，默认 8000）用 page.wait_for_function(\"() => true\", timeout=…)——它是真往返，而且带超时 （page.evaluate 没有超时参数）；超时是证据不是崩溃。",
+         "depth": 0
+        },
+        {
+         "text": "同一次读返回：超时对话框是否在、documentShellReady、title、href，以及 roundTripMs。",
+         "depth": 0
+        },
+        {
+         "text": "判决 + 唯一对应动作：ok（无动作）/ session_timeout_dialog （action=reconnect）/ page_unresponsive（action=reload）/ login_required （action=login）/ indeterminate（action=reload 或 action=status）。",
+         "depth": 0
+        },
+        {
+         "text": "慢不等于坏：往返 ≥3000 ms 时仍是 ok，只加一句说明——静置后的第一次触碰本来就 慢，因为会话是在被读的时候重连的。把「慢」判成故障会制造假告警。",
+         "depth": 0
+        },
+        {
+         "text": "读不到就不给结论：documentShellReady is not True（含读失败）一律 indeterminate，绝不会因为缺一个键就报 ok。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "规则：长流程之前、或某次浏览器调用看起来不对时，先 action=health 一次， 按 recommendedAction 走；reconnect/login 才是会动手的动作，探针本身不动手。 判决词表与实现同源（onshape_browser_mode/health.py 的 _VERDICTS）， 测试在 dev/tests/test_session_health.py（假页面、假会话，无浏览器无网络）。"
       }
      ]
     }
@@ -9729,7 +9851,7 @@
    "page": "gridfinity-4u-bin-verification",
    "category": "verification",
    "path": "onshape_docs/verification/gridfinity-4u-bin-2026-09-21.md",
-   "sha256": "93128f85e53dda0b1e68a6e73415bbe3c746312dfa041d1a35e64208543ca27a",
+   "sha256": "1c6ae07bcb1991d575c4bcc9f1b1c0a602bfbfe28120ce835e5d0d2302558c04",
    "title": "Gridfinity 4U 高盒子：同文档特征树构建 + 解析值级 B-rep 验收（2026-09-21）",
    "sections": [
     {
@@ -10096,7 +10218,38 @@
     },
     {
      "level": 2,
-     "title": "8. 复现",
+     "title": "8. 中文行名落地（2026-09-21 追加）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "用户要求「我其实就是 UI 上显示中文就行」，所以本次把中文说明做进行文本：三个几何薄特征的 Feature Name Template 以 #description 开头，变量行保持 ###name = #value #description。 dev/fixtures-capture/thin-native-features.fs 新增 Description (row prefix) 参数 （definition.description is string;，位于参数表第一项），23 步夹具全部带上中文说明。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "能力已端到端证明：新 FeatureScript 提交进 Thin Native Features（22072→25545 字节、 0 error / 0 notice、deployed: true、compiled: true、commitAccepted: true），随后在 GF 4U 盒子 里插入两条演示行，渲染为 TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm 与 TE 底脚斜面 45° 0.8 mm。",
+         "depth": 0
+        },
+        {
+         "text": "演示行已删除，元素回到 23 个用户特征（表头 特征 (27) = 23 + 4 基准面）、 零件数 (4)、所有行 hasError: false。几何未受影响：本次编辑只改 FeatureScript 的 行模板与参数声明，既有的 16 个几何行不重算。",
+         "depth": 0
+        },
+        {
+         "text": "行名在再生之后才定型：接受点击时读到的是占位值（100 mm x 100 mm、10 mm）， 再生后才是 35.6 mm x 35.6 mm、0.8 mm。所以短路径步骤的行名不能当验收证据。",
+         "depth": 0
+        },
+        {
+         "text": "夹具级守卫新增 4 条（中文说明存在、几何模板 #description 前置、变量行 #value 在前、 definition.description is string; 条数 == defineFeature( 条数）。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "9. 复现",
      "blocks": [
       {
        "type": "code",

@@ -704,6 +704,66 @@ class BrowserSession:
             "loginConfirmed": self.login_confirmed,
         }
 
+    def health(self, *, probe_timeout_ms: int | None = None) -> dict[str, Any]:
+        """Bounded read-only health probe; never starts, navigates, or clicks.
+
+        `status` reports what this process HOLDS; this reports whether what it
+        holds still answers, which is the question an idle session makes urgent.
+        The session state fields are deliberately NOT rewritten here: a probe
+        that also performs recovery cannot be used to decide whether recovery is
+        needed. Findings and the fixed verdict vocabulary live in
+        `onshape_browser_mode.health`.
+        """
+        from onshape_browser_mode.health import DEFAULT_PROBE_TIMEOUT_MS, probe_page, report
+
+        context = self.context
+        page = self.page
+        pages_seen: list[dict[str, Any]] = []
+        if context is not None:
+            for candidate in list(context.pages or []):
+                try:
+                    if candidate.is_closed():
+                        pages_seen.append({"closed": True})
+                        continue
+                    url = candidate.url
+                except Exception:
+                    pages_seen.append({"closed": True})
+                    continue
+                if _is_browser_internal_noise_url(url):
+                    # A downloads page never answers a page-level read; probing it
+                    # would time out and prove nothing about the login state.
+                    pages_seen.append({"url": url, "browserInternal": True})
+                    continue
+                pages_seen.append({"url": url})
+                if page is None:
+                    page = candidate
+
+        running = context is not None and page is not None
+        if not running:
+            evidence: dict[str, Any] = {
+                "responded": None,
+                "skipped": "no live working page is held by this MCP process",
+            }
+            page_url = None
+        else:
+            evidence = probe_page(
+                page,
+                timeout_ms=probe_timeout_ms or DEFAULT_PROBE_TIMEOUT_MS,
+            )
+            page_url = evidence.get("href") or _safe_page_url(page)
+        normalized = (page_url or "").split("?", 1)[0].split("#", 1)[0].rstrip("/")
+        on_onshape_app = _is_onshape_app_url(page_url)
+        return report(
+            evidence,
+            session_running=running,
+            on_onshape_app=on_onshape_app,
+            # The sign-in page disproves sticky login history; nothing else does.
+            login_confirmed=False if normalized == _SIGNIN_URL else (self.login_confirmed or on_onshape_app),
+            session_status=self._status,
+            page_url=page_url,
+            pages_seen=pages_seen,
+        )
+
     def open_login_page(self) -> dict[str, Any]:
         """Open sign-in only when restored/saved app entry cannot reuse login."""
         page = self.start()

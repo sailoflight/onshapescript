@@ -8,7 +8,17 @@ from typing import Any
 CONTROL_TOOL_NAME = "mcp_tool_view"
 CATALOG_TOOL_NAME = "mcp_tool_catalog"
 CONTROL_TOOL_NAMES = frozenset({CONTROL_TOOL_NAME, CATALOG_TOOL_NAME})
-VALID_EXPOSURE_MODES = ("semantic", "static", "profile", "dynamic")
+VALID_EXPOSURE_MODES = ("semantic", "static", "profile", "dynamic", "gateway")
+
+#: The complete advertised surface of the `gateway` exposure mode: discovery plus
+#: the view status. Everything else in the registry stays REACHABLE by its exact
+#: registered name -- `tools/call` resolves a name through `HANDLERS` with no view
+#: filter (pinned by `test_hidden_known_name_tool_remains_callable`) -- so this
+#: mode compresses the LISTED surface by three orders of magnitude without
+#: removing a single capability. That is why it needs no new registry row: the
+#: `browser_invoke_discovered` merge already established that a separate invoker
+#: "adds a hop without adding capability" (docs/architecture/TOOL_SURFACE_AUDIT.md).
+GATEWAY_TOOL_NAMES = frozenset({CATALOG_TOOL_NAME, CONTROL_TOOL_NAME})
 VALID_PROFILES = (
     "default",
     "browser",
@@ -182,6 +192,8 @@ class ToolViewState:
         elif mode in {"profile", "dynamic"}:
             profile = startup_profile()
         else:
+            # `semantic` is the bounded ordinary view; `gateway` ignores the
+            # profile entirely because its listed surface is fixed above.
             profile = "default"
         return cls(tools=tools, mode=mode, profile=profile)
 
@@ -196,6 +208,13 @@ class ToolViewState:
     def listed_tools(self) -> list[dict[str, Any]]:
         if self.mode == "static":
             return self.tools
+        if self.mode == "gateway":
+            # The compressed entry points, and only those. `mcp_tool_catalog`
+            # indexes the COMPLETE registry (built once from `tools`), so a
+            # search still returns every candidate and marks it `visible: false`;
+            # the caller then calls it by exact name. Hiding is context routing,
+            # never authority: no handler gate is skipped and no tool is lost.
+            return [tool for tool in self.tools if tool["name"] in GATEWAY_TOOL_NAMES]
         return select_view_tools(
             self.tools,
             profile=self.profile,
@@ -203,12 +222,15 @@ class ToolViewState:
         )
 
     def status(self) -> dict[str, Any]:
+        listed = self.listed_tools()
         return {
             "exposureMode": self.mode,
             "profile": self.profile,
             "semanticLevels": list(self.semantic_levels or ()),
-            "toolCount": len(self.listed_tools()),
+            "toolCount": len(listed),
             "registryCount": len(self.tools),
+            "listedNames": [tool["name"] for tool in listed],
+            "hiddenNamesStillCallable": True,
             "switchingAvailable": self.switching_available,
             "listChangedCapability": self.list_changed_capability,
             "conventionOnly": True,

@@ -1528,6 +1528,37 @@ def open_document_by_name(
     }
 
 
+#: The Feature List header that carries the count for the WHOLE list, not the
+#: rendered window: `特征 (27)` in the Chinese UI, `Features (27)` in the English
+#: one. The list is VIRTUALISED (measured live 2026-09-21: one read of a 23-row
+#: element saw only 18 rows, and two consecutive reads of the same page differed
+#: in membership), so this header count is the cheapest full-list answer. An
+#: unrecognised shape must yield ``None`` rather than a guess: a different
+#: section's header (``零件数 (3)``) is not a feature count.
+_PS_HEADER_COUNT = re.compile(r"^\s*(?:特征|Features?)\s*\(\s*(\d+)\s*\)\s*$")
+
+#: The header count includes the four default planes (``PS_DEFAULT_FEATURE``:
+#: Origin/Top/Front/Right) in addition to the user features. Measured live
+#: 2026-09-21: ``特征 (27)`` on an element holding 23 user features, and
+#: ``特征 (15)`` on one whose read listed 11 named rows -- 11 + 4. The row items
+#: this reader returns are the named user-feature rows, so a COMPLETE read has
+#: exactly this many fewer rows than the header.
+DEFAULT_FEATURE_COUNT = 4
+
+
+def parse_feature_header_count(header_text: Any) -> int | None:
+    """The whole-list count in a Feature List header, or ``None`` if unreadable.
+
+    ``None`` is the honest answer for a shape this reader does not recognise: the
+    caller has to be able to tell "no count was readable" from "the count is
+    zero", so a foreign header never has a number invented for it.
+    """
+    if not isinstance(header_text, str):
+        return None
+    match = _PS_HEADER_COUNT.match(header_text)
+    return int(match.group(1)) if match else None
+
+
 def read_partstudio_features(page: Any) -> dict[str, Any]:
     """Read the Part Studio feature tree and part list (read-only, 0 quota).
 
@@ -1535,8 +1566,17 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     classification, and the part-list text (e.g. "零件数 (132) base ...").
     A custom feature present in the list means its FeatureScript compiled and
     was instantiated successfully.
+
+    The Feature List is VIRTUALISED, so one pass reads only the rendered window;
+    the answer therefore also carries the readiness this read previously lacked:
+    ``headerCount`` (the whole-list count parsed from ``headerText``, or ``None``),
+    ``rowsComplete`` (``True`` only when the rows read account for that count
+    minus the four default planes, else ``None`` when there is no count to prove
+    it against) and ``ready`` (the document shell has rendered). ``ready`` is
+    read, never waited for: this is a read tool, so it must not spend the
+    caller's budget on a boot.
     """
-    return page.evaluate(
+    raw = page.evaluate(
         """
         () => {
           const features = Array.from(document.querySelectorAll('.os-list-item')).map(el => {
@@ -1567,10 +1607,42 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
               const icon = el.querySelector('.os-list-item-icon');
               return String((icon && icon.className) || '').includes('os-part-list-icon');
             }).map(el => (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100)),
+            // The document shell is only readable once its tab-strip tools button
+            // exists (measured live 2026-09-21, in both directions: absent while
+            // booting, present when rendered). Reading it in THIS pass is the
+            // zero-wait answer to "has the page rendered at all" -- a read tool
+            // must never start waiting for it.
+            documentTabsButtonPresent: !!(document.querySelector('%s')),
           };
         }
-        """
+        """ % DOCUMENT_TABS_BUTTON,
     )
+    if not isinstance(raw, dict):
+        # A malformed answer stays the caller's evidence rather than crashing the
+        # read; a non-dict cannot carry the readiness keys at all.
+        return raw
+    features = raw.get("features")
+    features = features if isinstance(features, list) else []
+    header_count = parse_feature_header_count(raw.get("headerText"))
+    # Mutate the evaluated answer IN PLACE rather than rebuilding it: the read's
+    # fields are the caller's evidence, and ``insert_custom_feature`` reports the
+    # very object the page returned (an existing test pins that identity).
+    raw["headerCount"] = header_count
+    # The header counts the user-feature rows PLUS the four default planes, while
+    # ``features`` holds the named user-feature rows, so equality against
+    # ``headerCount - 4`` is what proves this pass saw the whole virtualised list.
+    # With no readable header there is nothing to prove completeness against, and
+    # a guess would be worse than ``None``.
+    raw["rowsComplete"] = (
+        len(features) == header_count - DEFAULT_FEATURE_COUNT
+        if header_count is not None
+        else None
+    )
+    raw["ready"] = bool(raw.get("documentTabsButtonPresent"))
+    # The shell flag is an implementation detail of this read: the public answer
+    # keeps every existing field and gains only the three documented keys.
+    raw.pop("documentTabsButtonPresent", None)
+    return raw
 
 
 def match_user_feature_row_indices(names: Any, feature_name: Any) -> list[int]:

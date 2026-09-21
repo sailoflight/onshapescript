@@ -737,6 +737,16 @@ Feature List 是虚拟列表，一次读只给你**一个窗口**。同一个 23
 实测（4U 盒子）：`TS 6` 读回 `41.5 × 41.5, R3.75, z=4.75`，与消费者 `TS 7` 完全一致，
 删掉 `TS 6` 后树是干净的 23 行。
 
+**「行数看表头」现在由读工具自己给出（2026-09-21 修复）。** 上面两条都是**人工纪律**，
+只要调用方忘了就会把「窗口里没有」当成「树里没有」。`browser_get_partstudio_features`
+的返回值现在多三个键：`headerCount`（从 `特征 (N)` / `Features (N)` 解出的全量表头计数，
+形状不认识时为 `null` 而不是猜一个数）、`rowsComplete`（`len(features) == headerCount - 4`
+才为 `true`，没有表头可依据时为 `null`）、`ready`（文档外壳是否已渲染，**只读不等待**）。
+于是「一行不在返回列表里」只有在 `rowsComplete: true` 时才等于「它不在树里」；
+`ready: false` 或 `rowsComplete: null/false` 时正确的动作是**再读一次**，不是下结论。
+三个键在**同一次** `page.evaluate` 里返回，没有额外往返，也不新增等待——读工具不得为了
+一次读去启动页面。
+
 ## 25. 页面没渲染出来，就不是关于特征的证据（实测 2026-09-21）
 
 插入接受后，工具会**重载页面**来证明行留在工作区（§22）。但重载后的页面不是立刻可读的：
@@ -787,3 +797,78 @@ rendered … neither success nor failure」。`dev/tests/test_browser_apply_path
 规则：**大树上有意走短路径**（`verify_commit=false`，本次每步 5–15 s 返回、
 `readbackOk: true` 并给出新行名），**事后用一次稳定的特征树复读证明结果**，最好再补一次
 几何导出验收（如 §17 的几何包质心/体积断言）——短路径的 `inserted` 是 `null`，不是判据。
+
+## 28. 中文说明真的落到了行上：行模板 + 计算参数 + 「再生后才定名」（实测 2026-09-21）
+
+第 23 节答的是「中文能不能用」；这一节是**实现**与它的两个坑。用户的要求是
+「我其实就是 UI 上显示中文就行」+「工具默认产生中文说明前置」，实现方式只有一条路：
+**`annotation { "Name" }` 只能 ASCII，所以中文必须走参数值，而把值放进行名的是
+`"Feature Name Template"`。**
+
+三个薄特征各自拿到（`dev/fixtures-capture/thin-native-features.fs`）：
+
+```text
+Thin Sketch Rectangle  "Feature Name Template" : "#description #width x #height @z=#origin_z"
+Thin Extrude           "Feature Name Template" : "#description #depth"
+Thin Sketch Circle     "Feature Name Template" : "#description #diameter @z=#origin_z"
+Thin Variable          "Feature Name Template" : "###name = #value #description"
+```
+
+模板语法两种都要用：`###<param>` 直接渲染**定义字符串**（说明文字走这条），
+`#<param>` 取的是 `setFeatureComputedParameter(context, id, {"name": …, "value": …})`
+注册的**值**（`width/height/origin_z/depth/diameter/value`；`variable.fs:156`、
+`queryVariable.fs:333`、`hole.fs:354` 是同一个先例）。实测行文本：
+
+```text
+TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm
+TE 底脚斜面 45° 0.8 mm
+TV #gf_pitch = 42 mm 格距：相邻单元格中心距
+```
+
+**坑一：`Feature Name Template` 会替换默认行名。** 行文本 = 特征类型名的自动缩写
+（`TS`/`TE`/`TV`）+ 模板输出，原始类型名**不再显示**——所以「行里看不到 `Thin Extrude`」
+是设计结果，不是丢行。变量行把 `#value` 放在 `#description` 前面是为了可读
+（`#gf_pitch = 42 mm 格距…`）；几何行则description 前置。
+
+**坑二：行名在**再生之后**才定型。** 接受点击后立刻读到的是**占位值**，实测：
+`TS 底脚平面 100 mm x 100 mm @z=0 mm` → 再生后 `TS 底脚平面 35.6 mm x 35.6 mm @z=0 mm`
+（`TE 10 mm` → `TE 底脚斜面 45° 0.8 mm`）。所以 `verify_commit=false` 的短路径上，
+**行名不是验收证据**；要用 `browser_verify_feature_parameters(expect_row=…)` 或一次稳定的
+特征树复读来证明，且 `expect_row` 必须写**再生后的**文本。
+
+**每个定义都要声明 `definition.description is string;`**，而且它必须是参数表的**第一项**。
+未声明的参数 id 会被插入对话框拒绝；`dev/tests/test_gridfinity_4u_bin_fixture.py` 现在
+两侧都锁：23 步全部带中文 `description`、三个几何模板以 `#description` 开头、变量模板
+`###name = #value` 在前、`definition.description is string;` 的条数等于 `defineFeature(` 的条数。
+
+## 29. 空闲会话会在服务端过期：先探一次，再决定要不要动手（实测 2026-09-21）
+
+浏览器腿是主执行腿（0 REST 配额），代价是它**常驻**：一个持久化 profile 加一个工作页
+跨调用复用。于是有一种故障在别处看不见——**页面看着是开的，服务端会话已经过期**，
+而它只在被触碰时才暴露：Onshape 超时对话框（`您的 Onshape 会话已超时…单击此处重新连接。`）
+的重新连接**只有被点击才生效**，页面不会自己恢复。社区报告一致认为 Onshape 会话静置后
+会要求重新登录（[1](https://forum.onshape.com/discussion/comment/124854#Comment_124854)、
+[2](https://forum.onshape.com/discussion/comment/30109/#Comment_30109)），
+但**没有任何公开页面给出可用的时长**——所以探针**不假设时长**，只测量。
+
+`browser_session action=health` 就是这个探针（0 配额、只读）：
+
+- **不启动浏览器、不导航、不点击。** 会自己启动浏览器的探针没法回答「现在启动它安不安全」；
+  没有活动页时它的答案就是 `browser_not_running` + `recommendedAction: browser_session action=login`。
+- **一次有界的往返**（`probe_timeout_ms`，默认 8000）用
+  `page.wait_for_function("() => true", timeout=…)`——它是真往返，而且**带超时**
+  （`page.evaluate` 没有超时参数）；超时是证据不是崩溃。
+- 同一次读返回：超时对话框是否在、`documentShellReady`、`title`、`href`，以及
+  `roundTripMs`。
+- **判决 + 唯一对应动作**：`ok`（无动作）/ `session_timeout_dialog`
+  （`action=reconnect`）/ `page_unresponsive`（`action=reload`）/ `login_required`
+  （`action=login`）/ `indeterminate`（`action=reload` 或 `action=status`）。
+- **慢不等于坏**：往返 ≥3000 ms 时仍是 `ok`，只加一句说明——静置后的**第一次触碰**本来就
+  慢，因为会话是在被读的时候重连的。把「慢」判成故障会制造假告警。
+- **读不到就不给结论**：`documentShellReady is not True`（含读失败）一律
+  `indeterminate`，绝不会因为缺一个键就报 `ok`。
+
+规则：**长流程之前、或某次浏览器调用看起来不对时，先 `action=health` 一次**，
+按 `recommendedAction` 走；`reconnect`/`login` 才是会动手的动作，探针本身不动手。
+判决词表与实现同源（`onshape_browser_mode/health.py` 的 `_VERDICTS`），
+测试在 `dev/tests/test_session_health.py`（假页面、假会话，无浏览器无网络）。

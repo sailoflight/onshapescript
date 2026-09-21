@@ -165,6 +165,26 @@ ordinary list. Unclassified tools remain valid and visible by default. Set
 `ONSHAPE_MCP_TOOL_EXPOSURE=static` only for complete-registry compatibility or
 debugging.
 
+##### Compressed entry points (`ONSHAPE_MCP_TOOL_EXPOSURE=gateway`)
+
+For a client whose context budget matters more than a visible list, `gateway`
+advertises exactly two tools — `mcp_tool_catalog` and `mcp_tool_view` — while
+keeping every other registered name callable. The flow is:
+
+1. `mcp_tool_catalog` with `action=search` and a short query. It searches the
+   complete registry and marks each summary `visibleInCurrentView: false`.
+2. `action=describe` with the exact name for its full schema.
+3. Call that exact name as a normal `tools/call`. The handler's own
+   `confirm_mutation`, dry-run, cost, and acceptance gates are what answer, so the
+   gateway changes only what is advertised.
+
+Measured (2026-09-21, `dev/tools/context_cost.py`, recorded in
+`onshape_docs/verification/context-cost-surfaces-2026-09-21.json`): the same
+registry renders as 221,956 chars for 110 tools in `static`, 161,938 chars for 76
+tools in `semantic`, and 4,891 chars for 2 tools in `gateway` (a 45.4x and 33.1x
+reduction respectively). Use `semantic` instead when the client cannot call an
+unadvertised name.
+
 #### Tool catalog search and description
 
 `mcp_tool_catalog` is the lookup-first entry for MCP capabilities across all

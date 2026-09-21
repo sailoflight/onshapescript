@@ -595,7 +595,7 @@ def _browser_watch(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Browser session control: status, login, release, reconnect, reload.
+    """Browser session control: status, login, release, reconnect, reload, health.
 
     This tool deliberately does NOT spend Onshape API quota. It starts or
     inspects the persistent Playwright browser profile; Playwright is imported
@@ -603,6 +603,9 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
     `reconnect` and `reload` are the absorbed `browser_reconnect` /
     `browser_reload` behaviours: both act on the same session this tool owns, so
     they are requests on one session tool rather than two extra entry points.
+    `health` is the exception that proves the rule: it is a bounded READ that
+    never starts the browser, because a probe that first launches a browser
+    cannot tell a caller whether launching it would be safe.
     """
     from onshape_browser_mode.session import get_session
 
@@ -618,7 +621,9 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
         return _browser_reconnect(arguments)
     if action == "reload":
         return _browser_reload(arguments)
-    raise ValueError("action must be status, login, release, reconnect, or reload")
+    if action == "health":
+        return session.health(probe_timeout_ms=arguments.get("probe_timeout_ms"))
+    raise ValueError("action must be status, login, release, reconnect, reload, or health")
 
 
 def _absorbed_session_action(action: str) -> Any:
@@ -2306,6 +2311,13 @@ TOOLS: list[dict[str, Any]] = [
             "data. action='reload' attempts a bounded reload of the current page (use it when an Onshape page, "
             "especially a Drawing, has been loading for too long) and returns reload status, bounded-wait "
             "warnings, the page URL, and best-effort tab state. "
+            "action='health' is the bounded read-only idle check: it NEVER launches the browser, navigates, "
+            "or clicks, and spends zero Onshape API quota. It makes one timed round trip to the working page "
+            "and reports a verdict (ok, browser_not_running, session_timeout_dialog, page_unresponsive, "
+            "login_required, indeterminate) plus the single recovery action that fits it. Use it before a "
+            "long or expensive browser workflow, or when a browser call looks wrong: an idle session can be "
+            "disconnected server-side while the page still looks open, and the session-timeout dialog only "
+            "recovers when its reconnect link is clicked. "
             "The browser runs on the host that owns the ordinary stdio MCP process; "
             "cross-host transport, when needed, is supplied by an independently installed bridge. If "
             "Playwright is not installed on that host, this tool returns a clear setup error instead of "
@@ -2314,14 +2326,21 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({
             "action": {
                 "type": "string",
-                "enum": ["status", "login", "release", "reconnect", "reload"],
+                "enum": ["status", "login", "release", "reconnect", "reload", "health"],
                 "default": "status",
                 "description": (
                     "status = read-only session report; login = open Onshape sign-in for the human; "
                     "release = close only this MCP process's browser/context and release profile ownership; "
                     "reconnect = click the session-timeout dialog's reconnect link; reload = bounded reload "
-                    "of the current page."
+                    "of the current page; health = bounded read-only probe returning a verdict plus the "
+                    "recovery action, without starting the browser or touching it beyond one timed round trip."
                 ),
+            },
+            "probe_timeout_ms": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 60000,
+                "description": "action='health' only: round-trip budget in milliseconds (default 8000).",
             },
         }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
@@ -2660,7 +2679,9 @@ TOOLS: list[dict[str, Any]] = [
             "header, each feature item (with isUserFeature/isDefault classification), and the part-list text "
             "(e.g. '零件数 (132) base ...'). A custom feature present in the list is the browser-visible proof "
             "that its FeatureScript compiled and was instantiated — this is the 0-quota compile+modeling "
-            "verification. Read-only; never calls the Onshape REST API."
+            "verification. Read-only; never calls the Onshape REST API. headerCount is the whole-list count, and "
+            "ready=false or rowsComplete!=true means the virtualised list is only a rendered window or the page is "
+            "still booting, so a missing row is not absence and the read must be repeated."
         ),
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},

@@ -102,7 +102,7 @@ from. The current server keeps:
 TOOLS / HANDLERS
   -> one-build mcp_tool_catalog index (all tools)
   -> optional six-level TOOL_SEMANTICS
-  -> semantic/profile/dynamic tools/list views
+  -> semantic/profile/dynamic/gateway tools/list views
   -> browser_discover_tools + browser_invoke_discovered
 ```
 
@@ -156,11 +156,30 @@ Preserve explicit modes:
 - `profile` (implemented): fixed `ONSHAPE_MCP_TOOL_PROFILE` selected at connection startup.
 - `dynamic` (implemented): per-connection `mcp_tool_view` state plus
   `notifications/tools/list_changed` after an effective set/reset.
+- `gateway` (implemented 2026-09-21): advertises **two** tools — `mcp_tool_catalog`
+  and `mcp_tool_view` — and nothing else. The catalog still indexes the complete
+  registry, so a bounded search returns every candidate with
+  `visibleInCurrentView: false` and `knownNameCallAvailable: true`; the caller
+  then calls the exact registered name, which resolves through `HANDLERS` with no
+  view filter and passes the same confirmation, cost, dry-run, and acceptance
+  gates. Measured with `dev/tools/context_cost.py` and recorded in
+  `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`: the same
+  registry renders as 221,956 chars / 110 tools in `static`, 161,938 chars / 76
+  tools in `semantic`, and 4,891 chars / 2 tools in `gateway` — a 45.4x
+  reduction against the registry and 33.1x against the default view, with no tool
+  made unreachable.
+
+The gateway mode deliberately adds **no registry row**: the audit already merged
+`browser_invoke_discovered` with the reason "any registered tool can be called by
+exact name even when the current view hides it, so a separate invoker adds a hop
+without adding capability". It compresses the advertised list, not the capability
+set, so a client that cannot call an unadvertised name should keep `semantic`
+rather than add an invoker.
 
 The fixed gateway remains the compatibility baseline for clients that do not
 refresh tool lists. Dynamic mode advertises `tools.listChanged=true`; semantic,
-static, and profile modes advertise false. None of these views rejects a known-name
-call or changes authority.
+static, profile, and gateway modes advertise false. None of these views rejects a
+known-name call or changes authority.
 
 ## Native modeling placement
 
