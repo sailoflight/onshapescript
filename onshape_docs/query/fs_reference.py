@@ -167,17 +167,31 @@ def list_functions(
     return result[:limit]
 
 
+#: How much of one entry's prose survives the default answer. The signatures,
+#: parameter names/types and the anchor are what a caller builds a call from; the
+#: full description can be thousands of characters per overload, and an answer
+#: read early is re-read on every later step of a session (measured 2026-09-21:
+#: `fs_get_function(name="extrude")` was 2,354 estimated tokens, of which the
+#: prose was most). `full=true` returns it verbatim.
+DEFAULT_DESCRIPTION_CHARS = 400
+
+
 def get_function(
     name: str,
     module: str | None = None,
     kind: str | None = None,
+    full: bool = False,
 ) -> dict[str, Any]:
-    """Return the full detail of a function (or const/predicate when kind given).
+    """Return the detail of a function (or const/predicate when kind given).
 
     FeatureScript overloads a function name with several signatures (e.g.
     `qEverything()`, `qEverything(entityType)`); when all matches live in one
     module they are returned together as an `overloads` list. Only genuinely
     cross-module name clashes raise an ambiguity error.
+
+    Descriptions are bounded by `DEFAULT_DESCRIPTION_CHARS` unless `full=true`,
+    because a heavily overloaded name otherwise returns the same prose once per
+    signature. A truncated entry says so and names the parameter that restores it.
     """
     if kind is not None and kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}")
@@ -200,14 +214,23 @@ def get_function(
             + ". Pass module to disambiguate."
         )
 
+    truncated = 0
+
     def _detail(entry: dict[str, Any]) -> dict[str, Any]:
-        return {
+        nonlocal truncated
+        description = entry.get("description", "")
+        item: dict[str, Any] = {
             "signature": entry.get("signature", ""),
             "returnType": entry.get("returnType"),
             "parameters": entry.get("parameters", []),
-            "description": entry.get("description", ""),
+            "description": description,
             "anchor": entry.get("anchor", ""),
         }
+        if not full and len(description) > DEFAULT_DESCRIPTION_CHARS:
+            item["description"] = description[:DEFAULT_DESCRIPTION_CHARS].rstrip() + "..."
+            item["descriptionTruncated"] = True
+            truncated += 1
+        return item
 
     entry = matches[0]
     base: dict[str, Any] = {
@@ -217,7 +240,12 @@ def get_function(
         "category": entry.get("category", ""),
     }
     if len(matches) == 1:
-        return {**base, **_detail(entry)}
+        detail = _detail(entry)
+        if truncated:
+            detail["note"] = (
+                "The description is truncated; pass full=true for the complete text."
+            )
+        return {**base, **detail}
     # Overloads in the same module: list every signature so the caller can pick
     # by exact signature instead of guessing which one fs_get_function meant.
     return {
@@ -227,6 +255,11 @@ def get_function(
         "note": (
             f"'{name}' is overloaded with {len(matches)} signatures in "
             f"'{entry.get('module')}'; each is listed above. Pick by signature."
+            + (
+                " Descriptions are truncated; pass full=true for the complete text."
+                if truncated
+                else ""
+            )
         ),
     }
 

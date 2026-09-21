@@ -1837,11 +1837,23 @@ TOOLS: list[dict[str, Any]] = [
             "List every page in the project's own structured documentation index (onshape_docs/index.json, built "
             "from categorized guide, experience, verification, reference, and example pages; the repository-root "
             "README is the unindexed human landing page, while onshape_docs/README.md is the indexed lookup map): "
-            "each page's category, title, source path, and heading-section outline. Use this cheap index first, "
-            "then read one exact section with docs_section. This is separate from the vendored "
-            "Onshape reference (fs_* / onshape_api_* tools). Local and offline."
+            "each page's category, title, source path and section COUNT. This is the cheap way in: then find a "
+            "section by keyword with docs_search and read it with docs_section. Every heading title of every page is "
+            "the single most expensive answer this server can produce (measured 2026-09-21: 10,262 estimated tokens, "
+            "more than the whole compressed tool list, and an answer read early is re-read on every later step), so "
+            "the outline is opt-in via include_sections=true and the default answer keeps only the counts. This is "
+            "separate from the vendored Onshape reference (fs_* / onshape_api_* tools). Local and offline."
         ),
-        "inputSchema": object_schema(),
+        "inputSchema": object_schema({
+            "include_sections": {
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "Include every page's heading outline. Costs ~10,000 estimated tokens because all heading "
+                    "titles are returned; leave it false and use docs_search unless the outline itself is needed."
+                ),
+            },
+        }),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     {
@@ -3255,7 +3267,9 @@ HANDLERS: dict[str, ToolHandler] = {
         function=arguments.get("function"),
     ),
     # Project docs tools (local, offline)
-    "docs_list": lambda _: project_docs.list_pages(),
+    "docs_list": lambda arguments: project_docs.list_pages(
+        include_sections=bool(arguments.get("include_sections", False))
+    ),
     "docs_section": lambda arguments: project_docs.section(
         page=arguments["page"],
         section_name=arguments.get("section"),

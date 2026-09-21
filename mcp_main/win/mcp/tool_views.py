@@ -56,23 +56,46 @@ GATEWAY_CORE_TOOL_NAMES = CONTROL_TOOL_NAMES
 #:
 #: Nothing here narrows authority: every entry is an ordinary registered tool
 #: whose own confirmation, cost, dry-run and acceptance gates still answer.
+#:
+#: Sizing rule (measured 2026-09-21, `dev/tools/lookup_depth.py`,
+#: `docs/roadmap/LOOKUP_DEPTH_RESEARCH.md`): one lookup round costs the whole
+#: prefix (~20.8k estimated tokens at the documented defaults) while an entry
+#: rents 427-1,000 tokens per remaining step, so an entry pays for itself at an
+#: expected use of roughly 60%-140% of sessions. Two consequences shape this
+#: list. First, a PRESCRIBED chain must be listed completely or not at all --
+#: listing `docs_search`/`fs_search`/`onshape_api_search` without their second
+#: step made the product's own documented workflow pay a hidden-name round every
+#: time. Second, the interactive parameter workflow and the tab/cleanup steps the
+#: recorded sessions actually drove are listed, because a round between two legs
+#: of one edit is pure waste. Rarer families (document setup, capability runs)
+#: stay behind `mcp_tool_invoke`, which adds no rent.
 GATEWAY_CURATED_TOOL_NAMES = (
     # session and observation
     "browser_session",
     "browser_get_page_tabs",
+    "browser_create_tab",
+    "browser_activate_tab",
     # read and write the model
     "browser_get_partstudio_features",
     "browser_insert_custom_feature",
+    "browser_delete_feature",
+    # the parameter workflow: edit, confirm, and the write-free read-back
+    "browser_edit_feature_parameters",
+    "browser_verify_feature_parameters",
+    "browser_read_feature_parameters",
     # FeatureScript and the runner
     "browser_deploy_featurescript",
     "browser_run_project",
     # discovered capabilities and deliverables
     "browser_discover_tools",
     "browser_export_step",
-    # offline references
+    # offline references, with BOTH steps of each prescribed chain
     "docs_search",
+    "docs_section",
     "fs_search",
+    "fs_get_function",
     "onshape_api_search",
+    "onshape_api_endpoint",
     # cost and host state
     "onshape_api_quota",
     "onshape_geometry_status",

@@ -5,7 +5,7 @@
 三件事，全部 0 REST 配额、0 云端数据变更：
 
 1. **Windows 那台部署确实切到了 `gateway` 压缩视图**，且不是「只能检索」——被展示的
-   16 个入口覆盖全部类别；
+   25 个入口覆盖全部类别（核心 3 + 策展 22，见 §5.2 的定稿量测）；
 2. **`mcp_tool_invoke` 能把一次调用送到未展示的注册名**。这曾是真实客户端的硬限制：
    不在 `tools/list` 里的名字会得到 `unknown tool`，而服务端照常 dispatch；
 3. **`browser_session action=health` 在桥重启后能不能自己发现「页面看着是开的、服务端
@@ -25,21 +25,24 @@
 
 ## 3. 结果一：压缩视图可用，且不是「只能检索」
 
-`mcp_tool_invoke` 之前被 16 个展示入口取代的是 15 个；补齐后 gateway = 核心 3
-（`mcp_tool_catalog`、`mcp_tool_view`、`mcp_tool_invoke`）+ 策展 13，覆盖
-control / browser / rest / rest_reference / featurescript / documentation 六个类别。
-离线量测（`dev/tools/context_cost.py`，写入
+本页记录的是最初的 16 个入口版本（核心 3 + 策展 13）。随后按
+`docs/roadmap/LOOKUP_DEPTH_RESEARCH.md` 的实测把策展集补到 22（gateway = 25），
+原因有两条：**被规定的检索链必须整条列出**（`docs_search→docs_section`、
+`fs_search→fs_get_function`、`onshape_api_search→onshape_api_endpoint` 原来都只列了
+前半条），以及**参数编辑的每一腿都要列**（否则一次编辑要多付一轮）。定稿量测
+（`dev/tools/context_cost.py`，写入
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`）：
 
 | 视图 | 工具数 | 字符 | 估算 token |
 |---|---|---|---|
-| `static`（完整 registry） | 111 | 226,845 | 56,769 |
-| `semantic`（默认） | 77 | 166,827 | 41,748 |
-| `gateway` | 16 | 43,102 | 10,795 |
+| `static`（完整 registry） | 111 | 227,459 | 56,922 |
+| `semantic`（默认） | 77 | 167,441 | 41,901 |
+| `gateway` | 25 | 66,051 | 16,533 |
 
-即 gateway 比完整 registry 小 **5.3x**、比默认视图小 **3.9x**。策展入口存在的原因就是
-**检索不便宜**：三结果 `search` ≈ 6.8 kB、一次建模 `describe` ≈ 10.5 kB，所以
-「只列 search」会让最常见的建模任务先付一次没必要的检索。
+即 gateway 比完整 registry 小 **3.4x**、比默认视图小 **2.5x**；多出的 5,514 token/步
+把「零检索即完成」的覆盖率从 43%（6/14 类真实任务）提到 86%（12/14）。策展入口存在
+的原因就是**检索不便宜**：三结果 `search` ≈ 6.8 kB、一次建模 `describe` ≈ 10.5 kB，
+所以「只列 search」会让最常见的建模任务先付一次没必要的检索。
 
 ## 4. 结果二：`mcp_tool_invoke` 实机送达未展示的名字
 
@@ -50,7 +53,7 @@ mcp_tool_invoke { "name": "docs_list", "arguments": {} }
 ```
 
 返回 `invokedTool: "docs_list"` 与 `docs_list` 自己的完整答案（`count: 30`、
-六类 30 页、每页小节列表）。`docs_list` **不在**被展示的 16 个名字里——这正是
+六类 30 页、每页小节列表）。`docs_list` **不在**当时展示的 16 个名字里——这正是
 2026-09-21 早些时候真实客户端报 `unknown tool "mcp__onshape__docs_list"` 的那个名字。
 
 边界与保证（离线测试 `dev/tests/test_tool_gateway_view.py::InvokeToolTest` 逐条钉住）：
@@ -59,6 +62,7 @@ mcp_tool_invoke { "name": "docs_list", "arguments": {} }
 - `confirm_mutation`、`dry_run`、quota、pacing、验收门全部照常回答——实测
   `browser_insert_custom_feature` 不带 `confirm_mutation` 时**照样被拒**，
   `browser_delete_feature` 的 `dry_run` 仍是 `estimatedApiRequests: 0` 的预览；
+  25 个入口版本上线后再次实测（§5.2）；
 - 连接级工具（`mcp_tool_view`、`mcp_tool_catalog`、它自己）被**拒绝**而不是递归；
 - 未知名字报 `Unknown tool: …` 并指向 `mcp_tool_catalog`；
 - 该入口在**每种展示模式**都被列出（语义视图 76 → 77 个工具，+2,207 字符）：对拒绝
@@ -133,7 +137,7 @@ mcp_tool_invoke { "name": "onshape_api_list_tags", "arguments": {} }
     "count": 42, "tags": [ ... 42 项 ... ] }
 ```
 
-`onshape_api_list_tags` 也不在 gateway 展示的 16 个名字里（该类别策展的是
+`onshape_api_list_tags` 不在 gateway 展示的名单里（该类别策展的是
 `onshape_api_search`），所以这是第二次「经被展示入口到达未展示名字」的实机证据。
 部署后宿主开关仍是 `tool_views.local.toml` → `[exposure] mode = "gateway"`
 （该文件不随部署下发，因此不会被覆盖）。
@@ -160,6 +164,6 @@ python3 temp/deploy_refresh/deploy.py verify --deployment-id <id>   # mismatched
 
 # 实机（0 REST）
 #   bridge_control restart → bridge_library expand
-#   mcp_tool_invoke {name: "docs_list"}
+#   mcp_tool_invoke {name: "docs_list"}       # 25 个入口里仍未展示的名字
 #   browser_session action=health   （必要时 login → 再 health）
 ```

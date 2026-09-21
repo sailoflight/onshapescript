@@ -156,13 +156,17 @@ Preserve explicit modes:
 - `profile` (implemented): fixed `ONSHAPE_MCP_TOOL_PROFILE` selected at connection startup.
 - `dynamic` (implemented): per-connection `mcp_tool_view` state plus
   `notifications/tools/list_changed` after an effective set/reset.
-- `gateway` (implemented 2026-09-21): advertises a small **declarative** surface —
-  a discovery core (`mcp_tool_catalog`, `mcp_tool_view`, `mcp_tool_invoke`) plus curated
-  representatives covering every category (session, tabs, feature read/write,
-  FeatureScript deploy, runner, capability discovery, STEP export, project docs,
-  FeatureScript reference, REST reference, quota, geometry status). Every other
-  registered name stays callable by exact name and passes the same confirmation,
-  cost, dry-run, and acceptance gates.
+- `gateway` (implemented 2026-09-21, sized by `LOOKUP_DEPTH_RESEARCH.md`):
+  advertises a small **declarative** surface — a discovery core
+  (`mcp_tool_catalog`, `mcp_tool_view`, `mcp_tool_invoke`) plus curated
+  representatives covering every category (session, tab create/activate, feature
+  read/write/delete, the parameter edit-verify-read workflow, FeatureScript
+  deploy, runner, capability discovery, STEP export, project docs, FeatureScript
+  reference, REST reference, quota, geometry status). Both steps of every
+  prescribed lookup chain are listed, because a half-listed chain makes the
+  documented workflow pay a hidden-name round. Every other registered name stays
+  callable by exact name (or through `mcp_tool_invoke`) and passes the same
+  confirmation, cost, dry-run, and acceptance gates.
 
 The curated set exists because **retrieval is not free**: a three-result catalog
 `search` measures ~6.8 kB (each summary carries its full concurrency and
@@ -173,10 +177,12 @@ the same reason the catalog gained `action=index`: one line per category
 with no schemas and no concurrency blocks. Measured with
 `dev/tools/context_cost.py` and recorded in
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`: the same
-registry renders as 226,845 chars / 111 tools in `static`, 166,827 chars / 77
-tools in `semantic`, and 43,102 chars / 16 tools in `gateway` — 5.3x smaller than
-the registry and 3.9x smaller than the default view, with no tool made
-unreachable.
+registry renders as 227,459 chars / 111 tools in `static`, 167,441 chars / 77
+tools in `semantic`, and 66,051 chars / 25 tools in `gateway` — 3.4x smaller than
+the registry and 2.5x smaller than the default view, with no tool made
+unreachable. The set is sized by measurement: see `LOOKUP_DEPTH_RESEARCH.md` for
+why it grew from 16 to 25 (chain completeness plus the parameter workflow) and for
+the rent arithmetic behind it.
 
 The mode is switchable **inside this product**: `mcp_main/win/mcp/config/`
 `tool_views.local.toml` (gitignored, with a tracked `.example`) sets the mode on a
@@ -201,11 +207,14 @@ compresses the advertised list, and it does not change any tool's authority.
 
 **Layer depth, priced.** How many lookup layers and how many entry points are
 worth it is answered separately and with measurements in
-`LOOKUP_DEPTH_RESEARCH.md`: one extra round costs the whole prefix (~20.8k
-estimated tokens at the documented defaults) against 427-1,000 tokens/step for a
-tool schema, so the rule is "list what nearly every session uses, look the rest up
-per name", a prescribed chain must be listed completely or not at all, and
-widening the surface costs 16.8-60.7 single-name lookups over a 30-step tail.
+`LOOKUP_DEPTH_RESEARCH.md`: one extra round costs the whole prefix (~26.3k
+estimated tokens at the documented defaults; ~20.8k before the surface grew) against
+427-1,000 tokens/step for a tool schema, so the rule is "list what nearly every
+session uses, look the rest up per name"; a prescribed chain must be listed
+completely or not at all (and now is, gated by a test); widening the surface costs
+7.2-42.1 single-name lookups over a 30-step tail; and the win-wsl bridge's own
+collapse/expand is a different shape — one receipt per connection for the whole
+child surface, break-even at expand step 2.
 
 **Response side.** The same token audit applies to a mutation ANSWER, not only to
 the tool list. A delete used to repeat one row set four times (enumeration,

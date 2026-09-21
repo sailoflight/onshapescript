@@ -165,7 +165,9 @@ def measure_layers() -> dict[str, dict[str, object]]:
         return server.tool_result(name, arguments).get("structuredContent", {})
 
     for key, what, name, arguments in (
-        ("layer:docs-list", "whole docs inventory, every section title", "docs_list", {}),
+        ("layer:docs-list", "docs page list, section counts only (default)", "docs_list", {}),
+        ("layer:docs-list-full", "docs page list WITH every heading outline", "docs_list",
+         {"include_sections": True}),
         ("layer:docs-search", "docs keyword search, 6 hits", "docs_search",
          {"query": "feature tree", "limit": 6}),
         ("layer:docs-section", "one exact docs section", "docs_section",
@@ -317,6 +319,84 @@ def widening_analysis(*, n_steps: int, prefix_tokens: int, growth_tokens: int,
     return result
 
 
+# --------------------------------------------------------------------------
+# The bridge's own layer: collapse / expand
+# --------------------------------------------------------------------------
+#: Measured live 2026-09-21 (the two receipts in
+#: `onshape_docs/verification/mcp-gateway-live-2026-09-21.md`), model-facing
+#: pretty JSON. `collapse` and `expand` are ordinary tool calls, so each also
+#: pays the round's prefix; the receipt itself is cheap.
+BRIDGE_RECEIPT_TOKENS: dict[str, int] = {
+    "collapse": 845 // CHARS_PER_TOKEN,
+    "expand": 782 // CHARS_PER_TOKEN,
+    "status": 272 // CHARS_PER_TOKEN,
+}
+
+#: What a collapsed connection advertises: the bridge's own entry
+#: (`bridge_library`) and nothing else. Its schema lives in the bridge plugin,
+#: not in this repository, so it is a documented parameter rather than a
+#: measurement -- the ordering of the policies below does not depend on it.
+COLLAPSED_SURFACE_TOKENS = 300
+
+
+def bridge_policy(*, n_steps: int, prefix_tokens: int, growth_tokens: int,
+                  surface_tokens: int, expand_at_step: int = 2,
+                  collapsed_surface_tokens: int = COLLAPSED_SURFACE_TOKENS) -> dict[str, object]:
+    """Price the bridge layer: collapse, then expand when the child is needed.
+
+    This is the cheapest compression in the stack and it is a DIFFERENT shape
+    from the MCP's own: `collapse` hides the whole child surface behind one
+    entry, and `expand` puts it back for the rest of the session. So the bridge
+    charges ONE round per session to restore everything, while a per-name door
+    (`mcp_tool_invoke`) charges one round per hidden name. That makes collapse the
+    right default whenever the first child call is not immediate.
+    """
+    remaining = max(n_steps - expand_at_step + 1, 0)
+    round_tokens = round_cost_tokens(
+        prefix_tokens=prefix_tokens, step=expand_at_step, growth_tokens=growth_tokens,
+        surface_tokens=collapsed_surface_tokens,
+        artifact_tokens=BRIDGE_RECEIPT_TOKENS["expand"],
+    )
+    always_expanded = n_steps * surface_tokens
+
+    def collapsed_until(step: int) -> int:
+        tail = max(n_steps - step + 1, 0)
+        return (
+            (step - 1) * collapsed_surface_tokens
+            + round_cost_tokens(
+                prefix_tokens=prefix_tokens, step=step, growth_tokens=growth_tokens,
+                surface_tokens=collapsed_surface_tokens,
+                artifact_tokens=BRIDGE_RECEIPT_TOKENS["expand"],
+            )
+            + tail * surface_tokens
+        )
+
+    curve = {step: collapsed_until(step) for step in (1, 2, 3, 5, 10, n_steps)}
+    collapsed_no_child_call = n_steps * collapsed_surface_tokens
+    return {
+        "steps": n_steps,
+        "expandAtStep": expand_at_step,
+        "roundTokens": round_tokens,
+        "receiptTokens": dict(BRIDGE_RECEIPT_TOKENS),
+        "collapsedSurfaceTokens": collapsed_surface_tokens,
+        "policies": {
+            "expanded from the start": always_expanded,
+            "collapsed, expanded at step %d" % expand_at_step: collapsed_until(expand_at_step),
+            "collapsed, never expanded": collapsed_no_child_call,
+        },
+        "collapseCurve": {f"expand at step {step}": tokens for step, tokens in curve.items()},
+        "breakEvenExpandStep": min(
+            (step for step in curve if collapsed_until(step) <= always_expanded), default=None
+        ),
+        "doubleNameDoorPerHiddenName": round_tokens,
+        "bridgeRoundVsNameRounds": (
+            f"one expand round restores {surface_tokens} tokens/step of surface for the "
+            "rest of the session, so it beats a per-name door as soon as more than one "
+            "hidden name is needed"
+        ),
+    }
+
+
 #: A first-layer answer should be a map, not a dump. Above this many model tokens
 #: the artifact costs more rent than the tools it took out of the surface.
 SLIM_ARTIFACT_TOKENS = 2_000
@@ -363,6 +443,14 @@ RECOMMENDED_ADDITIONS: tuple[str, ...] = (
     "browser_activate_tab",
 )
 
+#: One entry the model priced but did NOT recommend, with the reason. Kept as
+#: data so a future reader does not have to re-derive the decision.
+REJECTED_ENTRIES: dict[str, str] = {
+    "browser_create_document": "document setup is a per-session first step, not a per-task need; one per-name lookup pays for it",
+    "browser_deploy_and_apply_featurescript": "the runner capability is already reachable through browser_run_project, plus deploy + insert, all listed",
+    "browser_rename_tab": "cosmetic naming, needed in a minority of sessions",
+}
+
 
 def recommended_surface() -> dict[str, object]:
     """What the recommended entry set costs and what coverage it buys."""
@@ -371,20 +459,22 @@ def recommended_surface() -> dict[str, object]:
     by_name = {tool["name"]: tool for tool in TOOLS}
     listed = advertised("gateway")
     added = [name for name in RECOMMENDED_ADDITIONS if name in by_name and name not in listed]
-    current = _rendered_size({"tools": [by_name[name] for name in sorted(listed)]})
-    widened = _rendered_size(
-        {"tools": [by_name[name] for name in sorted(set(listed) | set(added))]}
-    )
+    # The counterfactual baseline is "the recommended set minus the additions",
+    # so the table keeps reporting the delta that justified the change even after
+    # the change shipped.
+    baseline = sorted(set(listed) - set(RECOMMENDED_ADDITIONS))
+    current = _rendered_size({"tools": [by_name[name] for name in baseline]})
+    widened = _rendered_size({"tools": [by_name[name] for name in sorted(listed)]})
     covered = sorted(
-        task for task, tools in REAL_TASK_TOOLS.items() if not (set(tools) - (set(listed) | set(added)))
+        task for task, tools in REAL_TASK_TOOLS.items() if not (set(tools) - set(listed))
     )
     remaining = sorted(
-        task for task, tools in REAL_TASK_TOOLS.items() if set(tools) - (set(listed) | set(added))
+        task for task, tools in REAL_TASK_TOOLS.items() if set(tools) - set(listed)
     )
     return {
         "addedEntries": added,
-        "currentToolCount": len(listed),
-        "recommendedToolCount": len(set(listed) | set(added)),
+        "currentToolCount": len(baseline),
+        "recommendedToolCount": len(listed),
         "currentSurfaceChars": current,
         "recommendedSurfaceChars": widened,
         "currentTokensPerStep": est_tokens(current),
@@ -393,6 +483,7 @@ def recommended_surface() -> dict[str, object]:
         "zeroRoundTasks": covered,
         "tasksStillNeedingALookup": remaining,
         "zeroRoundShare": round(len(covered) / len(REAL_TASK_TOOLS), 3),
+        "rejected": dict(REJECTED_ENTRIES),
     }
 
 
@@ -519,6 +610,10 @@ def report(*, n_steps: int = 30, prefix_tokens: int = 8000, growth_tokens: int =
         ),
         "slimPotential": slim_potential(layers, n_steps=n_steps),
         "recommendedSurface": recommended_surface(),
+        "bridgePolicy": bridge_policy(
+            n_steps=n_steps, prefix_tokens=prefix_tokens, growth_tokens=growth_tokens,
+            surface_tokens=int(layers["surface:gateway"]["estimatedTokens"]),  # type: ignore[arg-type]
+        ),
         "widening": widening_analysis(
             n_steps=n_steps, prefix_tokens=prefix_tokens, growth_tokens=growth_tokens,
             layers=layers,
@@ -577,7 +672,16 @@ def main(argv: list[str]) -> int:
     for name in rec["addedEntries"]:  # type: ignore[union-attr]
         print(f"  + {name}")
     for task in rec["tasksStillNeedingALookup"]:  # type: ignore[union-attr]
-        print(f"  still needs a lookup: {task}")
+        print(f"  still needs a lookup: {task}  -> reachable via mcp_tool_invoke")
+    for name, reason in rec["rejected"].items():  # type: ignore[union-attr]
+        print(f"  - {name}: {reason}")
+    bridge = result["bridgePolicy"]  # type: ignore[assignment]
+    print(f"\nbridge layer (receipts measured live: {bridge['receiptTokens']} tokens)")
+    for name, tokens in bridge["policies"].items():  # type: ignore[union-attr]
+        print(f"  {name:34} {tokens:>10} tokens over the session")
+    print("  collapse beats expanding up front from expand step "
+          f"{bridge['breakEvenExpandStep']} onward; curve: "
+          + ", ".join(f"{k}={v:,}" for k, v in bridge["collapseCurve"].items()))
     print("\noversized lookup artifacts (rent at step 2, and what slimming saves)")
     for key, item in result["slimPotential"].items():
         print(f"  {key:26} {item['tokens']:>6} tok  rent {item['rentIfReadEarly']:>9}  "

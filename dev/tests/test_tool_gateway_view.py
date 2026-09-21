@@ -35,13 +35,16 @@ from mcp_main.win.mcp.tool_views import (
     ToolViewState,
 )
 
-#: Measured 2026-09-21: the gateway surface is ~40 kB against ~162 kB for the
-#: default `semantic` view and ~222 kB for the complete registry. The bounds are
-#: loose enough to survive description edits and tight enough to catch a mode
-#: that stops compressing.
-MAX_GATEWAY_CHARS = 45_000
-MIN_COMPRESSION_RATIO = 4
-MAX_SEMANTIC_SHARE = 0.30
+#: Measured 2026-09-21 after the depth research (`LOOKUP_DEPTH_RESEARCH.md`)
+#: sized the set: the gateway surface is ~63 kB against ~160 kB for the default
+#: `semantic` view and ~216 kB for the complete registry. The surface grew on
+#: purpose -- two more entries closed the prescribed docs/FS/REST chains, and the
+#: parameter workflow stopped paying a round between its own legs -- so the bounds
+#: moved with it. They stay loose enough to survive description edits and tight
+#: enough to catch a mode that stops compressing.
+MAX_GATEWAY_CHARS = 70_000
+MIN_COMPRESSION_RATIO = 3
+MAX_SEMANTIC_SHARE = 0.45
 #: The category map is one line per category; it must stay far below one search.
 MAX_CATEGORY_MAP_CHARS = 2_000
 
@@ -81,6 +84,19 @@ class GatewayViewSelectionTest(unittest.TestCase):
         # advertised list, so an ordinary task never has to look a name up first.
         covered = {tool_module(name) for name in GATEWAY_TOOL_NAMES}
         self.assertEqual(covered, set(VALID_MODULES))
+
+    def test_every_prescribed_lookup_chain_is_advertised_end_to_end(self):
+        """A half-listed chain is the worst of both: the caller pays the front
+        half's rent AND a hidden-name round to finish its own documented
+        workflow. Measured 2026-09-21: three of four chains were half-listed
+        (`LOOKUP_DEPTH_RESEARCH.md`, finding F2)."""
+        from dev.tools.lookup_depth import DOCUMENTED_CHAINS
+
+        listed = {tool["name"] for tool in self.gateway().listed_tools()}
+        for name, chain in DOCUMENTED_CHAINS:
+            with self.subTest(chain=name):
+                for step in chain:
+                    self.assertIn(step, listed, f"{name}: {step} is not advertised")
 
     def test_gateway_surface_is_much_smaller_than_the_default_view(self):
         gateway = _rendered_size({"tools": self.gateway().listed_tools()})

@@ -171,16 +171,24 @@ For a client whose context budget matters more than a visible list, `gateway`
 advertises a small declarative surface:
 
 1. A discovery core — `mcp_tool_catalog`, `mcp_tool_view`, and `mcp_tool_invoke`.
-   The invoker is the advertised door to the 95 names this view does not list: it
+   The invoker is the advertised door to the names this view does not list: it
    forwards one call to any registered tool by exact name and the target's own
    gates still answer. It is listed in every exposure mode, because a client that
    refuses unadvertised names (measured live 2026-09-21) cannot use a hidden one.
-2. Curated representatives covering every category: `browser_session`,
-   `browser_get_page_tabs`, `browser_get_partstudio_features`,
-   `browser_insert_custom_feature`, `browser_deploy_featurescript`,
-   `browser_run_project`, `browser_discover_tools`, `browser_export_step`,
-   `docs_search`, `fs_search`, `onshape_api_search`, `onshape_api_quota`,
-   `onshape_geometry_status`.
+   The set is sized by measurement, not by a token target — see
+   `docs/roadmap/LOOKUP_DEPTH_RESEARCH.md`.
+2. Curated representatives covering every category, each of them a step the
+   recorded sessions actually drove: `browser_session`, `browser_get_page_tabs`,
+   `browser_create_tab`, `browser_activate_tab`, `browser_get_partstudio_features`,
+   `browser_insert_custom_feature`, `browser_delete_feature`, the parameter
+   workflow (`browser_edit_feature_parameters`, `browser_verify_feature_parameters`,
+   `browser_read_feature_parameters`), `browser_deploy_featurescript`,
+   `browser_run_project`, `browser_discover_tools`, `browser_export_step`, and
+   **both steps** of each prescribed reference chain (`docs_search` +
+   `docs_section`, `fs_search` + `fs_get_function`, `onshape_api_search` +
+   `onshape_api_endpoint`), plus `onshape_api_quota` and `onshape_geometry_status`.
+   A chain is listed end to end on purpose: listing its first step alone made the
+   documented workflow pay a hidden-name round every time.
 
 The curated names exist so ordinary work does not have to start with a lookup:
 retrieval is not free (a three-result `search` is ~6.8 kB, one modelling
@@ -206,12 +214,13 @@ and restart the MCP process to apply it.
 
 Measured (2026-09-21, `dev/tools/context_cost.py`, recorded in
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`): the same
-registry renders as 226,845 chars for 111 tools in `static`, 166,827 chars for 77
-tools in `semantic`, and 43,102 chars for 16 tools in `gateway` (5.3x and 3.9x
-smaller). A client that refuses unadvertised names does not need a different mode:
-`mcp_tool_invoke` is advertised in every mode and forwards one call to any
-registered tool by exact name, with the target's own confirmation, cost and dry-run
-gates intact.
+registry renders as 227,459 chars for 111 tools in `static`, 167,441 chars for 77
+tools in `semantic`, and 66,051 chars for 25 tools in `gateway` (3.4x and 2.5x
+smaller; the surface grew deliberately when the prescribed chains were completed
+and the parameter workflow stopped paying a round between its own legs). A client
+that refuses unadvertised names does not need a different mode: `mcp_tool_invoke` is
+advertised in every mode and forwards one call to any registered tool by exact
+name, with the target's own confirmation, cost and dry-run gates intact.
 
 Mutation answers are compacted on the same principle: a row list that would repeat
 the same Feature List several times is reported as a count, and

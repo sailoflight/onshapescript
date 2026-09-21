@@ -85,7 +85,9 @@ class MeasureTest(unittest.TestCase):
         static = self.layers["surface:static"]["estimatedTokens"]
         self.assertLess(gateway, semantic)
         self.assertLess(semantic, static)
-        self.assertGreater(semantic / gateway, 3)
+        # 2.5x after the prescribed chains were completed on purpose; the point
+        # of the bound is that compression still happens, not that it is extreme.
+        self.assertGreater(semantic / gateway, 2)
 
 
 class ModelTest(unittest.TestCase):
@@ -155,6 +157,24 @@ class ModelTest(unittest.TestCase):
         # Widening to the complete registry must be the most expensive option.
         ratios = {key: item["equivalentSingleNameLookups"] for key, item in widening.items()}
         self.assertEqual(max(ratios, key=ratios.get), "surface:static")
+
+    def test_the_bridge_layer_charges_one_round_and_widens_the_rest(self):
+        policy = lookup_depth.bridge_policy(
+            n_steps=30, prefix_tokens=8_000, growth_tokens=600, surface_tokens=15_866
+        )
+        policies = policy["policies"]
+        # Expanding up front is the worst option when the first child call is not
+        # immediate; collapsing without ever expanding is the cheapest session and
+        # is only valid when no child tool is needed at all.
+        self.assertGreater(policies["expanded from the start"],
+                           policies["collapsed, expanded at step 2"])
+        self.assertLess(policies["collapsed, never expanded"],
+                        policies["collapsed, expanded at step 2"])
+        self.assertEqual(policy["breakEvenExpandStep"], 2)
+        # Later expansion saves more: the collapsed surface is cheaper for longer.
+        curve = policy["collapseCurve"]
+        self.assertLess(curve["expand at step 10"], curve["expand at step 2"])
+        self.assertEqual(policy["doubleNameDoorPerHiddenName"], policy["roundTokens"])
 
     def test_slimming_only_flags_artifacts_above_the_threshold(self):
         layers = lookup_depth.measure_layers()

@@ -584,7 +584,22 @@ class McpServerTest(unittest.TestCase):
         pages = {p["page"] for p in listed["pages"]}
         self.assertIn("mcp-consumer", pages)
         self.assertIn("llm-experience-fs", pages)
-        self.assertTrue(all("sections" in p for p in listed["pages"]))
+        # The heading outline is opt-in since 2026-09-21: every heading title of
+        # every page measured 10,262 estimated tokens, more than the whole
+        # compressed tool list, so the default answer keeps only the counts
+        # (`LOOKUP_DEPTH_RESEARCH.md`, finding F3).
+        self.assertFalse(listed["sectionsIncluded"])
+        self.assertTrue(all("sections" not in p for p in listed["pages"]))
+        self.assertTrue(all(isinstance(p["sectionCount"], int) for p in listed["pages"]))
+        from mcp_main.win.mcp import server as mcp_server
+
+        outline = mcp_server.tool_result("docs_list", {"include_sections": True})[
+            "structuredContent"
+        ]
+        self.assertTrue(outline["sectionsIncluded"])
+        self.assertTrue(all("sections" in p for p in outline["pages"]))
+        self.assertGreater(len(json.dumps(outline, ensure_ascii=False)),
+                           len(json.dumps(listed, ensure_ascii=False)))
         section = responses[1]["result"]["structuredContent"]
         self.assertEqual(section["page"], "mcp-consumer")
         self.assertEqual(section["section"], "Global safety contract")

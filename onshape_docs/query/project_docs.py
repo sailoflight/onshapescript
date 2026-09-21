@@ -53,22 +53,36 @@ def _find_page(page: str) -> dict[str, Any]:
 # listing
 # --------------------------------------------------------------------------
 
-def list_pages() -> dict[str, Any]:
-    """Page outline: every indexed doc page with its heading sections."""
+def list_pages(include_sections: bool = False) -> dict[str, Any]:
+    """Page outline: every indexed doc page, with its heading sections on request.
+
+    `sections` is opt-in because it is the single most expensive answer this
+    server can give: every heading title of all 30 pages measured 10,262
+    estimated tokens, more than the entire compressed tool list, and an answer
+    read early rents on every later step of the session. The ordinary caller
+    wants "what pages exist" (and the count per page); a caller that needs the
+    outline asks for it explicitly, exactly like `include_row_evidence` on the
+    mutation tools.
+
+    `sectionCount` stays in the default answer, so the size of an outline is
+    known before paying for it.
+    """
     pages = _load()["pages"]
     out = []
     for entry in pages:
-        out.append({
+        item = {
             "page": entry["page"],
             "category": entry["category"],
             "path": entry["path"],
             "title": entry["title"],
             "sectionCount": len(entry["sections"]),
-            "sections": [
+        }
+        if include_sections:
+            item["sections"] = [
                 {"level": s["level"], "title": s["title"]}
                 for s in entry["sections"]
-            ],
-        })
+            ]
+        out.append(item)
     categories = {
         category: sum(1 for page in pages if page["category"] == category)
         for category in dict.fromkeys(page["category"] for page in pages)
@@ -77,7 +91,12 @@ def list_pages() -> dict[str, Any]:
         "count": len(out),
         "categories": categories,
         "pages": out,
-        "note": "Index first: choose one page/section, then call docs_section for that exact section.",
+        "sectionsIncluded": include_sections,
+        "note": (
+            "Index first: choose one page/section, then call docs_section for that "
+            "exact section. Pass include_sections=true only when the heading outline "
+            "itself is needed; docs_search finds a section by keyword for far less."
+        ),
     }
 
 
