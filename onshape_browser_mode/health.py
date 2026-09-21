@@ -10,8 +10,12 @@ rest of the codebase cannot see, because it looks exactly like a healthy idle
 session until something touches it:
 
 * Onshape expires a server-side session after a period of inactivity, and the
-  page then shows the timeout dialog (``您的 Onshape 会话已超时…单击此处重新连接。``)
-  whose reconnect link only works when it is clicked. Community reports agree
+  page then shows the timeout dialog (``您的 Onshape 会话已超时…单击此处重新连接。``).
+  The dialog has TWO states, and the probe reports which one it is: with a
+  rendered label the reconnect link must be clicked, while an empty/unrendered
+  link means Onshape is already auto-reconnecting and clicking cannot work
+  (measured live 2026-09-21: the click timed out after 30 s against an element
+  that detached, and the next probe read ``ok``). Community reports agree
   that an Onshape session can require a fresh sign-in after a period away
   ([Onshape forum](https://forum.onshape.com/discussion/comment/124854#Comment_124854),
   [integrated-app session timeout](https://forum.onshape.com/discussion/comment/30109/#Comment_30109));
@@ -84,9 +88,14 @@ _PROBE_JS = """
 () => {
   const link = document.querySelector('%s');
   const dialog = document.querySelector('%s');
+  const text = link ? String(link.innerText || link.textContent || '').trim().slice(0, 120) : '';
+  const rendered = !!(link && link.getClientRects().length > 0);
   return {
     timeoutDialogPresent: !!link,
-    timeoutDialogLinkText: link ? String(link.innerText || link.textContent || '').trim().slice(0, 120) : '',
+    timeoutDialogLinkText: text,
+    // The dialog also shows while Onshape auto-reconnects, and then its link is
+    // empty and unrendered, so a click cannot work. Measured live 2026-09-21.
+    timeoutDialogActionable: !!(rendered && text.length > 0),
     timeoutDialogMessage: dialog ? String(dialog.innerText || dialog.textContent || '').trim().slice(0, 200) : '',
     documentShellReady: !!document.querySelector('%s'),
     title: String(document.title || '').slice(0, 120),
@@ -161,12 +170,29 @@ def classify(
         )
     elif evidence.get("timeoutDialogPresent"):
         verdict = SESSION_TIMEOUT_DIALOG
-        recommended = "browser_session action=reconnect"
-        note = (
-            "Onshape's session-timeout dialog is showing; the session expired "
-            "server-side while the browser stayed open. Its reconnect link works "
-            "only when clicked, so the page will not recover by itself."
-        )
+        if evidence.get("timeoutDialogActionable") is False:
+            # Measured live 2026-09-21: right after a restart the dialog appeared
+            # with an EMPTY, unrendered link, because Onshape was already
+            # auto-reconnecting. Clicking it timed out after 30 s against an
+            # element that then detached, while the next probe read `ok`. When the
+            # link is not actionable the honest instruction is to wait and
+            # re-probe, not to click.
+            recommended = "browser_session action=health"
+            note = (
+                "Onshape's session-timeout dialog is showing in its "
+                f"automatic-reconnect state (message: {evidence.get('timeoutDialogMessage')!r}); "
+                "its reconnect link has no label and is not rendered, so clicking "
+                "cannot recover it. Onshape is retrying by itself -- re-probe after "
+                "a short wait, and use `browser_session action=reload` only if the "
+                "dialog survives."
+            )
+        else:
+            recommended = "browser_session action=reconnect"
+            note = (
+                "Onshape's session-timeout dialog is showing; the session expired "
+                "server-side while the browser stayed open. Its reconnect link works "
+                "only when clicked, so the page will not recover by itself."
+            )
     elif not evidence.get("responded"):
         verdict = PAGE_UNRESPONSIVE
         recommended = "browser_session action=reload"

@@ -63,6 +63,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "thin-feature-chinese-ui-verification": "onshape_docs/verification/thin-feature-chinese-ui-2026-09-21.md",
         "four-u-box-verification": "onshape_docs/verification/4u-box-2026-09-21.md",
         "gridfinity-4u-bin-verification": "onshape_docs/verification/gridfinity-4u-bin-2026-09-21.md",
+        "mcp-gateway-live-verification": "onshape_docs/verification/mcp-gateway-live-2026-09-21.md",
         "live-verification": "onshape_docs/verification/live/README.md",
     },
     "reference": {

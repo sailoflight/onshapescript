@@ -3381,15 +3381,31 @@ def create_document_version(page: Any, name: str = "") -> dict[str, Any]:
 
 
 def timeout_dialog_state(page: Any) -> dict[str, Any]:
-    """Report whether the Onshape session-timeout dialog is present."""
+    """Report whether the Onshape session-timeout dialog is present.
+
+    ``actionable`` is the field recovery depends on: measured live 2026-09-21 the
+    dialog ALSO appears while Onshape **auto-reconnects**, and in that state its
+    reconnect link is present in the DOM but empty and unrendered, so clicking it
+    cannot succeed (a 30 s click timeout against an element that then detaches).
+    A link with layout boxes, a label and no disabled flag is one a human could
+    click; anything else has to be waited out.
+    """
     return page.evaluate(
         """
         () => {
           const link = document.querySelector('.alert-link.osx-message-bubble-link');
           const dialog = document.querySelector('.osx-message');
+          const text = link ? (link.innerText || link.textContent || '').trim() : '';
+          const rendered = !!(link && link.getClientRects().length > 0);
+          const enabled = !!(
+            link &&
+            !link.hasAttribute('disabled') &&
+            link.getAttribute('aria-disabled') !== 'true'
+          );
           return {
             present: !!link,
-            linkText: link ? (link.innerText || link.textContent || '').trim() : '',
+            linkText: text,
+            actionable: !!(rendered && enabled && text.length > 0),
             message: dialog ? (dialog.innerText || dialog.textContent || '').trim().slice(0, 200) : '',
           };
         }
@@ -3397,28 +3413,95 @@ def timeout_dialog_state(page: Any) -> dict[str, Any]:
     )
 
 
+#: How long a dialog in its automatic-reconnect state is given to clear before
+#: recovery is reported as needing a bounded reload instead. Measured live
+#: 2026-09-21: the dialog cleared by itself and the very next probe read `ok`
+#: (round trip 4 ms), so this is a budget, not an expected duration.
+AUTOMATIC_RECONNECT_WAIT_MS = 15_000
+_AUTOMATIC_RECONNECT_POLL_MS = 1_000
+
+
+def _wait_for_timeout_dialog_to_clear(page: Any, *, budget_ms: int) -> tuple[bool, int]:
+    """Poll until the dialog is gone or the budget is spent. Never raises."""
+    waited = 0
+    while waited < budget_ms:
+        try:
+            page.wait_for_timeout(_AUTOMATIC_RECONNECT_POLL_MS)
+        except Exception:  # noqa: BLE001 - a dead page is the caller's read to report
+            break
+        waited += _AUTOMATIC_RECONNECT_POLL_MS
+        try:
+            if not timeout_dialog_state(page).get("present"):
+                return True, waited
+        except Exception:  # noqa: BLE001 - a failed read is not a cleared dialog
+            break
+    return False, waited
+
+
 def reconnect_if_needed(page: Any) -> dict[str, Any]:
-    """Click the '重新连接' link if the Onshape timeout dialog is showing.
+    """Clear the Onshape timeout dialog by clicking it, or by waiting it out.
 
     Reconnecting is a session-level navigation (no cloud data is created or
-    changed). Returns before/after dialog state plus the resulting URL.
+    changed). The two dialog states need different handling:
+
+    * link rendered with a label -> click it (the documented recovery);
+    * link present but empty/unrendered -> Onshape is already auto-reconnecting,
+      so clicking cannot work. The dialog is waited out for a bounded time, and if
+      it survives, the answer names `browser_session action=reload` rather than an
+      exception.
     """
     before = timeout_dialog_state(page)
     if not before.get("present"):
         return {"reconnected": False, "reason": "no timeout dialog", "state": before, "pageUrl": page.url}
+
+    if not before.get("actionable", False):
+        cleared, waited = _wait_for_timeout_dialog_to_clear(
+            page, budget_ms=AUTOMATIC_RECONNECT_WAIT_MS
+        )
+        after = timeout_dialog_state(page) if cleared else before
+        result: dict[str, Any] = {
+            "reconnected": cleared,
+            "mode": "automatic",
+            "waitedMs": waited,
+            "state": before,
+            "after": after,
+            "pageUrl": page.url,
+        }
+        if not cleared:
+            result["reason"] = (
+                "the dialog is in Onshape's automatic-reconnect state: its link is "
+                f"present but not clickable, and it did not clear within {waited} ms"
+            )
+            result["recommendedAction"] = "browser_session action=reload"
+        return result
+
     try:
-        page.locator(TIMEOUT_RECONNECT_LINK).first.click()
-        page.wait_for_timeout(5000)
+        page.locator(TIMEOUT_RECONNECT_LINK).first.click(timeout=5_000)
+        page.wait_for_timeout(5_000)
     except Exception as exc:  # noqa: BLE001 - surface as structured result
+        after = timeout_dialog_state(page)
+        if not after.get("present"):
+            # The click raced a self-clearing dialog: the session is fine.
+            return {
+                "reconnected": True,
+                "mode": "automatic",
+                "note": "the dialog cleared while the click was being attempted",
+                "state": before,
+                "after": after,
+                "pageUrl": page.url,
+            }
         return {
             "reconnected": False,
             "error": f"{type(exc).__name__}: {exc}",
             "state": before,
+            "after": after,
+            "recommendedAction": "browser_session action=reload",
             "pageUrl": page.url,
         }
     after = timeout_dialog_state(page)
     return {
         "reconnected": not after.get("present"),
+        "mode": "click",
         "state": before,
         "after": after,
         "pageUrl": page.url,

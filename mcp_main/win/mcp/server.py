@@ -605,6 +605,10 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
     `reconnect` and `reload` are the absorbed `browser_reconnect` /
     `browser_reload` behaviours: both act on the same session this tool owns, so
     they are requests on one session tool rather than two extra entry points.
+    `reconnect` handles BOTH timeout-dialog states -- it clicks a rendered
+    reconnect link and otherwise waits out Onshape's own auto-reconnect, reporting
+    `mode: "click" | "automatic"` -- because measured live 2026-09-21 the dialog
+    can appear with an empty, unrendered link that no click can reach.
     `health` is the exception that proves the rule: it is a bounded READ that
     never starts the browser, because a probe that first launches a browser
     cannot tell a caller whether launching it would be safe.

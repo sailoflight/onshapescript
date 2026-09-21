@@ -3253,7 +3253,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "11a3d955efe7f6296eff9c6e0c181dbe871313afbc1c72bdc796e3c9093fb03e",
+   "sha256": "19808f7f1484f1b6be840505e2c4f534da19a5bd5ce8f79b446497d7b8d7bafb",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4561,6 +4561,61 @@
      ]
     },
     {
+     "level": 3,
+     "title": "29.1 那个对话框有两种状态，点不点得动要分开判（同一次实测里修正）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "上面「只有被点击才生效」的表述被实测推翻了一半。桥重启后探针报 session_timeout_dialog + recommendedAction: browser_session action=reconnect，照做后 locator.click 30 s 超时：元素 .alert-link.osx-message-bubble-link 在 DOM 里但 不可见、文本为空（linkText: \"\"），对话框文案是 未连接 Onshape。 您的文档已保存。 正在尝试重新连接…——Onshape 正在自己重连。 紧接着再探一次已是 ok（roundTripMs: 4，对话框消失，文档壳就绪）。"
+      },
+      {
+       "type": "para",
+       "text": "所以两种状态必须分开："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "状态",
+         "判据",
+         "正确动作"
+        ],
+        [
+         "链接可点",
+         "链接有布局盒（getClientRects().length > 0）且 linkText 非空",
+         "点击（原路径）"
+        ],
+        [
+         "自动重连中",
+         "链接存在但不可见/无文本",
+         "等：action=reconnect 有界轮询等它自己消失（AUTOMATIC_RECONNECT_WAIT_MS = 15 s），期间绝不点击；没清掉才退到 action=reload"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "落地改动（0 REST、0 云端变更）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "timeout_dialog_state() 增加 actionable 字段；健康探针增加 timeoutDialogActionable，且 session_timeout_dialog 遇到不可点链接时 recommendedAction 改成 browser_session action=health（先复探，而不是点击）。",
+         "depth": 0
+        },
+        {
+         "text": "reconnect_if_needed() 返回 mode: \"click\" | \"automatic\"；不可点走等待分支， 点击过程中对话框自己消失也算成功（note 说明），失败不再返回异常堆栈，而是给 recommendedAction。",
+         "depth": 0
+        },
+        {
+         "text": "教训：「推荐动作」本身也要真机检验。检测器把状态判对了，却给了一个该状态下 物理上做不到的动作——这类缺陷离线测试不会报，只有照着做一次才会暴露。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
      "level": 2,
      "title": "30. 响应里的重复回显：把「验证证据」压成计数，但只压 MCP 那一层（实测 2026-09-21）",
      "blocks": [
@@ -4609,7 +4664,7 @@
    "page": "verification",
    "category": "verification",
    "path": "onshape_docs/verification/README.md",
-   "sha256": "332d4b7721767809ab4d64d8de8484b2e417a40840429ed9d27d6628e88a3538",
+   "sha256": "89079450c6d279386226e6c3d5d46d65e526d78c2b66e5cee1e198ba52c9c9f9",
    "title": "Documentation verification",
    "sections": [
     {
@@ -4648,6 +4703,10 @@
         [
          "capability-live-run-2026-09-19.md",
          "Live 0-REST browser run: the four capability sources compiled on the server, one applied to a real body, the row-matcher defect it found, and the selection boundary it exposed."
+        ],
+        [
+         "mcp-gateway-live-2026-09-21.md",
+         "Live 0-REST acceptance of the compressed tool view: the advertised forwarder reached a hidden registered name, and the idle-session probe caught a timed-out session whose two dialog states need different recovery."
         ],
         [
          "live/",
@@ -10335,6 +10394,259 @@
       {
        "type": "para",
        "text": "夹具级离线守卫见 dev/tests/test_gridfinity_4u_bin_fixture.py。"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "mcp-gateway-live-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/mcp-gateway-live-2026-09-21.md",
+   "sha256": "f0cf9894695e8aca2f6e9c2a85657eef411590b4318c10938d4a43a225257bbe",
+   "title": "压缩视图与空闲会话检测器的实机验收（2026-09-21）",
+   "sections": [
+    {
+     "level": 2,
+     "title": "1. 这次要验证什么",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "三件事，全部 0 REST 配额、0 云端数据变更："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Windows 那台部署确实切到了 gateway 压缩视图，且不是「只能检索」——被展示的 16 个入口覆盖全部类别；",
+         "depth": 0
+        },
+        {
+         "text": "mcp_tool_invoke 能把一次调用送到未展示的注册名。这曾是真实客户端的硬限制： 不在 tools/list 里的名字会得到 unknown tool，而服务端照常 dispatch；",
+         "depth": 0
+        },
+        {
+         "text": "**browser_session action=health 在桥重启后能不能自己发现「页面看着是开的、服务端 会话已过期」**——用户要求的「提前准备一个检测器」。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 环境与身份",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "部署：/mnt/c/MCP/onshapescript，deployment id 20260921T120000Z-invoke， shippedFiles: 16 / changed: 16 / unmatched: 0（verify 报 mismatched: []）。",
+         "depth": 0
+        },
+        {
+         "text": "宿主开关（不在仓库、不随部署下发）： mcp_main/win/mcp/config/tool_views.local.toml → [exposure] mode = \"gateway\"。",
+         "depth": 0
+        },
+        {
+         "text": "桥：bridge_control(action=\"restart\", id=\"onshape\", expectedGeneration=90) → ownedGeneration: 91，toolsListChangedNotifiedClients: 5，force-kill: not-needed。 重启后连接需 bridge_library action=\"expand\"（toolCount: 16，catalogStatus: verified）。",
+         "depth": 0
+        },
+        {
+         "text": "目标文档（会话恢复用）：Gridfinity 2x2 baseplate | GF 4U 盒子， 1ef2be8f3d45e6f996af24ab / bac7c0bf31912a956c44d15a / 59f6cc99890dd2fea26d5471。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 结果一：压缩视图可用，且不是「只能检索」",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "mcp_tool_invoke 之前被 16 个展示入口取代的是 15 个；补齐后 gateway = 核心 3 （mcp_tool_catalog、mcp_tool_view、mcp_tool_invoke）+ 策展 13，覆盖 control / browser / rest / rest_reference / featurescript / documentation 六个类别。 离线量测（dev/tools/context_cost.py，写入 onshape_docs/verification/context-cost-surfaces-2026-09-21.json）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "视图",
+         "工具数",
+         "字符",
+         "估算 token"
+        ],
+        [
+         "static（完整 registry）",
+         "111",
+         "226,845",
+         "56,769"
+        ],
+        [
+         "semantic（默认）",
+         "77",
+         "166,827",
+         "41,748"
+        ],
+        [
+         "gateway",
+         "16",
+         "43,102",
+         "10,795"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "即 gateway 比完整 registry 小 5.3x、比默认视图小 3.9x。策展入口存在的原因就是 检索不便宜：三结果 search ≈ 6.8 kB、一次建模 describe ≈ 10.5 kB，所以 「只列 search」会让最常见的建模任务先付一次没必要的检索。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 结果二：mcp_tool_invoke 实机送达未展示的名字",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "实机调用（同一连接、gateway 视图）："
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "mcp_tool_invoke { \"name\": \"docs_list\", \"arguments\": {} }"
+      },
+      {
+       "type": "para",
+       "text": "返回 invokedTool: \"docs_list\" 与 docs_list 自己的完整答案（count: 30、 六类 30 页、每页小节列表）。docs_list 不在被展示的 16 个名字里——这正是 2026-09-21 早些时候真实客户端报 unknown tool \"mcp__onshape__docs_list\" 的那个名字。"
+      },
+      {
+       "type": "para",
+       "text": "边界与保证（离线测试 dev/tests/test_tool_gateway_view.py::InvokeToolTest 逐条钉住）："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "目标是同一个 HANDLERS 条目，tool_result 的响应压缩也在同一条路径上跑；",
+         "depth": 0
+        },
+        {
+         "text": "confirm_mutation、dry_run、quota、pacing、验收门全部照常回答——实测 browser_insert_custom_feature 不带 confirm_mutation 时照样被拒， browser_delete_feature 的 dry_run 仍是 estimatedApiRequests: 0 的预览；",
+         "depth": 0
+        },
+        {
+         "text": "连接级工具（mcp_tool_view、mcp_tool_catalog、它自己）被拒绝而不是递归；",
+         "depth": 0
+        },
+        {
+         "text": "未知名字报 Unknown tool: … 并指向 mcp_tool_catalog；",
+         "depth": 0
+        },
+        {
+         "text": "该入口在每种展示模式都被列出（语义视图 76 → 77 个工具，+2,207 字符）：对拒绝 未展示名的客户端来说，藏起来的逃生门等于没有门。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. 结果三：检测器在真机上先判对、再被自己的建议打脸",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "桥重启后第一次探针（0 配额、只读、不启动浏览器、不点击）："
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"verdict\": \"browser_not_running\", \"recommendedAction\": \"browser_session action=login\"}"
+      },
+      {
+       "type": "para",
+       "text": "action=login 恢复页面（「Browser session is already logged in (restored Onshape page was kept)」），再探："
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"verdict\": \"session_timeout_dialog\",\n \"recommendedAction\": \"browser_session action=reconnect\",\n \"probe\": {\"responded\": true, \"roundTripMs\": 44, \"timeoutDialogPresent\": true,\n           \"timeoutDialogLinkText\": \"\",\n           \"timeoutDialogMessage\": \"未连接 Onshape。 您的文档已保存。 正在尝试重新连接…\",\n           \"documentShellReady\": true, \"title\": \"Gridfinity 2x2 baseplate | GF 4U 盒子\"}}"
+      },
+      {
+       "type": "para",
+       "text": "按建议执行 action=reconnect：30 秒点击超时，元素 .alert-link.osx-message-bubble-link 在 DOM 里但不可见、文本为空。紧接着再探一次："
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"verdict\": \"ok\", \"recommendedAction\": \"none\",\n \"probe\": {\"responded\": true, \"roundTripMs\": 4, \"timeoutDialogPresent\": false,\n           \"documentShellReady\": true}}"
+      },
+      {
+       "type": "para",
+       "text": "判决对了一半，建议是错的：那个对话框有两种状态，而分不清就会推荐一个物理上做不到 的动作。修正（离线 927 测试通过，0 REST）："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "状态",
+         "判据",
+         "动作"
+        ],
+        [
+         "链接可点",
+         "有布局盒（getClientRects().length > 0）且 linkText 非空",
+         "点击；返回 mode: \"click\""
+        ],
+        [
+         "自动重连中",
+         "链接在 DOM 但不可见/无文本",
+         "不点击，有界等待（15 s）它自己消失；返回 mode: \"automatic\"；未清掉才退 action=reload"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "探针新增 timeoutDialogActionable；不可点时 recommendedAction 改成 browser_session action=health（复探），点击超时也从默认 30 s 收到 5 s。 可复用教训见 onshape_docs/experience/browser-modeling.md §29.1。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 边界（本页不声明的东西）",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "不声明 Onshape 会话过期的时长：本页只记录两种状态与正确动作，没有测出间隔。",
+         "depth": 0
+        },
+        {
+         "text": "不声明 token 真实值：上表是估算（4 字符/token、CJK 1 字/token），宿主上没有 tokenizer 可校准。",
+         "depth": 0
+        },
+        {
+         "text": "mcp_tool_invoke 只保证「送达同一个 handler」，不保证目标工具在语义上适合被调用。",
+         "depth": 0
+        },
+        {
+         "text": "会话恢复后未再执行任何建模或写操作；本轮 0 次真实 REST 调用、0 次云端变更。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "7. 复现",
+     "blocks": [
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "# 离线：量测 + 全部测试\npython3 dev/tools/context_cost.py > onshape_docs/verification/context-cost-surfaces-2026-09-21.json\nPYTHONPATH=temp/browser-common-site python3 -m unittest discover -s dev/tests\n\n# 部署（Windows 宿主）\npython3 temp/deploy_refresh/deploy.py plan  --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py apply --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py verify --deployment-id <id>   # mismatched: []\n\n# 实机（0 REST）\n#   bridge_control restart → bridge_library expand\n#   mcp_tool_invoke {name: \"docs_list\"}\n#   browser_session action=health   （必要时 login → 再 health）"
       }
      ]
     }

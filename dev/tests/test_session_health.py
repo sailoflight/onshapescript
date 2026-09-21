@@ -235,5 +235,138 @@ class SessionHealthTest(unittest.TestCase):
         self.assertTrue(session.login_confirmed)
 
 
+class TimeoutDialogRecoveryTest(unittest.TestCase):
+    """The dialog's two states, measured live 2026-09-21.
+
+    After a bridge restart the dialog appeared with an EMPTY, unrendered link
+    (Onshape was already auto-reconnecting): `browser_session action=reconnect`
+    then burned a 30 s click timeout against an element that detached, while the
+    page cleared by itself and the next probe read `ok`. The probe must name the
+    right action for each state, and the reconnect action must not click a link
+    that cannot be clicked.
+    """
+
+    class DialogPage:
+        """A page whose dialog state is scripted, with no real clicking."""
+
+        def __init__(self, states, *, click_raises=None):
+            self._states = list(states)
+            self._click_raises = click_raises
+            self.url = "https://cad.onshape.com/documents/abc"
+            self.waits: list[int] = []
+            self.clicks = 0
+            self.evaluates = 0
+
+        def evaluate(self, js, *args):
+            self.evaluates += 1
+            return self._states[min(self.evaluates - 1, len(self._states) - 1)]
+
+        def wait_for_timeout(self, ms):
+            self.waits.append(ms)
+
+        def locator(self, selector):
+            if self._click_raises:
+                raise self._click_raises
+            outer = self
+
+            class Locator:
+                @property
+                def first(self):
+                    return self
+
+                def click(self, **kwargs):
+                    outer.clicks += 1
+
+            return Locator()
+
+    def test_a_non_actionable_dialog_recommends_a_reprobe_not_a_click(self):
+        result = health.classify(
+            {
+                "responded": True,
+                "timeoutDialogPresent": True,
+                "timeoutDialogActionable": False,
+                "timeoutDialogMessage": "未连接 Onshape。 正在尝试重新连接…",
+                "documentShellReady": True,
+            },
+            session_running=True,
+            on_onshape_app=True,
+            login_confirmed=True,
+        )
+        self.assertEqual(result["verdict"], health.SESSION_TIMEOUT_DIALOG)
+        self.assertEqual(result["recommendedAction"], "browser_session action=health")
+        self.assertIn("automatic-reconnect", result["note"])
+
+    def test_an_actionable_dialog_still_recommends_the_click(self):
+        result = health.classify(
+            {"responded": True, "timeoutDialogPresent": True, "timeoutDialogActionable": True},
+            session_running=True,
+            on_onshape_app=True,
+            login_confirmed=True,
+        )
+        self.assertEqual(result["recommendedAction"], "browser_session action=reconnect")
+
+    def test_reconnect_waits_out_a_dialog_that_clears_by_itself(self):
+        page = self.DialogPage([
+            {"present": True, "linkText": "", "actionable": False},
+            {"present": True, "linkText": "", "actionable": False},
+            {"present": False, "linkText": "", "actionable": False},
+        ])
+        from onshape_browser_mode.actions import reconnect_if_needed
+
+        result = reconnect_if_needed(page)
+        self.assertTrue(result["reconnected"])
+        self.assertEqual(result["mode"], "automatic")
+        self.assertEqual(result["waitedMs"], 2000)
+        self.assertEqual(page.clicks, 0)
+
+    def test_reconnect_does_not_click_a_link_that_cannot_be_clicked(self):
+        page = self.DialogPage([{"present": True, "linkText": "", "actionable": False}])
+        from onshape_browser_mode.actions import (
+            AUTOMATIC_RECONNECT_WAIT_MS,
+            reconnect_if_needed,
+        )
+
+        result = reconnect_if_needed(page)
+        self.assertFalse(result["reconnected"])
+        self.assertEqual(result["mode"], "automatic")
+        self.assertEqual(result["waitedMs"], AUTOMATIC_RECONNECT_WAIT_MS)
+        self.assertEqual(page.clicks, 0, "an unrendered link must never be clicked")
+        self.assertEqual(result["recommendedAction"], "browser_session action=reload")
+        self.assertIn("not clickable", result["reason"])
+
+    def test_reconnect_clicks_an_actionable_link_and_reports_the_mode(self):
+        page = self.DialogPage([
+            {"present": True, "linkText": "重新连接", "actionable": True},
+            {"present": False, "linkText": "", "actionable": False},
+        ])
+        from onshape_browser_mode.actions import reconnect_if_needed
+
+        result = reconnect_if_needed(page)
+        self.assertTrue(result["reconnected"])
+        self.assertEqual(result["mode"], "click")
+        self.assertEqual(page.clicks, 1)
+
+    def test_a_click_that_races_a_self_clearing_dialog_is_not_a_failure(self):
+        page = self.DialogPage([
+            {"present": True, "linkText": "重新连接", "actionable": True},
+            {"present": False, "linkText": "", "actionable": False},
+        ], click_raises=TimeoutError("locator.click: Timeout 5000ms exceeded"))
+        from onshape_browser_mode.actions import reconnect_if_needed
+
+        result = reconnect_if_needed(page)
+        self.assertTrue(result["reconnected"])
+        self.assertEqual(result["mode"], "automatic")
+        self.assertIn("cleared while", result["note"])
+
+    def test_a_gone_dialog_is_a_no_op(self):
+        page = self.DialogPage([{"present": False, "linkText": "", "actionable": False}])
+        from onshape_browser_mode.actions import reconnect_if_needed
+
+        result = reconnect_if_needed(page)
+        self.assertFalse(result["reconnected"])
+        self.assertEqual(result["reason"], "no timeout dialog")
+        self.assertEqual(page.clicks, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

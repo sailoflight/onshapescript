@@ -880,6 +880,33 @@ TV #gf_pitch = 42 mm 格距：相邻单元格中心距
 判决词表与实现同源（`onshape_browser_mode/health.py` 的 `_VERDICTS`），
 测试在 `dev/tests/test_session_health.py`（假页面、假会话，无浏览器无网络）。
 
+### 29.1 那个对话框有**两种**状态，点不点得动要分开判（同一次实测里修正）
+
+上面「只有被点击才生效」的表述**被实测推翻了一半**。桥重启后探针报
+`session_timeout_dialog` + `recommendedAction: browser_session action=reconnect`，照做后
+`locator.click` **30 s 超时**：元素 `.alert-link.osx-message-bubble-link` 在 DOM 里但
+**不可见、文本为空**（`linkText: ""`），对话框文案是
+`未连接 Onshape。 您的文档已保存。 正在尝试重新连接…`——Onshape **正在自己重连**。
+紧接着再探一次已是 `ok`（`roundTripMs: 4`，对话框消失，文档壳就绪）。
+
+所以两种状态必须分开：
+
+| 状态 | 判据 | 正确动作 |
+|---|---|---|
+| 链接可点 | 链接有布局盒（`getClientRects().length > 0`）且 `linkText` 非空 | 点击（原路径） |
+| 自动重连中 | 链接存在但不可见/无文本 | **等**：`action=reconnect` 有界轮询等它自己消失（`AUTOMATIC_RECONNECT_WAIT_MS` = 15 s），期间**绝不点击**；没清掉才退到 `action=reload` |
+
+落地改动（0 REST、0 云端变更）：
+
+- `timeout_dialog_state()` 增加 `actionable` 字段；健康探针增加
+  `timeoutDialogActionable`，且 `session_timeout_dialog` 遇到不可点链接时
+  `recommendedAction` 改成 `browser_session action=health`（先复探，而不是点击）。
+- `reconnect_if_needed()` 返回 `mode: "click" | "automatic"`；不可点走等待分支，
+  点击过程中对话框自己消失也算成功（`note` 说明），失败不再返回异常堆栈，而是给
+  `recommendedAction`。
+- 教训：**「推荐动作」本身也要真机检验**。检测器把状态判对了，却给了一个该状态下
+  物理上做不到的动作——这类缺陷离线测试不会报，只有照着做一次才会暴露。
+
 ## 30. 响应里的重复回显：把「验证证据」压成计数，但只压 MCP 那一层（实测 2026-09-21）
 
 `browser_delete_feature` 的响应里同一份 22 行名单出现了**四次**
