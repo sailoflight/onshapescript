@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "name": "gridfinity-4u-bin",
+  "description": "Gridfinity 4U-high bin (bin_h = 4 x 7 mm = 28 mm + 4.4 mm stacking lip = 32.4 mm overall) as a 23-row thin-feature tree in an existing Part Studio. Row groups: 7 Thin Variable -> 3 foot segments (45 deg flare profile 35.6/37.2/41.5) + body block -> cavity cut -> 3 stacking-lip cuts. Upstream authority: kennetek/gridfinity-rebuilt-openscad - GRID_DIMENSIONS_MM=[42,42], TOLLERANCE=0.02, BASE_PROFILE=[[0,0],[0.8,0.8],[0.8,2.6],[2.95,4.75]], BASE_HEIGHT=7, BASE_TOP_DIMENSIONS=[41.5,41.5], BASE_TOP_RADIUS=3.75, BASE_BOTTOM_RADIUS=0.8, STACKING_LIP_LINE=[[0,0],[0.7,0.7],[0.7,2.5],[2.6,4.4]] swept around the sharp wire grid_size_mm - 2*BASE_TOP_RADIUS = 34.0 with the profile translated by BASE_TOP_RADIUS - STACKING_LIP_SIZE.x = 1.15, hence the lip inner surface 36.3 (R1.15) -> 37.7 (R1.85) -> 41.5 (R3.75): the same family as the baseplate socket (36.3/37.7/42.0), which is what makes a foot drop into the lip. d_wall = 0.95 -> cavity 39.6 with internal fillet 2.8 = r_f2. Browser leg only, 0 Onshape REST quota. Analytic B-rep prediction: volume 14882.3969 mm^3, horizontal planes z = 0 / 7 / 28 (the lip top is a knife edge, so no top face), bbox X/Y +-20.75, Z 0..32.4. See onshape_docs/verification/gridfinity-4u-bin-2026-09-21.md.",
+  "steps": [
+    {
+      "id": "00-var-pitch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "gf_pitch", "value": "42 mm", "description": "格距：相邻单元格中心距" },
+        "expect_row": "#gf_pitch = 42 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "01-var-gap",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "gf_gap", "value": "0.5 mm", "description": "每单元总间隙（单侧 0.25）" },
+        "expect_row": "#gf_gap = 0.5 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "02-var-corner",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "corner_r", "value": "3.75 mm", "description": "盒体外圆角半径" },
+        "expect_row": "#corner_r = 3.75 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "03-var-base-h",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "base_h", "value": "7 mm", "description": "1U 底脚高（含加强段）" },
+        "expect_row": "#base_h = 7 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "04-var-bin-h",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "bin_h", "value": "#base_h * 4", "description": "4U 盒体高（含底脚）" },
+        "expect_row": "#bin_h = 28 mm",
+        "expect_values": { "value": "28 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "05-var-lip-h",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "lip_h", "value": "4.4 mm", "description": "堆叠唇高（位于盒体之上）" },
+        "expect_row": "#lip_h = 4.4 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "06-var-wall",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Variable",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "name": "wall_t", "value": "0.95 mm", "description": "壁厚（内圆角 2.8）" },
+        "expect_row": "#wall_t = 0.95 mm",
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "07-foot-bottom-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "0 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "35.6 mm",
+          "height": "35.6 mm",
+          "corner_radius": "0.8 mm"
+        },
+        "expect_values": { "width": "35.6 mm", "height": "35.6 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "08-foot-ramp-extrude",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "0.8 mm", "draft_angle": "45 deg" },
+        "expect_values": { "depth": "0.8 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "09-foot-lock-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "0.8 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "37.2 mm",
+          "height": "37.2 mm",
+          "corner_radius": "1.6 mm"
+        },
+        "expect_values": { "origin_z": "0.8 mm", "width": "37.2 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "10-foot-lock-extrude",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "1.8 mm" },
+        "expect_values": { "depth": "1.8 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "11-foot-flare-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "2.6 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "37.2 mm",
+          "height": "37.2 mm",
+          "corner_radius": "1.6 mm"
+        },
+        "expect_values": { "origin_z": "2.6 mm", "width": "37.2 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "12-foot-flare-extrude",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "2.15 mm", "draft_angle": "45 deg" },
+        "expect_values": { "depth": "2.15 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "13-body-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "4.75 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "#gf_pitch - #gf_gap",
+          "height": "#gf_pitch - #gf_gap",
+          "corner_radius": "#corner_r"
+        },
+        "expect_values": { "origin_z": "4.75 mm", "width": "41.5 mm", "height": "41.5 mm", "corner_radius": "3.75 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "14-body-extrude",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "#bin_h + #lip_h - 4.75 mm" },
+        "expect_values": { "depth": "27.65 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "15-cavity-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "#base_h",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "#gf_pitch - #gf_gap - 2 * #wall_t",
+          "height": "#gf_pitch - #gf_gap - 2 * #wall_t",
+          "corner_radius": "#corner_r - #wall_t"
+        },
+        "expect_values": { "origin_z": "7 mm", "width": "39.6 mm", "height": "39.6 mm", "corner_radius": "2.8 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "16-cavity-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "#bin_h - #base_h", "subtract": true },
+        "expect_values": { "depth": "21 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "17-lip-ramp-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "#bin_h",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "36.3 mm",
+          "height": "36.3 mm",
+          "corner_radius": "1.15 mm"
+        },
+        "expect_values": { "origin_z": "28 mm", "width": "36.3 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "18-lip-ramp-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "0.7 mm", "subtract": true, "draft_angle": "45 deg" },
+        "expect_values": { "depth": "0.7 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "19-lip-lock-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "28.7 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "37.7 mm",
+          "height": "37.7 mm",
+          "corner_radius": "1.85 mm"
+        },
+        "expect_values": { "origin_z": "28.7 mm", "width": "37.7 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "20-lip-lock-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "1.8 mm", "subtract": true },
+        "expect_values": { "depth": "1.8 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "21-lip-flare-sketch",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Sketch Rectangle",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": {
+          "origin_z": "30.5 mm",
+          "grid_x": 1,
+          "grid_y": 1,
+          "width": "37.7 mm",
+          "height": "37.7 mm",
+          "corner_radius": "1.85 mm"
+        },
+        "expect_values": { "origin_z": "30.5 mm", "width": "37.7 mm" },
+        "confirm_mutation": true
+      }
+    },
+    {
+      "id": "22-lip-flare-cut",
+      "tool": "browser_insert_custom_feature",
+      "args": {
+        "feature_name": "Thin Extrude",
+        "part_studio_tab": "GF 4U 盒子",
+        "parameters": { "depth": "1.9 mm", "subtract": true, "draft_angle": "45 deg" },
+        "expect_values": { "depth": "1.9 mm" },
+        "confirm_mutation": true
+      }
+    }
+  ]
+}
