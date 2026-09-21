@@ -168,22 +168,46 @@ debugging.
 ##### Compressed entry points (`ONSHAPE_MCP_TOOL_EXPOSURE=gateway`)
 
 For a client whose context budget matters more than a visible list, `gateway`
-advertises exactly two tools — `mcp_tool_catalog` and `mcp_tool_view` — while
-keeping every other registered name callable. The flow is:
+advertises a small declarative surface:
 
-1. `mcp_tool_catalog` with `action=search` and a short query. It searches the
-   complete registry and marks each summary `visibleInCurrentView: false`.
-2. `action=describe` with the exact name for its full schema.
-3. Call that exact name as a normal `tools/call`. The handler's own
-   `confirm_mutation`, dry-run, cost, and acceptance gates are what answer, so the
-   gateway changes only what is advertised.
+1. A discovery core — `mcp_tool_catalog` and `mcp_tool_view`.
+2. Curated representatives covering every category: `browser_session`,
+   `browser_get_page_tabs`, `browser_get_partstudio_features`,
+   `browser_insert_custom_feature`, `browser_deploy_featurescript`,
+   `browser_run_project`, `browser_discover_tools`, `browser_export_step`,
+   `docs_search`, `fs_search`, `onshape_api_search`, `onshape_api_quota`,
+   `onshape_geometry_status`.
+
+The curated names exist so ordinary work does not have to start with a lookup:
+retrieval is not free (a three-result `search` is ~6.8 kB, one modelling
+`describe` ~10.5 kB), which is why the surface is not search-only. When a lookup
+IS needed, prefer the cheap path:
+
+1. `mcp_tool_catalog` with `action=index` — one line per category (~1.3 kB). Add
+   `category=<browser|rest|rest_reference|featurescript|documentation|control>` to
+   get that category's tools as bounded `name -- purpose` lines, paging with
+   `offset` when the answer says `truncated`.
+2. `action=describe` with the exact name only when you need the full schema.
+3. Call any registered name as a normal `tools/call`, advertised or not. The
+   handler's own `confirm_mutation`, dry-run, cost, and acceptance gates are what
+   answer, so the gateway changes only what is advertised.
+
+Switch it on this host by copying
+`mcp_main/win/mcp/config/tool_views.local.toml.example` to
+`tool_views.local.toml` next to it and setting `mode = "gateway"` (delete the file
+to fall back to `semantic`); `ONSHAPE_MCP_TOOL_EXPOSURE` still wins over the file,
+and restart the MCP process to apply it.
 
 Measured (2026-09-21, `dev/tools/context_cost.py`, recorded in
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`): the same
-registry renders as 221,956 chars for 110 tools in `static`, 161,938 chars for 76
-tools in `semantic`, and 4,891 chars for 2 tools in `gateway` (a 45.4x and 33.1x
-reduction respectively). Use `semantic` instead when the client cannot call an
-unadvertised name.
+registry renders as 224,560 chars for 110 tools in `static`, 164,542 chars for 76
+tools in `semantic`, and 40,817 chars for 15 tools in `gateway` (5.5x and 4.0x
+smaller). Use `semantic` instead when the client cannot call an unadvertised name.
+
+Mutation answers are compacted on the same principle: a row list that would repeat
+the same Feature List several times is reported as a count, and
+`include_row_evidence=true` restores the full evidence on
+`browser_insert_custom_feature` and `browser_delete_feature`.
 
 #### Tool catalog search and description
 

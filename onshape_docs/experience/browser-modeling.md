@@ -879,3 +879,31 @@ TV #gf_pitch = 42 mm 格距：相邻单元格中心距
 按 `recommendedAction` 走；`reconnect`/`login` 才是会动手的动作，探针本身不动手。
 判决词表与实现同源（`onshape_browser_mode/health.py` 的 `_VERDICTS`），
 测试在 `dev/tests/test_session_health.py`（假页面、假会话，无浏览器无网络）。
+
+## 30. 响应里的重复回显：把「验证证据」压成计数，但只压 MCP 那一层（实测 2026-09-21）
+
+`browser_delete_feature` 的响应里同一份 22 行名单出现了**四次**
+（`featureRows` 枚举、`beforeRows` 前态、`afterRows` 后态、`rowScroll.rendered` 定位器自己
+解析出来的那份），`browser_insert_custom_feature` 则同时给了前态名单、后态名单和**整个**
+特征表读对象（实测回显占响应 37–44%：18,529/49,935、40,315/91,878 字符）。行列表本身
+不是判决，判决是 `deleted`/`inserted` 和计数——重复只是把同一份证据抄了几遍。
+
+**做法：在 `tool_result` 这一层投影，不在 handler 里删字段。**
+
+- 删掉的列表各留一个**计数**：`baselineRows`→`baselineRowCount`、
+  `featureRows`→`enumeratedRowCount`、`beforeRows`→`beforeRowCount`。计数保留了这些
+  重复字段当初存在的意义——「枚举行数」和「命名的行数」是两个不同的问题（第 24 节）。
+- 读对象只丢 `features.features`（逐行字典），保留就绪标量
+  （`headerCount`/`rowsComplete`/`ready`/`headerText`）并补 `featureCount` 与
+  `erroredRows`（**出错行的名字必须留**，那是唯一只能从这个列表拿到的信号）。
+- `include_row_evidence=true` 原样返回完整证据；响应里带 `rowEvidence.compacted` 说明
+  压了什么，绝不静默。
+- **只压 MCP 响应这一层**：handler 的返回值一字不改，所以项目 runner 与离线测试读到的
+  仍是完整证据（runner 直接走 `BROWSER_HANDLERS`，不经过 `tool_result`）。
+
+实测（合成同规模数据，真实行字典更大所以真实收益更高）：insert −50%、delete −37%。
+测试 `dev/tests/test_row_evidence_compaction.py`（含「原对象未被就地修改」与
+「显式 `include_row_evidence` 与完整证据逐字节相等」两条）。
+
+**一般规则：给模型看的是「判决 + 计数」，给机器看的是完整证据；两层分开，别为了省 token
+去改下层返回值。**

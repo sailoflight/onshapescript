@@ -78,29 +78,29 @@
   ],
   "toolSurfaces": {
     "registry": {
-      "chars": 221956,
-      "estimatedTokens": 55546,
+      "chars": 224560,
+      "estimatedTokens": 56197,
       "toolCount": 110
     },
     "modes": {
       "semantic": {
-        "chars": 161938,
-        "estimatedTokens": 40525,
+        "chars": 164542,
+        "estimatedTokens": 41176,
         "toolCount": 76
       },
       "gateway": {
-        "chars": 4891,
-        "estimatedTokens": 1223,
-        "toolCount": 2
+        "chars": 40817,
+        "estimatedTokens": 10224,
+        "toolCount": 15
       },
       "static": {
-        "chars": 221956,
-        "estimatedTokens": 55546,
+        "chars": 224560,
+        "estimatedTokens": 56197,
         "toolCount": 110
       },
       "dynamic": {
-        "chars": 161938,
-        "estimatedTokens": 40525,
+        "chars": 164542,
+        "estimatedTokens": 41176,
         "toolCount": 76
       }
     },
@@ -108,7 +108,7 @@
       "chars": 3183,
       "estimatedTokens": 796
     },
-    "compressionRatio": 45.38,
+    "compressionRatio": 5.5,
     "gatewayHiddenNamesStillCallable": true
   }
 }

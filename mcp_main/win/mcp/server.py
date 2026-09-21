@@ -15,6 +15,7 @@ from mcp_main.win.mcp.identity import PROTOCOL_VERSION, SERVER_NAME, SERVER_VERS
 from mcp_main.win.mcp.runtime_prompt import RUNTIME_PROMPT
 from mcp_main.win.mcp.tool_catalog import (
     DEFAULT_SEARCH_RESULTS,
+    MAX_INDEX_RESULTS,
     MAX_SEARCH_RESULTS,
     VALID_MODULES,
     VALID_NETWORKS,
@@ -1517,19 +1518,29 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": True,
         },
         "description": (
-            "Search and describe the complete authoritative MCP tool registry without expanding tools/list. "
+            "Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. "
             "The index is built once after registration. search is bounded and never returns input schemas; "
             "a query that names a CAD feature also returns matching whole-feature capability cards with the "
             "browser_deploy_and_apply_featurescript call that uses one; "
             "describe requires one exact tool name and returns its full current schema, cost, annotations, profiles, "
             "semantic metadata, conservative concurrency contract, and current-view visibility. status reports that "
-            "classification does not provide multi-call workflow isolation. Catalog visibility and concurrency "
-            "classification are discovery conventions only and do not grant or restrict execution authority."
+            "classification does not provide multi-call workflow isolation. "
+            "index is the cheap map: with no category it returns one line per category (count plus purpose), and "
+            "with a category it returns that category's tools as bounded 'name -- purpose' lines -- no schemas, no "
+            "concurrency blocks. Prefer index for orientation and describe for one exact schema, because a "
+            "three-result search carries three full contracts and can cost more than the list it was meant to avoid. "
+            "Catalog visibility and concurrency classification are discovery conventions only and do not grant or "
+            "restrict execution authority."
         ),
         "inputSchema": object_schema({
-            "action": {"type": "string", "enum": ["status", "search", "describe"], "default": "status"},
+            "action": {"type": "string", "enum": ["status", "search", "describe", "index"], "default": "status"},
             "query": {"type": "string", "maxLength": 200, "default": ""},
             "name": {"type": "string", "description": "Exact registered tool name for action=describe."},
+            "category": {
+                "type": "string",
+                "enum": list(VALID_MODULES),
+                "description": "action=index: return this category's lines instead of the category summary.",
+            },
             "modules": {
                 "type": "array",
                 "items": {"type": "string", "enum": list(VALID_MODULES)},
@@ -1551,11 +1562,21 @@ TOOLS: list[dict[str, Any]] = [
             "network": {"type": "string", "enum": list(VALID_NETWORKS)},
             "mutating": {"type": "boolean"},
             "visible_only": {"type": "boolean", "default": False},
+            "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0,
+                "description": "action=index: skip this many lines; the answer reports nextOffset when truncated.",
+            },
             "limit": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": MAX_SEARCH_RESULTS,
+                "maximum": max(MAX_SEARCH_RESULTS, MAX_INDEX_RESULTS),
                 "default": DEFAULT_SEARCH_RESULTS,
+                "description": (
+                    "action=search: results, at most "
+                    f"{MAX_SEARCH_RESULTS}. action=index: lines per category, at most {MAX_INDEX_RESULTS}."
+                ),
             },
         }),
         "annotations": {
@@ -2951,6 +2972,17 @@ TOOLS: list[dict[str, Any]] = [
                 "default": False,
                 "description": "Return the transaction plan without opening the browser or writing anything.",
             },
+            "include_row_evidence": {
+                "type": "boolean",
+                "default": False,
+"description": (
+                    "Return the full Feature-List evidence: every pre-state row list and the whole "
+                    "read object. The default answer is compact -- one canonical row set plus the "
+                    "counts it replaced (an insert response was 37-44% duplicated row evidence) -- "
+                    "and the counts preserve the distinction the duplicates existed for. Set true "
+                    "only when debugging the row echo itself."
+                ),
+            },
             "verify_commit": {
                 "type": "boolean",
                 "default": True,
@@ -3211,7 +3243,7 @@ HANDLERS: dict[str, ToolHandler] = {
 }
 
 
-from mcp_main.win.mcp.browser_tools import install as _install_browser_tools
+from mcp_main.win.mcp.browser_tools import compact_row_evidence, install as _install_browser_tools
 
 
 def _complete_cost_metadata(tools: list[dict[str, Any]]) -> None:
@@ -3280,6 +3312,11 @@ def tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"Unknown tool: {name}") from error
     try:
         value = handler(arguments)
+        # The MCP response boundary is the ONE place the row evidence is
+        # projected, so a mutation answer does not repeat the same Feature List
+        # three or four times while the handler's own return value -- which the
+        # project runner and the offline tests read -- stays complete.
+        value = compact_row_evidence(name, value, arguments)
         if name == "onshape_render_preview" and value.get("base64"):
             encoded = value.pop("base64")
             return {

@@ -22,6 +22,101 @@ DRAWING_SURVIVOR = "browser_draw_part_with_views"
 # to call, and the transport calls it. See browser_invoke_discovered.
 INVOKE_SURVIVOR = "mcp_tool_catalog"
 
+#: Opt-in for the FULL Feature List evidence. The default response keeps one
+#: canonical row list plus the counts; the duplicates below are what made an
+#: insert response 37-44% larger than the decision it reports (measured
+#: 2026-09-21: 18,529 of 49,935 and 40,315 of 91,878 characters) and what made a
+#: delete repeat the same 22 row names four times.
+ROW_EVIDENCE_ARGUMENT = "include_row_evidence"
+
+#: Per tool: the duplicated list fields to replace with their counts, and the
+#: embedded read object whose per-row dicts collapse to a summary. Keeping the
+#: counts preserves the distinction the duplicates existed to make (an
+#: enumeration count versus a named-row count), without shipping the rows twice.
+#: The handler's OWN return value is untouched -- this projection happens once,
+#: at the MCP response boundary, so the project runner and every internal caller
+#: still see the complete evidence.
+ROW_ECHO_PROJECTIONS: dict[str, dict[str, Any]] = {
+    "browser_insert_custom_feature": {
+        "counted": {"baselineRows": "baselineRowCount"},
+        "read_echo": "features",
+    },
+    "browser_delete_feature": {
+        "counted": {
+            "featureRows": "enumeratedRowCount",
+            "beforeRows": "beforeRowCount",
+        },
+        # The row resolver reports the very list it resolved against, so the
+        # post-state list is the fourth copy of the same 22 names.
+        "nested": {"rowScroll": ["rendered"]},
+        "read_echo": None,
+    },
+}
+
+
+def compact_row_evidence(name: str, value: Any, arguments: dict[str, Any]) -> Any:
+    """Project one mutation result down to a single copy of the row evidence.
+
+    Opt-in, not lossy by default: every dropped list leaves a count behind, the
+    read object keeps its readiness scalars plus the names of any row in ERROR,
+    and `include_row_evidence=true` restores the untouched answer.
+    """
+    policy = ROW_ECHO_PROJECTIONS.get(name)
+    if policy is None or not isinstance(value, dict):
+        return value
+    if arguments.get(ROW_EVIDENCE_ARGUMENT) is True:
+        return value
+    dropped: list[str] = []
+    compact = dict(value)
+    for key, count_key in policy["counted"].items():
+        if key not in compact:
+            continue
+        rows = compact.pop(key)
+        if count_key not in compact:
+            compact[count_key] = len(rows) if isinstance(rows, list) else None
+        dropped.append(key)
+    for parent, keys in (policy.get("nested") or {}).items():
+        section = compact.get(parent)
+        if not isinstance(section, dict):
+            continue
+        trimmed = dict(section)
+        for key in keys:
+            if key in trimmed:
+                trimmed.pop(key)
+                dropped.append(f"{parent}.{key}")
+        compact[parent] = trimmed
+    read_key = policy["read_echo"]
+    if read_key:
+        read = compact.get(read_key)
+        if isinstance(read, dict):
+            rows = read.get("features")
+            summary = {key: item for key, item in read.items() if key != "features"}
+            summary["featureCount"] = len(rows) if isinstance(rows, list) else None
+            summary["erroredRows"] = (
+                [
+                    row.get("name")
+                    for row in rows
+                    if isinstance(row, dict) and row.get("hasError")
+                ]
+                if isinstance(rows, list)
+                else []
+            )
+            compact[read_key] = summary
+            dropped.append(f"{read_key}.features")
+    if not dropped:
+        return compact
+    compact["rowEvidence"] = {
+        "compacted": True,
+        "replaced": dropped,
+        "note": (
+            "Lists that repeat one canonical row set are reported as counts; the "
+            "read object keeps its readiness scalars and errored row names. Pass "
+            f"{ROW_EVIDENCE_ARGUMENT}=true for the full evidence."
+        ),
+    }
+    return compact
+
+
 
 def _confirm(arguments: dict[str, Any]) -> None:
     if arguments.get("confirm_mutation") is not True:
@@ -1500,7 +1595,7 @@ BROWSER_TOOLS = [
     _tool("browser_create_drawing", "Create a Drawing from a named Part Studio or Assembly, select an optional template, and verify the drawing frame.", {"source_tab": {"type": "string"}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["source_tab"]),
     _tool("browser_add_drawing_dimension", "Deprecated compatibility wrapper: use browser_draw_part_with_views with a one-entry dimensions array (flat tool/geometry/placement arguments are normalized the same way). Kept so an existing caller keeps working; it runs a DOM-selector or canvas-coordinate dimension gesture inside the cross-origin Drawing frame and verifies a selector-count or canvas-image change.", {**_DIMENSION_PROPERTIES, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20),
     _tool("browser_delete_element", "Delete a visible document element by its tab data-id and verify that the tab disappears.", {"element_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=20, required=["element_id"], destructive=True),
-    _tool("browser_delete_feature", "Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. Zero REST API quota. It is the only way to undo a row that a refused, interrupted, or relay-timed-out insert left behind (measured live 2026-09-21: an insert whose confirmation reload outlived the transport budget was reported as a timeout while the accept HAD landed, leaving a duplicate row that no other tool can remove). Identity is exact, or it refuses: the row is chosen by position from one enumeration of the user-feature rows, feature_name must match exactly one row (exact text first, the shared substring rule only as a fallback), and the context-menu item is clicked only when exactly one visible label equals a bounded delete label. Pass occurrence (1-based) only when several rows carry the SAME text -- two identical rows cannot be told apart by a name, and a variable row inserted twice is exactly that case; the choice is then by position in the enumerated list and the row at that position must still carry the name. Every visible menu label is returned as menuItems either way, so a differently-worded menu is diagnosed from evidence instead of a guessed click.", {"feature_name": {"type": "string", "description": "Visible user feature row name; must match exactly one row unless occurrence is given."}, "occurrence": {"type": "integer", "minimum": 1, "description": "1-based occurrence among rows whose text equals feature_name, for a name that several identical rows share; omit to require exactly one match."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"], destructive=True),
+    _tool("browser_delete_feature", "Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. Zero REST API quota. It is the only way to undo a row that a refused, interrupted, or relay-timed-out insert left behind (measured live 2026-09-21: an insert whose confirmation reload outlived the transport budget was reported as a timeout while the accept HAD landed, leaving a duplicate row that no other tool can remove). Identity is exact, or it refuses: the row is chosen by position from one enumeration of the user-feature rows, feature_name must match exactly one row (exact text first, the shared substring rule only as a fallback), and the context-menu item is clicked only when exactly one visible label equals a bounded delete label. Pass occurrence (1-based) only when several rows carry the SAME text -- two identical rows cannot be told apart by a name, and a variable row inserted twice is exactly that case; the choice is then by position in the enumerated list and the row at that position must still carry the name. Every visible menu label is returned as menuItems either way, so a differently-worded menu is diagnosed from evidence instead of a guessed click.", {"feature_name": {"type": "string", "description": "Visible user feature row name; must match exactly one row unless occurrence is given."}, "occurrence": {"type": "integer", "minimum": 1, "description": "1-based occurrence among rows whose text equals feature_name, for a name that several identical rows share; omit to require exactly one match."}, "include_row_evidence": {"type": "boolean", "default": False, "description": "Return the full Feature-List evidence: the enumeration rows and the pre-state row list. The default answer is compact -- one canonical post-state row set plus the counts it replaced -- because the delete response otherwise repeated the same row names four times."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"], destructive=True),
     _tool("browser_deploy_and_apply_featurescript", "Ensure Feature/Part Studios, deploy and verify source, apply the named custom feature, and return part acceptance data. Supply either a raw `script`, or a `capability` with bounded `values` and no script; a capability generates its own source, name, and local check.", {"script": {"type": "string"}, "capability": {"type": "string", "description": "Capability id or alias, e.g. custom.fillet or 圆角. Mutually exclusive with script."}, "values": {"type": "object", "description": "Bounded capability values; unknown names and out-of-range numbers are refused."}, "feature_name": {"type": "string"}, "feature_studio_tab": {"type": "string", "default": "Feature Studio 1"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "apply": {"type": "boolean", "default": True}, "create_version": {"type": "boolean", "default": True}, "version_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM, fs_check.ACKNOWLEDGEMENT_ARGUMENT: _ACKNOWLEDGE}, mutating=True, seconds=90, required=[], destructive=True, schema_extra={"anyOf": [{"required": ["script", "feature_name"]}, {"required": ["capability"]}]}),
     _tool("browser_build_part", "Ensure a Part Studio, apply a custom feature, and return normalized part count and names.", {"feature_name": {"type": "string"}, "part_studio_tab": {"type": "string", "default": "Part Studio 1"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=45, required=["feature_name"]),
     _tool("browser_assemble", "Ensure an Assembly, insert named instances, optionally fix/group them, and return visibility state.", {"instance_names": _STRING_ARRAY, "source_names": {**_STRING_ARRAY, "description": "Insert-dialog source names; defaults to instance_names."}, "assembly_tab": {"type": "string", "default": "Assembly 1"}, "instance_selector": {"type": "string", "description": "CSS selector scoped to Assembly instance rows."}, "fix": {"type": "boolean", "default": False}, "group": {"type": "boolean", "default": False}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=75, required=["instance_names", "instance_selector"]),

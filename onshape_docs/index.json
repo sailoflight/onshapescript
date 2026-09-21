@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "3fb82ea8d7002562f02dc8e1ae00509d636c7cbda576d2740c029fb4edb990ff",
+   "sha256": "087c1abc07a6b9b5a75bbd37dedfe07dd0070b3cee8a0307832e7e64475b7b83",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -723,28 +723,53 @@
      "blocks": [
       {
        "type": "para",
-       "text": "For a client whose context budget matters more than a visible list, gateway advertises exactly two tools — mcp_tool_catalog and mcp_tool_view — while keeping every other registered name callable. The flow is:"
+       "text": "For a client whose context budget matters more than a visible list, gateway advertises a small declarative surface:"
       },
       {
        "type": "list",
        "items": [
         {
-         "text": "mcp_tool_catalog with action=search and a short query. It searches the complete registry and marks each summary visibleInCurrentView: false.",
+         "text": "A discovery core — mcp_tool_catalog and mcp_tool_view.",
          "depth": 0
         },
         {
-         "text": "action=describe with the exact name for its full schema.",
-         "depth": 0
-        },
-        {
-         "text": "Call that exact name as a normal tools/call. The handler's own confirm_mutation, dry-run, cost, and acceptance gates are what answer, so the gateway changes only what is advertised.",
+         "text": "Curated representatives covering every category: browser_session, browser_get_page_tabs, browser_get_partstudio_features, browser_insert_custom_feature, browser_deploy_featurescript, browser_run_project, browser_discover_tools, browser_export_step, docs_search, fs_search, onshape_api_search, onshape_api_quota, onshape_geometry_status.",
          "depth": 0
         }
        ]
       },
       {
        "type": "para",
-       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the same registry renders as 221,956 chars for 110 tools in static, 161,938 chars for 76 tools in semantic, and 4,891 chars for 2 tools in gateway (a 45.4x and 33.1x reduction respectively). Use semantic instead when the client cannot call an unadvertised name."
+       "text": "The curated names exist so ordinary work does not have to start with a lookup: retrieval is not free (a three-result search is ~6.8 kB, one modelling describe ~10.5 kB), which is why the surface is not search-only. When a lookup IS needed, prefer the cheap path:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "mcp_tool_catalog with action=index — one line per category (~1.3 kB). Add category=<browser|rest|rest_reference|featurescript|documentation|control> to get that category's tools as bounded name -- purpose lines, paging with offset when the answer says truncated.",
+         "depth": 0
+        },
+        {
+         "text": "action=describe with the exact name only when you need the full schema.",
+         "depth": 0
+        },
+        {
+         "text": "Call any registered name as a normal tools/call, advertised or not. The handler's own confirm_mutation, dry-run, cost, and acceptance gates are what answer, so the gateway changes only what is advertised.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Switch it on this host by copying mcp_main/win/mcp/config/tool_views.local.toml.example to tool_views.local.toml next to it and setting mode = \"gateway\" (delete the file to fall back to semantic); ONSHAPE_MCP_TOOL_EXPOSURE still wins over the file, and restart the MCP process to apply it."
+      },
+      {
+       "type": "para",
+       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the same registry renders as 224,560 chars for 110 tools in static, 164,542 chars for 76 tools in semantic, and 40,817 chars for 15 tools in gateway (5.5x and 4.0x smaller). Use semantic instead when the client cannot call an unadvertised name."
+      },
+      {
+       "type": "para",
+       "text": "Mutation answers are compacted on the same principle: a row list that would repeat the same Feature List several times is reported as a count, and include_row_evidence=true restores the full evidence on browser_insert_custom_feature and browser_delete_feature."
       }
      ]
     },
@@ -3224,7 +3249,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "412cba85ce1544ed79c121e80f41b862e450b25e1a631d2e0502361e9001ab2b",
+   "sha256": "11a3d955efe7f6296eff9c6e0c181dbe871313afbc1c72bdc796e3c9093fb03e",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -4528,6 +4553,49 @@
       {
        "type": "para",
        "text": "规则：长流程之前、或某次浏览器调用看起来不对时，先 action=health 一次， 按 recommendedAction 走；reconnect/login 才是会动手的动作，探针本身不动手。 判决词表与实现同源（onshape_browser_mode/health.py 的 _VERDICTS）， 测试在 dev/tests/test_session_health.py（假页面、假会话，无浏览器无网络）。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "30. 响应里的重复回显：把「验证证据」压成计数，但只压 MCP 那一层（实测 2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "browser_delete_feature 的响应里同一份 22 行名单出现了四次 （featureRows 枚举、beforeRows 前态、afterRows 后态、rowScroll.rendered 定位器自己 解析出来的那份），browser_insert_custom_feature 则同时给了前态名单、后态名单和整个 特征表读对象（实测回显占响应 37–44%：18,529/49,935、40,315/91,878 字符）。行列表本身 不是判决，判决是 deleted/inserted 和计数——重复只是把同一份证据抄了几遍。"
+      },
+      {
+       "type": "para",
+       "text": "做法：在 tool_result 这一层投影，不在 handler 里删字段。"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "删掉的列表各留一个计数：baselineRows→baselineRowCount、 featureRows→enumeratedRowCount、beforeRows→beforeRowCount。计数保留了这些 重复字段当初存在的意义——「枚举行数」和「命名的行数」是两个不同的问题（第 24 节）。",
+         "depth": 0
+        },
+        {
+         "text": "读对象只丢 features.features（逐行字典），保留就绪标量 （headerCount/rowsComplete/ready/headerText）并补 featureCount 与 erroredRows（出错行的名字必须留，那是唯一只能从这个列表拿到的信号）。",
+         "depth": 0
+        },
+        {
+         "text": "include_row_evidence=true 原样返回完整证据；响应里带 rowEvidence.compacted 说明 压了什么，绝不静默。",
+         "depth": 0
+        },
+        {
+         "text": "只压 MCP 响应这一层：handler 的返回值一字不改，所以项目 runner 与离线测试读到的 仍是完整证据（runner 直接走 BROWSER_HANDLERS，不经过 tool_result）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "实测（合成同规模数据，真实行字典更大所以真实收益更高）：insert −50%、delete −37%。 测试 dev/tests/test_row_evidence_compaction.py（含「原对象未被就地修改」与 「显式 include_row_evidence 与完整证据逐字节相等」两条）。"
+      },
+      {
+       "type": "para",
+       "text": "一般规则：给模型看的是「判决 + 计数」，给机器看的是完整证据；两层分开，别为了省 token 去改下层返回值。"
       }
      ]
     }
@@ -10984,7 +11052,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "295f6acee58a7217050a0ee7b755b3e4790c37bcb13562351012298fa8817b0f",
+   "sha256": "8d3c1a6d56049596b2d8b4b8d92812da7990718bd1515903fda35a7ff934d3d0",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -11770,7 +11838,7 @@
          "-",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Search and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never returns in..."
+         "Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never retu..."
         ],
         [
          "mcp_tool_view",

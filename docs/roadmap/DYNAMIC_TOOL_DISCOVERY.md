@@ -156,18 +156,33 @@ Preserve explicit modes:
 - `profile` (implemented): fixed `ONSHAPE_MCP_TOOL_PROFILE` selected at connection startup.
 - `dynamic` (implemented): per-connection `mcp_tool_view` state plus
   `notifications/tools/list_changed` after an effective set/reset.
-- `gateway` (implemented 2026-09-21): advertises **two** tools — `mcp_tool_catalog`
-  and `mcp_tool_view` — and nothing else. The catalog still indexes the complete
-  registry, so a bounded search returns every candidate with
-  `visibleInCurrentView: false` and `knownNameCallAvailable: true`; the caller
-  then calls the exact registered name, which resolves through `HANDLERS` with no
-  view filter and passes the same confirmation, cost, dry-run, and acceptance
-  gates. Measured with `dev/tools/context_cost.py` and recorded in
-  `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`: the same
-  registry renders as 221,956 chars / 110 tools in `static`, 161,938 chars / 76
-  tools in `semantic`, and 4,891 chars / 2 tools in `gateway` — a 45.4x
-  reduction against the registry and 33.1x against the default view, with no tool
-  made unreachable.
+- `gateway` (implemented 2026-09-21): advertises a small **declarative** surface —
+  a discovery core (`mcp_tool_catalog`, `mcp_tool_view`) plus curated
+  representatives covering every category (session, tabs, feature read/write,
+  FeatureScript deploy, runner, capability discovery, STEP export, project docs,
+  FeatureScript reference, REST reference, quota, geometry status). Every other
+  registered name stays callable by exact name and passes the same confirmation,
+  cost, dry-run, and acceptance gates.
+
+The curated set exists because **retrieval is not free**: a three-result catalog
+`search` measures ~6.8 kB (each summary carries its full concurrency and
+confirmation contract) and one modelling `describe` ~10.5 kB, so a surface that
+listed only search would make the ordinary task pay a lookup it does not need. For
+the same reason the catalog gained `action=index`: one line per category
+(~1.3 kB), or one bounded page of `name -- purpose` lines for a named category,
+with no schemas and no concurrency blocks. Measured with
+`dev/tools/context_cost.py` and recorded in
+`onshape_docs/verification/context-cost-surfaces-2026-09-21.json`: the same
+registry renders as 224,560 chars / 110 tools in `static`, 164,542 chars / 76
+tools in `semantic`, and 40,817 chars / 15 tools in `gateway` — 5.5x smaller than
+the registry and 4.0x smaller than the default view, with no tool made
+unreachable.
+
+The mode is switchable **inside this product**: `mcp_main/win/mcp/config/`
+`tool_views.local.toml` (gitignored, with a tracked `.example`) sets the mode on a
+host whose launcher is an external bridge that owns the child environment.
+Precedence is an explicit argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then that
+file, then `semantic`.
 
 The gateway mode deliberately adds **no registry row**: the audit already merged
 `browser_invoke_discovered` with the reason "any registered tool can be called by
@@ -175,6 +190,18 @@ exact name even when the current view hides it, so a separate invoker adds a hop
 without adding capability". It compresses the advertised list, not the capability
 set, so a client that cannot call an unadvertised name should keep `semantic`
 rather than add an invoker.
+
+**Response side.** The same token audit applies to a mutation ANSWER, not only to
+the tool list. A delete used to repeat one row set four times (enumeration,
+pre-state names, post-state names, and the resolver's own resolved list) and an
+insert returned the pre-insert rows, the post-insert rows and the whole read
+object — measured 2026-09-21 at 18,529 of 49,935 and 40,315 of 91,878 characters.
+Those lists are now reported as counts at the MCP response boundary, with the read
+object's readiness scalars and errored row names kept, and
+`include_row_evidence=true` restores the full answer for debugging
+(`dev/tests/test_row_evidence_compaction.py`). The handler's own return value is
+unchanged, so the project runner and the offline tests still read complete
+evidence.
 
 The fixed gateway remains the compatibility baseline for clients that do not
 refresh tool lists. Dynamic mode advertises `tools.listChanged=true`; semantic,

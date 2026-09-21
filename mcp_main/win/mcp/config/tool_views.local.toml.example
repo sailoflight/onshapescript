@@ -1,0 +1,10 @@
+# Host-local tool-view overrides (OPTIONAL). Copy to `tool_views.local.toml` in
+# this directory to switch this MACHINE's exposure without editing the bridge's
+# registration or the child environment.
+#
+# Precedence: an explicit argument, then ONSHAPE_MCP_TOOL_EXPOSURE, then this
+# file, then the built-in default (`semantic`).
+#
+# [exposure]
+# mode = "gateway"      # semantic | static | profile | dynamic | gateway
+# profile = "default"   # only used by the profile and dynamic modes

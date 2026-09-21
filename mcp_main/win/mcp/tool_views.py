@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -10,15 +12,53 @@ CATALOG_TOOL_NAME = "mcp_tool_catalog"
 CONTROL_TOOL_NAMES = frozenset({CONTROL_TOOL_NAME, CATALOG_TOOL_NAME})
 VALID_EXPOSURE_MODES = ("semantic", "static", "profile", "dynamic", "gateway")
 
-#: The complete advertised surface of the `gateway` exposure mode: discovery plus
-#: the view status. Everything else in the registry stays REACHABLE by its exact
-#: registered name -- `tools/call` resolves a name through `HANDLERS` with no view
-#: filter (pinned by `test_hidden_known_name_tool_remains_callable`) -- so this
-#: mode compresses the LISTED surface by three orders of magnitude without
-#: removing a single capability. That is why it needs no new registry row: the
-#: `browser_invoke_discovered` merge already established that a separate invoker
-#: "adds a hop without adding capability" (docs/architecture/TOOL_SURFACE_AUDIT.md).
-GATEWAY_TOOL_NAMES = frozenset({CATALOG_TOOL_NAME, CONTROL_TOOL_NAME})
+#: Host-local switch for the exposure mode, in the same shape as the other
+#: module-local configurations (`<name>.toml` in the module's `config/`
+#: directory, overridden by a gitignored `<name>.local.toml`). It exists because
+#: the ordinary deployment is launched by an external bridge whose registration
+#: owns the child environment: a mode an operator cannot set without editing
+#: someone else's registry is not really configurable. Precedence is explicit
+#: argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then `semantic`.
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
+LOCAL_CONFIG_PATH = CONFIG_DIR / "tool_views.local.toml"
+
+#: The `gateway` mode's always-listed core: discovery plus the view status.
+GATEWAY_CORE_TOOL_NAMES = frozenset({CATALOG_TOOL_NAME, CONTROL_TOOL_NAME})
+
+#: The `gateway` mode's curated representatives, one or two per category. The
+#: point of listing these is that retrieval is NOT cheap: a three-result catalog
+#: `search` measures ~6,800 characters and one modelling `describe` ~10,500,
+#: because a summary carries its full concurrency and confirmation contract. So a
+#: mode that listed only search would make the common case (build or inspect a
+#: model) pay a lookup it does not need. These names cover the ordinary work;
+#: `category` keeps two or more of a kind reachable by exact name.
+#:
+#: Nothing here narrows authority: every entry is an ordinary registered tool
+#: whose own confirmation, cost, dry-run and acceptance gates still answer.
+GATEWAY_CURATED_TOOL_NAMES = (
+    # session and observation
+    "browser_session",
+    "browser_get_page_tabs",
+    # read and write the model
+    "browser_get_partstudio_features",
+    "browser_insert_custom_feature",
+    # FeatureScript and the runner
+    "browser_deploy_featurescript",
+    "browser_run_project",
+    # discovered capabilities and deliverables
+    "browser_discover_tools",
+    "browser_export_step",
+    # offline references
+    "docs_search",
+    "fs_search",
+    "onshape_api_search",
+    # cost and host state
+    "onshape_api_quota",
+    "onshape_geometry_status",
+)
+
+GATEWAY_TOOL_NAMES = GATEWAY_CORE_TOOL_NAMES | set(GATEWAY_CURATED_TOOL_NAMES)
+
 VALID_PROFILES = (
     "default",
     "browser",
@@ -78,8 +118,37 @@ ABSORBED_COMPATIBILITY_TOOLS = frozenset({
 })
 
 
+def local_config() -> dict[str, Any]:
+    """The optional host-local overrides, or {} when the file is absent.
+
+    A malformed file is a real configuration error and raises: silently falling
+    back to the default would leave an operator believing the switch took effect.
+    """
+    if not LOCAL_CONFIG_PATH.is_file():
+        return {}
+    with LOCAL_CONFIG_PATH.open("rb") as handle:
+        document = tomllib.load(handle)
+    if not isinstance(document, dict):
+        raise ValueError(f"{LOCAL_CONFIG_PATH} must contain a TOML table")
+    return document
+
+
+def _local_section(name: str) -> dict[str, Any]:
+    section = local_config().get(name, {})
+    if not isinstance(section, dict):
+        raise ValueError(f"{LOCAL_CONFIG_PATH}: [{name}] must be a table")
+    return section
+
+
 def exposure_mode(value: str | None = None) -> str:
-    mode = (value if value is not None else os.environ.get("ONSHAPE_MCP_TOOL_EXPOSURE", "semantic"))
+    if value is not None:
+        mode = value
+    elif "ONSHAPE_MCP_TOOL_EXPOSURE" in os.environ:
+        mode = os.environ["ONSHAPE_MCP_TOOL_EXPOSURE"]
+    else:
+        mode = _local_section("exposure").get("mode", "semantic")
+    if not isinstance(mode, str):
+        raise ValueError("the exposure mode must be a string")
     mode = mode.strip().lower()
     if mode not in VALID_EXPOSURE_MODES:
         allowed = ", ".join(VALID_EXPOSURE_MODES)
@@ -88,12 +157,20 @@ def exposure_mode(value: str | None = None) -> str:
 
 
 def startup_profile(value: str | None = None) -> str:
-    profile = (value if value is not None else os.environ.get("ONSHAPE_MCP_TOOL_PROFILE", "default"))
+    if value is not None:
+        profile = value
+    elif "ONSHAPE_MCP_TOOL_PROFILE" in os.environ:
+        profile = os.environ["ONSHAPE_MCP_TOOL_PROFILE"]
+    else:
+        profile = _local_section("exposure").get("profile", "default")
+    if not isinstance(profile, str):
+        raise ValueError("the startup profile must be a string")
     profile = profile.strip().lower()
     if profile not in VALID_PROFILES:
         allowed = ", ".join(VALID_PROFILES)
         raise ValueError(f"ONSHAPE_MCP_TOOL_PROFILE must be one of: {allowed}")
     return profile
+
 
 
 def _semantic_record(name: str) -> Any:
@@ -209,12 +286,18 @@ class ToolViewState:
         if self.mode == "static":
             return self.tools
         if self.mode == "gateway":
-            # The compressed entry points, and only those. `mcp_tool_catalog`
-            # indexes the COMPLETE registry (built once from `tools`), so a
-            # search still returns every candidate and marks it `visible: false`;
-            # the caller then calls it by exact name. Hiding is context routing,
-            # never authority: no handler gate is skipped and no tool is lost.
-            return [tool for tool in self.tools if tool["name"] in GATEWAY_TOOL_NAMES]
+            # The core plus the curated representatives, in the order they are
+            # declared here rather than registry order: the list is a routing
+            # surface, and grouping it by what a caller does next is the whole
+            # reason it is small. Every OTHER registered name stays reachable by
+            # exact name (`tools/call` resolves through `HANDLERS` with no view
+            # filter, pinned by `test_hidden_known_name_tool_remains_callable`),
+            # and `mcp_tool_catalog action=index` maps the complete registry in
+            # bounded lines, so nothing is lost or made unfindable -- hiding is
+            # context routing, never authority.
+            by_name = {tool["name"]: tool for tool in self.tools}
+            ordered = (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME) + GATEWAY_CURATED_TOOL_NAMES
+            return [by_name[name] for name in ordered if name in by_name]
         return select_view_tools(
             self.tools,
             profile=self.profile,
@@ -231,6 +314,16 @@ class ToolViewState:
             "registryCount": len(self.tools),
             "listedNames": [tool["name"] for tool in listed],
             "hiddenNamesStillCallable": True,
+            "gateway": {
+                "core": sorted(GATEWAY_CORE_TOOL_NAMES),
+                "curated": list(GATEWAY_CURATED_TOOL_NAMES),
+                "reason": (
+                    "Curated representatives are listed because retrieval is not "
+                    "free (a 3-result search ~6.8 kB, a modelling describe ~10.5 kB); "
+                    "everything else is reached by exact name or by "
+                    "mcp_tool_catalog action=index."
+                ),
+            },
             "switchingAvailable": self.switching_available,
             "listChangedCapability": self.list_changed_capability,
             "conventionOnly": True,

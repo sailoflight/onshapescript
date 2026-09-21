@@ -116,7 +116,7 @@
 
 | Tool | Capability | Optional semantic classification | Required arguments | Registered safety/cost | Intent |
 |---|---|---|---|---|---|
-| `mcp_tool_catalog` | `other` | - | - | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none | Search and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never returns in... |
+| `mcp_tool_catalog` | `other` | - | - | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none | Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never retu... |
 | `mcp_tool_view` | `other` | - | - | network=offline; api_max=0; mutating=yes; dry_run=no; confirm=no; concurrency=connection_local/connection | Inspect or change the current connection's tool-display view. This is a context-routing convention, not an authorization boundary: hidden known-name tools remain callable and al... |
 
 ## Capability: project_docs

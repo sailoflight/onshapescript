@@ -30,6 +30,22 @@ VALID_NETWORKS = ("offline", "browser", "live")
 CAPABILITY_DEPLOY_TOOL = "browser_deploy_and_apply_featurescript"
 MAX_SEARCH_RESULTS = 12
 DEFAULT_SEARCH_RESULTS = 8
+#: The compact index is deliberately small: one line per category, or a bounded
+#: page of lines for one category. 40 is above the largest category (browser, 70)
+#: only when asked twice, which keeps a single answer in the low single-digit
+#: kilobytes instead of echoing the whole registry.
+MAX_INDEX_RESULTS = 40
+DEFAULT_INDEX_RESULTS = 40
+
+#: One sentence per category, so a caller can route without reading a tool.
+MODULE_PURPOSES = {
+    "control": "Discovery, catalog search, and this connection's tool-view state.",
+    "browser": "Zero-quota browser leg: session, tabs, Feature Studio, thin-feature modelling, runner, exports.",
+    "rest": "Onshape REST operations (quota-spending) and local state/geometry helpers.",
+    "rest_reference": "Offline Onshape REST API reference: endpoints, schemas, auth, error codes.",
+    "featurescript": "Offline FeatureScript reference: functions, types, guides, and source checks.",
+    "documentation": "Project documentation index and section reads.",
+}
 _TOKEN = re.compile(r"[a-z0-9]+")
 _BROWSER_LEVEL_PRIORITY = {
     "L5": 0,
@@ -463,6 +479,94 @@ class ToolCatalogIndex:
             "authorityChanged": False,
         }
 
+    def index(self, arguments: dict[str, Any], *, visible_names: set[str]) -> dict[str, Any]:
+        """One cheap map of the registry, by category.
+
+        Retrieval is not free: a three-result `search` measures ~6,800 characters
+        because every summary carries its concurrency and confirmation contract,
+        and one `describe` of a modelling tool measures ~10,500. A caller that
+        only needs to know WHAT EXISTS should not pay either. So this action
+        answers with `name -- purpose` lines plus a small fixed metadata block:
+
+        * no `category`: one line per category with its tool count and purpose,
+          enough to choose a category without reading a single tool;
+        * `category`: that category's entries, alphabetically, one compact line
+          each, capped by `limit`.
+
+        The map is derived from the same one-build index as `search`, so it
+        cannot drift from the registry, and an unknown category is refused rather
+        than silently answered as "everything".
+        """
+        category = arguments.get("category")
+        if category is not None and (
+            not isinstance(category, str) or category not in VALID_MODULES
+        ):
+            raise ValueError(f"category must be one of: {', '.join(VALID_MODULES)}")
+        limit = arguments.get("limit", DEFAULT_INDEX_RESULTS)
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= MAX_INDEX_RESULTS:
+            raise ValueError(f"limit must be from 1 through {MAX_INDEX_RESULTS}")
+        offset = arguments.get("offset", 0)
+        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+            raise ValueError("offset must be a non-negative integer")
+
+        grouped: dict[str, list[CatalogEntry]] = defaultdict(list)
+        for entry in self._entries:
+            grouped[entry.module].append(entry)
+
+        if category is None:
+            return {
+                "index": "categories",
+                "categories": [
+                    {
+                        "category": module,
+                        "toolCount": len(grouped.get(module, ())),
+                        "visibleCount": sum(
+                            1 for entry in grouped.get(module, ()) if entry.name in visible_names
+                        ),
+                        "purpose": MODULE_PURPOSES.get(module, ""),
+                    }
+                    for module in VALID_MODULES
+                ],
+                "registryCount": len(self._entries),
+                "lineFormat": "name -- purpose",
+                "growth": "call again with category=<name> for that category's lines",
+                "schemaIncluded": False,
+                "describeAction": "describe",
+                "fingerprint": self.fingerprint,
+                "conventionOnly": True,
+                "authorityChanged": False,
+            }
+
+        entries = sorted(grouped.get(category, ()), key=lambda item: item.name)
+        page = entries[offset : offset + limit]
+        next_offset = offset + len(page)
+        truncated = next_offset < len(entries)
+        return {
+            "index": "category",
+            "category": category,
+            "purpose": MODULE_PURPOSES.get(category, ""),
+            "toolCount": len(entries),
+            "returnedCount": len(page),
+            "offset": offset,
+            "truncated": truncated,
+            "nextOffset": next_offset if truncated else None,
+            "lines": [
+                {
+                    "name": entry.name,
+                    "purpose": _compact(entry.description, 100),
+                    "network": entry.network,
+                    "mutating": entry.mutating,
+                    "visibleInCurrentView": entry.name in visible_names,
+                }
+                for entry in page
+            ],
+            "schemaIncluded": False,
+            "describeAction": "describe",
+            "fingerprint": self.fingerprint,
+            "conventionOnly": True,
+            "authorityChanged": False,
+        }
+
     def apply(self, arguments: dict[str, Any], *, visible_names: set[str]) -> dict[str, Any]:
         action = arguments.get("action", "status")
         if action == "status":
@@ -471,4 +575,7 @@ class ToolCatalogIndex:
             return self.search(arguments, visible_names=visible_names)
         if action == "describe":
             return self.describe(arguments, visible_names=visible_names)
-        raise ValueError("action must be status, search, or describe")
+        if action == "index":
+            return self.index(arguments, visible_names=visible_names)
+        raise ValueError("action must be status, search, describe, or index")
+

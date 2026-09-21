@@ -594,7 +594,7 @@ Compose checks from `../verification/MATRIX.md`; do not invent new gates.
 | Capability apply path | `test_browser_apply_path` (badged row, label fallback, non-match inventory, ambiguous label never guessed; waits are bounded conditions) |
 | Live capability evidence | `onshape_docs/verification/capability-live-run-2026-09-19.md`; browser-only, 0 REST calls, read back with the read-only feature tools |
 | Tool surface (P5) | MCP, runtime-prompt, and generated-reference `--check` |
-| Tool-list compression (G5, 2026-09-21) | `test_tool_gateway_view` (advertised surface, measured ratio, hidden names still dispatch through their handlers, catalog still indexes the whole registry); `dev/tools/context_cost.py` regenerates `onshape_docs/verification/context-cost-surfaces-2026-09-21.json` |
+| Tool-list compression (G5, 2026-09-21) | `test_tool_gateway_view` (advertised surface, curated coverage of every category, measured bounds, host-local switch precedence, hidden names still dispatch through their handlers, index paging and refusal) and `test_row_evidence_compaction` (one canonical row set plus counts, opt-in restores the full answer, the handler value is not mutated); `dev/tools/context_cost.py` regenerates `onshape_docs/verification/context-cost-surfaces-2026-09-21.json` |
 | Idle-session health probe (2026-09-21) | `test_session_health` (every verdict reachable, one recovery action each, never starts a browser, a missing read never becomes `ok`) plus the `browser_session` action-enum assertions in `test_browser_mode` |
 
 Never claim an unexecuted check passed.

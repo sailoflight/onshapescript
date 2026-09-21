@@ -2,6 +2,7 @@
 onshape_rest_api_mode/config/onshape-credentials.json
 onshape_rest_api_mode/config/api-usage.json
 onshape_browser_mode/config/browser.local.toml
+mcp_main/win/mcp/config/tool_views.local.toml
 onshape_browser_mode/config/browser-state.json
 onshape_browser_mode/user_data/
 mcp_main/bridge/logs/
