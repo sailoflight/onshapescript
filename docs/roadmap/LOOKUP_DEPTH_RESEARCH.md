@@ -170,6 +170,30 @@ actually needed.*
 The surface grew on purpose: 15,866 tokens/step for 86% zero-round coverage, versus
 10,352 for 43%, and still 2.5× cheaper than the default `semantic` view.
 
+## 5c. Delegation route and lookup depth (2026-09-21, external measurement)
+
+§1–§4 price a lookup *inside* one session, in this repository's own documentation
+corpus. A separate 12-cell measurement prices **delegating** that lookup: three
+delegation routes x four lookup depths, one fixed machine-checked task, serial,
+gateway-reported usage, weighted with the published report-02 convention (a
+different scale from the token estimates in §1–§4 — do not add or convert them).
+
+- Delegates handed **one named authoritative page** were cheapest on average
+  (26.8k weighted units); making a delegate decide **which** source is current was
+  dearest (37.0k), i.e. the same "one more round" premium §1 prices, paid at the
+  delegation boundary.
+- A spawned delegate averaged 26.5k against 38.2k for an `agent_teams` member, and
+  the whole gap was first-turn uncached bootstrap, not discovery — but teams were
+  the most predictable route (1.32x spread against 2.05x/2.69x).
+- A ~195 kB concatenated dump was **not** the worst cell (34.0k): all three runs
+  located the section with `wc`/`grep` and then read bounded windows. Candidate
+  search beats source size, which is the §5 layer rule applied to a delegate.
+
+Evidence, per-cell figures, tool traces and replay commands:
+`onshape_docs/verification/delegation-lookup-cost-2026-09-21.md`. Limits: n=1 per
+cell, one model route, one task, and all 12 cells passed on the first attempt, so
+it ranks cost only.
+
 ## 6. What this does not claim
 
 * No tokenizer measurement; all token figures are the documented estimate.

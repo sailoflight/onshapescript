@@ -25,6 +25,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Verify MCP client prompt compatibility | `verification/MCP_CLIENT_COMPATIBILITY.md` | Canonical prompt source, generated companion, then one external-cwd smoke |
 | Evaluate a non-production browser scenario | one approved file under `evaluation/` | Matching public usage contract and sanitized evidence only |
 | Use the MCP server | `usage/MCP_CONSUMER.md` | One tool schema or generated tool entry |
+| Choose how deep a delegated lookup may go, or which delegation route to use | `usage/MCP_CONSUMER.md` (Delegation and lookup depth) | The measured record `../onshape_docs/verification/delegation-lookup-cost-2026-09-21.md` |
 | Deploy, restart, or recover the ordinary MCP or its external adapter | `operations/MCP_RUNBOOK.md` | MCP host state, then the adapter's own runbook |
 | Trace the retired project relay/shared-bridge migration | `history/TRACEABILITY.md` | Archived records under `history/legacy/` only |
 | Query FeatureScript, REST, or browser knowledge | `../onshape_docs/README.md` | One indexed section, symbol, endpoint, schema, or evidence record |

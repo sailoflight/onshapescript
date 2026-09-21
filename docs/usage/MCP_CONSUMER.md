@@ -35,6 +35,49 @@ for the runtime schema.
 Do not guess FeatureScript names, REST payloads, Onshape IDs, selectors, or tool
 arguments that can be looked up through the server.
 
+### Delegation and lookup depth (measured)
+
+The required order sets the direction; this sets the depth a delegated agent may
+spend. It is advisory routing economics and grants no authority.
+
+- **Name the exact entry.** Handing a delegate one authoritative page was the
+  cheapest depth on average (26.8k weighted units); making it decide *which*
+  source is current was the dearest (37.0k). A delegate buys that decision with
+  rounds.
+- **Cost tracks rounds, not volume.** Across the 12 measured cells below,
+  `corr(requests, weighted cost) = 0.92`, and the cheapest and dearest cells used
+  6 and 18 requests. Cache reads are priced 0.025 against 1.0 for output, so a
+  large cached read is not what makes a delegate expensive. A delegate that
+  locates a section with `grep` and bounded reads stays cheap even when the
+  material is one large file; one that must decide which of several sources is
+  authoritative does not.
+- **Prefer one delegate over a team for ordinary work.** One spawned delegate
+  averaged 26.5k against 38.2k for an `agent_teams` member, and the whole
+  difference was first-turn uncached input (team/task bootstrap), not discovery.
+  Teams were also the most predictable route (1.32x spread against 2.05x/2.69x),
+  so choose them for a bounded worst case, not for average cost. A workflow
+  `agent()` stage behaved like a spawned delegate on average (30.3k) with the
+  widest spread.
+- **Forked delegation is not a work route.** A forked child is a memory
+  continuation and was excluded from these figures.
+
+| Lookup depth handed to the delegate | spawned delegate | `agent_teams` member | workflow `agent()` |
+|---|---|---|---|
+| specification inline in the prompt | 17.1k | 32.3k | 37.1k |
+| one named authoritative page | 28.1k | 35.9k | 16.2k |
+| a catalogue of notes, current one to be found | 25.5k | 41.9k | 43.6k |
+| one ~195 kB concatenated dump | 35.1k | 42.7k | 24.1k |
+| **mean** | **26.5k** | **38.2k** | **30.3k** |
+
+Method: 3 delegation routes x 4 lookup depths, one fixed machine-checked task,
+serial execution, gateway-reported usage in child session logs, and the report-02
+weighting (output 1 / uncached input 0.25 / cache read 0.025). Per-cell figures,
+tool traces and replay commands:
+`onshape_docs/verification/delegation-lookup-cost-2026-09-21.md`. Limits: one
+model route, one task, n=1 per cell, non-monotonic per-cell ordering, and all 12
+cells passed on the first attempt — so this ranks cost only and says nothing
+about which route succeeds more often.
+
 ## Capability routes
 
 | Need | First public capability | Exact next detail |

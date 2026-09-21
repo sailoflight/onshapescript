@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "40952c13b01f62b0e01f7347e3732c340119f440c4fbd254d7b84a9a26c63e22",
+   "sha256": "55322b00a28570750ab99a16e1135006f27aac48f2ccf7094b1c95e710866efe",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -587,6 +587,82 @@
       {
        "type": "para",
        "text": "Do not guess FeatureScript names, REST payloads, Onshape IDs, selectors, or tool arguments that can be looked up through the server."
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "Delegation and lookup depth (measured)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The required order sets the direction; this sets the depth a delegated agent may spend. It is advisory routing economics and grants no authority."
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Name the exact entry. Handing a delegate one authoritative page was the cheapest depth on average (26.8k weighted units); making it decide which source is current was the dearest (37.0k). A delegate buys that decision with rounds.",
+         "depth": 0
+        },
+        {
+         "text": "Cost tracks rounds, not volume. Across the 12 measured cells below, corr(requests, weighted cost) = 0.92, and the cheapest and dearest cells used 6 and 18 requests. Cache reads are priced 0.025 against 1.0 for output, so a large cached read is not what makes a delegate expensive. A delegate that locates a section with grep and bounded reads stays cheap even when the material is one large file; one that must decide which of several sources is authoritative does not.",
+         "depth": 0
+        },
+        {
+         "text": "Prefer one delegate over a team for ordinary work. One spawned delegate averaged 26.5k against 38.2k for an agent_teams member, and the whole difference was first-turn uncached input (team/task bootstrap), not discovery. Teams were also the most predictable route (1.32x spread against 2.05x/2.69x), so choose them for a bounded worst case, not for average cost. A workflow agent() stage behaved like a spawned delegate on average (30.3k) with the widest spread.",
+         "depth": 0
+        },
+        {
+         "text": "Forked delegation is not a work route. A forked child is a memory continuation and was excluded from these figures.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Lookup depth handed to the delegate",
+         "spawned delegate",
+         "agent_teams member",
+         "workflow agent()"
+        ],
+        [
+         "specification inline in the prompt",
+         "17.1k",
+         "32.3k",
+         "37.1k"
+        ],
+        [
+         "one named authoritative page",
+         "28.1k",
+         "35.9k",
+         "16.2k"
+        ],
+        [
+         "a catalogue of notes, current one to be found",
+         "25.5k",
+         "41.9k",
+         "43.6k"
+        ],
+        [
+         "one ~195 kB concatenated dump",
+         "35.1k",
+         "42.7k",
+         "24.1k"
+        ],
+        [
+         "mean",
+         "26.5k",
+         "38.2k",
+         "30.3k"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Method: 3 delegation routes x 4 lookup depths, one fixed machine-checked task, serial execution, gateway-reported usage in child session logs, and the report-02 weighting (output 1 / uncached input 0.25 / cache read 0.025). Per-cell figures, tool traces and replay commands: onshape_docs/verification/delegation-lookup-cost-2026-09-21.md. Limits: one model route, one task, n=1 per cell, non-monotonic per-cell ordering, and all 12 cells passed on the first attempt — so this ranks cost only and says nothing about which route succeeds more often."
       }
      ]
     },
@@ -10918,6 +10994,459 @@
        "type": "code",
        "language": "bash",
        "text": "# 离线：量测 + 全部测试\npython3 dev/tools/context_cost.py > onshape_docs/verification/context-cost-surfaces-2026-09-21.json\nPYTHONPATH=temp/browser-common-site python3 -m unittest discover -s dev/tests\n\n# 部署（Windows 宿主）\npython3 temp/deploy_refresh/deploy.py plan  --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py apply --deployment-id <id>\npython3 temp/deploy_refresh/deploy.py verify --deployment-id <id>   # mismatched: []\n\n# 实机（0 REST）\n#   bridge_control restart → bridge_library expand\n#   mcp_tool_invoke {name: \"docs_list\"}       # 25 个入口里仍未展示的名字\n#   docs_section {page: \"mcp-consumer\", section: \"gateway\"}   # 新策展名可直接调用\n#   bridge_library collapse / expand        # 应逐字报出同样的 25 个名字\n#   browser_session action=health   （必要时 login → 再 health）"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "page": "delegation-lookup-cost-verification",
+   "category": "verification",
+   "path": "onshape_docs/verification/delegation-lookup-cost-2026-09-21.md",
+   "sha256": "96751142b7f24227cc487831b87d6202f8c7ad116be924282859b587dbdfba6a",
+   "title": "委派方式 × 查资料深度：12 格消耗矩阵（2026-09-21）",
+   "sections": [
+    {
+     "level": 2,
+     "title": "1. 这次要量什么",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "本仓的调用协议要求「先查后想、先索引后精确条目」，并把层数上限定为 2 （docs/roadmap/LOOKUP_DEPTH_RESEARCH.md §5）。那条分析量的是一次会话内部 每一步查资料的价格。本页量的是它的上游问题："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "把活派出去时，派给谁——subagent（一个子 agent）、agent_teams（建队 + 成员）、 workflow（编排里的一次 agent() 调用）三者，同一个活各花多少；",
+         "depth": 0
+        },
+        {
+         "text": "让被派的一方查多深——inline（规格直接进提示词，0 跳）、one-hop（点名唯一权威文件， 1 跳）、two-hop（只给目录，要求自己判定哪份当前有效，2 跳）、dump（规格埋在 一份 ~195 kB 拼接大文件里）。",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "结论用于 docs/usage/MCP_CONSUMER.md 的「Delegation and lookup depth (measured)」一节： 该协议的\"候选索引优先\"是对的方向，而层数不仅该有上限，入口还应该由派活的人直接指定。 本页是那条建议的证据，不是建议本身。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "2. 方法与隔离",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "固定活：按一份自撰规格实现一个小模块，验收 = 6 个可见用例 + 15 个隐藏用例 （隐藏集被派的一方看不到），覆盖规范化合并、最少 CIDR 分解、边界前缀、非法输入的错误 消息、幂等与千项规模。参考答案先自测 15/15 通过才允许开跑。",
+         "depth": 0
+        },
+        {
+         "text": "每格只有一个信息来源：12 个运行目录各自只放一种来源；提示词除\"规格从哪来\"一行外 逐字相同；12 份可见测试与 12 份 README 的 md5 各自唯一。",
+         "depth": 0
+        },
+        {
+         "text": "串行执行，一组跑完再起下一组；读数取子会话日志里的网关 usage， 按 parentSession + 该组 [start, end+5s] 时间窗归属，不靠 label 猜。",
+         "depth": 0
+        },
+        {
+         "text": "加权口径与已公开报告 02 相同：输出 1 · 未命中输入 0.25 · 缓存读 0.025。",
+         "depth": 0
+        },
+        {
+         "text": "作废重跑：首轮 4 组数据丢弃。原因是运行目录落在带治理钩子的工作区里，子会话被自动 触发的 apg context 污染，多出工具调用与未命中输入；重建在治理范围之外的独立目录后重跑。",
+         "depth": 0
+        },
+        {
+         "text": "fork 委派排除：fork 子会话是记忆延续（继承父会话状态），不是\"把活派出去\"， 消耗结构与其余三种不可比。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "3. 12 格矩阵（全部实测）",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "运行",
+         "委派",
+         "查资料",
+         "请求数",
+         "未命中输入",
+         "输出",
+         "缓存读",
+         "加权",
+         "墙钟",
+         "判定"
+        ],
+        [
+         "spawn-inline",
+         "subagent",
+         "inline",
+         "6",
+         "3.6k",
+         "11.3k",
+         "195.7k",
+         "17.1k",
+         "61s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "spawn-one-hop",
+         "subagent",
+         "one-hop",
+         "12",
+         "6.9k",
+         "15.8k",
+         "422.0k",
+         "28.1k",
+         "133s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "spawn-two-hop",
+         "subagent",
+         "two-hop",
+         "13",
+         "7.3k",
+         "12.7k",
+         "437.6k",
+         "25.5k",
+         "91s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "spawn-dump",
+         "subagent",
+         "dump",
+         "16",
+         "12.7k",
+         "16.8k",
+         "608.0k",
+         "35.1k",
+         "88s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "teams-inline",
+         "agent_teams",
+         "inline",
+         "17",
+         "31.2k",
+         "11.4k",
+         "526.5k",
+         "32.3k",
+         "144s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "teams-one-hop",
+         "agent_teams",
+         "one-hop",
+         "14",
+         "33.4k",
+         "15.6k",
+         "480.1k",
+         "35.9k",
+         "124s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "teams-two-hop",
+         "agent_teams",
+         "two-hop",
+         "16",
+         "39.4k",
+         "17.3k",
+         "590.1k",
+         "41.9k",
+         "219s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "teams-dump",
+         "agent_teams",
+         "dump",
+         "18",
+         "33.1k",
+         "18.8k",
+         "623.1k",
+         "42.7k",
+         "162s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "flow-inline",
+         "workflow",
+         "inline",
+         "14",
+         "29.7k",
+         "17.6k",
+         "482.7k",
+         "37.1k",
+         "90s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "flow-one-hop",
+         "workflow",
+         "one-hop",
+         "6",
+         "4.1k",
+         "10.6k",
+         "184.1k",
+         "16.2k",
+         "83s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "flow-two-hop",
+         "workflow",
+         "two-hop",
+         "18",
+         "11.3k",
+         "23.1k",
+         "709.5k",
+         "43.6k",
+         "108s",
+         "隐藏 15/15 一次通过"
+        ],
+        [
+         "flow-dump",
+         "workflow",
+         "dump",
+         "11",
+         "10.0k",
+         "12.3k",
+         "372.6k",
+         "24.1k",
+         "67s",
+         "隐藏 15/15 一次通过"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "墙钟含本代理的编排开销（建队/删队、提交编排），不是纯模型时间。 逐格精确值、工具直方图与\"读过的来源\"见同目录 delegation-lookup-cost-2026-09-21.json。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "4. 聚合",
+     "blocks": [
+      {
+       "type": "table",
+       "rows": [
+        [
+         "委派方式",
+         "均值",
+         "最低",
+         "最高",
+         "极差",
+         "平均请求数"
+        ],
+        [
+         "subagent",
+         "26.5k",
+         "17.1k",
+         "35.1k",
+         "2.05×",
+         "11.8"
+        ],
+        [
+         "agent_teams",
+         "38.2k",
+         "32.3k",
+         "42.7k",
+         "1.32×",
+         "16.2"
+        ],
+        [
+         "workflow agent()",
+         "30.3k",
+         "16.2k",
+         "43.6k",
+         "2.69×",
+         "12.2"
+        ]
+       ]
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "查资料深度",
+         "均值",
+         "最低",
+         "最高",
+         "极差"
+        ],
+        [
+         "inline",
+         "28.9k",
+         "17.1k",
+         "37.1k",
+         "2.17×"
+        ],
+        [
+         "one-hop",
+         "26.8k",
+         "16.2k",
+         "35.9k",
+         "2.22×"
+        ],
+        [
+         "two-hop",
+         "37.0k",
+         "25.5k",
+         "43.6k",
+         "1.71×"
+        ],
+        [
+         "dump",
+         "34.0k",
+         "24.1k",
+         "42.7k",
+         "1.77×"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "相关：12 格 corr(请求数, 加权) = 0.924；整体均值 31.6k，最低 16.2k，最高 43.6k（2.69×）。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. 取证：每一格实际读了什么",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "json 的 sourcesRead 只保留在该运行目录里真实存在的路径（从工具参数里抽取， 再逐个 exists() 过滤，避免把报告正文里顺口提到的路径算成一次读取）。摘要："
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "运行",
+         "读到的来源"
+        ],
+        [
+         "spawn-inline / teams-inline / flow-inline",
+         "只有 README.md + test_netrange.py（规格在提示词里）"
+        ],
+        [
+         "spawn-one-hop / teams-one-hop / flow-one-hop",
+         "上述 + docs/07-spec-netrange.md（唯一权威那份）"
+        ],
+        [
+         "spawn-two-hop",
+         "上述 + INDEX.md + 也读了已被取代的 docs/03-notes-legacy.md"
+        ],
+        [
+         "teams-two-hop",
+         "上述 + INDEX.md（未读 legacy）"
+        ],
+        [
+         "flow-two-hop",
+         "上述 + INDEX.md + docs/00-notes.md + docs/03-notes-legacy.md"
+        ],
+        [
+         "*-dump（三格）",
+         "ALL-NOTES.txt + 可见材料；三格都没有整体读入，都先 wc -l/grep -n 定位、再按窗口读"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "委派方式的差别也直接看得见：每个 agent_teams 格子都多出 agent_teams_claim_task、 agent_teams_update_task×2、agent_teams_send_message、report 这些队务回合 （有的还多一次 agent_teams_status），而找资料的行为与对应的单子 agent 格一致。"
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. 结论",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "成本由轮数决定，不由上下文体积决定：corr = 0.924；最便宜两格都是 6 个请求 （17.1k / 16.2k），最贵两格都是 18 个请求（41.9k / 43.6k）。709.5k 缓存读按 0.025 只值 17.7k 加权，而多出来的十几轮输出本身就更贵。",
+         "depth": 0
+        },
+        {
+         "text": "入口由派活的人指定，比让被派的人自己判定更省：one-hop 均值最低（26.8k）， two-hop 稳定最贵（37.0k）。\"哪一份当前有效\"这个判断只能用轮数买。",
+         "depth": 0
+        },
+        {
+         "text": "大文件本身不是主要成本，\"不知道看哪里\"才是：dump 三格都先定位再窗口读， 均值 34.0k，低于 two-hop。若换成一次性整体读入，这一格会明显更贵——本轮没有观测到该路径。",
+         "depth": 0
+        },
+        {
+         "text": "为一件活建队，贵在队务不在查资料：agent_teams 平均 +44%，差额几乎全在未命中输入 （31.2–39.4k，对比 subagent 的 3.6–12.7k），即第一轮的队伍/任务引导上下文（不入缓存）。 但它最稳（极差 1.32×，其余 2.05×/2.69×）：要平均便宜选单子 agent，要让最坏情况 可预测才建队。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "7. 这不主张什么",
+     "blocks": [
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "每格 n=1。组内极差（最大 2.69×）大于部分格间差值，且在一处出现方向翻转 （subagent 组里 one-hop 比 two-hop 贵，workflow 组里相反）。**排序是方向性的， 不是统计显著的**；要下结论需每格 ≥3 次重复。",
+         "depth": 0
+        },
+        {
+         "text": "12 格全部一次通过（隐藏 15/15），因此本矩阵只排\"成本\"，不排\"成功率\"。 也不证明\"三种委派一样好\"——只是这个任务的难度不足以让成功率产生区分。",
+         "depth": 0
+        },
+        {
+         "text": "单模型路由、单任务。绝对数字随模型、定价与任务规模变化，趋势比绝对值可靠。",
+         "depth": 0
+        },
+        {
+         "text": "墙钟含编排开销，不主张\"便宜就更快或更慢\"。",
+         "depth": 0
+        },
+        {
+         "text": "本仓的 docs/roadmap/LOOKUP_DEPTH_RESEARCH.md §1–§4 用的是本仓文档语料的 token 估算； 本页用的是网关 usage 的加权单位。两套刻度不可直接相加或换算。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "8. 复现与留存",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "复现要点：同一固定活 + 参考答案先自检 + 每格一个只含单一信息来源的目录 + 逐字相同的 可见材料 + 串行执行 + 隐藏集与可见集分离 + 按 parentSession + 时间窗归属子会话读数。"
+      },
+      {
+       "type": "code",
+       "language": "bash",
+       "text": "# 归属与读数（换机器只要 DSH_HOME 在；该工具留在私有工作区 ~/code/dsh-bench/tools/）\npython3 ~/code/dsh-bench/tools/session_usage.py --children-of <父会话 id> --json\n# 逐格：隐藏验收 / 归属 / 工具轨迹 / 直方图+触碰路径 / 12 格矩阵与相关系数\npython3 verify_hidden.py runs/<run>\npython3 collect.py <run>\npython3 trace_run.py <run>\npython3 evidence.py <run>\npython3 analyze.py"
+      },
+      {
+       "type": "para",
+       "text": "留存：逐格原始数值、12 份提示词、起止时间戳、隐藏验收脚本与轨迹脚本留在私有工作区； 本页与同目录 delegation-lookup-cost-2026-09-21.json 是本仓内的副本。 题目语料与隐藏断言不在本仓分发。"
       }
      ]
     }

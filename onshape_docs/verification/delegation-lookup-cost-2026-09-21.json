@@ -1,0 +1,414 @@
+{
+ "recordedAt": "2026-09-21",
+ "experiment": "delegation route x lookup depth, one fixed machine-checked task",
+ "task": {
+  "shape": "implement a small module against an authored specification",
+  "acceptance": {
+   "visible": "6 unit cases, byte-identical in all 12 cells",
+   "hidden": "15 unit cases, never visible to the delegate",
+   "reference": "reference implementation passed the hidden set 15/15 first"
+  },
+  "verification": "each run re-tested independently; all 12 passed 15/15 on attempt 1"
+ },
+ "isolation": {
+  "perCellLayout": "exactly one information source present in each run directory",
+  "promptDelta": "only the line naming where the specification comes from differs",
+  "visibleMaterialMd5Unique": true,
+  "execution": "serial; no two runs overlapped",
+  "discarded": "4 first-attempt runs voided: the run directory sat inside a workspace whose governance hook made delegates run an extra context command"
+ },
+ "measurement": {
+  "source": "session log assistant/message usage records (gateway-reported)",
+  "attribution": "child session matched by parentSession plus the run's [start, end+5s] window",
+  "weighting": {
+   "output": 1.0,
+   "uncachedInput": 0.25,
+   "cacheRead": 0.025
+  },
+  "weightingProvenance": "same relative weighting as the published report 02",
+  "wallClock": "includes this agent's orchestration overhead; not pure model time",
+  "forkDelegation": "excluded: a forked child is a memory continuation, not work delegation"
+ },
+ "cells": [
+  {
+   "run": "spawn-inline",
+   "route": "spawn",
+   "lookupDepth": "inline",
+   "requests": 6,
+   "inputTokens": 3628,
+   "outputTokens": 11316,
+   "cacheReadTokens": 195712,
+   "weightedUnits": 17115.8,
+   "wallClockMs": 61453,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 4,
+    "read": 2,
+    "write": 1
+   },
+   "sourcesRead": [
+    "README.md",
+    "netrange.py",
+    "test_netrange.py"
+   ]
+  },
+  {
+   "run": "spawn-one-hop",
+   "route": "spawn",
+   "lookupDepth": "one-hop",
+   "requests": 12,
+   "inputTokens": 6908,
+   "outputTokens": 15835,
+   "cacheReadTokens": 422016,
+   "weightedUnits": 28112.4,
+   "wallClockMs": 132990,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 10,
+    "read": 4,
+    "write": 1
+   },
+   "sourcesRead": [
+    "README.md",
+    "netrange.py",
+    "test_netrange.py",
+    "docs/07-spec-netrange.md"
+   ]
+  },
+  {
+   "run": "spawn-two-hop",
+   "route": "spawn",
+   "lookupDepth": "two-hop",
+   "requests": 13,
+   "inputTokens": 7288,
+   "outputTokens": 12703,
+   "cacheReadTokens": 437632,
+   "weightedUnits": 25465.8,
+   "wallClockMs": 90978,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 9,
+    "edit": 1,
+    "glob": 1,
+    "read": 5,
+    "write": 1
+   },
+   "sourcesRead": [
+    "INDEX.md",
+    "README.md",
+    "docs",
+    "netrange.py",
+    "test_netrange.py",
+    "docs/03-notes-legacy.md",
+    "docs/07-spec-netrange.md"
+   ]
+  },
+  {
+   "run": "spawn-dump",
+   "route": "spawn",
+   "lookupDepth": "dump",
+   "requests": 16,
+   "inputTokens": 12652,
+   "outputTokens": 16777,
+   "cacheReadTokens": 608000,
+   "weightedUnits": 35140.0,
+   "wallClockMs": 88235,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 12,
+    "edit": 1,
+    "read": 3,
+    "write": 1
+   },
+   "sourcesRead": [
+    "ALL-NOTES.txt",
+    "README.md",
+    "netrange.py",
+    "test_netrange.py"
+   ]
+  },
+  {
+   "run": "teams-inline",
+   "route": "teams",
+   "lookupDepth": "inline",
+   "requests": 17,
+   "inputTokens": 31250,
+   "outputTokens": 11364,
+   "cacheReadTokens": 526464,
+   "weightedUnits": 32338.1,
+   "wallClockMs": 143735,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "agent_teams_claim_task": 1,
+    "agent_teams_send_message": 1,
+    "agent_teams_update_task": 2,
+    "bash": 10,
+    "read": 2,
+    "report": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "README.md",
+    "netrange.py",
+    "test_netrange.py"
+   ]
+  },
+  {
+   "run": "teams-one-hop",
+   "route": "teams",
+   "lookupDepth": "one-hop",
+   "requests": 14,
+   "inputTokens": 33350,
+   "outputTokens": 15609,
+   "cacheReadTokens": 480128,
+   "weightedUnits": 35949.7,
+   "wallClockMs": 124157,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "agent_teams_claim_task": 1,
+    "agent_teams_send_message": 1,
+    "agent_teams_update_task": 2,
+    "bash": 7,
+    "edit": 2,
+    "read": 4,
+    "report": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "README.md",
+    "docs",
+    "netrange.py",
+    "test_netrange.py",
+    "docs/07-spec-netrange.md"
+   ]
+  },
+  {
+   "run": "teams-two-hop",
+   "route": "teams",
+   "lookupDepth": "two-hop",
+   "requests": 16,
+   "inputTokens": 39377,
+   "outputTokens": 17280,
+   "cacheReadTokens": 590080,
+   "weightedUnits": 41876.2,
+   "wallClockMs": 218695,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "agent_teams_claim_task": 1,
+    "agent_teams_send_message": 1,
+    "agent_teams_status": 1,
+    "agent_teams_update_task": 2,
+    "bash": 10,
+    "read": 3,
+    "report": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "INDEX.md",
+    "README.md",
+    "docs",
+    "netrange.py",
+    "test_netrange.py",
+    "docs/07-spec-netrange.md"
+   ]
+  },
+  {
+   "run": "teams-dump",
+   "route": "teams",
+   "lookupDepth": "dump",
+   "requests": 18,
+   "inputTokens": 33102,
+   "outputTokens": 18820,
+   "cacheReadTokens": 623104,
+   "weightedUnits": 42673.1,
+   "wallClockMs": 161742,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "agent_teams_claim_task": 1,
+    "agent_teams_send_message": 1,
+    "agent_teams_update_task": 2,
+    "bash": 14,
+    "read": 3,
+    "report": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "ALL-NOTES.txt",
+    "README.md",
+    "netrange.py",
+    "test_netrange.py"
+   ]
+  },
+  {
+   "run": "flow-inline",
+   "route": "flow",
+   "lookupDepth": "inline",
+   "requests": 14,
+   "inputTokens": 29690,
+   "outputTokens": 17640,
+   "cacheReadTokens": 482688,
+   "weightedUnits": 37129.7,
+   "wallClockMs": 90157,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 9,
+    "edit": 2,
+    "glob": 1,
+    "read": 3,
+    "structured_output": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "README.md",
+    "netrange.py",
+    "test_netrange.py"
+   ]
+  },
+  {
+   "run": "flow-one-hop",
+   "route": "flow",
+   "lookupDepth": "one-hop",
+   "requests": 6,
+   "inputTokens": 4053,
+   "outputTokens": 10605,
+   "cacheReadTokens": 184064,
+   "weightedUnits": 16219.9,
+   "wallClockMs": 83150,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 4,
+    "read": 3,
+    "structured_output": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "README.md",
+    "docs",
+    "netrange.py",
+    "test_netrange.py",
+    "docs/07-spec-netrange.md"
+   ]
+  },
+  {
+   "run": "flow-two-hop",
+   "route": "flow",
+   "lookupDepth": "two-hop",
+   "requests": 18,
+   "inputTokens": 11290,
+   "outputTokens": 23064,
+   "cacheReadTokens": 709504,
+   "weightedUnits": 43624.1,
+   "wallClockMs": 108354,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 11,
+    "edit": 3,
+    "grep": 1,
+    "read": 7,
+    "structured_output": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "INDEX.md",
+    "README.md",
+    "docs",
+    "netrange.py",
+    "test_netrange.py",
+    "docs/00-notes.md",
+    "docs/03-notes-legacy.md",
+    "docs/07-spec-netrange.md"
+   ]
+  },
+  {
+   "run": "flow-dump",
+   "route": "flow",
+   "lookupDepth": "dump",
+   "requests": 11,
+   "inputTokens": 9965,
+   "outputTokens": 12285,
+   "cacheReadTokens": 372608,
+   "weightedUnits": 24091.5,
+   "wallClockMs": 66979,
+   "hiddenAcceptance": "15/15 pass, first attempt",
+   "toolCalls": {
+    "bash": 10,
+    "read": 5,
+    "structured_output": 1,
+    "write": 1
+   },
+   "sourcesRead": [
+    "ALL-NOTES.txt",
+    "README.md",
+    "netrange.py",
+    "test_netrange.py"
+   ]
+  }
+ ],
+ "aggregates": {
+  "byRoute": {
+   "spawn": {
+    "mean": 26458.5,
+    "min": 17115.8,
+    "max": 35140.0,
+    "spread": 2.05
+   },
+   "teams": {
+    "mean": 38209.3,
+    "min": 32338.1,
+    "max": 42673.1,
+    "spread": 1.32
+   },
+   "flow": {
+    "mean": 30266.3,
+    "min": 16219.9,
+    "max": 43624.1,
+    "spread": 2.69
+   }
+  },
+  "byLookupDepth": {
+   "inline": {
+    "mean": 28861.2,
+    "min": 17115.8,
+    "max": 37129.7,
+    "spread": 2.17
+   },
+   "one-hop": {
+    "mean": 26760.7,
+    "min": 16219.9,
+    "max": 35949.7,
+    "spread": 2.22
+   },
+   "two-hop": {
+    "mean": 36988.7,
+    "min": 25465.8,
+    "max": 43624.1,
+    "spread": 1.71
+   },
+   "dump": {
+    "mean": 33968.2,
+    "min": 24091.5,
+    "max": 42673.1,
+    "spread": 1.77
+   }
+  },
+  "correlationRequestsWeightedCost": 0.924,
+  "overall": {
+   "mean": 31644.7,
+   "min": 16219.9,
+   "max": 43624.1,
+   "spread": 2.69
+  }
+ },
+ "limits": [
+  "n=1 per cell; within-cell spread (up to 2.69x) exceeds some between-cell differences and the ordering is non-monotonic in one route, so the ranking is directional only",
+  "single model route, single task; absolute figures are configuration- and price-dependent",
+  "the dump cell is an observation, not an upper bound: all three runs located the specification with wc/grep and then read bounded windows instead of loading it whole",
+  "wall clock includes orchestration overhead",
+  "all 12 cells passed first try, so this matrix ranks cost only and says nothing about which route succeeds more often"
+ ],
+ "retention": {
+  "kit": "private workspace: 12 run directories, 12 prompts, start/end timestamps, hidden verifier, attribution and trace scripts",
+  "rawLedger": "per-cell requests/input/output/cacheRead/weighted/wallClock as above; this file is the in-repo copy",
+  "notInRepo": "the task corpus and hidden assertions are not distributed here"
+ }
+}
