@@ -105,6 +105,39 @@ page was kept)」），再探：
 `browser_session action=health`（复探），点击超时也从默认 30 s 收到 5 s。
 可复用教训见 `onshape_docs/experience/browser-modeling.md` §29.1。
 
+### 5.1 修好之后的第二次实机确认（generation 92）
+
+修正部署到 `/mnt/c/MCP/onshapescript`（deployment id `20260921T130000Z-dialog`，
+`changed: 9 / added: 1`，`verify` → `mismatched: []`），桥再重启到 **92**，
+`bridge_library expand` → `toolCount: 16`。
+
+重启后新进程照例 `browser_not_running`，`action=login` 恢复页面（「restored Onshape
+page was kept」），随后健康探测：
+
+```json
+{"verdict": "ok", "recommendedAction": "none", "sessionStatus": "started",
+ "probe": {"responded": true, "roundTripMs": 43,
+           "timeoutDialogPresent": false,
+           "timeoutDialogLinkText": "",
+           "timeoutDialogActionable": false,     <-- 新代码才有的字段
+           "documentShellReady": true,
+           "title": "Gridfinity 2x2 baseplate | GF 4U 盒子"}}
+```
+
+两个事实同时成立：**跑的是新代码**（`timeoutDialogActionable` 只在这次修复里出现），
+**会话是健康的**。在同一连接上再验一次转送：
+
+```
+mcp_tool_invoke { "name": "onshape_api_list_tags", "arguments": {} }
+→ { "invokedTool": "onshape_api_list_tags", "specVersion": "1.219.86205-93af2294a88d",
+    "count": 42, "tags": [ ... 42 项 ... ] }
+```
+
+`onshape_api_list_tags` 也不在 gateway 展示的 16 个名字里（该类别策展的是
+`onshape_api_search`），所以这是第二次「经被展示入口到达未展示名字」的实机证据。
+部署后宿主开关仍是 `tool_views.local.toml` → `[exposure] mode = "gateway"`
+（该文件不随部署下发，因此不会被覆盖）。
+
 ## 6. 边界（本页不声明的东西）
 
 - 不声明 Onshape 会话过期的**时长**：本页只记录两种状态与正确动作，没有测出间隔。

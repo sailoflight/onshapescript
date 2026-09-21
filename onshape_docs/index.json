@@ -10403,7 +10403,7 @@
    "page": "mcp-gateway-live-verification",
    "category": "verification",
    "path": "onshape_docs/verification/mcp-gateway-live-2026-09-21.md",
-   "sha256": "f0cf9894695e8aca2f6e9c2a85657eef411590b4318c10938d4a43a225257bbe",
+   "sha256": "10cfa64a9013614e2666b114f27931b9ebf4f7dba9a7cca2a3576209a1e052ba",
    "title": "压缩视图与空闲会话检测器的实机验收（2026-09-21）",
    "sections": [
     {
@@ -10609,6 +10609,38 @@
       {
        "type": "para",
        "text": "探针新增 timeoutDialogActionable；不可点时 recommendedAction 改成 browser_session action=health（复探），点击超时也从默认 30 s 收到 5 s。 可复用教训见 onshape_docs/experience/browser-modeling.md §29.1。"
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "5.1 修好之后的第二次实机确认（generation 92）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "修正部署到 /mnt/c/MCP/onshapescript（deployment id 20260921T130000Z-dialog， changed: 9 / added: 1，verify → mismatched: []），桥再重启到 92， bridge_library expand → toolCount: 16。"
+      },
+      {
+       "type": "para",
+       "text": "重启后新进程照例 browser_not_running，action=login 恢复页面（「restored Onshape page was kept」），随后健康探测："
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "{\"verdict\": \"ok\", \"recommendedAction\": \"none\", \"sessionStatus\": \"started\",\n \"probe\": {\"responded\": true, \"roundTripMs\": 43,\n           \"timeoutDialogPresent\": false,\n           \"timeoutDialogLinkText\": \"\",\n           \"timeoutDialogActionable\": false,     <-- 新代码才有的字段\n           \"documentShellReady\": true,\n           \"title\": \"Gridfinity 2x2 baseplate | GF 4U 盒子\"}}"
+      },
+      {
+       "type": "para",
+       "text": "两个事实同时成立：跑的是新代码（timeoutDialogActionable 只在这次修复里出现）， 会话是健康的。在同一连接上再验一次转送："
+      },
+      {
+       "type": "code",
+       "language": "",
+       "text": "mcp_tool_invoke { \"name\": \"onshape_api_list_tags\", \"arguments\": {} }\n→ { \"invokedTool\": \"onshape_api_list_tags\", \"specVersion\": \"1.219.86205-93af2294a88d\",\n    \"count\": 42, \"tags\": [ ... 42 项 ... ] }"
+      },
+      {
+       "type": "para",
+       "text": "onshape_api_list_tags 也不在 gateway 展示的 16 个名字里（该类别策展的是 onshape_api_search），所以这是第二次「经被展示入口到达未展示名字」的实机证据。 部署后宿主开关仍是 tool_views.local.toml → [exposure] mode = \"gateway\" （该文件不随部署下发，因此不会被覆盖）。"
       }
      ]
     },
