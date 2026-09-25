@@ -32,12 +32,6 @@ from mcp_main.win.mcp.tool_views import (
     VALID_VIEW_ACTIONS,
     exposure_mode,
 )
-from onshape_rest_api_mode.geometry import (
-    build_rest_geometry_package,
-    configure_rest_geometry_backend,
-    geometry_backend_status,
-)
-from onshape_rest_api_mode.step_export import export_step
 from onshape_docs.query import fs_check, fs_reference, onshape_api_reference, onshape_api_docs, project_docs
 from onshape_rest_api_mode.budget import live_blocker
 from onshape_rest_api_mode.client import CREDENTIALS_PATH, STATE_PATH, load_json, parameter_payload
@@ -378,6 +372,13 @@ def _create_part_studio(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _export_step(arguments: dict[str, Any]) -> dict[str, Any]:
+    # Imported here, not at module scope: onshape_rest_api_mode.step_export
+    # reaches the artifact contracts through fdm_analysis, and a module-level
+    # import would bind the whole MCP surface to the FDM/geometry packages at
+    # import time. Every other onshape_* import in this file is lazy for the
+    # same reason.
+    from onshape_rest_api_mode.step_export import export_step
+
     _confirm(arguments)
     max_polls = arguments.get("max_polls", 3)
     translation_id = arguments.get("translation_id") or None
@@ -444,6 +445,7 @@ def _geometry_status(arguments: dict[str, Any]) -> dict[str, Any]:
     buildable at all.
     """
     from onshape_browser_mode.geometry import browser_geometry_status
+    from onshape_rest_api_mode.geometry import geometry_backend_status
 
     rest = _point_at_survivor(geometry_backend_status(), GEOMETRY_CONFIGURE_SURVIVOR)
     browser = _point_at_survivor(
@@ -481,6 +483,8 @@ def _configure_geometry_backend(arguments: dict[str, Any]) -> dict[str, Any]:
             return configure_browser_geometry_backend(candidate_id, dry_run=True)
         _confirm(arguments)
         return configure_browser_geometry_backend(candidate_id)
+    from onshape_rest_api_mode.geometry import configure_rest_geometry_backend
+
     if dry_run:
         return configure_rest_geometry_backend(candidate_id, dry_run=True)
     _confirm(arguments)
@@ -488,6 +492,8 @@ def _configure_geometry_backend(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_geometry_package(arguments: dict[str, Any]) -> dict[str, Any]:
+    from onshape_rest_api_mode.geometry import build_rest_geometry_package
+
     _confirm(arguments)
     return build_rest_geometry_package(
         arguments["translation_id"],
@@ -2472,7 +2478,11 @@ TOOLS: list[dict[str, Any]] = [
             "process. action='detach' is the non-destructive alternative: it relinquishes MCP ownership "
             "of the session WITHOUT closing the browser, context, or profile and keeps the window and its "
             "login state — it is supported only in resident/attached mode, and a non-resident session "
-            "reports detached=false and recommends release. Three outcomes are not interchangeable: "
+            "reports detached=false and recommends release. That refusal is STRUCTURAL, not a missing "
+            "wheel API: a launched browser runs on --remote-debugging-pipe, exposes no CDP endpoint to "
+            "re-attach to, and is reaped with its Playwright driver (taskkill /T /F). When login state "
+            "must outlive this MCP child, use resident mode (browser.resident=true) instead of retrying "
+            "detach. Three outcomes are not interchangeable: "
             "release loses login state; a process crash or a page navigation does NOT; detach keeps the "
             "window. Keep the session at the end of a task by default, because release can cost a human "
             "sign-in; release only on an explicit human request or when the resources genuinely must be "
@@ -2507,7 +2517,9 @@ TOOLS: list[dict[str, Any]] = [
                     "recovery action, without starting the browser or touching it beyond one timed round trip; "
                     "detach = relinquish MCP ownership WITHOUT closing the browser, context, or profile, "
                     "keeping the window and its login state, and only in resident/attached mode (a "
-                    "non-resident session returns detached=false and recommends release). Three outcomes "
+                    "non-resident session returns detached=false and recommends release, because a "
+                    "--remote-debugging-pipe browser has no CDP endpoint and is reaped with its driver). "
+                    "Three outcomes "
                     "differ: release CLOSES the window and may invalidate the persistent login state; a "
                     "process crash or page navigation does NOT lose login state; detach keeps the window."
                 ),

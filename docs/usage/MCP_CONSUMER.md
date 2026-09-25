@@ -148,9 +148,16 @@ another owner. Three outcomes are not interchangeable: `release` can lose login
 state; a process crash or a page navigation does not; and
 `browser_session(action="detach")` keeps the window but is supported only in
 resident/attached mode (`browser.resident = true`) — a non-resident session
-returns `detached=false`, `supported=false`, and recommends release, which is a
-known limitation of the pinned `browser_common` wheel rather than a bug in the
-call. `browser_session(action="login")` reports `alreadyAuthenticated` (the
+returns `detached=false`, `supported=false`, and recommends release. This is a
+**structural** limitation, not a missing wheel API (shared-library maintainers,
+2026-09-25): a `launch_persistent_context` browser runs on
+`--remote-debugging-pipe`, so it exposes no CDP endpoint to re-attach to, and the
+Playwright driver owns its whole process tree (on exit it reaps it with
+`taskkill /T /F`). Do not ask for a keep-alive detach on that launch mode and do
+not retry it; **when login state must outlive the MCP child, use resident mode
+instead** — `browser.resident = true` has the server spawn Edge detached with
+`--remote-debugging-port` and attach over CDP, where `context.close()` is already a
+detach (measured on `Edg/153.0.4234.32`). `browser_session(action="login")` reports `alreadyAuthenticated` (the
 persistent profile still has a live session) or `needsHumanLogin` (it does not),
 so the caller no longer has to guess from the URL. When it does need a human, the
 result also carries `pageMaySelfReload: true` and a `humanInputAdvisory`: the

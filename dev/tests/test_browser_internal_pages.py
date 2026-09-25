@@ -674,7 +674,7 @@ class ClosedCandidateTest(unittest.TestCase):
 
 @unittest.skipUnless(HAVE_BROWSER_COMMON, "browser_common wheel is not importable")
 class DetachTest(unittest.TestCase):
-    """Issue #6: detach is honest about what the pinned wheel can do."""
+    """Issue #6: detach is honest about what is structurally possible."""
 
     def test_detach_on_an_attached_resident_leaves_the_browser_running(self):
         context = FakeContext([FakePage(APP)])
@@ -706,6 +706,15 @@ class DetachTest(unittest.TestCase):
         self.assertEqual(report["recommended"], "browser_session action=release")
         self.assertIn("browser.resident=true", report["alternative"])
         self.assertEqual(report["reason"].count("."), 1, "one precise sentence")
+        # The refusal must cite the STRUCTURAL cause, not "the wheel happens to
+        # lack the method": a pipe-launched browser is reaped with its driver and
+        # exposes no CDP endpoint, so no re-attach is possible (maintainer
+        # confirmation 2026-09-25). If someone softens this back to a wheel gap,
+        # the caller is pushed toward asking for an API that cannot be delivered.
+        self.assertIn("pipe", report["reason"])
+        self.assertIn("taskkill", report["reason"])
+        self.assertIn("no CDP endpoint", report["reason"])
+        self.assertNotIn("pinned wheel exposes", report["reason"])
         self.assertEqual(report["sessionStatus"], "started")
         self.assertEqual(context.close_calls, 0)
         self.assertEqual(session._resources.release_calls, 0)

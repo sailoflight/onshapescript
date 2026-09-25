@@ -34,6 +34,18 @@ WHITELIST: tuple[str, ...] = (
     "mcp_main/dsh/",  # runtime policy companion, also covered by mcp_main/
     "onshape_browser_mode/",  # includes wheels/ and requirements-windows.txt
     "onshape_rest_api_mode/",
+    # DECIDED (owner, 2026-09-25): fdm_analysis IS part of the artifact, shipped
+    # with the server. It is not an outside concern -- the geometry and FDM
+    # capabilities are exposed as MCP tools (onshape_geometry_status,
+    # onshape_build_geometry_package, ...), so the package belongs to this tool
+    # set. What was adjusted instead of the file list is the DEPENDENCY SHAPE:
+    #   * `mcp_main/win/mcp/server.py` no longer imports the geometry/step_export
+    #     modules at module scope (they reach fdm_analysis), so importing the
+    #     server no longer drags the package in at all; and
+    #   * `fdm_analysis/__init__.py` re-exports lazily (PEP 562), so a caller that
+    #     only needs `file_sha256` from `.contracts` -- as the Onshape STEP export
+    #     does -- loads 1 submodule instead of 16 (slicers/Bambu included).
+    "fdm_analysis/",
     # onshape_docs runtime subset: what the server's offline doc tools read.
     "onshape_docs/__init__.py",
     "onshape_docs/README.md",
@@ -88,21 +100,13 @@ DENYLIST: tuple[str, ...] = (
 #: Paths whose artifact membership still needs a human decision. Neither
 #: whitelisted nor denylisted; not planned by default.
 #:
-#: ``fdm_analysis/`` is the one open item, and it is NOT a file-list question.
-#: The owner's intent is to keep the FDM/apparatus out of an Onshape artifact,
-#: but the import graph does not allow that yet: ``mcp_main/win/mcp/server.py:35``
-#: imports ``onshape_rest_api_mode.geometry`` at module level, which does
-#: ``from fdm_analysis import ...`` at module level, so excluding the package
-#: makes the MCP server itself fail to import (verified with an import blocker:
-#: blocking ``fdm_analysis`` breaks ``mcp_main.win.mcp.server`` while
-#: session/transactions/actions still import). Importing the package also pulls
-#: 17 submodules -- slicers/Bambu, delivery, metrics, reports, conversion -- via
-#: the ``__init__`` re-exports, so shipping a subset of files is not possible
-#: without a code change.
-#:
-#: Resolving it is therefore either "include the 224K package as a shared
-#: geometry-contract library" or a deliberate split task, not a whitelist edit.
-PENDING_DECISION: tuple[str, ...] = ("fdm_analysis/",)
+#: EMPTY since 2026-09-25. ``fdm_analysis/`` was the last open item and is now
+#: whitelisted (see the comment there): the owner settled it as "this tool ships
+#: together with the rest", so the import-graph work became a dependency-SHAPE
+#: adjustment (lazy server imports + lazy package re-exports) instead of a
+#: packaging split. Keep the constant so ``--check`` keeps reporting the list and
+#: a future genuinely-open path has one documented home.
+PENDING_DECISION: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

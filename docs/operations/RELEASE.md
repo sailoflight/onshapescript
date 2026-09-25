@@ -53,6 +53,11 @@ over it. Measured: `du -sb onshape_docs/reference/raw` is 10,258,423 bytes
 and `onshape_docs/verification/` are development/build-plane content and are
 not part of the consumer artifact.
 
+`fdm_analysis/` also **is** in the whitelist (224K): its geometry and slicer
+capabilities are MCP tools of this server. See the decided section below for the
+dependency adjustment that came with that decision. `dev/` and `temp/` are
+development-plane content.
+
 ## Never bundled, never deleted (denylist)
 
 The artifact must not contain the paths below, and install, upgrade, rollback,
@@ -217,36 +222,37 @@ packaging pipeline is written:
 1. **Artifact format**: zip vs wheel vs zipapp vs PyInstaller.
 2. **Publication location**: where the artifact is stored and distributed.
 3. **Code signing**: whether the artifact and/or manifest is signed.
-4. **`fdm_analysis/`**: consumer runtime or development-only. It is currently
-   neither whitelisted nor denylisted and is reported under pending decisions.
 
-   Blocking evidence (verified, 2026-08): excluding it is **not** a
-   ready-to-apply option. `mcp_main/win/mcp/server.py` imports
-   `onshape_rest_api_mode.geometry`, which does
-   `from fdm_analysis import StepArtifact, build_geometry_package` at module
-   level. With `fdm_analysis` unimportable, importing
-   `mcp_main.win.mcp.server` fails, so the whole MCP surface is lost
-   (`session.py`, `transactions.py`, `actions.py` still import on their own).
-   Blocking it is therefore a code change, not a packaging choice.
+No path is pending a membership decision: `PENDING_DECISION` in
+`dev/tools/consumer_release_spec.py` is empty.
 
-   Shipping a *subset* of files is also not possible as-is: `fdm_analysis/__init__.py`
-   re-exports and `import fdm_analysis` transitively loads 17 submodules
-   (conversion, delivery, geometry_pipeline, metrics, pipeline,
-   slicers/bambu_studio, slicers/execution, …), so dropping the slicer and
-   delivery modules breaks the package import before any consumer call runs.
-   `fdm_analysis/` measures 224K — the format/decision is about dependency
-   direction, not size.
+## Decided: `fdm_analysis/` ships, and the dependency shape was adjusted
 
-   Three options for the human:
-   - **A** ship the 224K package as a shared geometry-contract library
-     (smallest change; widens the consumer surface to FDM code).
-   - **B** split: move the contracts `geometry.py` needs (`StepArtifact`,
-     `build_geometry_package`) into a neutral shared spot, or make
-     `fdm_analysis/__init__` and the FDM-only submodules lazy, keeping
-     slicers/Bambu/delivery/metrics/reports/conversion out of the artifact
-     (requires code work in the development plane).
-   - **C** exclude and accept a non-importable server — rejected as stated
-     above.
+**DECIDED (owner, 2026-09-25): `fdm_analysis/` is part of the artifact.** The
+geometry and FDM capabilities are exposed as MCP tools of this server
+(`onshape_geometry_status`, `onshape_build_geometry_package`, the slicer-backed
+pipeline, …), so the package belongs to this tool set rather than being an outside
+concern. It is whitelisted; measured at 224K.
+
+What was adjusted instead of the file list is the **dependency shape**. The
+original defect was not that the package existed but *when* it was reached:
+
+| Before | After |
+|---|---|
+| `mcp_main/win/mcp/server.py` imported `onshape_rest_api_mode.geometry` and `step_export` at module scope, so importing the server failed without `fdm_analysis` and pulled 16 submodules with it | those imports moved into the four handlers that use them, next to every other lazy `onshape_*` import in that file; importing the server now loads **0** `fdm_analysis` submodules |
+| `fdm_analysis/__init__.py` re-exported eagerly, so `from fdm_analysis.contracts import file_sha256` — the one symbol the Onshape STEP export needs — loaded 16 submodules including `slicers/bambu_studio` and `slicers/execution` | PEP 562 lazy re-exports: the same import loads **1** submodule (`fdm_analysis.contracts`) |
+
+Both numbers are pinned by `dev/tests/test_import_shape.py`, which measures them in
+a fresh interpreter (in-process assertions would be masked by siblings that import
+the package eagerly). The public names and `__all__` are unchanged, so no caller or
+test needed rewriting.
+
+Two consequences worth keeping:
+
+- Removing `fdm_analysis/` from the whitelist is **not** a slim-down; it makes the
+  server unimportable. `dev/tests/test_consumer_release.py` pins the decision.
+- A future module-scope import of the geometry/step_export chain reintroduces the
+  old coupling. Add the import inside the handler instead.
 
 ## Related documents
 

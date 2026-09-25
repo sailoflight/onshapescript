@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "0239069f3645565e8e22799851e5c4b1f2995302f531e774e3445629499f9689",
+   "sha256": "21bdd0f27d7eb335c120f79a76e5cb44d19ad80db4774263777fbd354182d988",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -746,7 +746,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. Keep the browser session at the end of a task by default. Release only on an explicit human request, or when resources genuinely must be freed: release CLOSES the window and can drop the persistent profile's login state, so a later task may pay another human sign-in. It cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Three outcomes are not interchangeable: release can lose login state; a process crash or a page navigation does not; and browser_session(action=\"detach\") keeps the window but is supported only in resident/attached mode (browser.resident = true) — a non-resident session returns detached=false, supported=false, and recommends release, which is a known limitation of the pinned browser_common wheel rather than a bug in the call. browser_session(action=\"login\") reports alreadyAuthenticated (the persistent profile still has a live session) or needsHumanLogin (it does not), so the caller no longer has to guess from the URL. When it does need a human, the result also carries pageMaySelfReload: true and a humanInputAdvisory: the Onshape sign-in page reloads itself while the human types (measured — it replaces its own document, so typed input and all window-level state are lost), and this server neither causes that nor can prevent or recover it. Do not poll or read the sign-in page during human input; wait for the human to report completion and then decide with action=health rather than page reads. browser_session action=status also reports pageSelection ({\"considered\", \"discarded\":[{\"url\",\"reason\"}], \"selected\"}) from the last start(), and the session never adopts a closed candidate page: it skips closed pages, advances past an adopt failure, and falls back to opening a new page."
+       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. Keep the browser session at the end of a task by default. Release only on an explicit human request, or when resources genuinely must be freed: release CLOSES the window and can drop the persistent profile's login state, so a later task may pay another human sign-in. It cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Three outcomes are not interchangeable: release can lose login state; a process crash or a page navigation does not; and browser_session(action=\"detach\") keeps the window but is supported only in resident/attached mode (browser.resident = true) — a non-resident session returns detached=false, supported=false, and recommends release. This is a structural limitation, not a missing wheel API (shared-library maintainers, 2026-09-25): a launch_persistent_context browser runs on --remote-debugging-pipe, so it exposes no CDP endpoint to re-attach to, and the Playwright driver owns its whole process tree (on exit it reaps it with taskkill /T /F). Do not ask for a keep-alive detach on that launch mode and do not retry it; when login state must outlive the MCP child, use resident mode instead — browser.resident = true has the server spawn Edge detached with --remote-debugging-port and attach over CDP, where context.close() is already a detach (measured on Edg/153.0.4234.32). browser_session(action=\"login\") reports alreadyAuthenticated (the persistent profile still has a live session) or needsHumanLogin (it does not), so the caller no longer has to guess from the URL. When it does need a human, the result also carries pageMaySelfReload: true and a humanInputAdvisory: the Onshape sign-in page reloads itself while the human types (measured — it replaces its own document, so typed input and all window-level state are lost), and this server neither causes that nor can prevent or recover it. Do not poll or read the sign-in page during human input; wait for the human to report completion and then decide with action=health rather than page reads. browser_session action=status also reports pageSelection ({\"considered\", \"discarded\":[{\"url\",\"reason\"}], \"selected\"}) from the last start(), and the session never adopts a closed candidate page: it skips closed pages, advances past an adopt failure, and falls back to opening a new page."
       },
       {
        "type": "table",
@@ -2494,7 +2494,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "3152ccb4945aff6bd046e66281a3ad365402be77e37c4fbad07987eee3e8d9a1",
+   "sha256": "2c6209452159296fe5e83c9cea010fea0756585fc27d1f6b0c18450b60c92c71",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2582,7 +2582,27 @@
          "depth": 0
         },
         {
-         "text": "action=detach 是“保留窗口”的非破坏性兄弟：仅在 resident/attached 模式 （browser.resident = true）成立，它让 Playwright 脱离并留下浏览器、标签页和登录态 （detached: true、contextClosed: false、browserLeftRunning: true）。非 resident 模式对固定版本的 browser_common 不存在真实的 detach：启动的浏览器生命周期绑定在 Playwright 连接上，唯一的释放 API 会关窗，因此返回 {\"detached\": false, \"supported\": false, \"reason\": ..., \"recommended\": \"browser_session action=release\", \"alternative\": ...} 且不改动任何状态——这是已知限制，不是调用的 bug。",
+         "text": "action=detach 是“保留窗口”的非破坏性兄弟：仅在 resident/attached 模式 （browser.resident = true）成立，它让 Playwright 脱离并留下浏览器、标签页和登录态 （detached: true、contextClosed: false、browserLeftRunning: true）。非 resident 模式下返回 {\"detached\": false, \"supported\": false, \"reason\": ..., \"recommended\": \"browser_session action=release\", \"alternative\": ...} 且不改动任何状态——这是已知限制，不是调用的 bug。",
+         "depth": 0
+        },
+        {
+         "text": "**非 resident 模式的\"不能 detach\"是结构性的，不是库缺一个方法（2026-09-25 共享库维护方确认， 证据为 playwright-core 1.62.0 源码）。** 三条独立事实：",
+         "depth": 0
+        },
+        {
+         "text": "launch_persistent_context 启动时 Chromium 的 defaultArgs 里就是 --remote-debugging-pipe，那个浏览器只有这条 pipe，没有 CDP 端点；",
+         "depth": 1
+        },
+        {
+         "text": "Playwright 把自己启动的每个进程登记进 gracefullyCloseSet/killSet，驱动进程退出时 exitHandler() 对每项执行 killProcess() —— Windows 上是 taskkill /pid <pid> /T /F （/T 连子进程一起杀），POSIX 上是 process.kill(-pid, \"SIGKILL\")。**驱动是唯一所有者， 它没了整棵进程树就没了** —— 这也解释了\"bridge 重启就丢登录\"的根因；",
+         "depth": 1
+        },
+        {
+         "text": "即便某平台上进程侥幸活下来，没有 CDP 端点就无法重新附着（Python 侧只有 connect_over_cdp，要求浏览器带 --remote-debugging-port），留下的是一个谁也驱动不了的 僵尸窗口。所以\"库侧加 SyncSession.detach()\"这条路不再需要尝试——它要么变成 \"其实没释放\"的不诚实回报，要么只能收下一个无用的窗口。",
+         "depth": 1
+        },
+        {
+         "text": "解法是本仓库已有的 resident 路线，不需要库侧新增 API。 browser.resident = true 时 onshape_browser_mode/resident.py 的 start_resident_browser() 先探 http://127.0.0.1:<port>/json/version，没人应答才以 detached 方式自己 spawn Edge （--user-data-dir=… --remote-debugging-port=<port>），ResidentChromium 再用 connect_over_cdp 附着而不是 launch。在这条连接上 context.close() 就是 detach： 实测（Edg/153.0.4234.32，artifacts/cdp_close_probe.py）close() 返回后 DevTools 端点仍在、 每个 target 仍在、browser.is_connected() 转 False、browser.contexts 归 0；再次 connect_over_cdp 又能看到 1 个 context + 1 个 page，playwright.stop() 也不影响端点。 Chromium 无法销毁浏览器的 default context，所以这条连接上 close() 不可能是销毁。 因此：要让登录态跨 MCP 子进程存活，就用 resident 模式；而不是等一个不会来的 detach。",
          "depth": 0
         },
         {

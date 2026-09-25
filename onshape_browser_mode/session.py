@@ -867,11 +867,15 @@ class BrowserSession:
 
         Honest cases, in order:
 
-        * non-resident mode -- no truthful detach exists against the pinned wheel.
-          The launched browser's lifetime is bound to the Playwright connection,
-          and the only release API calls `context.close()`, which ends the window
-          and drops the profile's session-cookie login. Nothing is changed and the
-          caller is told so.
+        * non-resident mode -- a keep-alive detach is structurally impossible
+          here, and NOT merely missing from the pinned wheel (confirmed by the
+          shared-library maintainers 2026-09-25). A `launch_persistent_context`
+          browser is started with `--remote-debugging-pipe`, so the Playwright
+          driver is its only owner: on exit the driver reaps the whole process
+          tree (`killProcess()` is `taskkill /pid <pid> /T /F` on Windows,
+          `process.kill(-pid, "SIGKILL")` on POSIX), and because that browser has
+          no CDP endpoint it also cannot be re-attached afterwards. Nothing is
+          changed and the caller is told so.
         * resident/attached mode -- `context.close()` on the adapter's attached
           default context detaches Playwright and leaves the browser, its tabs and
           its login alone. Ownership is released through the existing
@@ -885,13 +889,19 @@ class BrowserSession:
                 "supported": False,
                 "keepBrowser": bool(keep_browser),
                 "reason": (
-                    "This MCP process launched its own browser, so the browser's "
-                    "lifetime is bound to the Playwright connection and the only "
-                    "release the pinned wheel exposes closes the window and drops "
-                    "the profile's login state."
+                    "This MCP process launched its own browser over a DevTools "
+                    "pipe, so the Playwright driver owns its whole process tree "
+                    "(it reaps it with taskkill /T /F) and that browser has no CDP "
+                    "endpoint to re-attach to, which makes a keep-alive detach "
+                    "structurally impossible rather than merely absent from the "
+                    "pinned wheel."
                 ),
                 "recommended": "browser_session action=release",
-                "alternative": "enable browser.resident=true for a browser that survives the MCP child",
+                "alternative": (
+                    "enable browser.resident=true for a browser that survives the "
+                    "MCP child (it is spawned detached with --remote-debugging-port "
+                    "and ATTACHED over CDP, so releasing it is already a detach)"
+                ),
                 "sessionStatus": self._status,
             }
         if not keep_browser:

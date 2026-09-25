@@ -231,7 +231,10 @@ class MergedGeometryToolRoutingTest(unittest.TestCase):
         browser_report = {"ready": False, "dependencyResolution": {"nextAction": None}}
         rest_report = {"ready": True, "dependencyResolution": {"nextAction": None}}
         with mock.patch(
-            "mcp_main.win.mcp.server.geometry_backend_status", return_value=dict(rest_report)
+            # Patched at its defining module: `mcp_main.win.mcp.server` now imports
+            # this inside the handler, so the server module has no such attribute.
+            "onshape_rest_api_mode.geometry.geometry_backend_status",
+            return_value=dict(rest_report),
         ), mock.patch(
             "onshape_browser_mode.geometry.browser_geometry_status", return_value=dict(browser_report)
         ):

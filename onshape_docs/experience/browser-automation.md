@@ -38,10 +38,31 @@
 - `action=detach` 是“保留窗口”的非破坏性兄弟：仅在 resident/attached 模式
   （`browser.resident = true`）成立，它让 Playwright 脱离并留下浏览器、标签页和登录态
   （`detached: true`、`contextClosed: false`、`browserLeftRunning: true`）。非 resident
-  模式对固定版本的 `browser_common` 不存在真实的 detach：启动的浏览器生命周期绑定在
-  Playwright 连接上，唯一的释放 API 会关窗，因此返回
+  模式下返回
   `{"detached": false, "supported": false, "reason": ..., "recommended": "browser_session action=release", "alternative": ...}`
   且不改动任何状态——这是已知限制，不是调用的 bug。
+- **非 resident 模式的"不能 detach"是结构性的，不是库缺一个方法（2026-09-25 共享库维护方确认，
+  证据为 playwright-core 1.62.0 源码）。** 三条独立事实：
+  1. `launch_persistent_context` 启动时 Chromium 的 `defaultArgs` 里就是
+     `--remote-debugging-pipe`，那个浏览器**只有这条 pipe，没有 CDP 端点**；
+  2. Playwright 把自己启动的每个进程登记进 `gracefullyCloseSet`/`killSet`，驱动进程退出时
+     `exitHandler()` 对每项执行 `killProcess()` —— Windows 上是 `taskkill /pid <pid> /T /F`
+     （`/T` 连子进程一起杀），POSIX 上是 `process.kill(-pid, "SIGKILL")`。**驱动是唯一所有者，
+     它没了整棵进程树就没了** —— 这也解释了"bridge 重启就丢登录"的根因；
+  3. 即便某平台上进程侥幸活下来，**没有 CDP 端点就无法重新附着**（Python 侧只有
+     `connect_over_cdp`，要求浏览器带 `--remote-debugging-port`），留下的是一个谁也驱动不了的
+     僵尸窗口。所以"库侧加 `SyncSession.detach()`"这条路**不再需要尝试**——它要么变成
+     "其实没释放"的不诚实回报，要么只能收下一个无用的窗口。
+- **解法是本仓库已有的 resident 路线，不需要库侧新增 API。** `browser.resident = true` 时
+  `onshape_browser_mode/resident.py` 的 `start_resident_browser()` 先探
+  `http://127.0.0.1:<port>/json/version`，没人应答才以 detached 方式自己 spawn Edge
+  （`--user-data-dir=… --remote-debugging-port=<port>`），`ResidentChromium` 再用
+  `connect_over_cdp` **附着**而不是 launch。在这条连接上 `context.close()` 就是 detach：
+  实测（`Edg/153.0.4234.32`，`artifacts/cdp_close_probe.py`）`close()` 返回后 DevTools 端点仍在、
+  每个 target 仍在、`browser.is_connected()` 转 `False`、`browser.contexts` 归 `0`；再次
+  `connect_over_cdp` 又能看到 1 个 context + 1 个 page，`playwright.stop()` 也不影响端点。
+  Chromium 无法销毁浏览器的 **default** context，所以这条连接上 `close()` 不可能是销毁。
+  因此：**要让登录态跨 MCP 子进程存活，就用 resident 模式；而不是等一个不会来的 detach。**
 - 默认指引：任务结束时**保留**会话；只有人工明确要求或确实需要释放资源时才 `release`。
 - `action=login` 现在报告 `alreadyAuthenticated`（持久 profile 仍有活会话）或
   `needsHumanLogin`（没有），不必再从 URL 猜。

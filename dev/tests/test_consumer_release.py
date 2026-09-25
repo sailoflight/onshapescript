@@ -77,6 +77,20 @@ class ConsumerReleaseSpecTest(unittest.TestCase):
     def test_validate_reports_no_invariant_violation(self) -> None:
         self.assertEqual(spec.validate(ROOT), [])
 
+    def test_the_fdm_package_is_planned_and_no_decision_is_pending(self) -> None:
+        # Owner decision 2026-09-25: fdm_analysis ships WITH the artifact because
+        # the geometry/FDM capabilities are MCP tools of this server. Dropping it
+        # from the whitelist breaks the server's own imports, so a regression here
+        # is not a slim-down, it is a broken artifact.
+        self.assertIn("fdm_analysis/", spec.WHITELIST)
+        self.assertNotIn("fdm_analysis/", spec.DENYLIST)
+        self.assertEqual(spec.PENDING_DECISION, ())
+        planned = {entry.path for entry in spec.plan(ROOT).files}
+        self.assertTrue(
+            any(_matches(path, "fdm_analysis/") for path in planned),
+            "fdm_analysis is whitelisted but nothing from it is planned",
+        )
+
     def test_plan_contains_no_denylisted_path(self) -> None:
         release = spec.plan(ROOT)
         denied = [entry.path for entry in release.files if spec.is_denied(entry.path)]
