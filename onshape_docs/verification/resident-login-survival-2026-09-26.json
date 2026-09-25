@@ -105,6 +105,16 @@
       "in_place_refresh": "4 planned writes (release-manifest.json, SHA256SUMS, RELEASE-NOTES.md, docs/operations/RELEASE.md), every one an artifact entry; 402/402 content-equal on the host; recovery point temp/host-rollback-20260926T003431",
       "state_preserved": "both live geometry-backend.json files kept their 2026-08-26 mtimes and byte-identical bodies; browser-state.json 2026-09-26 00:20:08, onshape-state.json 2026-08-21, tool_views.local.toml 2026-09-21 all unchanged",
       "runtime_evidence": "no restart was needed (this release changes shipped docs/manifest only, not code): the running generation-7 server still answers configured=true / ready=true / converter.name=cadquery-ocp-wsl with configFilePresent=true, and the host release-manifest.json now reads sourceRevision e667bcc with both geometry paths preserved-listed"
+    },
+    "released_31d2b9c": {
+      "commit": "31d2b9c",
+      "decision": "OWNER DECISION 2026-09-26: resident mode becomes the default (\"默认就开就行 ... 发行包也是这样\"). The shipped default used to cost a human SSO/2FA sign-in on every MCP-child restart, because Onshape auth cookies are session cookies and a non-resident child closes the browser on stdin EOF.",
+      "changed": "onshape_browser_mode/settings.py BrowserCfg.resident False -> True AND onshape_browser_mode/config/browser.toml resident = false -> true, so the code fallback and the shipped config cannot disagree; the gitignored browser.local.toml remains the per-deployment opt-out. Docs updated where the default is stated (RELEASE.md Defaults, MCP_RUNBOOK, MCP_CONSUMER, browser-mode module table), and the browser_session description now says resident mode is the shipped default.",
+      "artifacts": "onshapescript-mcp-1.3.0-31d2b9c.zip (2789899 bytes, unsigned; sha256 sidecar verified with sha256sum -c); 402 entries, fileCount 399; the artifact's own config/browser.toml reads `resident = true`, and no live geometry-backend.json is included",
+      "in_place_refresh": "10 planned writes, every one an artifact entry, no state path planned; 402/402 content-equal on the host; recovery point temp/host-rollback-20260926T004400",
+      "state_preserved": "the host's browser.local.toml (which already set resident = true on 2026-09-20) kept its 2026-09-20 16:16:10 mtime, and both geometry-backend.json files kept theirs; browser-state.json / onshape-state.json / tool_views.local.toml unchanged",
+      "restart_and_runtime_evidence": "bridge restart 7 -> 8 (6 clients preserved, reconnectRequired=false); browser_session action=status on the restarted host reports verdict ok with residentBrowser.observed true / onOnshapeApp true on the same resident Edge at 127.0.0.1:9333, and profileBytes 1028183253 - no new human sign-in",
+      "test_note": "3 health/status tests and the internal-pages session helper had silently depended on the old default: with residency ON an unheld session legitimately probes the loopback endpoint, and this dev machine answers it (WSL localhost forwarding to the detached Edge), which turned `test_detach_outside_resident_mode_refuses_and_changes_nothing` into a false success. Those fixtures are now explicit about residency; 1115 offline tests OK."
     }
   }
 }
