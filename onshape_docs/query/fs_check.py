@@ -717,8 +717,11 @@ def check_op_boolean_grouping(fs: FsFile, comments_only: str, masked: str) -> No
         fs.warn(
             f"opBoolean at line {line} (...): UNION/INTERSECTION with both "
             '"tools" and "targets" requires "targetsAndToolsNeedGrouping" : true '
-            "(otherwise BOOLEAN_BAD_INPUT at regeneration); add it, or drop "
-            '"targets" because UNION merges tool bodies with each other.'
+            "(otherwise BOOLEAN_BAD_INPUT at regeneration). Add the flag. Do NOT "
+            'reach for "just drop targets" instead: UNION only merges the '
+            '"tools" among themselves, so omitting "targets" works only when '
+            '"tools" already supplies at least two bodies; with a single tool it '
+            "fails with the same message (measured, issue #11)."
         )
 
 

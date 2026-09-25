@@ -822,6 +822,21 @@ class OpBooleanGroupingTest(unittest.TestCase):
         self.assertIn("BOOLEAN_BAD_INPUT", warnings[0])
         self.assertIn("targetsAndToolsNeedGrouping", warnings[0])
 
+    def test_the_warning_does_not_recommend_dropping_targets_blindly(self) -> None:
+        """The reporter's own form A failed too, so "drop targets" is not a cure.
+
+        With a single body in ``tools``, omitting ``targets`` leaves the UNION
+        with nothing to merge and regenerates with the SAME
+        ``BOOLEAN_BAD_INPUT``. The warning must send the reader to the flag
+        first and state the condition under which dropping ``targets`` works.
+        """
+        warnings = self._grouping_warnings(self._call())
+        self.assertEqual(len(warnings), 1, warnings)
+        message = warnings[0]
+        self.assertNotIn("or drop", message)
+        self.assertIn("at least two bodies", message)
+        self.assertIn("single tool", message)
+
     def test_intersection_without_the_flag_also_warns(self) -> None:
         self.assertEqual(
             len(self._grouping_warnings(self._call(operation="INTERSECTION"))), 1

@@ -213,10 +213,14 @@ Measured by the reporter (issue #11) and reproduced by the local checker: an
 five deployments.
 
 - **The requirement:** pass `"targetsAndToolsNeedGrouping" : true` whenever both
-  `tools` and `targets` are supplied — or simply omit `targets`, because `UNION`
-  already merges the tool bodies with each other. The vendored standard library
-  writes the flag whenever it passes both fields (`boolean.fs`:
+  `tools` and `targets` are supplied. The vendored standard library writes the
+  flag whenever it passes both fields (`boolean.fs`:
   `"targetsAndToolsNeedGrouping" : targets != undefined`).
+- **Do not "fix" it by dropping `targets` unless `tools` already holds two
+  bodies.** `UNION` only merges the `tools` among themselves, so with a single
+  tool the same `BOOLEAN_BAD_INPUT` comes back — the reporter's own form A
+  (tools-only, one entity) failed exactly that way. Adding the flag is the
+  repair that always works.
 - **The server text is misleading here.** "至少需要两个零件或曲面" names the symptom,
   not the missing field. It is the Onshape server's own message and is **not ours
   to change**, which is exactly why the local rule warns earlier.

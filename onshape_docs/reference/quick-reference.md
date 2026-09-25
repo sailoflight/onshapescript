@@ -101,14 +101,15 @@ opFillet(context, id + "fillet", {
 - **Booleans**: `opBoolean` with `BooleanOperationType.SUBTRACTION` /
   `UNION` / `INTERSECTION`; `keepTools` controls the tools' fate.
   When the literal definition map passes **both** `"tools"` and `"targets"`, also
-  pass `"targetsAndToolsNeedGrouping" : true` (or omit `targets` — `UNION` merges
-  the tool bodies with each other). Omitting it on `UNION`/`INTERSECTION` fails at
-  regeneration with `@opBoolean: BOOLEAN_BAD_INPUT` / "至少需要两个零件或曲面"; that
-  server text names the symptom, not the missing field, and is not ours to change.
-  The local checker warns about this shape at WARNING level and never blocks an
-  upload (the vendored index can lag the live server); the `targets` requirement
-  text shown by `fs_get_function opBoolean` comes from the generated/vendored
-  index and is not hand-edited.
+  pass `"targetsAndToolsNeedGrouping" : true`. Omitting it on `UNION`/`INTERSECTION`
+  fails at regeneration with `@opBoolean: BOOLEAN_BAD_INPUT` / "至少需要两个零件或
+  曲面"; that server text names the symptom, not the missing field, and is not ours
+  to change. Adding the flag is the repair that always works — dropping `targets`
+  instead only helps when `tools` already holds two bodies, because `UNION` merges
+  the `tools` among themselves. The local checker warns about this shape at WARNING
+  level and never blocks an upload (the vendored index can lag the live server);
+  the `targets` requirement text shown by `fs_get_function opBoolean` comes from the
+  generated/vendored index and is not hand-edited.
 - **Queries compose**: `qUnion`, `qBodyType(qEverything(EntityType.EDGE),
   BodyType.SOLID)`, `qCreatedBy(id, EntityType.EDGE)`, `qSketchRegion(id)`.
 - **Regen errors**: `throw regenError("message", ["param1", "param2"])` to
