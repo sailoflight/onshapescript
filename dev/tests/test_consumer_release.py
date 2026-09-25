@@ -200,6 +200,18 @@ class ConsumerReleaseSpecTest(unittest.TestCase):
                 [a.path for a in expected],
             )
 
+            # The preserved-state list must be the host-independent denylist: the
+            # machine that builds a release is not the machine that owns the state.
+            self.assertEqual(manifest["excludedPaths"], list(spec.DENYLIST))
+            self.assertEqual(
+                spec.plan(ROOT).excluded,
+                tuple(
+                    entry
+                    for entry in spec.DENYLIST
+                    if (ROOT / entry.rstrip("/")).exists()
+                ),
+            )
+
             # The sidecar must be real `sha256sum -c` input, verified here against
             # the live files rather than by trusting the manifest.
             rows = [

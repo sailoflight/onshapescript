@@ -76,11 +76,18 @@ or uninstall must **never delete** them from the host:
   `onshape_rest_api_mode/config/api-usage.json` (the quota ledger),
   `onshape_rest_api_mode/outputs/`.
 - Local view state: `mcp_main/win/mcp/config/tool_views.local.toml`.
+- Operator-owned geometry backend selection:
+  `onshape_browser_mode/config/geometry-backend.json` and
+  `onshape_rest_api_mode/config/geometry-backend.json` (the shipped template is
+  `geometry-backend.json.example`).
 
 Some of these live under whitelisted module directories; the denylist is an
-exclusion overlay that always wins. `dev/tools/consumer_release_spec.py` shows
-which denylisted candidates currently exist in a checkout and reports them as
-excluded.
+exclusion overlay that always wins. `dev/tools/consumer_release_spec.py --check`
+shows which denylisted candidates currently exist in a checkout and reports them
+as excluded. The shipped manifest's own `excludedPaths` carries the **complete**
+denylist instead: the machine that builds a release is not the machine that owns
+the state, so a checkout-dependent subset would omit exactly the paths an upgrade
+must carry over.
 
 ### Geometry backend selection is machine-local state (resolved 2026-09-26)
 
@@ -201,8 +208,8 @@ denylisted mutable state listed above before changing anything.
 ### Upgrade and rollback
 
 Upgrade replaces code and never deletes state by default. `release-manifest.json`
-lists `excludedPaths`: that is the preserved state, and it is absent from the
-artifact precisely so extracting can never overwrite it.
+lists `excludedPaths` — the complete denylist — and every one of them is absent
+from the artifact precisely so extracting can never overwrite it.
 
 1. Record the recovery point (the Operator runbook procedure) and stop the server.
 2. Extract the new release into a **new** directory, for example
@@ -210,9 +217,11 @@ artifact precisely so extracting can never overwrite it.
 3. Carry the preserved state forward by copying the `excludedPaths` that exist in
    the old install into the same relative locations in the new one: the browser
    profile, `browser-state.json`, `browser.local.toml`, the REST credential and
-   state files, `api-usage.json`, `tool_views.local.toml`, and the output trees.
-   Copying `api-usage.json` is not optional — the annual Onshape quota ledger must
-   not be reset by an upgrade.
+   state files, `api-usage.json`, `tool_views.local.toml`, the output trees, and
+   both `config/geometry-backend.json` files — the geometry backend selection is
+   state too, and a new directory that lacks it starts with the disabled default
+   (`configFilePresent: false`). Copying `api-usage.json` is not optional — the
+   annual Onshape quota ledger must not be reset by an upgrade.
 4. Re-point the client/adapter registration at the new directory and start it.
 5. **Rollback** is steps 3-4 in reverse: re-point the registration at the previous
    directory. Keep the previous directory until the new one has served a request,

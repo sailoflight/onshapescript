@@ -259,7 +259,14 @@ def write_manifest(base: Path, destination: Path) -> dict[str, Path]:
             "digest over the ordered (sha256, bytes, path) rows; two runs that "
             "disagree describe different file sets"
         ),
-        "excludedPaths": list(current.excluded),
+        "excludedPaths": list(DENYLIST),
+        "excludedPathsMean": (
+            "the complete denylist, and therefore host-independent: these paths "
+            "are never bundled, and an install, upgrade, rollback or uninstall "
+            "must never write or delete them. The plan's `excluded` field is the "
+            "subset that happens to exist in THIS checkout, which is a build-time "
+            "fact and not a property of the release"
+        ),
         "pendingDecision": list(current.pending_decision),
         "checksumSidecar": CHECKSUM_SIDECAR_NAME,
         "checksumSidecarVerification": (

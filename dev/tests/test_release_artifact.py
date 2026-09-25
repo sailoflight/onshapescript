@@ -141,8 +141,17 @@ class BuiltArtifactTest(unittest.TestCase):
         self.assertEqual(
             [row["path"] for row in manifest["files"]], [e.path for e in expected]
         )
-        # The preserved-state list is what an upgrade carries over.
-        self.assertEqual(manifest["excludedPaths"], list(spec.plan(ROOT).excluded))
+        # The preserved-state list is what an upgrade carries over, so it must be
+        # the host-independent denylist -- not the subset that happens to exist in
+        # this checkout, which would drop a state file the build machine lacks
+        # (the machine-local geometry backend selection was exactly that).
+        self.assertEqual(manifest["excludedPaths"], list(spec.DENYLIST))
+        self.assertTrue(
+            {"onshape_browser_mode/config/geometry-backend.json",
+             "onshape_rest_api_mode/config/geometry-backend.json"}.issubset(
+                set(manifest["excludedPaths"])
+            )
+        )
 
     def test_the_release_notes_name_the_artifact_and_the_open_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

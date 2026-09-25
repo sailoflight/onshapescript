@@ -185,7 +185,13 @@ def build(
             f"extract, then: cd <install-dir> && sha256sum -c "
             f"{spec.CHECKSUM_SIDECAR_NAME}"
         ),
-        "excludedPaths": list(current.excluded),
+        "excludedPaths": list(spec.DENYLIST),
+        "excludedPathsMean": (
+            "the complete denylist, and therefore host-independent: these paths "
+            "are never bundled, and an install, upgrade, rollback or uninstall "
+            "must never write or delete them. The browser profile and the "
+            "machine-local geometry backend selection are both in it."
+        ),
         "pendingDecision": list(current.pending_decision),
         "files": [
             {"path": entry.path, "bytes": entry.bytes, "sha256": entry.sha256}
