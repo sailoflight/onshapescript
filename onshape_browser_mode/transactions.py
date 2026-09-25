@@ -871,7 +871,12 @@ def verify_feature_parameters(
         feature_list = actions.wait_for_feature_list(
             page, actions.PARTSTUDIO_PANEL_READY_TIMEOUT_MS, selector=selectors.PS_USER_FEATURE
         )
-    features = actions.read_partstudio_features(page)
+    # Bounded convergence, not a single read (issue #12 follow-up). A one-pass read
+    # taken while the row was still regenerating reported an error flag while the
+    # error list was empty and the parameters were applied correctly, which sent a
+    # caller to fix an error that did not exist. The settled read re-reads until the
+    # flag stops changing, and reports `maybeStale` when it never did.
+    features = actions.read_partstudio_features_settled(page)
     # A row rendered from a "Feature Name Template" prints its computed values, so an edit
     # that changes one RENAMES the row. `expect_row` names the text the row must now
     # carry, and it is the only way to keep verifying such an edit by reading the row
@@ -891,6 +896,11 @@ def verify_feature_parameters(
     state = actions.feature_state(features, effective_name)
     rows = state["rows"]
     regeneration_ok = len(rows) == 1 and not state["errored"]
+    # The convergence bound can expire while the error flag is still changing. That
+    # is NOT a verdict, and this repository already reports "not known to have
+    # failed" as `parametersApplied=null` with `retryVerify`: a premature error read
+    # must not be promoted into a failure the caller then tries to repair.
+    unsettled_error = bool(features.get("maybeStale")) and bool(state["errored"])
     result: dict[str, Any] = {
         "verified": False,
         "parametersApplied": None,
@@ -902,6 +912,12 @@ def verify_feature_parameters(
         "featureState": rows,
         "persisted": {},
         "featureRow": {},
+        # Issue #12: a verdict about an error flag is only usable together with
+        # WHEN it was read and whether the flag had stopped moving. Both are
+        # reported on every verify result, not only on the unsettled branch, so a
+        # caller never has to infer them from the absence of a key.
+        "maybeStale": bool(features.get("maybeStale")),
+        "hasErrorReadAt": features.get("hasErrorReadAt"),
     }
     if renamed_to:
         # A row rendered from a "Feature Name Template" prints its computed values, so
@@ -915,6 +931,19 @@ def verify_feature_parameters(
         result["featureListReady"] = feature_list
     failure = ""
     if not regeneration_ok:
+        if unsettled_error:
+            result["parametersApplied"] = None
+            result["retryVerify"] = True
+            result["maybeStale"] = True
+            result["hasErrorReadAt"] = features.get("hasErrorReadAt")
+            result["settleCondition"] = features.get("settleCondition")
+            result["reason"] = (
+                "the row still carried an error flag that had not stopped changing "
+                f"within {features.get('settleTimeoutMs')} ms, so this read is not "
+                "reported as a failure — the workbench may simply still be "
+                "regenerating; call again to read a settled page"
+            )
+            return result
         result["persistenceOk"] = False
         failure = (
             f"the accepted edit left {len(rows)} row(s) named {effective_name!r} and "

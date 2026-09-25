@@ -646,6 +646,82 @@ def check_map_literals(fs: FsFile, masked: str) -> None:
             break
 
 
+def _map_entry_key_value(
+    masked: str, readable: str, start: int, end: int
+) -> tuple[str, str] | None:
+    """Key/value text of one top-level ``key : value`` entry, or ``None``.
+
+    ``masked`` is the fully masked source (string and comment contents blanked),
+    so a ``:`` inside a string cannot be read as the separator; ``readable`` is
+    the comment-masked source, so the returned key keeps its quoted spelling.
+    """
+    depth = 0
+    for index in range(start, end):
+        char = masked[index]
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == ":" and depth == 0:
+            key = readable[start:index].strip().strip("\"'")
+            return key, readable[index + 1:end].strip()
+    return None
+
+
+def check_op_boolean_grouping(fs: FsFile, comments_only: str, masked: str) -> None:
+    """Warn about an ``opBoolean`` literal map that omits the grouping flag.
+
+    Measured live by the reporter: ``opBoolean`` with both ``"tools"`` and
+    ``"targets"`` and ``operationType: UNION`` but without
+    ``"targetsAndToolsNeedGrouping" : true`` fails at *regeneration* with the
+    misleading ``@opBoolean: BOOLEAN_BAD_INPUT`` /
+    "布尔运算操作至少需要两个零件或曲面", which names the symptom instead of the
+    missing field; it cost five deployments. The std library itself writes the
+    flag whenever it passes both fields (``boolean.fs``:
+    ``"targetsAndToolsNeedGrouping" : targets != undefined``), so the omission is
+    a real mistake, not a style choice.
+
+    Warning only, like every other rule here: ``BOOLEAN_BAD_INPUT`` is the
+    server's text and not ours to change, so this rule only warns earlier and
+    never blocks the write (see `findings_requiring_acknowledgement`). It fires
+    only on a *literal* third argument -- the same gate as `check_op_definitions`
+    -- so a map held in a variable is never second-guessed.
+    """
+    for match in re.finditer(r"\bopBoolean\s*\(", masked):
+        open_at = masked.find("(", match.start())
+        spans = _call_argument_spans(masked, comments_only, open_at)
+        if spans is None or len(spans) < 3:
+            continue
+        third_start, third_end = spans[2]
+        if not comments_only[third_start:third_end].strip().startswith("{"):
+            continue
+        brace = masked.find("{", third_start, third_end)
+        if brace == -1:
+            continue
+        entries = _top_level_entries(masked, brace)
+        if not entries:
+            continue
+        fields: dict[str, str] = {}
+        for start, end in entries:
+            pair = _map_entry_key_value(masked, comments_only, start, end)
+            if pair is not None:
+                fields[pair[0]] = pair[1]
+        if "tools" not in fields or "targets" not in fields:
+            continue
+        operation = fields.get("operationType", "").upper()
+        if "UNION" not in operation and "INTERSECTION" not in operation:
+            continue
+        if "targetsAndToolsNeedGrouping" in fields:
+            continue
+        line = fs.text.count("\n", 0, match.start()) + 1
+        fs.warn(
+            f"opBoolean at line {line} (...): UNION/INTERSECTION with both "
+            '"tools" and "targets" requires "targetsAndToolsNeedGrouping" : true '
+            "(otherwise BOOLEAN_BAD_INPUT at regeneration); add it, or drop "
+            '"targets" because UNION merges tool bodies with each other.'
+        )
+
+
 def check_file(path: Path) -> FsFile:
     """Check one FeatureScript file on disk."""
     return check_source(FsFile(path))
@@ -663,6 +739,7 @@ def check_source(fs: FsFile) -> FsFile:
     check_symbols(fs, index, masked)
     check_imports(fs, comments_only, index)
     check_op_definitions(fs, comments_only, masked, index)
+    check_op_boolean_grouping(fs, comments_only, masked)
     check_unit_mixing(fs, comments_only)
     check_map_literals(fs, masked)
     check_annotation_ascii(fs, comments_only, masked)

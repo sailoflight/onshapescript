@@ -142,7 +142,7 @@ class HostLocalConfigTest(unittest.TestCase):
             self.assertEqual(tool_views.exposure_mode(), "gateway")
         with mock.patch.dict(os.environ, {}, clear=True), \
                 mock.patch.object(tool_views, "_local_section", lambda name: {}):
-            self.assertEqual(tool_views.exposure_mode(), "semantic")
+            self.assertEqual(tool_views.exposure_mode(), "gateway")
 
     def test_explicit_argument_still_wins(self):
         from mcp_main.win.mcp import tool_views

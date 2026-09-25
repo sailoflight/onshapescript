@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,6 +42,12 @@ from onshape_browser_mode.session import (  # noqa: E402
     _is_browser_internal_noise_url,
     _is_browser_internal_url,
 )
+from onshape_browser_mode.settings import (  # noqa: E402
+    BrowserCfg,
+    BrowserConfig,
+    ListenerCfg,
+    PacingCfg,
+)
 
 try:
     import browser_common  # noqa: F401
@@ -59,11 +66,12 @@ class FakePage:
     """A fake native page: records every probe, URL read, and close attempt."""
 
     def __init__(self, url, *, close_error=None, url_error=None, closed=False,
-                 evaluate_error=None):
+                 evaluate_error=None, evaluate_closes=False):
         self._url = url
         self._url_error = url_error
         self._close_error = close_error
         self._evaluate_error = evaluate_error
+        self._evaluate_closes = evaluate_closes
         self.closed = closed
         self.close_calls = 0
         self.evaluate_calls = []
@@ -88,7 +96,13 @@ class FakePage:
     def evaluate(self, expression):
         self.evaluate_calls.append(expression)
         if self._evaluate_error is not None:
+            # Simulates the select->adopt race: the target closes while its probe
+            # is in flight, so the probe fails AND the page is afterwards closed.
+            if self._evaluate_closes:
+                self.closed = True
             raise self._evaluate_error
+        if self._evaluate_closes:
+            self.closed = True
         return 2
 
     def title(self):
@@ -103,12 +117,19 @@ class FakeContext:
     def __init__(self, pages=()):
         self.pages = list(pages)
         self.new_pages = []
+        self.close_calls = 0
 
     def new_page(self):
         page = FakePage("about:blank")
         self.pages.append(page)
         self.new_pages.append(page)
         return page
+
+    def close(self):
+        # A resident/attached browser context is never actually closed by a
+        # detach, so this counter must stay at zero on the detach path.
+        self.close_calls += 1
+        self.closed = True
 
 
 class FakePageCleanupReport:
@@ -117,18 +138,35 @@ class FakePageCleanupReport:
         self.items = ()
 
 
+class FakeReleaseReport:
+    def __init__(self, *, context_status="closed", driver_status="stopped", complete=True,
+                 browser_fallback_used=False):
+        self.context_status = context_status
+        self.driver_status = driver_status
+        self.complete = complete
+        self.browser_fallback_used = browser_fallback_used
+        self.failures = ()
+
+
 class FakeResources:
     """Minimal resource owner exposing only what page selection touches."""
 
-    def __init__(self, context, page=None):
+    def __init__(self, context, page=None, *, release_report=None):
         self.context = context
         self.page = page
         self.adopted = []
+        self.release_calls = 0
+        self.release_report = release_report or FakeReleaseReport()
 
     def snapshot(self):
         return SimpleNamespace(state="ready")
 
     def adopt_page(self, page):
+        # Mirror browser_common/_core.py adopt_page: a closed page is refused, and
+        # a fake that accepted it would make the closed-candidate tests vacuous.
+        if page.is_closed():
+            from browser_common import ResourceUnavailableError
+            raise ResourceUnavailableError("Cannot adopt a closed page")
         self.adopted.append(page)
         self.page = page
         return page
@@ -145,9 +183,23 @@ class FakeResources:
                 complete = False
         return FakePageCleanupReport(complete=complete)
 
+    def release(self):
+        self.release_calls += 1
+        # A resident/attached context detaches Playwright and leaves the real
+        # browser (and its context) running, so the fake context is NOT closed.
+        return self.release_report
 
-def session_with(context, page=None):
-    session = BrowserSession()
+
+def session_with(context, page=None, *, resident=False):
+    if resident:
+        config = BrowserConfig(
+            browser=BrowserCfg(resident=True),
+            pacing=PacingCfg(),
+            listener=ListenerCfg(),
+        )
+        session = BrowserSession(config)
+    else:
+        session = BrowserSession()
     session._resources = FakeResources(context, page)
     session._status = "started"
     return session
@@ -496,6 +548,255 @@ class WorkingPageSelectionTest(unittest.TestCase):
         self.assertIn({"url": EDGE_HUB, "browserInternal": True}, status["pages"])
         self.assertIn({"url": APP}, status["pages"])
         self.save_url.assert_called_once_with(APP)
+
+
+class ProfileIsolationConfigTest(unittest.TestCase):
+    """Issue #7.3: isolation is a directory choice, and the default is unchanged."""
+
+    def test_the_default_profile_directory_is_the_shared_persistent_one(self):
+        session = BrowserSession(BrowserConfig(browser=BrowserCfg(), pacing=PacingCfg(), listener=ListenerCfg()))
+
+        self.assertEqual(
+            session.profile_dir(),
+            (session_module.PACKAGE_ROOT / "user_data" / "onshape_profile").resolve(),
+        )
+
+    def test_an_isolated_directory_overrides_the_shared_profile(self):
+        session = BrowserSession(BrowserConfig(
+            browser=BrowserCfg(isolated_user_data_dir="user_data/isolated_probe"),
+            pacing=PacingCfg(),
+            listener=ListenerCfg(),
+        ))
+
+        self.assertEqual(
+            session.profile_dir(),
+            (session_module.PACKAGE_ROOT / "user_data" / "isolated_probe").resolve(),
+        )
+
+
+@unittest.skipUnless(HAVE_BROWSER_COMMON, "browser_common wheel is not importable")
+class ClosedCandidateTest(unittest.TestCase):
+    """Issue #10: a closed candidate must never be adopted.
+
+    browser_common's ``adopt_page`` raises ``ResourceUnavailableError`` for a closed
+    page (``_core.py``). The old fallback adopted ``candidates[0]`` unconditionally,
+    so a page that closed during its evaluate probe turned a recoverable selection
+    into a ``Cannot adopt a closed page`` failure.
+    """
+
+    def test_a_closed_candidate_is_skipped_and_the_live_page_is_used(self):
+        closed = FakePage(APP, closed=True)
+        live = FakePage(APP)
+        context = FakeContext([closed, live])
+        session = session_with(context)
+
+        page = session.start()
+
+        self.assertIs(page, live)
+        self.assertIs(session.page, live)
+        self.assertEqual(closed.evaluate_calls, [])  # a closed page is never probed
+        self.assertEqual(context.new_pages, [])
+        selection = session.status()["pageSelection"]
+        self.assertEqual(selection["considered"], 2)
+        self.assertEqual(selection["selected"], "reused")
+        self.assertIn({"url": APP, "reason": "closed"}, selection["discarded"])
+
+    def test_a_candidate_that_closes_during_its_probe_does_not_raise(self):
+        closing = FakePage(
+            APP, evaluate_error=RuntimeError("Target closed"), evaluate_closes=True
+        )
+        live = FakePage(SIGNIN)
+        session = session_with(FakeContext([closing, live]))
+
+        page = session.start()
+
+        self.assertIs(page, live)
+        self.assertEqual(closing.evaluate_calls, ["1 + 1"])
+        selection = session.last_page_selection
+        self.assertIn({"url": APP, "reason": "closed"}, selection["discarded"])
+        self.assertEqual(selection["selected"], "reused")
+
+    def test_a_candidate_that_closes_between_probe_and_adopt_advances(self):
+        # The probe answers, then the page closes before adopt_page runs: the
+        # adopt call raises exactly as browser_common would, and selection must
+        # move on instead of propagating that error.
+        racing = FakePage(APP, evaluate_closes=True)
+        live = FakePage(SIGNIN)
+        session = session_with(FakeContext([racing, live]))
+
+        page = session.start()
+
+        self.assertIs(page, live)
+        self.assertEqual(racing.evaluate_calls, ["1 + 1"])
+        self.assertIn(
+            {"url": APP, "reason": "closed"}, session.last_page_selection["discarded"]
+        )
+
+    def test_a_closed_first_fallback_hands_over_to_the_next_survivor(self):
+        # The exact regression: no probe answered, and the page the old code
+        # blindly adopted as `candidates[0]` had closed. The next live candidate
+        # must be adopted instead of raising "Cannot adopt a closed page".
+        closed_first = FakePage(
+            APP, evaluate_error=RuntimeError("Target closed"), evaluate_closes=True
+        )
+        second = FakePage(SIGNIN, evaluate_error=RuntimeError("Execution context was destroyed"))
+        session = session_with(FakeContext([closed_first, second]))
+
+        page = session.start()
+
+        self.assertIs(page, second)
+        self.assertIs(session.page, second)
+        self.assertIn(
+            {"url": APP, "reason": "closed"}, session.last_page_selection["discarded"]
+        )
+
+    def test_when_every_candidate_is_closed_a_new_page_is_opened(self):
+        closed = FakePage(APP, closed=True)
+        context = FakeContext([closed])
+        session = session_with(context)
+
+        page = session.start()
+
+        self.assertEqual(context.new_pages, [page])
+        self.assertIs(session.page, page)
+        self.assertEqual(session.last_page_selection["selected"], "new")
+        self.assertIn(
+            {"url": APP, "reason": "closed"}, session.last_page_selection["discarded"]
+        )
+
+    def test_the_no_usable_page_error_names_the_login_recovery(self):
+        noise = FakePage(EDGE_HUB)
+        session = session_with(FakeContext([noise]))
+
+        with self.assertRaisesRegex(BrowserLaunchError, r"browser_session action=login"):
+            session._prepare_page(noise)
+
+
+@unittest.skipUnless(HAVE_BROWSER_COMMON, "browser_common wheel is not importable")
+class DetachTest(unittest.TestCase):
+    """Issue #6: detach is honest about what the pinned wheel can do."""
+
+    def test_detach_on_an_attached_resident_leaves_the_browser_running(self):
+        context = FakeContext([FakePage(APP)])
+        session = session_with(context, page=context.pages[0], resident=True)
+
+        report = session.detach()
+
+        self.assertTrue(report["detached"])
+        self.assertTrue(report["supported"])
+        self.assertEqual(report["releaseMethod"], "detach")
+        self.assertFalse(report["contextClosed"])
+        self.assertTrue(report["browserLeftRunning"])
+        self.assertTrue(report["profileReleased"])
+        self.assertEqual(report["sessionStatus"], "closed")
+        self.assertFalse(report["loginStateMayNeedRefresh"])
+        # The adapter's context.close() is a DETACH: the real browser context
+        # survives, so nothing here may close the fake native context.
+        self.assertEqual(context.close_calls, 0)
+        self.assertEqual(session._resources.release_calls, 1)
+
+    def test_detach_outside_resident_mode_refuses_and_changes_nothing(self):
+        context = FakeContext([FakePage(APP)])
+        session = session_with(context, page=context.pages[0], resident=False)
+
+        report = session.detach()
+
+        self.assertFalse(report["detached"])
+        self.assertFalse(report["supported"])
+        self.assertEqual(report["recommended"], "browser_session action=release")
+        self.assertIn("browser.resident=true", report["alternative"])
+        self.assertEqual(report["reason"].count("."), 1, "one precise sentence")
+        self.assertEqual(report["sessionStatus"], "started")
+        self.assertEqual(context.close_calls, 0)
+        self.assertEqual(session._resources.release_calls, 0)
+        self.assertEqual(session._resources.adopted, [])
+
+
+@unittest.skipUnless(HAVE_BROWSER_COMMON, "browser_common wheel is not importable")
+class StatusProfileTest(unittest.TestCase):
+    """Issue #7: the profile is persistent and non-anonymous; report booleans only."""
+
+    def test_status_reports_profile_bytes_and_no_marker_on_an_empty_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            session = session_with(FakeContext([]))
+            with mock.patch.object(session, "profile_dir", return_value=Path(tmp)):
+                status = session.status()
+
+        self.assertEqual(status["profileBytes"], 0)
+        self.assertTrue(status["profileBytesComplete"])
+        self.assertFalse(status["accountMarkerDetected"])
+
+    def test_a_malformed_local_state_does_not_raise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Local State").write_text("{not json", encoding="utf-8")
+            session = session_with(FakeContext([]))
+            with mock.patch.object(session, "profile_dir", return_value=Path(tmp)):
+                status = session.status()
+
+        self.assertFalse(status["accountMarkerDetected"])
+        self.assertIsInstance(status["profileBytes"], int)
+
+    def test_a_missing_profile_dir_reports_an_absent_size_without_raising(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "does-not-exist"
+            session = session_with(FakeContext([]))
+            with mock.patch.object(session, "profile_dir", return_value=missing):
+                status = session.status()
+
+        self.assertIsNone(status["profileBytes"])
+        self.assertFalse(status["profileBytesComplete"])
+        self.assertFalse(status["accountMarkerDetected"])
+
+    def test_an_edge_account_marker_is_reported_as_a_boolean_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Local State").write_text(
+                json.dumps({"profile": {"info_cache": {"Default": {"user_name": "nobody@example.com"}}}}),
+                encoding="utf-8",
+            )
+            session = session_with(FakeContext([]))
+            with mock.patch.object(session, "profile_dir", return_value=Path(tmp)):
+                status = session.status()
+
+        self.assertIs(status["accountMarkerDetected"], True)
+        # The account value itself must never leak into the payload.
+        self.assertNotIn("nobody@example.com", json.dumps(status))
+
+    def test_profile_bytes_are_capped_and_flagged_incomplete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for index in range(5):
+                (Path(tmp) / f"file-{index}.bin").write_bytes(b"x" * 10)
+            session = session_with(FakeContext([]))
+            with mock.patch.object(session, "profile_dir", return_value=Path(tmp)), \
+                    mock.patch.object(session_module, "_PROFILE_WALK_FILE_CAP", 2):
+                status = session.status()
+
+        self.assertEqual(status["profileBytes"], 20)
+        self.assertFalse(status["profileBytesComplete"])
+
+
+@unittest.skipUnless(HAVE_BROWSER_COMMON, "browser_common wheel is not importable")
+class StatusVerdictTest(unittest.TestCase):
+    """Issue #10.4: status() speaks the health verdict vocabulary additively."""
+
+    def test_status_on_an_app_page_is_ok_and_keeps_session_status(self):
+        app = FakePage(APP)
+        session = session_with(FakeContext([app]), page=app)
+
+        status = session.status()
+
+        self.assertEqual(status["verdict"], "ok")
+        self.assertEqual(status["recommendedAction"], "none")
+        self.assertEqual(status["sessionStatus"], "started")
+
+    def test_status_on_the_signin_page_recommends_login(self):
+        page = FakePage(SIGNIN)
+        session = session_with(FakeContext([page]), page=page)
+
+        status = session.status()
+
+        self.assertEqual(status["verdict"], "login_required")
+        self.assertEqual(status["recommendedAction"], "browser_session action=login")
+        self.assertIn("sessionStatus", status)
 
 
 if __name__ == "__main__":

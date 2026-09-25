@@ -38,7 +38,7 @@ class ToolReferenceTest(unittest.TestCase):
         env = os.environ.copy()
         env.pop("LIVE_API_ENABLED", None)
         process = subprocess.run(
-            ["python3", "onshape_docs/scripts/build_tool_reference.py", "--check"],
+            [sys.executable, "onshape_docs/scripts/build_tool_reference.py", "--check"],
             cwd=ROOT,
             env=env,
             text=True,

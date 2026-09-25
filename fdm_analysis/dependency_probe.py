@@ -70,7 +70,12 @@ def _python_candidates(search_parent: Path) -> list[tuple[str, Path, str]]:
                 candidate = sibling / relative
                 if candidate.is_file():
                     candidates.append(("sibling", candidate.absolute(), sibling.name))
-    global_paths = [Path(sys.executable)]
+    # Prefer the interpreter running this probe (the active venv) and only then
+    # probe PATH fallbacks. A `python3`/`python` alias existing or not must never
+    # change which interpreter is preferred: sys.executable is always first.
+    global_paths: list[Path] = []
+    if sys.executable:
+        global_paths.append(Path(sys.executable))
     for name in ("python3", "python"):
         resolved = shutil.which(name)
         if resolved:

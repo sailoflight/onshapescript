@@ -9,6 +9,16 @@
 channel = "msedge"    # use the machine's existing Edge; no browser download
 executable_path = ""                  # optional exact binary path; overrides `channel`
 user_data_dir = "user_data/onshape_profile"  # persistent login profile, checkout-local
+# Isolation (issue #7): point this at a SEPARATE profile directory to run the
+# automation outside the persistent login profile. The launched browser is a real
+# Edge channel, and on a machine whose Windows account is a Microsoft account Edge
+# signs a fresh profile in automatically, so the window is NOT anonymous by default.
+# Onshape login persistence is bought with a persistent profile, so this is a
+# trade-off, not a fix: a separate directory means a fresh (or explicitly isolated)
+# browser identity and, unless it is also persistent, another human sign-in.
+# This is ONLY a directory choice. Guest mode (`--guest`) is deliberately NOT
+# implemented and must not be inferred from this key.
+isolated_user_data_dir = ""
 locale = "zh-CN"
 timezone = "Asia/Shanghai"
 headless = false              # ALWAYS false; human watches and completes login/captcha

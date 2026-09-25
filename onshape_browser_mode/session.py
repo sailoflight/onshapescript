@@ -7,6 +7,7 @@ Playwright nor browser_common installed.
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.request
 from contextlib import contextmanager
@@ -72,6 +73,144 @@ def _safe_page_url(page: Any) -> str | None:
     except Exception:
         return None
     return url if isinstance(url, str) else None
+
+
+def _page_is_closed(page: Any) -> bool:
+    """Read page liveness without raising; a failed read is not proof of closure.
+
+    A candidate can close between the selection read and `adopt_page`, and
+    browser_common raises `ResourceUnavailableError("Cannot adopt a closed page")`
+    for such a page (``browser_common/_core.py`` adopt_page). "Cannot tell" has to
+    mean "not proven closed", so that an unreadable page stays a candidate and an
+    actual close is the only thing this helper skips.
+    """
+    try:
+        return bool(page.is_closed())
+    except Exception:
+        return False
+
+
+#: The profile-directory walk is capped so one status call cannot hang on a cold
+#: multi-gigabyte profile. Chromium profiles hold tens of thousands of small
+#: cache/LevelDB files, so `profileBytes` is a LOWER BOUND once the cap is hit --
+#: which status reports through `profileBytesComplete` rather than hiding.
+_PROFILE_WALK_FILE_CAP = 20000
+
+#: A Chromium/Edge profile carries the signed-in account marker in one of these
+#: files. Both are optional and their shape is version-dependent.
+_PROFILE_ACCOUNT_FILES = (("Local State",), ("Default", "Preferences"))
+#: Never parse an unbounded file on a status call. The identity blobs these keys
+#: live in are small; a larger file is a different structure.
+_PROFILE_ACCOUNT_FILE_MAX_BYTES = 2_000_000
+
+#: Candidate keys that can carry an Edge/Chromium account identity. The names have
+#: moved between Edge versions and NO public Edge schema pins them, so this is a
+#: recursive NAME match and not a fixed JSON path. UNKNOWN: whether any one path
+#: survives an Edge update. A False result therefore means "no marker found", NOT
+#: "the profile is definitely anonymous". Only a boolean leaves this module --
+#: account values are never read into a result, printed, or logged.
+_ACCOUNT_MARKER_KEYS = frozenset({
+    "edge_account_consistency",
+    "edge_account_info",
+    "account_info",
+    "account_id",
+    "gaia_id",
+    "user_name",
+    "signed_in",
+})
+_ACCOUNT_MARKER_MAX_DEPTH = 6
+
+
+def _marker_value_present(value: Any) -> bool:
+    """True only for a value that could actually identify a signed-in account."""
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, (dict, list, tuple)):
+        return len(value) > 0
+    return True
+
+
+def _account_marker_in_json(data: Any, *, depth: int = 0) -> bool:
+    if depth > _ACCOUNT_MARKER_MAX_DEPTH:
+        return False
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in _ACCOUNT_MARKER_KEYS and _marker_value_present(value):
+                return True
+            if isinstance(value, (dict, list)) and _account_marker_in_json(value, depth=depth + 1):
+                return True
+    elif isinstance(data, (list, tuple)):
+        return any(_account_marker_in_json(item, depth=depth + 1) for item in data)
+    return False
+
+
+def _profile_account_marker(profile_dir: Path) -> bool:
+    """Whether the profile carries a candidate signed-in-account marker.
+
+    Defensive by construction: a missing directory, a missing or malformed JSON
+    file, and a read error all answer False and never raise. Only the boolean
+    leaves this function.
+    """
+    for parts in _PROFILE_ACCOUNT_FILES:
+        path = profile_dir.joinpath(*parts)
+        try:
+            if not path.is_file() or path.stat().st_size > _PROFILE_ACCOUNT_FILE_MAX_BYTES:
+                continue
+            parsed = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            continue
+        try:
+            if _account_marker_in_json(parsed):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _profile_dir_size_bytes(
+    profile_dir: Path, *, file_cap: int | None = None
+) -> tuple[int | None, bool]:
+    """Bounded recursive size of ``profile_dir`` as ``(bytes, complete)``.
+
+    ``None`` means the directory is absent (never created, or already removed).
+    ``complete`` is False once the walk hits ``file_cap``, so the caller can
+    report a lower bound instead of presenting it as exact. Directory symlinks
+    are not followed, so a link loop cannot trap the walk. The cap is read from
+    the module at call time (not bound as a default) so tests can lower it.
+    """
+    limit = _PROFILE_WALK_FILE_CAP if file_cap is None else int(file_cap)
+    try:
+        if not profile_dir.is_dir():
+            return None, False
+    except OSError:
+        return None, False
+    total = 0
+    seen = 0
+    stack = [profile_dir]
+    while stack and seen < limit:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    if seen >= limit:
+                        break
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+                            seen += 1
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total, seen < limit
 
 
 # Chromium's own pages live on these schemes (a normal page is http(s) or
@@ -270,7 +409,8 @@ def _browser_launch_error_message(
         "instead of spawning concurrent profile owners. Do not delete profile lock "
         "files. If no other owner exists, verify channel/executable_path in "
         "onshape_browser_mode/config/browser.local.toml and follow "
-        "docs/operations/MCP_RUNBOOK.md."
+        "docs/operations/MCP_RUNBOOK.md. Once a browser is available, "
+        "browser_session action=login re-establishes the Onshape session."
     )
 
 
@@ -287,6 +427,10 @@ class BrowserSession:
         self._status = "uninitialized"
         self.human_action_required = False
         self.login_confirmed = False
+        #: Outcome of the last working-page selection performed by `start()`.
+        #: `{"considered": n, "discarded": [{"url": ..., "reason": ...}],
+        #: "selected": "reused" | "new" | None}`; None before the first start.
+        self.last_page_selection: dict[str, Any] | None = None
 
     def _resource(self, name: str):
         if self._resources is None:
@@ -382,7 +526,11 @@ class BrowserSession:
             return False
 
     def profile_dir(self) -> Path:
-        raw = Path(self.config.browser.user_data_dir).expanduser()
+        # `isolated_user_data_dir` (settings.BrowserCfg) lets one deployment pick a
+        # separate directory instead of the shared persistent profile. Empty, the
+        # historical `user_data_dir` is used unchanged.
+        configured = self.config.browser.isolated_user_data_dir or self.config.browser.user_data_dir
+        raw = Path(configured).expanduser()
         if raw.is_absolute():
             return raw.resolve()
         return (PACKAGE_ROOT / raw).resolve()
@@ -446,7 +594,8 @@ class BrowserSession:
             if page is None:
                 raise BrowserLaunchError(
                     "Only browser-internal pages are open, so no Onshape page can "
-                    "be adopted. Reopen the Onshape tab and retry."
+                    "be adopted. Reopen the Onshape tab and retry, or run "
+                    "browser_session action=login to sign in again."
                 )
         self.adopt_page(page)
         self._enforce_single_working_page(page)
@@ -459,6 +608,71 @@ class BrowserSession:
             self.human_action_required = False
         self._status = "started"
         return page
+
+    @staticmethod
+    def _new_page_selection(pages: Any) -> dict[str, Any]:
+        """A fresh selection record for the pages about to be considered.
+
+        `considered` counts every page handed to selection; `discarded` names the
+        ones dropped before adoption and why, so a caller can see a closed tab
+        instead of only its absence.
+        """
+        ordered = list(pages or [])
+        selection: dict[str, Any] = {"considered": len(ordered), "discarded": [], "selected": None}
+        for page in ordered:
+            url = _safe_page_url(page)
+            if _page_is_closed(page):
+                selection["discarded"].append({"url": url, "reason": "closed"})
+            elif _is_browser_internal_noise_url(url):
+                selection["discarded"].append({"url": url, "reason": "browserInternal"})
+        return selection
+
+    @staticmethod
+    def _discard_candidate(selection: dict[str, Any], page: Any, reason: str) -> None:
+        selection["discarded"].append({"url": _safe_page_url(page), "reason": reason})
+
+    def _record_selection(self, selection: dict[str, Any], selected: str | None) -> None:
+        selection["selected"] = selected
+        self.last_page_selection = selection
+
+    def _adopt_candidate(self, candidates: Any, selection: dict[str, Any], *, probe: bool) -> Any:
+        """Adopt the first usable candidate, or None when none can be adopted.
+
+        Never adopts a closed page. Candidates are re-checked for liveness before
+        the adopt call, and browser_common's `ResourceUnavailableError` -- raised
+        when a page closed between selection and adoption -- advances to the next
+        candidate instead of escaping. When `probe` is set, `page.evaluate("1 + 1")`
+        is the same liveness probe the healthy path always used; a probe failure is
+        NOT proof of death, so such a candidate stays in the fallback order until
+        its own liveness read or adopt call says it closed.
+        """
+        from browser_common import ResourceUnavailableError
+        fallbacks: list[Any] = []
+        for candidate in candidates:
+            if _page_is_closed(candidate):
+                self._discard_candidate(selection, candidate, "closed")
+                continue
+            if probe:
+                try:
+                    candidate.evaluate("1 + 1")
+                except Exception:
+                    if _page_is_closed(candidate):
+                        self._discard_candidate(selection, candidate, "closed")
+                        continue
+                    fallbacks.append(candidate)
+                    continue
+            try:
+                return self._prepare_page(candidate)
+            except ResourceUnavailableError:
+                self._discard_candidate(selection, candidate, "closed")
+                continue
+        for candidate in fallbacks:
+            try:
+                return self._prepare_page(candidate)
+            except ResourceUnavailableError:
+                self._discard_candidate(selection, candidate, "closed")
+                continue
+        return None
 
     def start(self):
         """Explicit business recovery followed by native resource startup/reuse."""
@@ -493,6 +707,7 @@ class BrowserSession:
             # Reuse the current app page first. Do not replace it with a temporary
             # app popup merely because that popup occurs earlier in context.pages.
             ordered = ([current] if current is not None else []) + [p for p in pages if p is not current]
+            selection = self._new_page_selection(ordered)
             live_pages = _dismiss_browser_internal_pages(ordered)
             preferred = [
                 candidate for candidate in live_pages
@@ -501,21 +716,22 @@ class BrowserSession:
             candidates = preferred + [
                 p for p in live_pages if all(p is not preferred_page for preferred_page in preferred)
             ]
-            for page in candidates:
-                try:
-                    page.evaluate("1 + 1")
-                except Exception:
-                    continue
-                return self._prepare_page(page)
-            # A navigation-time evaluate error does not establish resource death.
-            if candidates:
-                return self._prepare_page(candidates[0])
+            chosen = self._adopt_candidate(candidates, selection, probe=True)
+            if chosen is not None:
+                self._record_selection(selection, "reused")
+                return chosen
+            # No candidate could be adopted: every one either closed during
+            # selection or closed between the liveness read and adopt_page.
+            # Adopting a closed page is exactly what browser_common refuses, so a
+            # fresh page is the honest fallback.
             try:
                 page = context.new_page()
             except Exception:
+                self._record_selection(selection, None)
                 if not self.close()["profileReleased"]:
                     raise BrowserLaunchError("Unreachable browser resources could not be released.")
             else:
+                self._record_selection(selection, "new")
                 return self._prepare_page(page)
 
         if self._playwright_factory is None and not self.playwright_available():
@@ -556,7 +772,9 @@ class BrowserSession:
         # A browser-internal downloads page is closed here instead of adopted:
         # probing it with evaluate() is what wedges the page channel, and the
         # owner's restored-page fallback may well have selected it.
-        live_pages = _dismiss_browser_internal_pages(list(self.context.pages or []))
+        ordered_pages = list(self.context.pages or [])
+        selection = self._new_page_selection(ordered_pages)
+        live_pages = _dismiss_browser_internal_pages(ordered_pages)
         chosen = next(
             (restored for restored in live_pages if _is_onshape_app_url(_safe_page_url(restored))),
             None,
@@ -564,8 +782,17 @@ class BrowserSession:
         if chosen is None and any(restored is page for restored in live_pages):
             chosen = page
         if chosen is None:
-            chosen = live_pages[0] if live_pages else self.context.new_page()
-        return self._prepare_page(chosen)
+            chosen = live_pages[0] if live_pages else None
+        if chosen is not None:
+            # No evaluate probe here: this page came straight out of a freshly
+            # started owner. Re-checking liveness and catching the adopt race is
+            # still required, and a closed page falls through to a fresh one.
+            adopted = self._adopt_candidate([chosen], selection, probe=False)
+            if adopted is not None:
+                self._record_selection(selection, "reused")
+                return adopted
+        self._record_selection(selection, "new")
+        return self._prepare_page(self.context.new_page())
 
     def release(self) -> dict[str, Any]:
         """Release this process's browser/profile ownership without starting it."""
@@ -612,6 +839,129 @@ class BrowserSession:
                 "Browser/profile ownership released for this MCP process."
                 if profile_released
                 else "Browser/profile release could not be verified; request Operator recovery."
+            ),
+        }
+
+    def _resident_attached_mode(self) -> bool:
+        """Whether this session's browser is an attached resident, not a launch.
+
+        Residency is the ONE case where a truthful detach exists. `_make_resources`
+        uses `resident_playwright_factory` only when `browser.resident` is enabled
+        and no factory was injected, and that adapter ATTACHES over CDP to a
+        browser a previous MCP child (or the human) already started
+        (`onshape_browser_mode/resident.py`). On that connection `context.close()`
+        detaches Playwright and leaves the browser, its tabs and its login running
+        -- measured; see the resident module docstring -- so the single release API
+        the pinned wheel exposes (`SyncSession.release()`) is already a detach.
+        """
+        try:
+            resident = bool(getattr(self.config.browser, "resident", False))
+        except Exception:
+            return False
+        # An explicitly injected factory wins over residency in `_make_resources`,
+        # so a resident config plus an injected factory proves nothing.
+        return resident and self._playwright_factory is None
+
+    def detach(self, *, keep_browser: bool = True) -> dict[str, Any]:
+        """Relinquish MCP ownership of an ATTACHED resident browser; never pretend.
+
+        Honest cases, in order:
+
+        * non-resident mode -- no truthful detach exists against the pinned wheel.
+          The launched browser's lifetime is bound to the Playwright connection,
+          and the only release API calls `context.close()`, which ends the window
+          and drops the profile's session-cookie login. Nothing is changed and the
+          caller is told so.
+        * resident/attached mode -- `context.close()` on the adapter's attached
+          default context detaches Playwright and leaves the browser, its tabs and
+          its login alone. Ownership is released through the existing
+          `SyncSession.release()` path, the profile is untouched, and the report
+          names the browser as still running. If browser_common had to fall back to
+          `browser.close()` the report says so instead of claiming survival.
+        """
+        if not self._resident_attached_mode():
+            return {
+                "detached": False,
+                "supported": False,
+                "keepBrowser": bool(keep_browser),
+                "reason": (
+                    "This MCP process launched its own browser, so the browser's "
+                    "lifetime is bound to the Playwright connection and the only "
+                    "release the pinned wheel exposes closes the window and drops "
+                    "the profile's login state."
+                ),
+                "recommended": "browser_session action=release",
+                "alternative": "enable browser.resident=true for a browser that survives the MCP child",
+                "sessionStatus": self._status,
+            }
+        if not keep_browser:
+            return {
+                "detached": False,
+                "supported": False,
+                "keepBrowser": False,
+                "reason": (
+                    "An attached resident browser outlives this MCP child by design "
+                    "and the pinned wheel exposes no call that ends it from here, "
+                    "so detach cannot deliver keep_browser=False."
+                ),
+                "recommended": "close the resident browser window (or end its process)",
+                "alternative": "browser_session action=release only detaches the resident browser",
+                "sessionStatus": self._status,
+            }
+        if self._resources is None:
+            return {
+                "detached": True,
+                "alreadyDetached": True,
+                "supported": True,
+                "keepBrowser": True,
+                "releaseMethod": "none",
+                "contextClosed": False,
+                "browserLeftRunning": None,
+                "profileReleased": None,
+                "previousSessionStatus": self._status,
+                "sessionStatus": self._status,
+                "profileDir": str(self.profile_dir()),
+                "message": (
+                    "This MCP process holds no browser resources, so there is no "
+                    "attachment to relinquish. Whether a resident browser is still "
+                    "running was NOT probed here."
+                ),
+            }
+        report = self.close()
+        fallback_used = report["releaseMethod"] == "browser.close-fallback"
+        if not report["profileReleased"]:
+            browser_left_running: bool | None = None
+            context_closed: bool | None = None
+        elif fallback_used:
+            # browser_common fell back to `browser.close()`; over CDP that ends the
+            # browser, so claiming it survived would be a lie.
+            browser_left_running = False
+            context_closed = True
+        else:
+            browser_left_running = True
+            context_closed = False
+        return {
+            "detached": True,
+            "supported": True,
+            "keepBrowser": True,
+            "releaseMethod": "detach",
+            "contextClosed": context_closed,
+            "browserLeftRunning": browser_left_running,
+            "profileReleased": report["profileReleased"],
+            "previousSessionStatus": report["previousSessionStatus"],
+            "previousPageUrl": report["previousPageUrl"],
+            "sessionStatus": report["sessionStatus"],
+            "profileDir": report["profileDir"],
+            "playwrightStopped": report["playwrightStopped"],
+            "loginStateMayNeedRefresh": bool(fallback_used or not report["profileReleased"]),
+            "warnings": report["warnings"],
+            "message": (
+                "MCP detached from the attached resident browser. The browser, its "
+                "tabs and the profile's login survive; this process no longer owns "
+                "them."
+                if report["profileReleased"] and not fallback_used
+                else "Detach was requested but browser survival could not be verified; "
+                     "request Operator recovery."
             ),
         }
 
@@ -692,16 +1042,39 @@ class BrowserSession:
                 self.human_action_required = True
                 if self._status == "started":
                     self._status = "awaiting_login"
+        profile = self.profile_dir()
+        profile_bytes, profile_bytes_complete = _profile_dir_size_bytes(profile)
+        # The same verdict vocabulary the health probe uses, applied to what this
+        # process HOLDS. `sessionStatus` above is untouched; the verdict is additive.
+        from onshape_browser_mode.health import classify_held_state
+        held = classify_held_state(
+            session_running=context is not None and any(
+                not item.get("closed") for item in pages_seen
+            ),
+            on_onshape_app=_is_onshape_app_url(page_url),
+            login_confirmed=self.login_confirmed,
+            session_status=self._status,
+        )
         return {
             "playwrightInstalled": self.playwright_available(),
             "configured": True,
-            "profileDir": str(self.profile_dir()),
+            "profileDir": str(profile),
             "sessionStatus": self._status,
             "pageUrl": page_url,
             "pages": pages_seen,
             "headless": self.config.browser.headless,
             "humanActionRequired": self.human_action_required,
             "loginConfirmed": self.login_confirmed,
+            "verdict": held["verdict"],
+            "recommendedAction": held["recommendedAction"],
+            "verdictNote": held["note"],
+            "pageSelection": self.last_page_selection,
+            # Bounded recursive size: `profileBytesComplete` is False once the file
+            # cap is hit, so a capped number is never presented as exact.
+            "profileBytes": profile_bytes,
+            "profileBytesComplete": profile_bytes_complete,
+            # Boolean only; account values are never read into the result.
+            "accountMarkerDetected": _profile_account_marker(profile),
         }
 
     def health(self, *, probe_timeout_ms: int | None = None) -> dict[str, Any]:
@@ -765,7 +1138,16 @@ class BrowserSession:
         )
 
     def open_login_page(self) -> dict[str, Any]:
-        """Open sign-in only when restored/saved app entry cannot reuse login."""
+        """Open sign-in only when restored/saved app entry cannot reuse login.
+
+        Session-aware: after reusing a restored page or navigating to the saved
+        last-document URL, landing on an application URL means the persistent
+        profile still carried a live session, reported as
+        ``alreadyAuthenticated``. Actually reaching ``/signin`` is reported as
+        ``needsHumanLogin``. Both keys are additive; every existing key is kept.
+        This adds no network layer -- it reuses `start()`, the saved URL and the
+        same application-URL predicate the rest of the facade uses.
+        """
         page = self.start()
         self._enforce_single_working_page(page)
         try:
@@ -779,6 +1161,8 @@ class BrowserSession:
             self._save_app_url(current_url)
             return {
                 "sessionStatus": self._status,
+                "alreadyAuthenticated": True,
+                "needsHumanLogin": False,
                 "message": (
                     "Browser session is already logged in (restored Onshape "
                     "page was kept). No sign-in navigation was needed."
@@ -799,6 +1183,8 @@ class BrowserSession:
                     self._save_app_url(page.url)
                     return {
                         "sessionStatus": self._status,
+                        "alreadyAuthenticated": True,
+                        "needsHumanLogin": False,
                         "message": f"Logged in via saved Onshape entry URL ({page.url}).",
                     }
             except Exception:
@@ -808,6 +1194,8 @@ class BrowserSession:
         self.human_action_required = True
         return {
             "sessionStatus": self._status,
+            "alreadyAuthenticated": False,
+            "needsHumanLogin": True,
             "message": (
                 "Opened Onshape sign-in in the browser window. Complete login "
                 "manually, then call browser_session(action='status')."

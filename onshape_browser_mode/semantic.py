@@ -18,6 +18,53 @@ _PARTS_RE = re.compile(r"零件数\s*\((\d+)\)")
 #: ``螺旋凸棱柱 曲线数 (1)``.
 _SECTION_COUNT_RE = re.compile(r"[\u4e00-\u9fff]{1,6}数\s*\(\d+\)")
 
+#: Wording for the duplicate-name hint. A duplicate name is a UI observation, not
+#: a geometry verdict: two distinct bodies can legitimately share a name, and a
+#: sliver body can carry the name of the body it was split from. Measured live:
+#: ``零件数 (7)`` listed ``D 跷跷板 ReleaseLever`` twice while a 0.0004 mm² sliver
+#: body existed, but no per-part volume is readable from the DOM (there is no
+#: volume/mass-properties source anywhere in ``onshape_browser_mode`` or
+#: ``mcp_main``), so this hint can only ever point at the NAME.
+_PART_DUPLICATE_NAME_NOTE = (
+    "the part list shows this name more than once; a duplicate name may indicate "
+    "an extra (for example sliver) body, but this is a name-based observation "
+    "only, not a geometry measurement"
+)
+
+
+def _part_name_breakdown(names: list[str]) -> dict[str, Any]:
+    """Count names, in first-seen order, and flag the duplicated ones.
+
+    ``partCounts`` is a dict, so Python keeps first-seen order. ``duplicateNames``
+    lists only names seen more than once. ``partNameDetails`` is the per-name
+    structure that carries the conservative ``possibleDuplicateName`` marker and
+    the note; the marker is purely name-based and never claims a geometry
+    conclusion this read cannot make.
+    """
+    counts: dict[str, int] = {}
+    for name in names:
+        counts[name] = counts.get(name, 0) + 1
+    details = [
+        {
+            "name": name,
+            "count": count,
+            "possibleDuplicateName": count > 1,
+            **({"note": _PART_DUPLICATE_NAME_NOTE} if count > 1 else {}),
+        }
+        for name, count in counts.items()
+    ]
+    duplicates = [
+        {"name": item["name"], "count": item["count"]}
+        for item in details
+        if item["possibleDuplicateName"]
+    ]
+    return {
+        "partCounts": counts,
+        "duplicateNames": duplicates,
+        "duplicateNameCount": len(duplicates),
+        "partNameDetails": details,
+    }
+
 
 def parse_part_summary(parts_text: str, part_items: Any = None) -> dict[str, Any]:
     """Parse the Part Studio's localized part count and visible part names.
@@ -34,12 +81,22 @@ def parse_part_summary(parts_text: str, part_items: Any = None) -> dict[str, Any
     and logged text has no DOM, and ``partNamesSource`` says which path answered;
     it now also refuses a ``count == 1`` remainder that still contains a section
     counter, because inventing a swallowed name is worse than reporting none.
+
+    Every existing key is unchanged. On top of them the answer carries a cheap,
+    DOM-only name analysis: ``partCounts`` (count per name, first-seen order),
+    ``duplicateNames`` (``{name, count}`` for names seen more than once),
+    ``duplicateNameCount`` and ``partNameDetails`` (per-name
+    ``{name, count, possibleDuplicateName[, note]}``). The duplicate marker is a
+    NAME-based heuristic only: a repeated name may indicate an extra sliver body,
+    but this read measures no geometry. ``partItems`` (the DOM read in
+    :func:`actions.read_partstudio_features`) stays a list of strings.
     """
     match = _PARTS_RE.search(parts_text or "")
     if not match:
         return {
             "parts": 0, "partNames": [], "partNamesParsed": False,
             "partNamesSource": "none", "partsText": parts_text or "",
+            **_part_name_breakdown([]),
         }
     count = int(match.group(1))
     names = [
@@ -51,6 +108,7 @@ def parse_part_summary(parts_text: str, part_items: Any = None) -> dict[str, Any
         return {
             "parts": count, "partNames": names, "partNamesParsed": True,
             "partNamesSource": "dom", "partsText": parts_text,
+            **_part_name_breakdown(names),
         }
     remainder = (parts_text or "")[match.end():].strip()
     if count == 1 and remainder and not _SECTION_COUNT_RE.search(remainder):
@@ -66,6 +124,7 @@ def parse_part_summary(parts_text: str, part_items: Any = None) -> dict[str, Any
         "parts": count, "partNames": fallback, "partNamesParsed": fallback_parsed,
         "partNamesSource": "text" if fallback else "none",
         "partsText": parts_text,
+        **_part_name_breakdown(fallback),
     }
 
 

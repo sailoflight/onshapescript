@@ -288,7 +288,14 @@ class GenericInteractionTest(unittest.TestCase):
         self.assertTrue(result["complete"])
         self.assertTrue(result["openedForRead"])
         self.assertTrue(result["restored"])
-        self.assertEqual(result["notices"], [notice])
+        # The row keeps every raw field it had and gains only the additive
+        # staleness marker/bucket.
+        self.assertEqual(len(result["notices"]), 1)
+        returned = result["notices"][0]
+        for key, value in notice.items():
+            self.assertEqual(returned[key], value, key)
+        self.assertFalse(returned["stale"])
+        self.assertEqual(returned["bucket"], "currentActiveTab")
         self.assertEqual(toggle.click.call_count, 2)
         content.wait_for.assert_called_once_with(state="visible", timeout=5_000)
 
@@ -562,6 +569,53 @@ class SemanticOperationTest(unittest.TestCase):
         self.assertEqual(result["partNames"], ["rail", "groove"])
         self.assertEqual(result["partNamesSource"], "dom")
 
+    def test_a_repeated_part_name_is_counted_and_flagged_as_a_name_only_hint(self):
+        names = [
+            "A base", "D 跷跷板 ReleaseLever", "B block",
+            "D 跷跷板 ReleaseLever", "C cap", "E rail", "F spacer",
+        ]
+        result = semantic.parse_part_summary("零件数 (7) A base", names)
+        self.assertEqual(result["parts"], 7)
+        self.assertEqual(result["partNames"], names)
+        self.assertEqual(result["partNamesSource"], "dom")
+        self.assertEqual(
+            list(result["partCounts"]),
+            ["A base", "D 跷跷板 ReleaseLever", "B block", "C cap", "E rail", "F spacer"],
+            "counts preserve first-seen order",
+        )
+        self.assertEqual(result["partCounts"]["D 跷跷板 ReleaseLever"], 2)
+        self.assertEqual(result["duplicateNames"],
+                         [{"name": "D 跷跷板 ReleaseLever", "count": 2}])
+        self.assertEqual(result["duplicateNameCount"], 1)
+        by_name = {item["name"]: item for item in result["partNameDetails"]}
+        duplicate = by_name["D 跷跷板 ReleaseLever"]
+        self.assertTrue(duplicate["possibleDuplicateName"])
+        self.assertIn("name-based", duplicate["note"])
+        self.assertFalse(by_name["A base"]["possibleDuplicateName"])
+        self.assertNotIn("note", by_name["A base"])
+
+    def test_a_summary_without_names_carries_empty_duplicate_evidence(self):
+        result = semantic.parse_part_summary("零件数 (2) Fixed wall Module block")
+        self.assertEqual(result["partCounts"], {})
+        self.assertEqual(result["duplicateNames"], [])
+        self.assertEqual(result["duplicateNameCount"], 0)
+        self.assertEqual(result["partNameDetails"], [])
+
+    def test_the_dom_read_keeps_part_items_a_list_of_strings(self):
+        part_items = ["rail", "rail", "  "]
+        payload = {
+            "headerText": "",
+            "features": [],
+            "partsText": "零件数 (2) rail rail",
+            "partItems": part_items,
+            "documentTabsButtonPresent": True,
+        }
+        page = mock.Mock()
+        page.evaluate.return_value = payload
+        read = actions.read_partstudio_features(page)
+        self.assertEqual(read["partItems"], part_items)
+        self.assertTrue(all(isinstance(item, str) for item in read["partItems"]))
+
     def test_create_drawing_dialog_path_still_requires_frame(self):
         page = mock.Mock()
         page.url = "https://cad.onshape.com/documents/d/w/w/e/e"
@@ -744,6 +798,75 @@ class SemanticOperationTest(unittest.TestCase):
         loaded = project.load_project("module-interface-verification")
         self.assertEqual(len(loaded["steps"]), 6)
         self.assertEqual(loaded["steps"][-1]["tool"], "browser_drawing_insert_views")
+
+
+class PartStudioRowErrorEvidenceTest(unittest.TestCase):
+    """The row reader must carry error TEXT and say when a read may be early."""
+
+    @staticmethod
+    def _payload(rows: list[dict]) -> dict:
+        return {
+            "headerText": "",
+            "features": rows,
+            "partsText": "",
+            "partItems": [],
+            "documentTabsButtonPresent": True,
+        }
+
+    @staticmethod
+    def _page(*payloads: dict) -> mock.Mock:
+        page = mock.Mock()
+        if len(payloads) == 1:
+            page.evaluate.return_value = payloads[0]
+        else:
+            page.evaluate.side_effect = list(payloads)
+        return page
+
+    def test_the_error_text_arrives_in_the_same_evaluate_pass(self):
+        rows = [
+            {"name": "Bc 1", "hasError": True,
+             "errorText": "EC Reaction Body 1 未正确重生成: ECPROBE union inputs: seat=1 cutBody=0"},
+            {"name": "Bc 2", "hasError": False, "errorText": None},
+        ]
+        page = self._page(self._payload(rows))
+        read = actions.read_partstudio_features(page)
+        self.assertEqual(page.evaluate.call_count, 1, "no extra round trip")
+        self.assertEqual(read["features"][0]["errorText"], rows[0]["errorText"])
+        self.assertIsNone(read["features"][1]["errorText"])
+        self.assertTrue(read["maybeStale"], "a one-pass error flag is unconfirmed")
+        self.assertTrue(read["hasErrorReadAt"])
+
+    def test_a_settled_read_clears_a_premature_error(self):
+        errored = self._payload([{"name": "Bc 1", "hasError": True, "errorText": None}])
+        clean = self._payload([{"name": "Bc 1", "hasError": False, "errorText": None}])
+        page = self._page(errored, clean)
+        read = actions.read_partstudio_features_settled(page, timeout_ms=1000, poll_ms=1)
+        self.assertFalse(read["maybeStale"])
+        self.assertEqual(read["settleCondition"], "clearedOnReRead")
+        self.assertEqual(read["settleAttempts"], 2)
+        self.assertFalse(read["features"][0]["hasError"])
+
+    def test_a_settled_read_confirms_a_stable_error(self):
+        errored = self._payload(
+            [{"name": "Bc 1", "hasError": True, "errorText": "boom"}]
+        )
+        page = self._page(errored, dict(errored))
+        read = actions.read_partstudio_features_settled(page, timeout_ms=1000, poll_ms=1)
+        self.assertFalse(read["maybeStale"])
+        self.assertEqual(read["settleCondition"], "stableError")
+        self.assertEqual(read["settleAttempts"], 2)
+        self.assertEqual(read["features"][0]["errorText"], "boom")
+
+    def test_a_settled_read_reports_unsettled_when_the_bound_expires(self):
+        errored = self._payload(
+            [{"name": "Bc 1", "hasError": True, "errorText": "still moving"}]
+        )
+        page = self._page(errored)
+        read = actions.read_partstudio_features_settled(page, timeout_ms=0, poll_ms=1)
+        self.assertTrue(read["maybeStale"])
+        self.assertEqual(read["settleCondition"], "unstableTimeout")
+        self.assertEqual(read["settleAttempts"], 1)
+        self.assertEqual(read["settleTimeoutMs"], 0)
 
 
 class WatchAndProjectTest(unittest.TestCase):

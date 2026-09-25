@@ -53,6 +53,29 @@ class FakeLocator:
         self.waits.append(kwargs)
 
 
+class TargetClosedError(RuntimeError):
+    """Offline stand-in for playwright's ``TargetClosedError``."""
+
+
+class FailingDialogWaitLocator(FakeLocator):
+    """A dialog locator that loses its target while waiting for one state.
+
+    The export waits twice on the export dialog: ``visible`` right after the
+    context action, and ``hidden`` once the download exists. Issue #8 died on the
+    second wait, so only that state fails by default and the artifact really does
+    reach disk before the failure.
+    """
+
+    def __init__(self, fail_state="hidden"):
+        super().__init__()
+        self.fail_state = fail_state
+
+    def wait_for(self, **kwargs):
+        self.waits.append(kwargs)
+        if kwargs.get("state") == self.fail_state:
+            raise TargetClosedError("Target page, context or browser has been closed")
+
+
 class FakeDownload:
     def __init__(self, suggested="fixture.step", failure=None):
         self.suggested_filename = suggested
@@ -106,10 +129,11 @@ class ExplodingContext:
 
 
 class FakePage:
-    def __init__(self, download=None, context=None, tabs=None):
+    def __init__(self, download=None, context=None, tabs=None, closed=False):
         self.url = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element1"
         self.download = download or FakeDownload()
         self.context = context if context is not None else FakeContext()
+        self._closed = closed
         self.tab_selectors = []
         self.evaluations = []
         self.tabs_payload = tabs if tabs is not None else {
@@ -151,6 +175,9 @@ class FakePage:
     def evaluate(self, expression, arg=None):
         self.evaluations.append(expression)
         return self.tabs_payload
+
+    def is_closed(self):
+        return self._closed
 
     def expect_download(self, *, timeout):
         self.download_timeouts.append(timeout)
@@ -375,6 +402,273 @@ class BrowserStepExportTest(unittest.TestCase):
                     element_id="element1",
                     output_root=root,
                 )
+
+    def _write_complete_staging(self, root: Path) -> Path:
+        staging = root / "export1"
+        staging.mkdir()
+        (staging / "model.step").write_text(
+            "ISO-10303-21;\nEND-ISO-10303-21;\n", encoding="ascii"
+        )
+        register_downloaded_browser_step(
+            export_id="export1",
+            file_name="model.step",
+            page_url="https://cad.onshape.com/documents/doc1/w/workspace1/e/element1",
+            document_id="doc1",
+            workspace_id="workspace1",
+            element_id="element1",
+            output_root=root,
+        )
+        return staging
+
+    def test_export_reuses_a_complete_staged_export_instead_of_raising(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staging = self._write_complete_staging(root)
+            before = (staging / "model.step").read_bytes()
+            page = FakePage()
+            result = self._export(page, tmp)
+            after = (staging / "model.step").read_bytes()
+            manifest_exists = Path(result["stepManifestPath"]).is_file()
+        self.assertTrue(result["exported"])
+        self.assertTrue(result["alreadyStaged"])
+        self.assertFalse(result["overwriteApplied"])
+        # No page was touched: the artifact and manifest were reused as they were.
+        self.assertFalse(result["browserActionPerformed"])
+        self.assertEqual(before, after)
+        self.assertEqual(page.download_timeouts, [])
+        self.assertEqual(page.locators[selectors.EXPORT_SUBMIT].clicks, [])
+        self.assertTrue(manifest_exists)
+        files = {item["fileName"]: item for item in result["stagedArtifacts"]}
+        self.assertEqual(set(files), {"model.step", "step-manifest.json"})
+        self.assertEqual(files["model.step"]["bytes"], len(before))
+        self.assertRegex(files["model.step"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(files["step-manifest.json"]["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_export_refuses_to_reuse_staging_belonging_to_another_target(self):
+        """Reuse must be proved by provenance, never assumed from the artifact.
+
+        The manifest records the document/workspace/element it was exported from.
+        Without that check a caller passing a mismatched ``element_id`` would be
+        handed another document's STEP and told the export succeeded.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staging = self._write_complete_staging(root)
+            before = (staging / "model.step").read_bytes()
+            page = FakePage()
+            with self.assertRaisesRegex(ValueError, "different document/workspace/element"):
+                export_browser_step(
+                    page,
+                    source_tab="Part Studio 1",
+                    export_id="export1",
+                    document_id="doc1",
+                    workspace_id="workspace1",
+                    element_id="element2",  # not the element the manifest recorded
+                    output_root=root,
+                )
+            after = (staging / "model.step").read_bytes()
+        # The refusal changed nothing and never touched the page.
+        self.assertEqual(before, after)
+        self.assertEqual(page.locators[selectors.EXPORT_SUBMIT].clicks, [])
+        self.assertEqual(page.download_timeouts, [])
+
+    def test_export_overwrite_replaces_staging_from_another_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_staging(root)
+            page = FakePage()
+            # The page must really be the NEW target, or the later URL check
+            # refuses before the re-export can record its provenance.
+            page.url = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element2"
+            page.tabs_payload = {
+                "tabs": [
+                    {
+                        "id": "element2",
+                        "name": "Part Studio 1",
+                        "elementType": "PARTSTUDIO",
+                        "active": True,
+                    }
+                ],
+                "hasDocumentTabsToolButton": True,
+            }
+            result = export_browser_step(
+                page,
+                source_tab="Part Studio 1",
+                export_id="export1",
+                document_id="doc1",
+                workspace_id="workspace1",
+                element_id="element2",
+                output_root=root,
+                overwrite=True,
+            )
+            manifest = json.loads(
+                Path(result["stepManifestPath"]).read_text(encoding="utf-8")
+            )
+        self.assertTrue(result["exported"])
+        self.assertFalse(result["alreadyStaged"])
+        self.assertTrue(result["overwriteApplied"])
+        # The replacement records the NEW target, not the old one.
+        self.assertEqual(
+            manifest["artifact"]["source"]["identifiers"]["elementId"], "element2"
+        )
+
+    def test_dry_run_does_not_advertise_a_reuse_that_provenance_forbids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_complete_staging(root)
+            matching = plan_browser_step_export(
+                source_tab="Part Studio 1",
+                export_id="export1",
+                output_root=root,
+                document_id="doc1",
+                workspace_id="workspace1",
+                element_id="element1",
+            )
+            mismatched = plan_browser_step_export(
+                source_tab="Part Studio 1",
+                export_id="export1",
+                output_root=root,
+                document_id="doc1",
+                workspace_id="workspace1",
+                element_id="element2",
+            )
+            # Without the target ids the plan reports the artifact-level answer and says so.
+            unchecked = plan_browser_step_export(
+                source_tab="Part Studio 1",
+                export_id="export1",
+                output_root=root,
+            )
+        self.assertTrue(matching["stagingProvenanceChecked"])
+        self.assertTrue(matching["stagingProvenanceMatches"])
+        self.assertTrue(matching["alreadyStaged"])
+        self.assertTrue(matching["destinationAvailable"])
+        self.assertTrue(mismatched["stagingProvenanceChecked"])
+        self.assertFalse(mismatched["stagingProvenanceMatches"])
+        self.assertFalse(mismatched["alreadyStaged"])
+        self.assertFalse(mismatched["destinationAvailable"])
+        self.assertFalse(unchecked["stagingProvenanceChecked"])
+        self.assertIsNone(unchecked["stagingProvenanceMatches"])
+
+    def test_partial_staging_is_replaced_when_overwrite_is_requested(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staging = root / "export1"
+            staging.mkdir()
+            stale = staging / "model.step"
+            stale.write_text("stale partial artifact", encoding="ascii")
+            page = FakePage()
+            result = export_browser_step(
+                page,
+                source_tab="Part Studio 1",
+                export_id="export1",
+                document_id="doc1",
+                workspace_id="workspace1",
+                element_id="element1",
+                output_root=root,
+                overwrite=True,
+            )
+            replaced = stale.read_text(encoding="ascii")
+            manifest = json.loads(
+                Path(result["stepManifestPath"]).read_text(encoding="utf-8")
+            )
+        self.assertTrue(result["exported"])
+        self.assertFalse(result["alreadyStaged"])
+        self.assertTrue(result["overwriteApplied"])
+        self.assertNotIn("stale", replaced)
+        self.assertIn("ISO-10303-21", replaced)
+        self.assertEqual(manifest["artifact"]["path"], "model.step")
+        self.assertEqual(
+            {item["fileName"] for item in result["stagedArtifacts"]},
+            {"model.step", "step-manifest.json"},
+        )
+
+    def test_partial_staging_without_overwrite_still_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staging = root / "export1"
+            staging.mkdir()
+            stale = staging / "model.step"
+            stale.write_text("stale partial artifact", encoding="ascii")
+            page = FakePage()
+            with self.assertRaisesRegex(ValueError, "staging destination already exists"):
+                self._export(page, tmp)
+            self.assertEqual(stale.read_text(encoding="ascii"), "stale partial artifact")
+            self.assertFalse((staging / "step-manifest.json").exists())
+        # The refusal stays pre-flight: no browser action and no download.
+        self.assertEqual(page.download_timeouts, [])
+        self.assertEqual(page.locators[selectors.EXPORT_SUBMIT].clicks, [])
+
+    def test_dialog_wait_failure_reports_staged_step_and_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            page = FakePage()
+            page.locators[selectors.EXPORT_DIALOG] = FailingDialogWaitLocator()
+            result = self._export(page, tmp)
+            manifest_on_disk = (root / "export1" / "step-manifest.json").is_file()
+            # A retry under the SAME export_id now finds the complete staging and
+            # reuses it instead of dying on the "destination already exists" raise.
+            retry = self._export(FakePage(), tmp)
+        self.assertFalse(result["exported"])
+        self.assertTrue(result["browserActionPerformed"])
+        self.assertEqual(result["failure"]["phase"], "wait_for_dialog_hidden")
+        self.assertIn("TargetClosedError", result["failure"]["error"])
+        # The dialog never reported itself hidden, but the STEP is on disk and now
+        # carries its manifest, so it is a complete, reusable staging.
+        self.assertTrue(result["stagingComplete"])
+        self.assertTrue(result["alreadyStaged"])
+        self.assertTrue(manifest_on_disk)
+        self.assertEqual(
+            {item["fileName"] for item in result["stagedArtifacts"]},
+            {"model.step", "step-manifest.json"},
+        )
+        self.assertEqual(
+            result["recovery"],
+            [
+                {"action": "retry_new_export_id"},
+                {"action": "retry_same_export_id", "requires": "overwrite=true"},
+                {"action": "browser_build_geometry_package", "requires": "stagingComplete"},
+                {"action": "enable_live_api", "requires": "operator"},
+                {"action": "human_export_dialog"},
+            ],
+        )
+        self.assertEqual(result["apiRequests"], 0)
+        self.assertFalse(result["bambuIncluded"])
+        self.assertTrue(retry["exported"])
+        self.assertTrue(retry["alreadyStaged"])
+
+    def test_download_phase_failure_reports_an_incomplete_staging(self):
+        class FailingSaveDownload(FakeDownload):
+            def save_as(self, path):
+                raise RuntimeError("disk went away before the artifact landed")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._export(FakePage(FailingSaveDownload()), tmp)
+        self.assertFalse(result["exported"])
+        self.assertEqual(result["failure"]["phase"], "save_download")
+        self.assertFalse(result["stagingComplete"])
+        self.assertEqual(result["stagedArtifacts"], [])
+        self.assertEqual(len(result["recovery"]), 5)
+
+    def test_browser_liveness_is_reported_on_success_and_failure_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            success = self._export(FakePage(), tmp)
+        with tempfile.TemporaryDirectory() as tmp:
+            dead = FakePage()
+            dead.locators[selectors.EXPORT_DIALOG] = FailingDialogWaitLocator()
+            failure = self._export(dead, tmp)
+        for result in (success, failure):
+            self.assertIsInstance(result["browserAliveBefore"], bool)
+            self.assertIsInstance(result["browserAliveAfter"], bool)
+        self.assertTrue(success["browserAliveBefore"])
+        self.assertTrue(success["browserAliveAfter"])
+        self.assertTrue(failure["browserAliveBefore"])
+        self.assertTrue(failure["browserAliveAfter"])
+
+    def test_browser_liveness_probe_reports_a_closed_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._export(FakePage(closed=True), tmp)
+        self.assertFalse(result["browserAliveBefore"])
+        self.assertFalse(result["browserAliveAfter"])
 
 
 if __name__ == "__main__":

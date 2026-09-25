@@ -21,6 +21,9 @@ import unittest
 from onshape_browser_mode import health
 from onshape_browser_mode.session import BrowserSession
 
+APP = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element1"
+SIGNIN = "https://cad.onshape.com/signin"
+
 
 class FakePage:
     """The two page primitives the probe uses, with a controllable outcome."""
@@ -366,6 +369,110 @@ class TimeoutDialogRecoveryTest(unittest.TestCase):
         self.assertFalse(result["reconnected"])
         self.assertEqual(result["reason"], "no timeout dialog")
         self.assertEqual(page.clicks, 0)
+
+
+class LoginAwarenessTest(unittest.TestCase):
+    """Issue #6 (login): the same navigation must report whether a login is needed.
+
+    No network and no browser: the page records `goto` targets, and the saved-URL
+    redirect (an expired profile landing on `/signin`) is scripted per target.
+    """
+
+    class LoginPage:
+        def __init__(self, url, *, goto_result=None):
+            self.url = url
+            self._goto_result = dict(goto_result or {})
+            self.gotos: list[str] = []
+            self.waits: list[int] = []
+
+        def goto(self, url, **kwargs):
+            self.gotos.append(url)
+            self.url = self._goto_result.get(url, url)
+
+        def wait_for_timeout(self, ms):
+            self.waits.append(ms)
+
+    def login_session(self, page, *, saved_url=None):
+        session = BrowserSession()
+        session.start = lambda *a, **k: page  # type: ignore[assignment]
+        session._enforce_single_working_page = lambda p: None  # type: ignore[assignment]
+        session._save_app_url = lambda url: None  # type: ignore[assignment]
+        session._load_saved_app_url = lambda: saved_url  # type: ignore[assignment]
+        return session
+
+    def test_a_restored_app_page_is_reported_as_already_authenticated(self):
+        page = self.LoginPage(APP)
+
+        result = self.login_session(page).open_login_page()
+
+        self.assertTrue(result["alreadyAuthenticated"])
+        self.assertFalse(result["needsHumanLogin"])
+        self.assertEqual(page.gotos, [])
+        self.assertEqual(result["sessionStatus"], "started")
+
+    def test_a_saved_url_that_resolves_to_the_app_is_already_authenticated(self):
+        page = self.LoginPage(SIGNIN)
+
+        result = self.login_session(page, saved_url=APP).open_login_page()
+
+        self.assertTrue(result["alreadyAuthenticated"])
+        self.assertFalse(result["needsHumanLogin"])
+        self.assertEqual(page.gotos, [APP])
+        self.assertEqual(result["sessionStatus"], "started")
+
+    def test_a_saved_url_that_lands_on_signin_needs_a_human(self):
+        saved = "https://cad.onshape.com/documents/old"
+        page = self.LoginPage(SIGNIN, goto_result={saved: SIGNIN})
+
+        result = self.login_session(page, saved_url=saved).open_login_page()
+
+        self.assertFalse(result["alreadyAuthenticated"])
+        self.assertTrue(result["needsHumanLogin"])
+        self.assertEqual(page.gotos, [saved, SIGNIN])
+        self.assertEqual(result["sessionStatus"], "awaiting_login")
+
+    def test_no_saved_url_opens_signin_and_needs_a_human(self):
+        page = self.LoginPage("about:blank")
+
+        result = self.login_session(page).open_login_page()
+
+        self.assertFalse(result["alreadyAuthenticated"])
+        self.assertTrue(result["needsHumanLogin"])
+        self.assertEqual(page.gotos, [SIGNIN])
+
+
+class StatusVerdictVocabularyTest(unittest.TestCase):
+    """Issue #10.4: status() and health() share one verdict vocabulary."""
+
+    def test_status_without_resources_reports_browser_not_running(self):
+        result = BrowserSession().status()
+
+        self.assertEqual(result["verdict"], health.BROWSER_NOT_RUNNING)
+        self.assertEqual(result["recommendedAction"], "browser_session action=login")
+        self.assertEqual(result["sessionStatus"], "uninitialized")
+
+    def test_held_state_classifier_shares_classify_verdicts(self):
+        held = health.classify_held_state(
+            session_running=True,
+            on_onshape_app=True,
+            login_confirmed=True,
+            session_status="started",
+        )
+
+        self.assertEqual(held["verdict"], health.OK)
+        self.assertEqual(held["recommendedAction"], "none")
+        self.assertIn(health.OK, held["verdicts"])
+
+    def test_held_state_classifier_needs_login_when_not_on_the_app(self):
+        held = health.classify_held_state(
+            session_running=True,
+            on_onshape_app=False,
+            login_confirmed=False,
+            session_status="awaiting_login",
+        )
+
+        self.assertEqual(held["verdict"], health.LOGIN_REQUIRED)
+        self.assertEqual(held["recommendedAction"], "browser_session action=login")
 
 
 if __name__ == "__main__":

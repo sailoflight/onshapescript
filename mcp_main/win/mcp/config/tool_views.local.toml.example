@@ -3,8 +3,20 @@
 # registration or the child environment.
 #
 # Precedence: an explicit argument, then ONSHAPE_MCP_TOOL_EXPOSURE, then this
-# file, then the built-in default (`semantic`).
+# file, then the built-in default (`gateway`).
 #
 # [exposure]
 # mode = "gateway"      # semantic | static | profile | dynamic | gateway
 # profile = "default"   # only used by the profile and dynamic modes
+#
+# `dynamic` is the collapse/expand control, orthogonal to which display set is
+# shown once expanded. A fresh dynamic connection starts COLLAPSED (only
+# mcp_tool_catalog, mcp_tool_view and mcp_tool_invoke) and expands with
+#   mcp_tool_view action=expand expanded_view=static|semantic|gateway|profile
+# where the default expanded_view is `gateway` (static=all, semantic=default,
+# profile=this connection's startup profile). `action=collapse` returns to the
+# three entry points and `action=reset` returns to collapsed + gateway.
+#
+# The view state is CONNECTION-scoped, not conversation-scoped: a reused or
+# shared connection shows the same state to every conversation on it. Collapse
+# is pure in-memory state -- it writes nothing and revokes nothing.

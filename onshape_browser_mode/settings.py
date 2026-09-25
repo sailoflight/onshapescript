@@ -31,6 +31,17 @@ class BrowserCfg:
     # browser death costs a human login; see onshape_browser_mode/resident.py.
     resident: bool = False
     resident_port: int = 9333  # loopback DevTools endpoint of the resident browser
+    # Isolation: optional SEPARATE profile directory, used instead of `user_data_dir`
+    # when non-empty. Trade-off, stated plainly: the shared persistent profile keeps
+    # the Onshape login across MCP restarts (that is why `user_data_dir` exists at
+    # all), while a separate or throwaway directory starts anonymous and costs one
+    # human sign-in per fresh directory. Empty (the default) leaves every existing
+    # deployment on exactly the profile it used before.
+    #
+    # This is only a directory choice. `--guest` semantics are NOT implemented and
+    # must not be inferred from this flag: the recon marked Edge's guest behaviour
+    # UNKNOWN, so guest mode is deliberately not invented here.
+    isolated_user_data_dir: str = ""
 
 
 @dataclass(frozen=True)

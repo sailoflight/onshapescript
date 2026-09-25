@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -53,7 +54,7 @@ class RuntimePromptTest(unittest.TestCase):
         env = os.environ.copy()
         env.pop("LIVE_API_ENABLED", None)
         process = subprocess.run(
-            ["python3", str(BUILDER), "--check"],
+            [sys.executable, str(BUILDER), "--check"],
             cwd=ROOT,
             env=env,
             text=True,

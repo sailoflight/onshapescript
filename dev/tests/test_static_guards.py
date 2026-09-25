@@ -779,6 +779,117 @@ class UnitMixingTest(unittest.TestCase):
         )
 
 
+class OpBooleanGroupingTest(unittest.TestCase):
+    """A literal opBoolean map needs the grouping flag when it passes both fields.
+
+    Measured live by the reporter (issue #11): ``opBoolean`` with ``"tools"`` +
+    ``"targets"`` and ``operationType: UNION`` but without
+    ``"targetsAndToolsNeedGrouping" : true`` regenerates with the misleading
+    ``@opBoolean: BOOLEAN_BAD_INPUT`` / "布尔运算操作至少需要两个零件或曲面" and
+    cost five deployments. The server's message is not ours to change, so the
+    rule only warns earlier -- never blocks the write.
+    """
+
+    @staticmethod
+    def _grouping_warnings(source: str) -> list[str]:
+        return [
+            warning
+            for warning in check_text(source).warnings
+            if "targetsAndToolsNeedGrouping" in warning
+        ]
+
+    def _call(
+        self,
+        *,
+        operation: str = "UNION",
+        with_targets: bool = True,
+        with_flag: bool = False,
+        flag_value: str = "true",
+    ) -> str:
+        fields = ['"tools" : qCreatedBy(id, EntityType.BODY)']
+        if with_targets:
+            fields.append('"targets" : qCreatedBy(id + "t", EntityType.BODY)')
+        fields.append(f'"operationType" : BooleanOperationType.{operation}')
+        if with_flag:
+            fields.append(f'"targetsAndToolsNeedGrouping" : {flag_value}')
+        return _feature_with_body(
+            'opBoolean(context, id + "b", { ' + ", ".join(fields) + " });"
+        )
+
+    def test_literal_tools_targets_and_union_warns_exactly_once(self) -> None:
+        warnings = self._grouping_warnings(self._call())
+        self.assertEqual(len(warnings), 1, warnings)
+        self.assertIn("BOOLEAN_BAD_INPUT", warnings[0])
+        self.assertIn("targetsAndToolsNeedGrouping", warnings[0])
+
+    def test_intersection_without_the_flag_also_warns(self) -> None:
+        self.assertEqual(
+            len(self._grouping_warnings(self._call(operation="INTERSECTION"))), 1
+        )
+
+    def test_the_flag_present_is_silent(self) -> None:
+        self.assertEqual(self._grouping_warnings(self._call(with_flag=True)), [])
+
+    def test_a_non_literal_flag_value_is_silent(self) -> None:
+        """The key is what matters; a computed value is a key too."""
+        source = self._call(with_flag=True, flag_value="definition.needGrouping")
+        self.assertEqual(self._grouping_warnings(source), [])
+
+    def test_tools_only_is_silent(self) -> None:
+        """UNION with tools and no targets is the normal merge shape."""
+        self.assertEqual(self._grouping_warnings(self._call(with_targets=False)), [])
+
+    def test_subtraction_is_silent(self) -> None:
+        """Only UNION/INTERSECTION need grouping; SUBTRACTION targets tools."""
+        self.assertEqual(
+            self._grouping_warnings(self._call(operation="SUBTRACTION")), []
+        )
+
+    def test_a_map_held_in_a_variable_is_never_second_guessed(self) -> None:
+        source = _feature_with_body(
+            'const booleanDefinition = { "tools" : qCreatedBy(id, EntityType.BODY), '
+            '"targets" : qCreatedBy(id + "t", EntityType.BODY), '
+            '"operationType" : BooleanOperationType.UNION };\n'
+            '        opBoolean(context, id + "b", booleanDefinition);'
+        )
+        self.assertEqual(self._grouping_warnings(source), [])
+
+    def test_the_finding_stays_advisory_so_a_deploy_is_not_gated_on_it(self) -> None:
+        """Per the standing rule, a local text rule is warning-level, not a stop."""
+        result = check_text(self._call()).as_result()
+        self.assertEqual(result["errorCount"], 0)
+        self.assertEqual(fs_check.findings_requiring_acknowledgement(result), [])
+        self.assertFalse(fs_check.acknowledgement_missing(result, {}))
+
+    def test_the_vendored_library_is_clean_for_this_rule(self) -> None:
+        """Its false-positive gate, on the real mirror.
+
+        The library writes ``"targetsAndToolsNeedGrouping"`` whenever it passes
+        both fields (``boolean.fs``), so a hit here would mean the rule reads a
+        correct call as broken -- and this test must fail rather than gain a
+        silent exclusion.
+        """
+        library = ROOT / "onshape_docs" / "reference" / "raw" / "std-library"
+        checked = 0
+        for path in sorted(library.glob("*.fs")):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if "opBoolean" not in text:
+                continue
+            checked += 1
+            with self.subTest(module=path.name):
+                self.assertEqual(
+                    [
+                        warning
+                        for warning in fs_check.check_source(
+                            fs_check.FsFile.from_text(text, name=str(path))
+                        ).warnings
+                        if "targetsAndToolsNeedGrouping" in warning
+                    ],
+                    [],
+                )
+        self.assertGreater(checked, 10, "the library sample looks truncated")
+
+
 class PlaywrightCallSignatureTest(unittest.TestCase):
     """Client calls must match the installed Playwright signature.
 

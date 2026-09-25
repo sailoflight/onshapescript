@@ -19,13 +19,22 @@ CONTROL_TOOL_NAMES = frozenset(
 )
 VALID_EXPOSURE_MODES = ("semantic", "static", "profile", "dynamic", "gateway")
 
+#: `dynamic` is a collapse/expand CONTROL, orthogonal to which display set is
+#: shown once it is expanded. A fresh dynamic connection starts `collapsed`
+#: (control/discovery entry points only) and an unqualified `expand` opens the
+#: `gateway` set; `expanded_view` may instead select any of these sets.
+VALID_EXPANDED_VIEWS = ("static", "semantic", "gateway", "profile")
+#: The view control's actions. `set` is kept as the compatibility alias for
+#: `expand` because older callers selected a profile with it.
+VALID_VIEW_ACTIONS = ("status", "set", "reset", "expand", "collapse")
+
 #: Host-local switch for the exposure mode, in the same shape as the other
 #: module-local configurations (`<name>.toml` in the module's `config/`
 #: directory, overridden by a gitignored `<name>.local.toml`). It exists because
 #: the ordinary deployment is launched by an external bridge whose registration
 #: owns the child environment: a mode an operator cannot set without editing
 #: someone else's registry is not really configurable. Precedence is explicit
-#: argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then `semantic`.
+#: argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then `gateway`.
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 LOCAL_CONFIG_PATH = CONFIG_DIR / "tool_views.local.toml"
 
@@ -190,7 +199,7 @@ def exposure_mode(value: str | None = None) -> str:
     elif "ONSHAPE_MCP_TOOL_EXPOSURE" in os.environ:
         mode = os.environ["ONSHAPE_MCP_TOOL_EXPOSURE"]
     else:
-        mode = _local_section("exposure").get("mode", "semantic")
+        mode = _local_section("exposure").get("mode", "gateway")
     if not isinstance(mode, str):
         raise ValueError("the exposure mode must be a string")
     mode = mode.strip().lower()
@@ -295,11 +304,34 @@ def select_view_tools(
 
 @dataclass
 class ToolViewState:
+    """One connection's tool-display state.
+
+    SCOPE: this state is CONNECTION-scoped, never conversation-scoped. A stdio
+    server sees a connection and the messages on it, not the conversations a
+    client multiplexes over it. If a client reuses or shares one connection, an
+    expand performed for one conversation is therefore observed by EVERY
+    conversation on that connection. That limitation is stated plainly instead
+    of claiming a per-conversation isolation the server cannot see.
+
+    Collapse is pure in-memory state: it writes nothing anywhere and is NOT the
+    same as exiting the browser or revoking a permission. Hidden tools remain
+    callable by exact registered name and every confirmation, quota, pacing and
+    acceptance gate still answers.
+
+    A cold start built by `from_environment` enters `dynamic` COLLAPSED, with
+    `gateway` remembered as the set an unqualified expand opens. The field
+    defaults below describe a directly constructed state instead: it preserves
+    the legacy explicit-profile expansion (`collapsed=False` over
+    `expanded_view`), which is what embedding code and tests have used.
+    """
+
     tools: list[dict[str, Any]]
     mode: str
     profile: str
     semantic_levels: tuple[str, ...] | None = None
     initial_profile: str | None = None
+    collapsed: bool = False
+    expanded_view: str = "profile"
 
     def __post_init__(self) -> None:
         if self.initial_profile is None:
@@ -316,7 +348,18 @@ class ToolViewState:
             # `semantic` is the bounded ordinary view; `gateway` ignores the
             # profile entirely because its listed surface is fixed above.
             profile = "default"
-        return cls(tools=tools, mode=mode, profile=profile)
+        return cls(
+            tools=tools,
+            mode=mode,
+            profile=profile,
+            # A fresh `dynamic` connection advertises NO domain-tool schema: it
+            # starts collapsed on the three control/discovery entry points and
+            # remembers `gateway` as the default expanded display set.
+            # static/semantic/profile/gateway have no collapse state and list
+            # their own fixed set.
+            collapsed=mode == "dynamic",
+            expanded_view="gateway",
+        )
 
     @property
     def switching_available(self) -> bool:
@@ -326,25 +369,62 @@ class ToolViewState:
     def list_changed_capability(self) -> bool:
         return self.switching_available
 
+    @property
+    def state(self) -> str:
+        return "collapsed" if self.mode == "dynamic" and self.collapsed else "expanded"
+
+    def _control_tools(self) -> list[dict[str, Any]]:
+        by_name = {tool["name"]: tool for tool in self.tools}
+        return [
+            by_name[name]
+            for name in (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME, INVOKE_TOOL_NAME)
+        ]
+
+    def _gateway_tools(self) -> list[dict[str, Any]]:
+        # The core plus the curated representatives, in the order they are
+        # declared here rather than registry order: the list is a routing
+        # surface, and grouping it by what a caller does next is the whole
+        # reason it is small. Every OTHER registered name stays reachable by
+        # exact name (`tools/call` resolves through `HANDLERS` with no view
+        # filter, pinned by `test_hidden_known_name_tool_remains_callable`),
+        # and `mcp_tool_catalog action=index` maps the complete registry in
+        # bounded lines, so nothing is lost or made unfindable -- hiding is
+        # context routing, never authority.
+        by_name = {tool["name"]: tool for tool in self.tools}
+        ordered = (
+            (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME, INVOKE_TOOL_NAME)
+            + GATEWAY_CURATED_TOOL_NAMES
+        )
+        return [by_name[name] for name in ordered if name in by_name]
+
     def listed_tools(self) -> list[dict[str, Any]]:
         if self.mode == "static":
             return self.tools
         if self.mode == "gateway":
-            # The core plus the curated representatives, in the order they are
-            # declared here rather than registry order: the list is a routing
-            # surface, and grouping it by what a caller does next is the whole
-            # reason it is small. Every OTHER registered name stays reachable by
-            # exact name (`tools/call` resolves through `HANDLERS` with no view
-            # filter, pinned by `test_hidden_known_name_tool_remains_callable`),
-            # and `mcp_tool_catalog action=index` maps the complete registry in
-            # bounded lines, so nothing is lost or made unfindable -- hiding is
-            # context routing, never authority.
-            by_name = {tool["name"]: tool for tool in self.tools}
-            ordered = (
-                (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME, INVOKE_TOOL_NAME)
-                + GATEWAY_CURATED_TOOL_NAMES
+            return self._gateway_tools()
+        if self.mode == "dynamic":
+            if self.collapsed:
+                # Collapsed lists ONLY the control/discovery entry points. The
+                # gateway's domain representatives are deliberately not
+                # resident here; they arrive when the caller expands.
+                return self._control_tools()
+            if self.expanded_view == "static":
+                return self.tools
+            if self.expanded_view == "gateway":
+                return self._gateway_tools()
+            if self.expanded_view == "semantic":
+                # A fixed display set, independent of the startup profile:
+                # `semantic` means the bounded ordinary `default` view.
+                return select_view_tools(
+                    self.tools,
+                    profile="default",
+                    semantic_levels=self.semantic_levels,
+                )
+            return select_view_tools(
+                self.tools,
+                profile=self.profile,
+                semantic_levels=self.semantic_levels,
             )
-            return [by_name[name] for name in ordered if name in by_name]
         listed = select_view_tools(
             self.tools,
             profile=self.profile,
@@ -364,6 +444,13 @@ class ToolViewState:
         listed = self.listed_tools()
         return {
             "exposureMode": self.mode,
+            # `state`/`expandedView`/`scope` describe the collapse/expand
+            # control. `scope` says outright that this state belongs to the
+            # CONNECTION: a shared or reused connection shows the same view to
+            # every conversation on it.
+            "state": self.state,
+            "expandedView": self.expanded_view,
+            "scope": "connection",
             "profile": self.profile,
             "semanticLevels": list(self.semantic_levels or ()),
             "toolCount": len(listed),
@@ -391,10 +478,14 @@ class ToolViewState:
             ],
         }
 
+    def _effective_state(self) -> tuple[Any, ...]:
+        """Everything whose change actually alters what `tools/list` returns."""
+        return (self.collapsed, self.expanded_view, self.profile, self.semantic_levels)
+
     def apply(self, arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         action = arguments.get("action", "status")
-        if action not in {"status", "set", "reset"}:
-            raise ValueError("action must be status, set, or reset")
+        if action not in VALID_VIEW_ACTIONS:
+            raise ValueError("action must be status, set, reset, expand, or collapse")
         if action == "status":
             return {**self.status(), "changed": False, "refreshRequired": False}, False
         if not self.switching_available:
@@ -402,15 +493,38 @@ class ToolViewState:
                 "tool view switching requires ONSHAPE_MCP_TOOL_EXPOSURE=dynamic; "
                 "the current mode is a fixed compatibility view"
             )
-        before = (self.profile, self.semantic_levels)
+        before = self._effective_state()
         if action == "reset":
+            # Back to a cold start: collapsed, gateway, and the connection's
+            # original startup profile.
+            self.collapsed = True
+            self.expanded_view = "gateway"
             self.profile = self.initial_profile or "default"
             self.semantic_levels = None
+        elif action == "collapse":
+            # Pure in-memory state: nothing is written locally or remotely, and
+            # no browser session or permission is touched.
+            self.collapsed = True
         else:
+            # `expand` opens a display set; `set` is its compatibility alias
+            # and, like the action it replaces, defaults to the startup-profile
+            # view and resolves the level filter from its own arguments.
+            requested_view = arguments.get("expanded_view")
+            if requested_view is None:
+                requested_view = "profile" if action == "set" else self.expanded_view
+            if (
+                not isinstance(requested_view, str)
+                or requested_view not in VALID_EXPANDED_VIEWS
+            ):
+                allowed = ", ".join(VALID_EXPANDED_VIEWS)
+                raise ValueError(f"expanded_view must be one of: {allowed}")
+            self.expanded_view = requested_view
             profile = arguments.get("profile")
-            if not isinstance(profile, str) or profile not in VALID_PROFILES:
-                allowed = ", ".join(VALID_PROFILES)
-                raise ValueError(f"profile must be one of: {allowed}")
+            if profile is not None:
+                if not isinstance(profile, str) or profile not in VALID_PROFILES:
+                    allowed = ", ".join(VALID_PROFILES)
+                    raise ValueError(f"profile must be one of: {allowed}")
+                self.profile = profile
             levels = arguments.get("semantic_levels")
             if levels is not None:
                 if (
@@ -421,14 +535,15 @@ class ToolViewState:
                     raise ValueError("semantic_levels must be a non-empty list containing L1 through L6")
                 if len(set(levels)) != len(levels):
                     raise ValueError("semantic_levels must not contain duplicates")
-                normalized_levels: tuple[str, ...] | None = tuple(
+                self.semantic_levels = tuple(
                     sorted(levels, key=VALID_SEMANTIC_LEVELS.index)
                 )
-            else:
-                normalized_levels = None
-            self.profile = profile
-            self.semantic_levels = normalized_levels
-        changed = before != (self.profile, self.semantic_levels)
+            elif action == "set":
+                # Legacy `set` always resolved its filter from the call, so an
+                # omitted level list meant "no level filter" rather than "keep".
+                self.semantic_levels = None
+            self.collapsed = False
+        changed = before != self._effective_state()
         return {
             **self.status(),
             "changed": changed,

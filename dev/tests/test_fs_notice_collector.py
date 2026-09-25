@@ -212,6 +212,19 @@ class NoticeCollectorProbeTest(unittest.TestCase):
         parsed = json.loads(completed.stdout)
         self.assertIn("unknown scenario", parsed["error"])
 
+    def test_the_probe_snapshot_is_demoted_by_the_python_reader(self) -> None:
+        # The exact production string's own output, fed to the Python reader: the
+        # stale row the collector deliberately keeps (dropping it once hid a real
+        # failure) must still be demoted out of the current bucket by default.
+        raw = self.collect("out-of-date-container-read-and-flagged")
+        page = mock.Mock()
+        page.evaluate.return_value = raw
+        result = actions.read_featurescript_notices(page)
+        self.assertEqual([notice["text"] for notice in result["notices"]], ["fresh result"])
+        self.assertEqual([notice["text"] for notice in result["staleNotices"]],
+                         ["stale result"])
+        self.assertEqual(result["staleErrorCount"], 1)
+
 
 class NoticeObservationWiringTest(unittest.TestCase):
     """The Python half of the observation: what is sent, and what is derived."""
@@ -231,9 +244,10 @@ class NoticeObservationWiringTest(unittest.TestCase):
         self.assertEqual(source, actions.FS_NOTICE_SNAPSHOT_JS)
         self.assertEqual(sent_selectors, SELECTORS)
 
-    def test_raw_notice_rows_are_returned_unedited(self) -> None:
-        # The observation layer must not annotate what the browser actually saw;
-        # codes and summaries belong to the derived compile status.
+    def test_raw_notice_fields_are_kept_and_gain_a_staleness_marker(self) -> None:
+        # The observation layer keeps every raw field the browser actually saw and
+        # adds only the documented ``stale``/``bucket`` markers; codes and
+        # summaries still belong to the derived compile status.
         notice = {
             "severity": "warning",
             "text": "Variable A not found.",
@@ -253,8 +267,24 @@ class NoticeObservationWiringTest(unittest.TestCase):
             "notices": [notice],
         }
         result = actions.read_featurescript_notices(page)
-        self.assertEqual(result["notices"], [notice])
-        self.assertNotIn("code", result["notices"][0])
+        returned = result["notices"][0]
+        for key, value in notice.items():
+            self.assertEqual(returned[key], value, key)
+        self.assertFalse(returned["stale"])
+        self.assertEqual(returned["bucket"], "currentActiveTab")
+        self.assertNotIn("code", returned)
+
+    @staticmethod
+    def _snapshot(*notices: dict) -> dict:
+        """A raw collector snapshot carrying exactly these notice rows."""
+        return {
+            "found": True,
+            "indicatorPresent": True,
+            "paneOpen": True,
+            "activeTabName": "Feature Studio 1",
+            "noticeCount": len(notices),
+            "notices": list(notices),
+        }
 
     def _compile_status(self, notices: list[dict], **ace: object) -> dict:
         page = mock.Mock()
@@ -368,7 +398,12 @@ class NoticeObservationWiringTest(unittest.TestCase):
         self.assertEqual(result["elementDiagnosticSummary"]["severityCounts"]["error"], 1)
 
     def test_an_out_of_date_element_error_is_still_reported_with_its_call_stack(self) -> None:
-        """The live-measured shape: the Part Studio container is out of date."""
+        """The live-measured shape: the Part Studio container is out of date.
+
+        The stale row used to be returned in the OTHER-ELEMENT bucket, so
+        ``staleErrorCount`` legitimately read 0 while the stale row still read as
+        current. ``outOfDate`` now wins over ``isActiveTab`` in the split.
+        """
         result = self._compile_status([{
             "severity": "error",
             "text": "throw Plate width is not an integer multiple of the cell pitch; "
@@ -383,13 +418,81 @@ class NoticeObservationWiringTest(unittest.TestCase):
         # The editor still compiles, so deployment acceptance is untouched.
         self.assertTrue(result["compiled"])
         self.assertEqual(result["errors"], [])
-        # ... and the actual error text is returned, not swallowed.
+        # ... and the actual error text is returned in the STALE bucket, not the
+        # current element bucket and not swallowed.
         self.assertFalse(result["documentClean"])
-        self.assertEqual(result["elementErrorCount"], 1)
-        reported = result["elementErrors"][0]
+        self.assertEqual(result["elementErrorCount"], 0)
+        self.assertEqual(result["elementErrors"], [])
+        self.assertEqual(result["staleErrorCount"], 1)
+        reported = result["staleErrors"][0]
         self.assertEqual(reported["tabName"], "Part Studio 1")
         self.assertTrue(reported["outOfDate"])
+        self.assertTrue(reported["stale"])
         self.assertIn("not an integer multiple of the cell pitch", reported["text"])
+
+    def test_stale_rows_are_demoted_across_tabs_by_default(self) -> None:
+        stale = {
+            "severity": "error", "text": "stale result", "messages": ["stale result"],
+            "line": 156, "column": 9, "row": 155, "col": 8,
+            "tabName": "Part Studio 1", "isActiveTab": False, "outOfDate": True,
+        }
+        current = {
+            "severity": "error", "text": "fresh result", "messages": ["fresh result"],
+            "line": 4, "column": 1, "row": 3, "col": 0,
+            "tabName": "Feature Studio 1", "isActiveTab": True, "outOfDate": False,
+        }
+        page = mock.Mock()
+        page.evaluate.return_value = self._snapshot(stale, current)
+        result = actions.read_featurescript_notices(page)
+        # The stale cross-tab row is not in the current notice bucket ...
+        self.assertEqual([notice["text"] for notice in result["notices"]], ["fresh result"])
+        self.assertEqual([notice["text"] for notice in result["staleNotices"]],
+                         ["stale result"])
+        # ... but its true count is reported regardless of tab.
+        self.assertEqual(result["staleErrorCount"], 1)
+        self.assertEqual(result["staleNoticeCount"], 1)
+        self.assertEqual(result["currentNoticeCount"], 1)
+        self.assertFalse(result["includeStale"])
+        self.assertIn("notices-out-of-date", result["staleErrorCountBasis"])
+        self.assertEqual(result["notices"][0]["bucket"], "currentActiveTab")
+        self.assertEqual(result["staleNotices"][0]["bucket"], "stale")
+        self.assertTrue(result["staleNotices"][0]["stale"])
+        self.assertNotEqual(result["notices"][0]["bucket"],
+                            result["staleNotices"][0]["bucket"])
+
+    def test_include_stale_restores_the_stale_row(self) -> None:
+        stale = {
+            "severity": "error", "text": "stale result", "messages": ["stale result"],
+            "line": 156, "column": 9, "row": 155, "col": 8,
+            "tabName": "Part Studio 1", "isActiveTab": False, "outOfDate": True,
+        }
+        current = {
+            "severity": "warning", "text": "fresh result", "messages": ["fresh result"],
+            "line": 4, "column": 1, "row": 3, "col": 0,
+            "tabName": "Feature Studio 1", "isActiveTab": True, "outOfDate": False,
+        }
+        page = mock.Mock()
+        page.evaluate.return_value = self._snapshot(stale, current)
+        result = actions.read_featurescript_notices(page, includeStale=True)
+        self.assertTrue(result["includeStale"])
+        self.assertEqual([notice["text"] for notice in result["notices"]],
+                         ["stale result", "fresh result"])
+        by_text = {notice["text"]: notice for notice in result["notices"]}
+        self.assertEqual(by_text["stale result"]["bucket"], "stale")
+        self.assertTrue(by_text["stale result"]["stale"])
+        self.assertEqual(by_text["fresh result"]["bucket"], "currentActiveTab")
+        self.assertEqual(result["staleErrorCount"], 1)
+
+    def test_compile_status_asks_the_notice_reader_to_keep_stale_rows(self) -> None:
+        # The derived status has its own staleErrors bucket, so it must opt back
+        # in to the rows the raw reader demotes by default.
+        page = mock.Mock()
+        page.evaluate.return_value = {"found": True, "annotationCount": 0, "errors": []}
+        with mock.patch.object(actions, "read_featurescript_notices", return_value={
+            "found": True, "complete": True, "noticeCount": 0, "notices": [],
+        }) as reader:
+            actions.read_featurescript_compile_status(page)
+        reader.assert_called_once_with(page, includeStale=True)
 
     def test_an_out_of_date_row_on_the_active_tab_never_fails_a_fresh_commit(self) -> None:
         result = self._compile_status([{

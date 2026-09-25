@@ -292,14 +292,22 @@ def browser_get_fs_compile_status(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def browser_fs_read_notices(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Read active-tab FeatureScript notices and restore the pane state."""
+    """Read active-tab FeatureScript notices and restore the pane state.
+
+    ``outOfDate`` rows are demoted, not deleted: by default they appear only in
+    ``staleNotices`` with the staleness counts, and ``includeStale=true`` also
+    returns them inside ``notices`` for callers that want the raw rows.
+    """
+    include_stale = arguments.get("includeStale", False)
+    if not isinstance(include_stale, bool):
+        raise ValueError("includeStale must be a boolean")
     page, _ = _page(pace=False)
     from onshape_browser_mode import actions
 
     return {
         "pageUrl": page.url,
         **actions.parse_document_url(page.url),
-        **actions.read_featurescript_notices(page),
+        **actions.read_featurescript_notices(page, includeStale=include_stale),
     }
 
 
@@ -1379,15 +1387,30 @@ def browser_export_step(arguments: dict[str, Any]) -> dict[str, Any]:
     required = ("source_tab", "export_id", "document_id", "workspace_id", "element_id")
     if any(not isinstance(arguments.get(key), str) or not arguments[key].strip() for key in required):
         raise ValueError(f"{', '.join(required)} are required")
+    overwrite = arguments.get("overwrite", False)
+    if not isinstance(overwrite, bool):
+        raise ValueError("overwrite must be a boolean")
     from onshape_browser_mode.step_export import export_browser_step, plan_browser_step_export
 
     if arguments.get("dry_run"):
+        # dry_run stays purely local: plan_browser_step_export performs no browser
+        # or download work, and overwrite only affects the real staging directory.
+        # The target ids are passed so the plan can judge whether an existing
+        # staging directory is reusable FOR THIS TARGET instead of advertising a
+        # reuse the real call would refuse on provenance.
         return plan_browser_step_export(
             source_tab=arguments["source_tab"],
             export_id=arguments["export_id"],
+            overwrite=overwrite,
+            document_id=arguments["document_id"],
+            workspace_id=arguments["workspace_id"],
+            element_id=arguments["element_id"],
         )
     _confirm(arguments)
     page, _ = _page()
+    # `overwrite` lets a retry reuse a staging directory a failed export left
+    # partial; the export owns that decision and reports `stagedArtifacts` and
+    # `recovery` on failure, which this handler passes through untouched.
     return export_browser_step(
         page,
         source_tab=arguments["source_tab"],
@@ -1396,6 +1419,7 @@ def browser_export_step(arguments: dict[str, Any]) -> dict[str, Any]:
         workspace_id=arguments["workspace_id"],
         element_id=arguments["element_id"],
         timeout_ms=arguments.get("timeout_ms", 120_000),
+        overwrite=overwrite,
     )
 
 
@@ -1554,12 +1578,12 @@ _DIMENSION_PROPERTIES = {"tool_selector": {"type": "string", "default": ""}, "ge
 BROWSER_TOOLS = [
     _tool("browser_discover_tools", "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. A matching card also carries the exact deploy call that uses it, because a capability is an argument to browser_deploy_and_apply_featurescript rather than a gateway invocation. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact schemas. Classification guides discovery only and grants no execution authority.", {"query": {"type": "string", "default": ""}, "semantic_levels": {"type": "array", "items": {"type": "string", "enum": ["L1", "L2", "L3", "L4", "L5", "L6"]}, "uniqueItems": True, "maxItems": 6}, "limit": {"type": "integer", "minimum": 1, "maximum": 12, "default": 8}, "include_schema": {"type": "boolean", "default": True}}, mutating=False, seconds=1, network="offline"),
     _tool("browser_invoke_discovered", "Deprecated compatibility wrapper: call the registered tool by the exact name that mcp_tool_catalog returns. It invokes one browser tool from the discovery catalog; nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative and this gateway grants no permission and bypasses no handler gate. The hop is preserved for existing callers only.", {"name": {"type": "string"}, "arguments": {"type": "object", "additionalProperties": True}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["name", "arguments"]),
-    _tool("browser_export_step", "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP result, and persist a browser-owned step-manifest with SHA/provenance. Zero REST quota. Actual UI/download execution requires confirm_mutation=true; dry_run is local.", {"source_tab": {"type": "string"}, "export_id": {"type": "string"}, "document_id": {"type": "string"}, "workspace_id": {"type": "string"}, "element_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 30000, "maximum": 300000, "default": 120000}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=180, required=["source_tab", "export_id", "document_id", "workspace_id", "element_id"]),
+    _tool("browser_export_step", "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP result, and persist a browser-owned step-manifest with SHA/provenance. Zero REST quota. Actual UI/download execution requires confirm_mutation=true; dry_run is local. A failure is not necessarily an absence: the export may restart the browser, and a complete STEP can already be sitting in staging even when the call reports failure, so a failed result carries `stagedArtifacts` (what landed on disk) and `recovery` (what to do next) — inspect those before retrying. Pass overwrite=true on a retry to reuse a staging directory that a failed export left partial; without it a retry refuses rather than overwrite the leftovers. An existing staging directory is reused only when the manifest proves it came from the SAME document/workspace/element; a different target is refused (or replaced with overwrite=true), never answered with another document's STEP.", {"source_tab": {"type": "string"}, "export_id": {"type": "string"}, "document_id": {"type": "string"}, "workspace_id": {"type": "string"}, "element_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 30000, "maximum": 300000, "default": 120000}, "overwrite": {"type": "boolean", "default": False, "description": "Allow a retry to reuse a staging directory that a failed export left partial, instead of refusing on the existing destination. A complete STEP may already be staged even when the previous call reported failure; inspect its `stagedArtifacts` first."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=180, required=["source_tab", "export_id", "document_id", "workspace_id", "element_id"]),
     _tool("browser_geometry_status", "Deprecated compatibility wrapper: use onshape_geometry_status, which reports every configured backend in one answer. Kept so an existing caller keeps working; it delegates and returns the same report.", {}, mutating=False, seconds=90, network="offline"),
     _tool("browser_configure_geometry_backend", "Deprecated compatibility wrapper: use onshape_configure_geometry_backend with backend='browser'. Kept so an existing caller cannot silently start configuring the other mode. The candidate is re-discovered before writing, so callers cannot supply an executable or argv. dry_run previews the selection; actual local configuration requires confirm_mutation=true.", {"candidate_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["candidate_id"], network="offline"),
     _tool("browser_build_geometry_package", "Build an offline L6 geometry-analysis package from one browser-owned STEP export manifest. The executable and argv come only from browser module configuration; MCP may select only export_id. Re-verifies STEP provenance/SHA and writes STEP/STL/reports/manifest without browser, REST, or Bambu calls.", {"export_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=360, required=["export_id"], network="offline"),
     _tool("browser_get_fs_compile_status", "Read the active FeatureScript Ace annotations plus the FeatureScript notice pane and report compiled status, every message of each notice, a self-labeled normalized code per diagnostic, and counts. Read-only and zero REST API quota.", {}, mutating=False, seconds=10),
-    _tool("browser_fs_read_notices", "Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows with all message paragraphs, and restore the prior pane state. Read-only UI observation and zero REST API quota.", {}, mutating=False, seconds=10),
+    _tool("browser_fs_read_notices", "Open the active Feature Studio's FeatureScript notice pane when needed, return normalized warning/error/info rows with all message paragraphs, and restore the prior pane state. Read-only UI observation and zero REST API quota. By default only CURRENT notices are returned in `notices`; a row marked `outOfDate` is stale and is DEMOTED into `staleNotices` with `staleNoticeCount`/`staleErrorCount`/`staleErrorCountBasis`, `currentNoticeCount`, and `returnedNoticeCount`, because a stale row's line number points at a different source version and must not be read as current state. Pass includeStale=true to also include those raw stale rows in `notices`.", {"includeStale": {"type": "boolean", "default": False, "description": "Also return rows marked `outOfDate` inside `notices`. Demotion is not deletion, so the stale rows and their counts are always reported under `staleNotices`/`staleErrorCount`; set this only when the raw rows are what you need."}}, mutating=False, seconds=10),
     _tool("browser_fs_capture_diagnostic", "Persist the active full FeatureScript source and its combined Ace/FeatureScript-notice compile result as a local diagnostic package under onshape_browser_mode/outputs/fs_diagnostics, including a normalized, source-annotated diagnostics summary and a bounded corpus entry for offline analysis. Experimental, zero REST API quota, and no cloud mutation; the local artifact may contain proprietary source code.", {}, mutating=False, seconds=10),
     _tool("browser_get_fs_symbols", "Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names. Read-only and zero REST API quota.", {}, mutating=False, seconds=10),
     _tool("browser_fs_goto_definition", "Navigate to a named top-level FeatureScript definition through Module outline and return the verified Ace cursor target.", {"symbol": {"type": "string"}}, mutating=False, seconds=10, required=["symbol"]),

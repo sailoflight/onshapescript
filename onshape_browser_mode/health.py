@@ -250,6 +250,40 @@ def classify(
     }
 
 
+def classify_held_state(
+    *,
+    session_running: bool,
+    on_onshape_app: bool,
+    login_confirmed: bool,
+    session_status: str | None = None,
+) -> dict[str, Any]:
+    """The verdict vocabulary applied to state a process HOLDS, with no probe.
+
+    `status()` reports ownership, not probe evidence: it reads the held page's
+    URL but never performs the bounded round trip `classify` interprets. So this
+    hands `classify` evidence that claims exactly what was observed -- the
+    process holds a live page, and its URL is (or is not) an Onshape application
+    URL -- and leaves the timeout-dialog and document-shell questions to the real
+    health probe. One verdict vocabulary and one set of recommended actions stay
+    shared by `status` and `health`; no `sessionStatus` value is rewritten.
+    """
+    evidence = {
+        "responded": bool(session_running),
+        "timeoutDialogPresent": False,
+        # `status` reads the application URL that this facade already treats as a
+        # usable Onshape session (`session._is_onshape_app_url`); it does NOT
+        # re-read the rendered document shell, which stays the probe's job.
+        "documentShellReady": bool(on_onshape_app),
+    }
+    return classify(
+        evidence,
+        session_running=session_running,
+        on_onshape_app=on_onshape_app,
+        login_confirmed=login_confirmed,
+        session_status=session_status,
+    )
+
+
 def report(
     evidence: dict[str, Any],
     *,

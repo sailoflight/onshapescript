@@ -26,8 +26,10 @@ from mcp_main.win.mcp.tool_views import (
     CONTROL_TOOL_NAME,
     INVOKE_TOOL_NAME,
     ToolViewState,
+    VALID_EXPANDED_VIEWS,
     VALID_PROFILES,
     VALID_SEMANTIC_LEVELS,
+    VALID_VIEW_ACTIONS,
     exposure_mode,
 )
 from onshape_rest_api_mode.geometry import (
@@ -597,7 +599,7 @@ def _browser_watch(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Browser session control: status, login, release, reconnect, reload, health.
+    """Browser session control: status, login, release, reconnect, reload, health, detach.
 
     This tool deliberately does NOT spend Onshape API quota. It starts or
     inspects the persistent Playwright browser profile; Playwright is imported
@@ -612,6 +614,9 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
     `health` is the exception that proves the rule: it is a bounded READ that
     never starts the browser, because a probe that first launches a browser
     cannot tell a caller whether launching it would be safe.
+    `detach` is `release`'s non-destructive sibling: it hands back MCP ownership
+    while KEEPING the window, context, profile, and login state, and is supported
+    only in resident/attached mode.
     """
     from onshape_browser_mode.session import get_session
 
@@ -623,13 +628,17 @@ def _browser_session(arguments: dict[str, Any]) -> dict[str, Any]:
         return session.status()
     if action == "release":
         return session.release()
+    if action == "detach":
+        # `detach` keeps the window/context/profile and its login state; the
+        # session itself reports the unsupported (non-resident) case honestly.
+        return session.detach()
     if action == "reconnect":
         return _browser_reconnect(arguments)
     if action == "reload":
         return _browser_reload(arguments)
     if action == "health":
         return session.health(probe_timeout_ms=arguments.get("probe_timeout_ms"))
-    raise ValueError("action must be status, login, release, reconnect, reload, or health")
+    raise ValueError("action must be status, login, release, reconnect, reload, health, or detach")
 
 
 def _absorbed_session_action(action: str) -> Any:
@@ -1005,6 +1014,20 @@ def _browser_click(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _first_feature_studio_tab(tabs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the first Feature Studio tab from a document-tab listing.
+
+    The listing's ``elementType`` is the authoritative hint; the visible name is
+    the fallback, because a tab strip can render the type attribute empty.
+    """
+    for tab in tabs:
+        kind = str(tab.get("elementType") or "").lower().replace(" ", "").replace("_", "").replace("-", "")
+        name = str(tab.get("name") or "").lower()
+        if "featurestudio" in kind or "feature studio" in name:
+            return tab
+    return None
+
+
 def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     """Deploy a FeatureScript script through the browser UI (0 Onshape API quota).
 
@@ -1108,10 +1131,30 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         before = actions.read_featurescript_editor(page)
 
     if before is None:
+        # The editor is not on screen because the ACTIVE tab is not a Feature
+        # Studio (issue #12.3). A bare "not found" leaves the caller with no
+        # move, so enumerate the document tabs and switch to the first Feature
+        # Studio one, then read the editor again. A failure here is reported with
+        # the exact recovery call instead of the bare reason.
+        try:
+            listing = actions.list_document_tabs(page)
+            candidate = _first_feature_studio_tab(listing.get("tabs") or [])
+            if candidate is not None:
+                guard.pace()  # selecting a document tab is a real browser action
+                if candidate.get("id"):
+                    actions.activate_tab(page, element_id=str(candidate["id"]))
+                else:
+                    actions.activate_tab(page, name=str(candidate.get("name") or ""))
+                before = actions.read_featurescript_editor(page)
+        except Exception:
+            before = None
+
+    if before is None:
         return {
             "deployed": False,
             "dryRun": False,
             "reason": "FeatureScript editor not found on the current page",
+            "recovery": "call browser_activate_tab(Feature Studio) first",
             "localCheck": local_check,
             "pageUrl": page.url,
         }
@@ -1491,19 +1534,48 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Inspect or change the current connection's tool-display view. This is a context-routing convention, "
             "not an authorization boundary: hidden known-name tools remain callable and all confirmation, quota, "
-            "pacing, and acceptance gates remain authoritative. action=status works in every exposure mode; "
-            "set/reset require ONSHAPE_MCP_TOOL_EXPOSURE=dynamic and emit notifications/tools/list_changed when "
-            "the effective view changes."
+            "pacing, and acceptance gates remain authoritative. action=status works in every exposure mode. The "
+            "collapse/expand control belongs to ONSHAPE_MCP_TOOL_EXPOSURE=dynamic: a cold start is collapsed and "
+            "lists only the control/discovery entry points, holding no domain-tool schema resident; one expand "
+            "opens a display set and defaults to `gateway`. set/reset/expand/collapse require dynamic mode and emit "
+            "notifications/tools/list_changed when the effective view changes. The state is CONNECTION-scoped, never "
+            "conversation-scoped: if a client reuses or shares one connection, an expand performed for one session "
+            "is seen by every session on that connection. Collapse is pure in-memory state — it writes nothing "
+            "locally or remotely, and it is NOT exiting the browser or revoking a permission."
         ),
         "inputSchema": object_schema({
-            "action": {"type": "string", "enum": ["status", "set", "reset"], "default": "status"},
-            "profile": {"type": "string", "enum": list(VALID_PROFILES)},
+            "action": {
+                "type": "string",
+                "enum": list(VALID_VIEW_ACTIONS),
+                "default": "status",
+                "description": (
+                    "status = read-only report of the view and its connection scope; expand = open a display set "
+                    "(defaults to the current one, `gateway` on a cold start); collapse = return to the collapsed "
+                    "control-only list; reset = cold start (collapsed, gateway, startup profile); set = legacy alias "
+                    "of expand that defaults to the startup-profile view."
+                ),
+            },
+            "expanded_view": {
+                "type": "string",
+                "enum": list(VALID_EXPANDED_VIEWS),
+                "description": (
+                    "Display set action=expand opens. Only meaningful for expand (and its legacy alias set, which "
+                    "uses `profile` when omitted); defaults to gateway. static = the whole registry, semantic = the "
+                    "bounded ordinary view, gateway = core control/discovery tools plus curated representatives, "
+                    "profile = the startup profile's view."
+                ),
+            },
+            "profile": {
+                "type": "string",
+                "enum": list(VALID_PROFILES),
+                "description": "Optional view profile for action=set or action=expand.",
+            },
             "semantic_levels": {
                 "type": "array",
                 "items": {"type": "string", "enum": list(VALID_SEMANTIC_LEVELS)},
                 "minItems": 1,
                 "uniqueItems": True,
-                "description": "Optional browser semantic-level filter for action=set.",
+                "description": "Optional browser semantic-level filter for action=set or action=expand.",
             },
         }),
         "annotations": {
@@ -1742,12 +1814,24 @@ TOOLS: list[dict[str, Any]] = [
             "return type and module. FeatureScript overloads a name with several signatures — when the "
             "name has multiple signatures in one module, ALL of them are returned as an 'overloads' list "
             "(each with parameters/description) so you can pick by exact signature. Constants and "
-            "typecheck predicates are also addressable via kind. Local and offline."
+            "typecheck predicates are also addressable via kind. Descriptions are truncated to a "
+            "bounded length by default — a truncated entry reports `descriptionTruncated` — so pass "
+            "full=true when you need the verbatim prose. Local and offline."
         ),
         "inputSchema": object_schema({
             "name": {"type": "string"},
             "module": {"type": "string", "description": "Disambiguate when the name exists in several modules."},
             "kind": FS_KIND_SCHEMA,
+            "full": {
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "Return each description verbatim instead of truncating it at the reference "
+                    "default. A truncated entry sets `descriptionTruncated` and says so; pass "
+                    "full=true to act on it. Kept off by default because a heavily overloaded name "
+                    "otherwise repeats the same multi-thousand-character prose once per signature."
+                ),
+            },
         }, ["name"]),
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
     },
@@ -2378,9 +2462,16 @@ TOOLS: list[dict[str, Any]] = [
             "action='login' opens the visible browser at the Onshape sign-in page and asks the human to "
             "complete login (SSO/2FA are never automated); the resulting profile is reused by later "
             "browser_* calls. action='release' closes only the browser/context owned by the current MCP "
-            "process and releases its persistent-profile ownership; it is idempotent, may require login "
-            "state to be refreshed later, and cannot close a browser owned by another MCP process. Use "
-            "release when the owning agent has finished browser work unless continuation is intentional. "
+            "process and releases its persistent-profile ownership; it CLOSES the window, so it may "
+            "require login state to be refreshed later, and cannot close a browser owned by another MCP "
+            "process. action='detach' is the non-destructive alternative: it relinquishes MCP ownership "
+            "of the session WITHOUT closing the browser, context, or profile and keeps the window and its "
+            "login state — it is supported only in resident/attached mode, and a non-resident session "
+            "reports detached=false and recommends release. Three outcomes are not interchangeable: "
+            "release loses login state; a process crash or a page navigation does NOT; detach keeps the "
+            "window. Keep the session at the end of a task by default, because release can cost a human "
+            "sign-in; release only on an explicit human request or when the resources genuinely must be "
+            "freed. "
             "action='reconnect' detects the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') "
             "and clicks the reconnect link to restore the live session, without creating or modifying cloud "
             "data. action='reload' attempts a bounded reload of the current page (use it when an Onshape page, "
@@ -2401,14 +2492,19 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({
             "action": {
                 "type": "string",
-                "enum": ["status", "login", "release", "reconnect", "reload", "health"],
+                "enum": ["status", "login", "release", "reconnect", "reload", "health", "detach"],
                 "default": "status",
                 "description": (
                     "status = read-only session report; login = open Onshape sign-in for the human; "
                     "release = close only this MCP process's browser/context and release profile ownership; "
                     "reconnect = click the session-timeout dialog's reconnect link; reload = bounded reload "
                     "of the current page; health = bounded read-only probe returning a verdict plus the "
-                    "recovery action, without starting the browser or touching it beyond one timed round trip."
+                    "recovery action, without starting the browser or touching it beyond one timed round trip; "
+                    "detach = relinquish MCP ownership WITHOUT closing the browser, context, or profile, "
+                    "keeping the window and its login state, and only in resident/attached mode (a "
+                    "non-resident session returns detached=false and recommends release). Three outcomes "
+                    "differ: release CLOSES the window and may invalidate the persistent login state; a "
+                    "process crash or page navigation does NOT lose login state; detach keeps the window."
                 ),
             },
             "probe_timeout_ms": {
@@ -3244,6 +3340,7 @@ HANDLERS: dict[str, ToolHandler] = {
         name=arguments["name"],
         module=arguments.get("module"),
         kind=arguments.get("kind"),
+        full=bool(arguments.get("full", False)),
     ),
     "fs_get_type": lambda arguments: fs_reference.get_type(
         name=arguments["name"],
@@ -3366,6 +3463,42 @@ def _json_text(value: Any) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False)
 
 
+def _reference_miss_error_data(error: BaseException) -> dict[str, Any] | None:
+    """Return the JSON-RPC ``error.data`` payload for one reference miss.
+
+    A miss is ``onshape_docs.query.fs_reference.ReferenceMiss`` -- a reference
+    layer ``ValueError`` carrying near-miss ``suggestions`` and a ``nextCall``.
+    ``None`` means this is an ordinary error, whose flattened shape must not
+    change. The reference layer owns the payload's shape: its ``to_dict`` is
+    used when present, and only otherwise are the two documented keys
+    serialized here, so an older build that lacks the class keeps working.
+    """
+    miss_type = getattr(fs_reference, "ReferenceMiss", None)
+    is_miss = miss_type is not None and isinstance(error, miss_type)
+    if not is_miss:
+        is_miss = isinstance(error, ValueError) and any(
+            hasattr(error, attribute) for attribute in ("suggestions", "nextCall")
+        )
+    if not is_miss:
+        return None
+    to_dict = getattr(error, "to_dict", None)
+    if callable(to_dict):
+        try:
+            payload = to_dict()
+        except Exception:  # a malformed payload must not hide the original error
+            payload = None
+        if isinstance(payload, dict) and payload:
+            return payload
+    data: dict[str, Any] = {}
+    suggestions = getattr(error, "suggestions", None)
+    if suggestions is not None:
+        data["suggestions"] = list(suggestions)
+    next_call = getattr(error, "nextCall", None)
+    if next_call is not None:
+        data["nextCall"] = next_call
+    return data or None
+
+
 def tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     try:
         handler = HANDLERS[name]
@@ -3394,6 +3527,13 @@ def tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             "isError": False,
         }
     except Exception as error:
+        # A reference miss is not a tool failure to be flattened into prose: it
+        # is a structured "not found" answer whose suggestions and nextCall the
+        # caller must be able to act on, so it passes through to the connection
+        # boundary that can attach them. Every other error keeps the isError
+        # tool-result shape it has always had.
+        if _reference_miss_error_data(error) is not None:
+            raise
         print(traceback.format_exc(), file=sys.stderr, flush=True)
         safe_error = f"{type(error).__name__}: {error}"
         return {
@@ -3513,7 +3653,13 @@ class McpConnection:
                     return [response(request_id, self.invoke(arguments))]
                 return [response(request_id, tool_result(name, arguments))]
             except ValueError as error:
-                return [response(request_id, error={"code": -32602, "message": str(error)})]
+                # The code and the message are the compatibility contract; a
+                # reference miss only ADDS its structure as JSON-RPC error.data.
+                payload: dict[str, Any] = {"code": -32602, "message": str(error)}
+                reference_data = _reference_miss_error_data(error)
+                if reference_data is not None:
+                    payload["data"] = reference_data
+                return [response(request_id, error=payload)]
         return [response(request_id, error={"code": -32601, "message": f"Method not found: {method}"})]
 
 

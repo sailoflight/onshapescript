@@ -61,7 +61,7 @@ def invoke(messages: list[dict], live_flag: str) -> tuple[list[dict], str]:
     env = os.environ.copy()
     env["LIVE_API_ENABLED"] = live_flag
     process = subprocess.run(
-        ["python3", "-m", "mcp_main.win.mcp"],
+        [sys.executable, "-m", "mcp_main.win.mcp"],
         input=wire,
         text=True,
         stdout=subprocess.PIPE,

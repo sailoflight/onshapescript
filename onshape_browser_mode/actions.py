@@ -14,6 +14,7 @@ from __future__ import annotations
 import collections
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from onshape_browser_mode import diagnostics, interaction
@@ -471,13 +472,89 @@ def _read_featurescript_notice_snapshot(page: Any) -> dict[str, Any]:
     )
 
 
-def read_featurescript_notices(page: Any) -> dict[str, Any]:
+#: ``staleErrorCount``'s basis: exactly what that number counts, so a caller never
+#: has to guess how it relates to the compile status's per-tab split.
+_STALE_ERROR_COUNT_BASIS = (
+    "number of returned snapshot rows whose element container carried "
+    "'.notices-out-of-date' (outOfDate=true), counted across every element "
+    "container, every severity and every tab; it does NOT depend on isActiveTab, "
+    "so a stale row belonging to a non-active element is counted instead of "
+    "hiding inside the other-element bucket"
+)
+
+#: Per-notice buckets for :func:`read_featurescript_notices`. ``stale`` is its own
+#: bucket so an out-of-date row can never be returned in the same bucket as a
+#: current one; the two current buckets keep the existing per-tab distinction.
+_NOTICE_BUCKET_STALE = "stale"
+_NOTICE_BUCKET_CURRENT_ACTIVE = "currentActiveTab"
+_NOTICE_BUCKET_CURRENT_OTHER = "currentOtherElement"
+
+
+def _mark_notice_staleness(item: dict[str, Any]) -> dict[str, Any]:
+    """Copy one snapshot row and add the additive ``stale``/``bucket`` markers.
+
+    The row's original fields are copied unchanged, so a caller that only knows
+    ``outOfDate``/``isActiveTab``/``tabName`` keeps working. No source revision is
+    captured anywhere in this repository, so the marker reports exactly what the
+    DOM said (``outOfDate`` plus its container/tab) and invents no source-version
+    comparison; proving "this row is older than the current source" would need new
+    DOM evidence the notice pane does not expose today.
+    """
+    stale = bool(item.get("outOfDate", False))
+    if stale:
+        bucket = _NOTICE_BUCKET_STALE
+    elif bool(item.get("isActiveTab", True)):
+        bucket = _NOTICE_BUCKET_CURRENT_ACTIVE
+    else:
+        bucket = _NOTICE_BUCKET_CURRENT_OTHER
+    return {**item, "stale": stale, "bucket": bucket}
+
+
+def _notice_staleness_projection(
+    raw_notices: list[dict[str, Any]], include_stale: bool
+) -> dict[str, Any]:
+    """Split raw snapshot rows into the returned current/stale structure.
+
+    ``staleErrorCount`` is the TRUE count of ``outOfDate`` rows across every tab
+    (never the active-tab-only count the per-tab split used to imply), and the
+    stale rows are returned in their own ``staleNotices`` bucket under every
+    ``include_stale`` value: demotion, not deletion.
+    """
+    marked = [_mark_notice_staleness(item) for item in raw_notices]
+    stale_rows = [item for item in marked if item["stale"]]
+    current_rows = [item for item in marked if not item["stale"]]
+    returned = marked if include_stale else current_rows
+    return {
+        "notices": returned,
+        "staleNotices": stale_rows,
+        "staleNoticeCount": len(stale_rows),
+        "staleErrorCount": len(stale_rows),
+        "staleErrorCountBasis": _STALE_ERROR_COUNT_BASIS,
+        "currentNoticeCount": len(current_rows),
+        "returnedNoticeCount": len(returned),
+        "includeStale": include_stale,
+    }
+
+
+def read_featurescript_notices(
+    page: Any, *, includeStale: bool = False
+) -> dict[str, Any]:
     """Read every notice the pane lists and restore the notice pane state.
 
     Rows are NOT filtered by tab: the pane attributes each row to a document
     element, and a Part Studio regeneration failure is exactly such a row while
     a Feature Studio is the active tab. Callers that need the active editor's
     verdict split on ``isActiveTab`` instead of relying on a silent drop.
+
+    ``outOfDate`` rows are DEMOTED by default rather than presented as current.
+    Measured live: the same stale ``line`` (156) pointed at a comment in the
+    current source while the real calls sat at lines 219/240 of a 704-line
+    version, and the caller chased that non-existent error twice. An out-of-date
+    row now appears only in ``staleNotices`` by default (and in ``notices`` too
+    when ``includeStale=True``); every returned row carries ``stale``/``bucket``,
+    and ``staleErrorCount`` + ``staleErrorCountBasis`` report the true count
+    regardless of tab. The rows are still returned — demotion is not deletion —
+    because dropping them once hid a real regeneration failure.
     """
     try:
         snapshot = _read_featurescript_notice_snapshot(page)
@@ -491,6 +568,7 @@ def read_featurescript_notices(page: Any) -> dict[str, Any]:
             "openedForRead": False,
             "restored": True,
             "reason": f"FeatureScript notice snapshot failed: {type(exc).__name__}: {exc}",
+            **_notice_staleness_projection([], includeStale),
         }
     if not isinstance(snapshot, dict):
         return {
@@ -499,6 +577,7 @@ def read_featurescript_notices(page: Any) -> dict[str, Any]:
             "noticeCount": 0,
             "notices": [],
             "reason": "FeatureScript notice snapshot was not an object",
+            **_notice_staleness_projection([], includeStale),
         }
 
     opened_for_read = False
@@ -534,18 +613,30 @@ def read_featurescript_notices(page: Any) -> dict[str, Any]:
                     if not reason:
                         reason = f"FeatureScript notice pane could not be restored: {type(exc).__name__}: {exc}"
 
+    raw_list = snapshot.get("notices")
+    raw_notices = (
+        [item for item in raw_list if isinstance(item, dict)]
+        if isinstance(raw_list, list)
+        else []
+    )
+    # Completeness and the pane-open-retry decision key off what the pane really
+    # produced (raw rows), not off the demoted current-only view.
     complete = bool(
         not snapshot.get("indicatorPresent")
         or snapshot.get("paneOpen")
-        or snapshot.get("notices")
-    ) and not (reason and not snapshot.get("notices"))
-    return {
-        **snapshot,
+        or raw_notices
+    ) and not (reason and not raw_notices)
+    result = {**snapshot}
+    result.setdefault("noticeCount", len(raw_notices))
+    result.update(_notice_staleness_projection(raw_notices, includeStale))
+    result.update({
         "complete": complete,
         "openedForRead": opened_for_read,
         "restored": restored,
-        **({"reason": reason} if reason else {}),
-    }
+    })
+    if reason:
+        result["reason"] = reason
+    return result
 
 
 def _enrich_compile_errors(
@@ -588,31 +679,37 @@ def _notice_error_row(item: dict[str, Any]) -> dict[str, Any]:
         "tabName": str(item.get("tabName", "")),
         "isActiveTab": bool(item.get("isActiveTab", True)),
         "outOfDate": bool(item.get("outOfDate", False)),
+        # Additive alias of ``outOfDate`` so a diagnostic row carries the same
+        # staleness marker the raw notice does.
+        "stale": bool(item.get("outOfDate", False)),
     }
 
 
 def _split_notices(
     notices: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    """Split pane notices into fresh-active-tab, stale-active-tab, and other.
+    """Split pane notices into fresh-current, stale, and other-element rows.
 
-    A custom feature that fails to regenerate in a Part Studio is reported in
-    the Feature Studio notice pane under that Part Studio's own container — often
-    with that container's header carrying ``notices-out-of-date`` — so the split
-    is what lets a caller keep the editor's verdict separate from the document's,
-    and a fresh commit separate from a stale row.
+    ``outOfDate`` is tested FIRST. A custom feature that fails to regenerate in a
+    Part Studio is reported in the Feature Studio notice pane under that Part
+    Studio's own container while a Feature Studio is the active tab, so a
+    stale-first split is what stops an out-of-date row from being returned in the
+    same bucket as a current one: previously a stale row on a non-active element
+    landed in ``elementErrors`` and ``staleErrorCount`` legitimately read 0 even
+    though the stale row was still handed back as current. The element split is
+    still preserved for the CURRENT other-element rows.
     """
     fresh_active: list[dict[str, Any]] = []
-    stale_active: list[dict[str, Any]] = []
+    stale_rows: list[dict[str, Any]] = []
     others: list[dict[str, Any]] = []
     for item in notices:
-        if not bool(item.get("isActiveTab", True)):
+        if bool(item.get("outOfDate", False)):
+            stale_rows.append(item)
+        elif not bool(item.get("isActiveTab", True)):
             others.append(item)
-        elif bool(item.get("outOfDate", False)):
-            stale_active.append(item)
         else:
             fresh_active.append(item)
-    return fresh_active, stale_active, others
+    return fresh_active, stale_rows, others
 
 
 def _blocking_notices(notices: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -691,12 +788,16 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
             "reason": (ace or {}).get("reason", "FeatureScript annotations unavailable"),
         }
 
-    notice_status = read_featurescript_notices(page)
+    # ``includeStale=True``: this derived view has its own ``staleErrors`` bucket,
+    # so it must still see out-of-date rows even though the raw notice reader
+    # demotes them by default. ``_split_notices`` then keeps them out of every
+    # current bucket.
+    notice_status = read_featurescript_notices(page, includeStale=True)
     notices = [item for item in notice_status.get("notices", []) if isinstance(item, dict)]
-    fresh_active, stale_active, element_notices = _split_notices(notices)
+    fresh_active, stale_rows, element_notices = _split_notices(notices)
     notice_errors = [_notice_error_row(item) for item in _blocking_notices(fresh_active)]
     stale_errors = _enrich_compile_errors(
-        [_notice_error_row(item) for item in _blocking_notices(stale_active)], index
+        [_notice_error_row(item) for item in _blocking_notices(stale_rows)], index
     )
     element_errors = _enrich_compile_errors(
         [_notice_error_row(item) for item in _blocking_notices(element_notices)], index
@@ -718,8 +819,8 @@ def read_featurescript_compile_status(page: Any) -> dict[str, Any]:
         "elementNotices": element_notices,
         "elementErrorCount": len(element_errors),
         "elementErrors": element_errors,
-        "staleNoticeCount": len(stale_active),
-        "staleNotices": stale_active,
+        "staleNoticeCount": len(stale_rows),
+        "staleNotices": stale_rows,
         "staleErrorCount": len(stale_errors),
         "staleErrors": stale_errors,
         "documentClean": document_clean,
@@ -1575,19 +1676,50 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     it against) and ``ready`` (the document shell has rendered). ``ready`` is
     read, never waited for: this is a read tool, so it must not spend the
     caller's budget on a boot.
+
+    Each row also carries ``errorText`` (the row tooltip's text when the row is
+    error-marked, else ``null``) and the read carries ``hasErrorReadAt`` plus a
+    ``maybeStale`` flag. A plain read sets ``maybeStale`` when an error flag was
+    seen and no convergence check has run, because one pass cannot tell a real
+    error from a read taken mid-regeneration; use
+    :func:`read_partstudio_features_settled` when the error verdict is what the
+    caller will act on.
     """
     raw = page.evaluate(
         """
         () => {
           const features = Array.from(document.querySelectorAll('.os-list-item')).map(el => {
             const icon = el.querySelector('.os-list-item-icon');
-            const cls = el.className || '';
+            const cls = String(el.className || '');
+            const body = (el.innerText || el.textContent || '');
+            const hasError = /error|not-computed|未计算|错误/i.test(cls + ' ' + body);
+            // Error TEXT (issue #12.2), read in THIS same evaluate pass. The only
+            // channel that yields the reason today is the row's own tooltip:
+            // measured on a real Onshape page, a `.ns-list-item-error` row's
+            // descendant `[data-bs-original-title]` returned e.g.
+            // `EC Reaction Body 1 未正确重生成: ECPROBE union inputs: seat=1 cutBody=0`,
+            // while `hasError` alone could only answer true/false. The exact
+            // attribute/class names were observed on a real Onshape page and must
+            // be re-confirmed on the target host; an absent attribute is reported
+            // as null, never as an invented message.
+            const errorRow = cls.includes('ns-list-item-error') || hasError;
+            let errorText = null;
+            if (errorRow) {
+              const carrier = (typeof el.matches === 'function' && el.matches('[data-bs-original-title]'))
+                ? el
+                : el.querySelector('[data-bs-original-title]');
+              if (carrier) {
+                const attr = carrier.getAttribute('data-bs-original-title');
+                errorText = attr === null ? null : String(attr);
+              }
+            }
             return {
-              name: (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 100),
+              name: body.trim().replace(/\\s+/g, ' ').slice(0, 100),
               isUserFeature: cls.includes('ns-user-feature'),
               isDefault: cls.includes('ns-default-feature'),
-              className: String(cls).slice(0, 180),
-              hasError: /error|not-computed|未计算|错误/i.test(cls + ' ' + (el.innerText || el.textContent || '')),
+              className: cls.slice(0, 180),
+              hasError,
+              errorText,
               iconCls: icon ? (typeof icon.className === 'string' ? icon.className : '').slice(0, 90) : '',
             };
           }).filter(f => f.name);
@@ -1640,9 +1772,122 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     )
     raw["ready"] = bool(raw.get("documentTabsButtonPresent"))
     # The shell flag is an implementation detail of this read: the public answer
-    # keeps every existing field and gains only the three documented keys.
+    # keeps every existing field and gains only the documented keys.
     raw.pop("documentTabsButtonPresent", None)
+    # ``hasErrorReadAt`` timestamps THIS pass, and ``maybeStale`` states that an
+    # error flag seen once, with no convergence check, may be a regeneration
+    # artifact (the measured false positive). Both are additive.
+    raw["hasErrorReadAt"] = _utc_timestamp()
+    raw["maybeStale"] = bool(_errored_feature_rows(raw))
     return raw
+
+
+def _utc_timestamp() -> str:
+    """The UTC instant, in the ISO-8601 form the repo's other captures use."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _errored_feature_rows(features: Any) -> list[dict[str, Any]]:
+    """Rows whose ``hasError`` flag is set, in DOM order."""
+    if not isinstance(features, dict):
+        return []
+    rows = features.get("features")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict) and bool(row.get("hasError"))]
+
+
+def _feature_error_signature(features: Any) -> tuple[tuple[str, bool, str], ...]:
+    """One read's ``(name, hasError, errorText)`` identity for convergence."""
+    if not isinstance(features, dict):
+        return ()
+    rows = features.get("features")
+    if not isinstance(rows, list):
+        return ()
+    return tuple(
+        (
+            str(row.get("name", "")),
+            bool(row.get("hasError")),
+            str(row.get("errorText") or ""),
+        )
+        for row in rows
+        if isinstance(row, dict)
+    )
+
+
+def _bounded_page_pause(page: Any, milliseconds: int) -> None:
+    """Pause inside the page when it can, else on the host for the same bound."""
+    if milliseconds <= 0:
+        return
+    try:
+        page.wait_for_timeout(milliseconds)
+    except Exception:  # noqa: BLE001 - a page without the helper still gets a bound
+        time.sleep(milliseconds / 1000)
+
+
+#: Default bound for :func:`read_partstudio_features_settled`. Long enough for a
+#: workbench regeneration flag to clear on a loaded document, short enough not to
+#: turn a cheap read into an unbounded wait.
+PARTSTUDIO_ERROR_SETTLE_TIMEOUT_MS = 4_000
+PARTSTUDIO_ERROR_SETTLE_POLL_MS = 400
+
+
+def read_partstudio_features_settled(
+    page: Any,
+    *,
+    timeout_ms: int = PARTSTUDIO_ERROR_SETTLE_TIMEOUT_MS,
+    poll_ms: int = PARTSTUDIO_ERROR_SETTLE_POLL_MS,
+) -> dict[str, Any]:
+    """Read the feature rows, then boundedly converge an observed error flag.
+
+    A single read cannot tell a real error from a read taken during regeneration
+    (measured: ``browser_verify_feature_parameters`` reported ``hasError=true``
+    while ``.ns-list-item-error`` was empty and the parameters were correctly
+    applied). This wrapper re-reads the SAME row map until either no errored row
+    remains or the errored-row signature is identical on two consecutive reads,
+    within ``timeout_ms``. ``maybeStale`` is ``False`` once the read is settled
+    (clean first read, error cleared on re-read, or a stable error) and ``True``
+    only when the bound expired while the rows were still changing;
+    ``hasErrorReadAt`` stamps the read that was returned.
+
+    The bounded poll is deliberately separate from :func:`wait_for_feature_list`,
+    which waits for a row COUNT (readiness) rather than for an error flag to
+    converge, so that logic is not duplicated. ``transactions.py``'s
+    ``verify_feature_parameters`` calls this helper, and reports ``maybeStale``
+    plus ``hasErrorReadAt`` on every verify result; when the bound expires with
+    the flag still moving, that path returns ``parametersApplied=None`` with
+    ``retryVerify=True`` instead of promoting a read-too-early flag into a
+    failure the caller then tries to repair.
+    """
+    started = time.monotonic()
+    read = read_partstudio_features(page)
+    if not isinstance(read, dict):
+        return read
+    attempts = 1
+    errored = _errored_feature_rows(read)
+    previous = _feature_error_signature(read)
+    settled = not errored
+    condition = "cleanFirstRead" if not errored else "unstableTimeout"
+    while errored and (time.monotonic() - started) * 1000 < timeout_ms:
+        _bounded_page_pause(page, poll_ms)
+        read = read_partstudio_features(page)
+        attempts += 1
+        errored = _errored_feature_rows(read)
+        if not errored:
+            settled, condition = True, "clearedOnReRead"
+            break
+        signature = _feature_error_signature(read)
+        if signature == previous:
+            settled, condition = True, "stableError"
+            break
+        previous = signature
+    read["maybeStale"] = not settled
+    read["hasErrorReadAt"] = _utc_timestamp()
+    read["settleAttempts"] = attempts
+    read["settleWaitedMs"] = round((time.monotonic() - started) * 1000)
+    read["settleCondition"] = condition
+    read["settleTimeoutMs"] = timeout_ms
+    return read
 
 
 def match_user_feature_row_indices(names: Any, feature_name: Any) -> list[int]:

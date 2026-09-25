@@ -18,6 +18,7 @@ Naming mirrors the reference site:
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import re
@@ -135,6 +136,199 @@ def _all_entries() -> list[dict[str, Any]]:
     return out
 
 
+#: How close a name must be before `difflib` offers it as a suggestion. 0.6 is
+#: difflib's own default for "close enough"; below it a match is usually the
+#: shared shape of two unrelated names, so a wild guess stays quiet instead of
+#: returning three arbitrary symbols.
+SUGGESTION_CUTOFF = 0.6
+#: Advice, not a result page: three names are enough to recognize the right one,
+#: and a longer list costs context on every miss.
+SUGGESTION_LIMIT = 3
+#: Leading call-shape prefixes stripped before the prefix/substring buckets are
+#: built, so a guarded guess such as `opCylinder` still reaches `fCylinder`.
+#: Longest first: `sm`/`new` share their lead with the shorter prefixes.
+_SUGGESTION_PREFIXES = ("sm", "new", "op", "ev", "to", "is", "q", "f")
+#: A stem shorter than this is too generic to bucket on (`op`, `q`, ...).
+_SUGGESTION_MIN_STEM = 3
+
+
+class ReferenceMiss(ValueError):
+    """A reference lookup that found nothing, with structured advice attached.
+
+    Subclasses :class:`ValueError` so every existing caller keeps working --
+    ``dev/tests/test_capability_retrieval.py`` catches ``ValueError`` around
+    ``get_function``. The attributes are the payload the MCP server can forward
+    as ``error.data``; the message stays self-contained for callers that only
+    read ``str(error)``.
+
+    Attributes:
+        name: the looked-up symbol.
+        kind: the reference kind the caller asked for (``function``/``type``...).
+        module: the module filter the caller passed, if any.
+        suggestions: ``[{"name","module","kind"}]``, at most
+            :data:`SUGGESTION_LIMIT` entries, deduplicated by case-folded name.
+        nextCall: a copy-pasteable follow-up call, e.g.
+            ``fs_search(query="cylinder")``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        name: str | None = None,
+        kind: str | None = None,
+        module: str | None = None,
+        suggestions: list[dict[str, Any]] | None = None,
+        nextCall: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.name = name
+        self.kind = kind
+        self.module = module
+        self.suggestions = list(suggestions or [])
+        self.nextCall = nextCall
+
+    def to_dict(self) -> dict[str, Any]:
+        """The structured payload the server puts in ``error.data``."""
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "module": self.module,
+            "suggestions": [dict(item) for item in self.suggestions],
+            "nextCall": self.nextCall,
+        }
+
+
+def _suggestion_stem(name: str) -> str:
+    """Strip a leading call-shape prefix (``opCylinder`` -> ``Cylinder``)."""
+    lowered = name.lower()
+    for prefix in _SUGGESTION_PREFIXES:
+        if lowered.startswith(prefix) and len(name) - len(prefix) >= _SUGGESTION_MIN_STEM:
+            return name[len(prefix):]
+    return name
+
+
+def suggest_entries(
+    name: str,
+    kinds: tuple[str, ...] | None = None,
+    limit: int = SUGGESTION_LIMIT,
+) -> list[dict[str, Any]]:
+    """Near-miss symbols for a name that missed, best first (at most `limit`).
+
+    Three buckets feed the answer, all over :func:`_all_entries`:
+
+    * ``difflib.get_close_matches`` at :data:`SUGGESTION_CUTOFF`;
+    * names starting with the query's *stem* (``opCylinder`` -> ``Cylinder``);
+    * names containing that stem.
+
+    The structural buckets are what recover the measured case: users guess
+    ``opCylinder`` / ``opBox`` while the primitives are ``fCylinder`` /
+    ``fCuboid`` / ``fCone``. ``fCylinder`` is only 0.84-close to ``opCylinder``
+    and ``box3d`` only 0.4-close to ``opBox``, so a pure difflib cutoff would
+    drop both. Entries are deduplicated by case-folded name (``Cylinder`` and
+    ``cylinder`` are one suggestion, overloads are one suggestion) and capped,
+    and a wild guess produces nothing rather than three arbitrary names.
+    """
+    entries = _all_entries()
+    if kinds is not None:
+        entries = [entry for entry in entries if entry["kind"] in kinds]
+    folded: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        key = entry["name"].casefold()
+        if key == name.casefold():
+            continue
+        folded.setdefault(key, entry)
+    if not folded:
+        return []
+
+    close = difflib.get_close_matches(
+        name.casefold(), list(folded), n=limit * 4, cutoff=SUGGESTION_CUTOFF
+    )
+    stem = _suggestion_stem(name)
+    prefix: list[str] = []
+    substring: list[str] = []
+    if len(stem) >= _SUGGESTION_MIN_STEM:
+        lowered = stem.casefold()
+        prefix = [key for key in folded if key.startswith(lowered)]
+        substring = [key for key in folded if lowered in key and key not in prefix]
+
+    def ratio(key: str) -> float:
+        return difflib.SequenceMatcher(None, name.casefold(), key).ratio()
+
+    prefix.sort(key=ratio, reverse=True)
+    substring.sort(key=ratio, reverse=True)
+    ordered: list[str] = []
+    for key in (*close, *prefix, *substring):
+        if key not in ordered:
+            ordered.append(key)
+    return [
+        {
+            "name": folded[key]["name"],
+            "module": folded[key].get("module", ""),
+            "kind": folded[key]["kind"],
+        }
+        for key in ordered[:limit]
+    ]
+
+
+def next_search_call(name: str) -> str:
+    """A copy-pasteable ``fs_search`` call that lists the near matches."""
+    stem = _suggestion_stem(name)
+    query = stem.lower().replace("\\", "\\\\").replace('"', '\\"')
+    return f'fs_search(query="{query}")'
+
+
+def _miss_message(
+    kind_label: str,
+    name: str,
+    module: str | None,
+    suggestions: list[dict[str, Any]],
+    next_call: str,
+) -> str:
+    """One sentence: what missed, the best guess, how to list more."""
+    message = f"No {kind_label} named '{name}'"
+    if module:
+        message += f" in module '{module}'"
+    message += "."
+    if suggestions:
+        message += f" Did you mean '{suggestions[0]['name']}'?"
+        related = [item["name"] for item in suggestions[1:]]
+        if related:
+            message += " Related: " + ", ".join(related) + "."
+    message += f" Call {next_call} to list all matches."
+    return message
+
+
+def _candidate_entries(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicated ``{name,module,kind}`` candidates for a clash message."""
+    seen: set[tuple[str, str]] = set()
+    out: list[dict[str, Any]] = []
+    for entry in matches:
+        key = (entry["name"], entry.get("module", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "name": entry["name"],
+            "module": entry.get("module", ""),
+            "kind": entry["kind"],
+        })
+    return out
+
+
+def _clash_message(name: str, matches: list[dict[str, Any]]) -> str:
+    """Name the modules *and* the candidate symbols so a caller can pick one."""
+    modules = sorted({entry.get("module", "") for entry in matches})
+    listed = ", ".join(
+        f"{candidate['name']} ({candidate['module']})"
+        for candidate in _candidate_entries(matches)
+    )
+    return (
+        f"'{name}' exists in {len(modules)} modules: {', '.join(modules)}. "
+        f"Candidates: {listed}. Pass module to disambiguate."
+    )
+
+
 def list_functions(
     module: str | None = None,
     category: str | None = None,
@@ -201,17 +395,27 @@ def get_function(
         if e["name"] == name and _matches_module(e, module)
     ]
     if not matches:
-        raise ValueError(
-            f"No {kind or 'function'} named '{name}'"
-            + (f" in module '{module}'" if module else "")
-            + ". Check the name or omit module to see all matches."
+        kind_label = kind or "function"
+        suggestions = suggest_entries(name, kinds=(kind_label,))
+        next_call = next_search_call(name)
+        raise ReferenceMiss(
+            _miss_message(kind_label, name, module, suggestions, next_call),
+            name=name,
+            kind=kind_label,
+            module=module,
+            suggestions=suggestions,
+            nextCall=next_call,
         )
-    modules = {m["module"] for m in matches}
+    modules = sorted({m["module"] for m in matches})
     if len(modules) > 1:
-        raise ValueError(
-            f"'{name}' exists in {len(modules)} modules: "
-            + ", ".join(sorted(modules))
-            + ". Pass module to disambiguate."
+        next_call = f'fs_get_function(name="{name}", module="{modules[0]}")'
+        raise ReferenceMiss(
+            _clash_message(name, matches),
+            name=name,
+            kind=kind or "function",
+            module=None,
+            suggestions=_candidate_entries(matches),
+            nextCall=next_call,
         )
 
     truncated = 0
@@ -268,12 +472,26 @@ def get_type(name: str, module: str | None = None) -> dict[str, Any]:
     candidates = [e for e in _all_entries() if e["kind"] in ("type", "const")]
     matches = [e for e in candidates if e["name"] == name and _matches_module(e, module)]
     if not matches:
-        raise ValueError(f"No type named '{name}'")
+        suggestions = suggest_entries(name, kinds=("type", "const"))
+        next_call = next_search_call(name)
+        raise ReferenceMiss(
+            _miss_message("type", name, module, suggestions, next_call),
+            name=name,
+            kind="type",
+            module=module,
+            suggestions=suggestions,
+            nextCall=next_call,
+        )
     if len(matches) > 1:
-        raise ValueError(
-            f"'{name}' exists in {len(matches)} modules: "
-            + ", ".join(m["module"] for m in matches)
-            + ". Pass module to disambiguate."
+        modules = sorted({m.get("module", "") for m in matches})
+        next_call = f'fs_get_type(name="{name}", module="{modules[0]}")'
+        raise ReferenceMiss(
+            _clash_message(name, matches),
+            name=name,
+            kind="type",
+            module=None,
+            suggestions=_candidate_entries(matches),
+            nextCall=next_call,
         )
     entry = matches[0]
     return {

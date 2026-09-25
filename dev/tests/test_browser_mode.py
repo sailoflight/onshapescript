@@ -149,6 +149,7 @@ class FakeSession:
         self.start_calls = 0
         self.enforce_calls = 0
         self.release_calls = 0
+        self.detach_calls = 0
 
     def start(self) -> FakePage:
         self.start_calls += 1
@@ -164,6 +165,16 @@ class FakeSession:
             "alreadyReleased": False,
             "sessionStatus": "closed",
             "profileReleased": True,
+        }
+
+    def detach(self, *, keep_browser: bool = True) -> dict:
+        self.detach_calls += 1
+        return {
+            "detached": True,
+            "supported": True,
+            "keepBrowser": keep_browser,
+            "contextClosed": False,
+            "browserLeftRunning": True,
         }
 
 
@@ -308,9 +319,21 @@ class BrowserSessionReleaseTest(unittest.TestCase):
 
     def test_browser_session_rejects_unknown_action_with_release_guidance(self) -> None:
         with self.assertRaisesRegex(
-            ValueError, "status, login, release, reconnect, reload, or health"
+            ValueError, "status, login, release, reconnect, reload, health, or detach"
         ):
             server._browser_session({"action": "close"})
+
+    def test_browser_session_detach_dispatches_to_session_detach(self) -> None:
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session", return_value=session):
+            result = server._browser_session({"action": "detach"})
+        self.assertTrue(result["detached"])
+        self.assertTrue(result["supported"])
+        self.assertTrue(result["keepBrowser"])
+        self.assertEqual(session.detach_calls, 1)
+        # detach must not fall through to release and must not start a browser.
+        self.assertEqual(session.release_calls, 0)
+        self.assertEqual(session.start_calls, 0)
 
     def test_session_reconnect_action_runs_the_absorbed_core(self) -> None:
         session = FakeSession(FakePage())
@@ -758,6 +781,73 @@ class BrowserDeployTest(unittest.TestCase):
         self.assertTrue(result["verified"])
         self.assertEqual(result["errors"], compile_error["errors"])
         self.assertEqual(result["diagnosticCapture"]["captureId"], "capture-error")
+
+    def test_deploy_switches_to_a_feature_studio_tab_before_giving_up(self) -> None:
+        """Issue #12.3: an inactive Feature Studio tab is not a missing editor."""
+        session = FakeSession(FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/ps1"))
+        guard = FakeGuard()
+        tabs = {
+            "tabs": [
+                {"id": "ps1", "name": "Part Studio 1", "elementType": "", "active": True},
+                {"id": "fs1", "name": "Feature Studio 1", "elementType": "FEATURESTUDIO", "active": False},
+            ]
+        }
+        with mock.patch("onshape_browser_mode.session.get_session", return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        return_value=None), \
+             mock.patch("onshape_browser_mode.actions.list_document_tabs",
+                        return_value=tabs) as list_tabs, \
+             mock.patch("onshape_browser_mode.actions.activate_tab",
+                        return_value={"activated": True}) as activate:
+            result = server._browser_deploy_featurescript({
+                "script": "feature X {}", "dry_run": False, "confirm_mutation": True,
+                "acknowledge_local_findings": True,
+            })
+        self.assertFalse(result["deployed"])
+        self.assertEqual(
+            result["recovery"], "call browser_activate_tab(Feature Studio) first"
+        )
+        self.assertEqual(
+            result["reason"], "FeatureScript editor not found on the current page"
+        )
+        list_tabs.assert_called_once()
+        activate.assert_called_once()
+        self.assertEqual(activate.call_args.kwargs.get("element_id"), "fs1")
+
+    def test_deploy_uses_the_editor_exposed_by_the_activated_tab(self) -> None:
+        session = FakeSession(FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/ps1"))
+        guard = FakeGuard()
+        tabs = {"tabs": [
+            {"id": "fs1", "name": "Feature Studio 1", "elementType": "FEATURESTUDIO", "active": False},
+        ]}
+        with mock.patch("onshape_browser_mode.session.get_session", return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        side_effect=[None, None, None, "old source", "feature X {}"]), \
+             mock.patch("onshape_browser_mode.actions.list_document_tabs",
+                        return_value=tabs), \
+             mock.patch("onshape_browser_mode.actions.activate_tab",
+                        return_value={"activated": True}) as activate, \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": True, "length": 12, "lineCount": 1}) as write, \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        return_value={
+                            "clicked": True,
+                            "before": {"disabled": False},
+                            "after": {"disabled": True},
+                        }), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value={"compiled": True, "annotationCount": 0, "noticeCount": 0, "errors": []}), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-tab"}):
+            result = server._browser_deploy_featurescript({
+                "script": "feature X {}", "dry_run": False, "confirm_mutation": True,
+                "acknowledge_local_findings": True,
+            })
+        self.assertTrue(result["deployed"])
+        activate.assert_called_once()
+        write.assert_called_once()
 
 
 class BrowserInsertCustomFeatureTest(unittest.TestCase):
@@ -1372,6 +1462,81 @@ class BrowserReloadTest(unittest.TestCase):
         self.assertEqual(len(result["warnings"]), 4)
 
 
+class BrowserFsReadNoticesTest(unittest.TestCase):
+    def _page(self) -> FakePage:
+        return FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/e1")
+
+    def test_include_stale_is_forwarded_to_the_notice_read(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        with mock.patch.object(browser_tools, "_page", return_value=(self._page(), None)), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_notices",
+                        return_value={"notices": [], "includeStale": True}) as read:
+            result = browser_tools.browser_fs_read_notices({"includeStale": True})
+        self.assertTrue(result["includeStale"])
+        read.assert_called_once()
+        self.assertIs(read.call_args.kwargs["includeStale"], True)
+
+    def test_include_stale_defaults_to_false(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        with mock.patch.object(browser_tools, "_page", return_value=(self._page(), None)), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_notices",
+                        return_value={"notices": [], "includeStale": False}) as read:
+            result = browser_tools.browser_fs_read_notices({})
+        self.assertFalse(result["includeStale"])
+        self.assertIs(read.call_args.kwargs["includeStale"], False)
+
+    def test_include_stale_must_be_a_boolean(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        with self.assertRaisesRegex(ValueError, "includeStale must be a boolean"):
+            browser_tools.browser_fs_read_notices({"includeStale": "yes"})
+
+
+class BrowserExportStepHandlerTest(unittest.TestCase):
+    def _arguments(self, **overrides) -> dict:
+        arguments = {
+            "source_tab": "Part Studio 1",
+            "export_id": "step-1",
+            "document_id": "d1",
+            "workspace_id": "w1",
+            "element_id": "e1",
+        }
+        arguments.update(overrides)
+        return arguments
+
+    def test_export_handler_forwards_overwrite_to_the_export(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        with mock.patch.object(browser_tools, "_page", return_value=(FakePage(), None)), \
+             mock.patch("onshape_browser_mode.step_export.export_browser_step",
+                        return_value={"registered": True, "exportId": "step-1"}) as export:
+            result = browser_tools.browser_export_step(
+                self._arguments(overwrite=True, confirm_mutation=True)
+            )
+        self.assertTrue(result["registered"])
+        export.assert_called_once()
+        self.assertIs(export.call_args.kwargs["overwrite"], True)
+
+    def test_export_dry_run_stays_local_and_never_touches_the_page(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        with mock.patch.object(browser_tools, "_page",
+                               side_effect=AssertionError("dry run must not touch the page")), \
+             mock.patch("onshape_browser_mode.step_export.plan_browser_step_export",
+                        return_value={"dryRun": True, "exportId": "step-1"}) as plan:
+            result = browser_tools.browser_export_step(self._arguments(dry_run=True))
+        self.assertTrue(result["dryRun"])
+        plan.assert_called_once()
+
+    def test_export_rejects_a_non_boolean_overwrite_before_confirmation(self) -> None:
+        from mcp_main.win.mcp import browser_tools
+
+        with self.assertRaisesRegex(ValueError, "overwrite must be a boolean"):
+            browser_tools.browser_export_step(self._arguments(overwrite="yes"))
+
+
 class BrowserOpenInsertFeatureDialogTest(unittest.TestCase):
     def test_open_dialog_is_read_only_and_paces(self) -> None:
         session = FakeSession(FakePage())
@@ -1428,11 +1593,57 @@ class BrowserMetadataTest(unittest.TestCase):
         action = tool["inputSchema"]["properties"]["action"]
         self.assertEqual(
             action["enum"],
-            ["status", "login", "release", "reconnect", "reload", "health"],
+            ["status", "login", "release", "reconnect", "reload", "health", "detach"],
         )
         self.assertIn("release", action["description"])
+        self.assertIn("detach", action["description"])
+        # The three-row clarification the reporter asked for.
+        self.assertIn("loses login state", tool["description"])
+        self.assertIn("does NOT", tool["description"])
+        self.assertIn("keeps the window", tool["description"])
+        self.assertIn("keeps the window", action["description"])
         self.assertIn("browser_process_release", tool["cost"]["side_effects"])
         self.assertIn("another MCP process", tool["description"])
+
+    def test_export_step_schema_declares_overwrite(self) -> None:
+        tool = self.by_name["browser_export_step"]
+        properties = tool["inputSchema"]["properties"]
+        overwrite = properties["overwrite"]
+        self.assertEqual(overwrite["type"], "boolean")
+        self.assertFalse(overwrite["default"])
+        self.assertIn("staging", overwrite["description"])
+        # confirm_mutation stays required-in-effect and dry_run stays local.
+        self.assertIn("confirm_mutation", properties)
+        self.assertIn("dry_run", properties)
+        # A failed export can have staged a complete STEP and must say so.
+        self.assertIn("stagedArtifacts", tool["description"])
+        self.assertIn("recovery", tool["description"])
+
+    def test_tool_view_schema_advertises_the_collapse_expand_control(self) -> None:
+        tool = self.by_name["mcp_tool_view"]
+        properties = tool["inputSchema"]["properties"]
+        self.assertEqual(
+            properties["action"]["enum"],
+            ["status", "set", "reset", "expand", "collapse"],
+        )
+        expanded = properties["expanded_view"]
+        self.assertEqual(expanded["enum"], ["static", "semantic", "gateway", "profile"])
+        self.assertIn("gateway", expanded["description"])
+        self.assertIn("expand", expanded["description"])
+        # Connection scope and the non-authority of collapse are stated outright.
+        self.assertIn("CONNECTION-scoped", tool["description"])
+        self.assertIn("in-memory", tool["description"])
+        self.assertIn("revoking a permission", tool["description"])
+        self.assertIn("gateway", tool["description"])
+
+    def test_fs_read_notices_schema_declares_include_stale(self) -> None:
+        tool = self.by_name["browser_fs_read_notices"]
+        include_stale = tool["inputSchema"]["properties"]["includeStale"]
+        self.assertEqual(include_stale["type"], "boolean")
+        self.assertFalse(include_stale["default"])
+        self.assertIn("outOfDate", tool["description"])
+        self.assertIn("staleNotices", tool["description"])
+        self.assertIn("includeStale=true", tool["description"])
 
     def test_create_tab_mutating_and_dialog_opener_read_only(self) -> None:
         tab_tool = self.by_name["browser_create_tab"]

@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def invoke(messages: list[dict]) -> tuple[list[dict], str]:
     wire = "".join(json.dumps(message, separators=(",", ":")) + "\n" for message in messages)
     process = subprocess.run(
-        ["python3", "-m", "mcp_main.win.mcp"],
+        [sys.executable, "-m", "mcp_main.win.mcp"],
         input=wire,
         text=True,
         stdout=subprocess.PIPE,
@@ -87,17 +88,32 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("Production / Operator", instructions)
         self.assertIn("permissions never merge", instructions)
         tool_result = responses[1]["result"]
-        self.assertEqual(tool_result["exposureMode"], "semantic")
+        # The ordinary deployment now defaults to the `gateway` view: three
+        # control/discovery entry points plus one or two curated representatives
+        # per category. It is a fixed view, so it reports `expanded`/`gateway`.
+        self.assertEqual(tool_result["exposureMode"], "gateway")
+        self.assertEqual(tool_result["toolView"]["state"], "expanded")
+        self.assertEqual(tool_result["toolView"]["expandedView"], "gateway")
+        self.assertEqual(tool_result["toolView"]["scope"], "connection")
         tools = tool_result["tools"]
         names = {tool["name"] for tool in tools}
-        # Tripwire: the ordinary view advertises one entry per surviving
-        # capability. Absorbed compatibility names stay registered but are not
-        # advertised, so this number must only change when a merge lands.
-        # 77 since 2026-09-21: `mcp_tool_invoke` is listed in every view, because a
-        # client that refuses unadvertised names cannot reach the 34 this view hides
-        # without an advertised door.
-        self.assertEqual(len(tools), 77)
+        # Tripwire: 25 = mcp_tool_catalog + mcp_tool_view + mcp_tool_invoke plus
+        # the curated representatives in tool_views.GATEWAY_CURATED_TOOL_NAMES.
+        self.assertEqual(len(tools), 25)
         self.assertIn("mcp_tool_invoke", names)
+        self.assertIn("mcp_tool_catalog", names)
+        self.assertIn("mcp_tool_view", names)
+        self.assertIn("browser_session", names)
+        self.assertIn("browser_discover_tools", names)
+        self.assertIn("browser_run_project", names)
+        self.assertIn("browser_export_step", names)
+        self.assertIn("docs_search", names)
+        self.assertIn("fs_search", names)
+        self.assertIn("onshape_api_endpoint", names)
+        self.assertIn("onshape_api_quota", names)
+        self.assertIn("onshape_geometry_status", names)
+        # Hidden names stay registered and callable by exact name, but the
+        # gateway does not advertise them.
         self.assertNotIn("browser_fix_instances", names)
         self.assertNotIn("browser_group_instances", names)
         self.assertNotIn("browser_geometry_status", names)
@@ -108,26 +124,7 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("browser_drawing_insert_views", names)
         self.assertNotIn("browser_add_drawing_dimension", names)
         self.assertNotIn("fs_list_modules", names)
-        self.assertIn("browser_session", names)
-        self.assertIn("browser_draw_part_with_views", names)
-        self.assertIn("onshape_geometry_status", names)
-        self.assertIn("onshape_configure_geometry_backend", names)
-        self.assertIn("fs_quick_reference", names)
-        self.assertIn("mcp_tool_view", names)
-        self.assertIn("mcp_tool_catalog", names)
-        view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")
-        self.assertIn("not an authorization boundary", view_tool["description"])
-        self.assertNotIn("confirm_mutation", view_tool["inputSchema"]["properties"])
-        self.assertIn("onshape_eval_featurescript", names)
-        self.assertIn("docs_list", names)
-        self.assertIn("docs_section", names)
-        self.assertIn("docs_search", names)
-        self.assertIn("browser_session", names)
-        self.assertIn("browser_get_fs_compile_status", names)
-        self.assertIn("browser_create_drawing", names)
-        self.assertIn("browser_run_project", names)
-        self.assertIn("browser_discover_tools", names)
-        self.assertNotIn("browser_invoke_discovered", names)
+        self.assertNotIn("browser_create_document", names)
         self.assertNotIn("browser_inspect", names)
         self.assertNotIn("browser_click", names)
         self.assertNotIn("browser_fs_goto_definition", names)
@@ -135,6 +132,9 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("browser_fs_read_notices", names)
         self.assertNotIn("browser_fs_capture_diagnostic", names)
         self.assertNotIn("browser_draw_part", names)
+        view_tool = next(tool for tool in tools if tool["name"] == "mcp_tool_view")
+        self.assertIn("not an authorization boundary", view_tool["description"])
+        self.assertNotIn("confirm_mutation", view_tool["inputSchema"]["properties"])
         state = responses[2]["result"]["structuredContent"]["state"]
         self.assertIn("…", state["documentId"])
         parameters = responses[3]["result"]["structuredContent"]["parameters"]
@@ -242,9 +242,10 @@ class McpServerTest(unittest.TestCase):
         }):
             responses, stderr = invoke([
                 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+                {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
                 {
                     "jsonrpc": "2.0",
-                    "id": 2,
+                    "id": 3,
                     "method": "tools/call",
                     "params": {
                         "name": "mcp_tool_view",
@@ -255,10 +256,10 @@ class McpServerTest(unittest.TestCase):
                         },
                     },
                 },
-                {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {}},
+                {"jsonrpc": "2.0", "id": 4, "method": "tools/list", "params": {}},
                 {
                     "jsonrpc": "2.0",
-                    "id": 4,
+                    "id": 5,
                     "method": "tools/call",
                     "params": {
                         "name": "onshape_get_parameter_set",
@@ -268,16 +269,31 @@ class McpServerTest(unittest.TestCase):
             ])
         self.assertEqual(stderr, "")
         self.assertTrue(responses[0]["result"]["capabilities"]["tools"]["listChanged"])
-        changed = responses[1]["result"]["structuredContent"]
+        # A fresh dynamic connection is collapsed: no domain-tool schema is
+        # resident, only the three control/discovery entry points.
+        cold = responses[1]["result"]
+        self.assertEqual(cold["exposureMode"], "dynamic")
+        self.assertEqual(cold["toolView"]["state"], "collapsed")
+        self.assertEqual(cold["toolView"]["expandedView"], "gateway")
+        self.assertEqual(cold["toolView"]["scope"], "connection")
+        self.assertEqual(
+            {tool["name"] for tool in cold["tools"]},
+            {"mcp_tool_catalog", "mcp_tool_view", "mcp_tool_invoke"},
+        )
+        # `set` remains the compatibility alias for `expand` and opens the
+        # startup-profile view.
+        changed = responses[2]["result"]["structuredContent"]
         self.assertTrue(changed["changed"])
         self.assertTrue(changed["conventionOnly"])
-        self.assertEqual(responses[2]["method"], "notifications/tools/list_changed")
-        listed = responses[3]["result"]
+        self.assertEqual(changed["state"], "expanded")
+        self.assertEqual(changed["expandedView"], "profile")
+        self.assertEqual(responses[3]["method"], "notifications/tools/list_changed")
+        listed = responses[4]["result"]
         self.assertEqual(listed["exposureMode"], "dynamic")
         names = {tool["name"] for tool in listed["tools"]}
         self.assertIn("browser_assemble", names)
         self.assertNotIn("onshape_get_parameter_set", names)
-        hidden_call = responses[4]["result"]["structuredContent"]
+        hidden_call = responses[5]["result"]["structuredContent"]
         self.assertFalse(hidden_call["parameters"]["detailedStrands"])
 
     def test_static_exposure_mode_lists_complete_registry(self) -> None:
@@ -1028,12 +1044,15 @@ class OfflineCheckToolTest(unittest.TestCase):
         self.assertTrue(responses[0]["result"]["isError"])
 
     def test_the_schema_declares_an_offline_read_only_tool(self) -> None:
-        responses, _ = invoke([{
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/list",
-            "params": {},
-        }])
+        # `fs_check_script` is not one of the gateway's curated representatives,
+        # so ask for the explicit `semantic` view that lists it.
+        with mock.patch.dict(os.environ, {"ONSHAPE_MCP_TOOL_EXPOSURE": "semantic"}):
+            responses, _ = invoke([{
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list",
+                "params": {},
+            }])
         tools = {tool["name"]: tool for tool in responses[0]["result"]["tools"]}
         tool = tools["fs_check_script"]
         cost = tool["cost"]
