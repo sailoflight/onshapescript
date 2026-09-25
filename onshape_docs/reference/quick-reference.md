@@ -100,6 +100,15 @@ opFillet(context, id + "fillet", {
   Prefer the `op*` operation when building a custom feature.
 - **Booleans**: `opBoolean` with `BooleanOperationType.SUBTRACTION` /
   `UNION` / `INTERSECTION`; `keepTools` controls the tools' fate.
+  When the literal definition map passes **both** `"tools"` and `"targets"`, also
+  pass `"targetsAndToolsNeedGrouping" : true` (or omit `targets` — `UNION` merges
+  the tool bodies with each other). Omitting it on `UNION`/`INTERSECTION` fails at
+  regeneration with `@opBoolean: BOOLEAN_BAD_INPUT` / "至少需要两个零件或曲面"; that
+  server text names the symptom, not the missing field, and is not ours to change.
+  The local checker warns about this shape at WARNING level and never blocks an
+  upload (the vendored index can lag the live server); the `targets` requirement
+  text shown by `fs_get_function opBoolean` comes from the generated/vendored
+  index and is not hand-edited.
 - **Queries compose**: `qUnion`, `qBodyType(qEverything(EntityType.EDGE),
   BodyType.SOLID)`, `qCreatedBy(id, EntityType.EDGE)`, `qSketchRegion(id)`.
 - **Regen errors**: `throw regenError("message", ["param1", "param2"])` to
@@ -163,12 +172,23 @@ setProperty(context, {
 - Querying the wrong entity type (`EntityType.EDGE` vs `FACE` vs `BODY`).
 - Fillet radius too large vs part size — validate before `opFillet`.
 - Sketch helpers leave bodies behind — `opDeleteBodies` the sketch/profile inputs.
+- `opBoolean` with a literal map that passes **both** `"tools"` and `"targets"`
+  for `UNION`/`INTERSECTION` also needs `"targetsAndToolsNeedGrouping" : true`
+  (see the Booleans entry above); omitting it defers the failure to regeneration.
 
 ## Using this reference
 
 - `fs_search` → find the exact name; `fs_get_function` → exact signature +
   parameters + examples; `fs_get_type` → enum values; `fs_guide_section` →
   language concepts; `fs_library_source` → the real std library implementation.
+- A lookup miss is actionable, not a dead end: an unknown name raises
+  `ReferenceMiss` whose message names the nearest existing entries and the exact
+  next call, for example `No function named 'opCylinder'. Did you mean 'cylinder'?
+  Related: fCylinder, opPolyline. Call fs_search(query="cylinder") to list all
+  matches.` The client receives the same detail as structured `error.data`
+  (`name`, `kind`, `module`, `suggestions`, `nextCall`). Suggesting a name is a
+  hint about wording only — it does not make the miss a success, and a suggestion
+  is never automatically applied.
 - `fs_check_version` before relying on the corpus for a newer FeatureScript
   version than the vendored snapshot; `fs_update_reference` to refresh it.
 - `onshape_docs/reference/quick/fsdoc/quick.json` holds this same surface as one line per

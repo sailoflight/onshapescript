@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "55322b00a28570750ab99a16e1135006f27aac48f2ccf7094b1c95e710866efe",
+   "sha256": "9a331f7991e458e541a4aaebb1d158e97c1c7435e5a35020afe2d63ea91b8dd7",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -746,7 +746,54 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") is the cooperative end-of-work cleanup: it closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. An agent should call it in a finally-style cleanup after browser work unless continued use of the same browser is intentional. Release may require the login state to be refreshed later and cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Read-only observation should come first. browser_fs_read_notices opens and restores the active FeatureScript notice pane and returns normalized notice rows; browser_get_fs_compile_status combines those rows with Ace annotations, while browser_get_fs_symbols reads the Module-outline inventory. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and combined compiler evidence verify with no blocking warning/error. Every committed deployment attempt also writes a local diagnostic package containing the full source and compile result under onshape_browser_mode/outputs/fs_diagnostics/; the experimental, default-hidden browser_fs_capture_diagnostic creates the same package on demand. These local artifacts can contain proprietary source code and must be protected accordingly. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses semantic exposure. FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The draft-analysis-based browser_print_orientation_check and its dependent browser_print_optimize_part were semantically invalid — draft analysis is not an FDM orientation engine — and were removed from the surface on 2026-09-19 rather than left as fail-closed names; do not call them and do not expect a browser print-analysis tool until a slicer-backed module is designed. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, and one drawing transaction: browser_draw_part_with_views with part_name for verified views, with dimensions to dimension the current Drawing frame, or with both."
+       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. Keep the browser session at the end of a task by default. Release only on an explicit human request, or when resources genuinely must be freed: release CLOSES the window and can drop the persistent profile's login state, so a later task may pay another human sign-in. It cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Three outcomes are not interchangeable: release can lose login state; a process crash or a page navigation does not; and browser_session(action=\"detach\") keeps the window but is supported only in resident/attached mode (browser.resident = true) — a non-resident session returns detached=false, supported=false, and recommends release, which is a known limitation of the pinned browser_common wheel rather than a bug in the call. browser_session(action=\"login\") reports alreadyAuthenticated (the persistent profile still has a live session) or needsHumanLogin (it does not), so the caller no longer has to guess from the URL. browser_session action=status also reports pageSelection ({\"considered\", \"discarded\":[{\"url\",\"reason\"}], \"selected\"}) from the last start(), and the session never adopts a closed candidate page: it skips closed pages, advances past an adopt failure, and falls back to opening a new page."
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Session ending",
+         "Closes the window?",
+         "Drops the profile's login?",
+         "When to use"
+        ],
+        [
+         "browser_session action=release",
+         "Yes",
+         "Maybe — it reports loginStateMayNeedRefresh and is the only one of the three that can",
+         "Only on an explicit human request, or when resources genuinely must be freed"
+        ],
+        [
+         "browser_session action=detach (resident/attached mode only)",
+         "No (contextClosed: false, browserLeftRunning: true)",
+         "No",
+         "Hand back MCP ownership while leaving the browser, its tabs and its login alone"
+        ],
+        [
+         "Process-level crash / termination",
+         "The owned browser goes with the process",
+         "No — the persistent profile keeps its login and reopening reuses it",
+         "Unexpected; no cleanup action is needed to preserve the login"
+        ],
+        [
+         "Page navigation / reload",
+         "No",
+         "No",
+         "Ordinary page recovery; never treat it as a session ending"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "The launched browser is a real Edge channel (channel = \"msedge\") using a persistent, checkout-local profile (user_data_dir, default user_data/onshape_profile). It does not reuse the OS Edge primary profile, but on a machine whose Windows account is a Microsoft account Edge signs a fresh profile in automatically, so the window is not anonymous even though Edge created the profile directory; screenshots and every page the agent reads are attributable to that account. browser_session(action=\"status\") reports profileDir, profileBytes, profileBytesComplete (the walk is file-capped, so complete=false is a lower bound), and accountMarkerDetected (a boolean from recursive name matches of known Edge account keys; it is Edge-version dependent, and false means \"no marker found\", NOT \"anonymous\" — no account value is ever returned). A separate profile directory can be selected with the optional isolated_user_data_dir key in onshape_browser_mode/config/browser.toml; that is only a directory choice, and the trade-off is explicit: Onshape login persistence is bought with a persistent profile, so a separate directory means a fresh or explicitly isolated identity. Guest mode (--guest) is deliberately NOT implemented. To clear the profile, sign out of the Edge account in that window (that does not clear cookies, so the Onshape login survives); deleting the directory is the most thorough and costs one manual sign-in."
+      },
+      {
+       "type": "para",
+       "text": "browser_export_step gained overwrite and no longer reports a false failure when the STEP was already saved. A failure returns a structured result instead of raising: exported: false, failure: {phase, error} (phase is one of stage_artifact|save_download|close_internal_download_pages| wait_for_dialog_hidden|register_manifest), stagedArtifacts ([{path, fileName, bytes, sha256}]), stagingComplete, alreadyStaged, browserAliveBefore, browserAliveAfter, and recovery (a LIST of candidate next actions), plus the existing zero-cost annotations. A failure at phase wait_for_dialog_hidden with stagingComplete: true is NOT a download failure: the STEP is on disk with its manifest and is reusable (for example by browser_build_geometry_package), and a same-export_id retry then returns alreadyStaged success instead of the old \"staging destination already exists\" refusal. Pass overwrite=true on a retry to reuse a staging directory a failed export left partial; without it a retry refuses rather than overwrite leftovers. Reuse is granted on provenance, not merely on the artifact being intact: the manifest records the document/workspace/element it was exported from, and a call naming a different target is refused (\"holds a STEP exported from a different document/workspace/element\") rather than answered with the other document's STEP. overwrite=true replaces such a staging directory instead. The dry_run plan reports stagingProvenanceChecked/stagingProvenanceMatches so it never advertises a reuse the real call would refuse; with no target ids it reports the artifact-level answer and stagingProvenanceChecked: false. Pre-flight validation failures (bad tab, URL mismatch, non-STEP download) still raise. A complete staging requires manifest + artifact + matching sha256. A failure may restart the browser or leave the MCP child holding no browser resources; browser_session action=health reporting browser_not_running with pages: [] means only \"this MCP process holds nothing\" — it does NOT prove the Edge process died."
+      },
+      {
+       "type": "para",
+       "text": "Read-only observation should come first. browser_fs_read_notices opens and restores the active FeatureScript notice pane and returns normalized notice rows; browser_get_fs_compile_status combines those rows with Ace annotations, while browser_get_fs_symbols reads the Module-outline inventory. browser_fs_read_notices demotes stale (outOfDate) notices by default: notices carries current rows, staleNotices carries the raw out-of-date rows, and the result also carries staleNoticeCount, staleErrorCount, staleErrorCountBasis, currentNoticeCount, returnedNoticeCount, includeStale, and per-notice stale + bucket (stale/currentActiveTab/currentOtherElement). Pass includeStale=true to also return the raw stale rows inside notices. A stale notice's line number points at a different source version, so never read it as current state. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and combined compiler evidence verify with no blocking warning/error. Every committed deployment attempt also writes a local diagnostic package containing the full source and compile result under onshape_browser_mode/outputs/fs_diagnostics/; the experimental, default-hidden browser_fs_capture_diagnostic creates the same package on demand. These local artifacts can contain proprietary source code and must be protected accordingly. browser_get_partstudio_features rows carry errorText (read from the row's data-bs-original-title for errored rows in the same pass), and the result carries hasErrorReadAt plus maybeStale, so read hasError together with when it was read. browser_deploy_featurescript activates the Feature Studio tab itself when the active tab is a Part Studio, and otherwise returns an explicit instruction to call browser_activate_tab first. browser_verify_feature_parameters backs parameter verification with a bounded convergence reader: a read taken while the row is still regenerating is NOT reported as a failure — it returns parametersApplied: null with retryVerify: true, maybeStale: true, hasErrorReadAt, and settleCondition (one of cleanFirstRead|clearedOnReRead|stableError|unstableTimeout, plus settleAttempts, settleWaitedMs, and settleTimeoutMs). The part summary keeps partItems as a list of strings and adds partCounts (counts by name, first-seen order), duplicateNames ([{name,count}]), duplicateNameCount, and partNameDetails ([{name,count,possibleDuplicateName[,note]}]). The duplicate marker is a NAME-based observation only and makes no geometry claim: per-part volume, a sliver-area threshold, and a connectivity report are not implemented and cannot be derived without a geometry or REST path. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses the default gateway exposure (see Dynamic tool display). FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The draft-analysis-based browser_print_orientation_check and its dependent browser_print_optimize_part were semantically invalid — draft analysis is not an FDM orientation engine — and were removed from the surface on 2026-09-19 rather than left as fail-closed names; do not call them and do not expect a browser print-analysis tool until a slicer-backed module is designed. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, and one drawing transaction: browser_draw_part_with_views with part_name for verified views, with dimensions to dimension the current Drawing frame, or with both."
       }
      ]
     },
@@ -795,11 +842,11 @@
     },
     {
      "level": 5,
-     "title": "Compressed entry points (ONSHAPE_MCP_TOOL_EXPOSURE=gateway)",
+     "title": "Compressed entry points (gateway, the default)",
      "blocks": [
       {
        "type": "para",
-       "text": "For a client whose context budget matters more than a visible list, gateway advertises a small declarative surface:"
+       "text": "gateway is the default tool exposure when nothing else selects a mode. It advertises a small declarative surface:"
       },
       {
        "type": "list",
@@ -837,11 +884,11 @@
       },
       {
        "type": "para",
-       "text": "Switch it on this host by copying mcp_main/win/mcp/config/tool_views.local.toml.example to tool_views.local.toml next to it and setting mode = \"gateway\" (delete the file to fall back to semantic); ONSHAPE_MCP_TOOL_EXPOSURE still wins over the file, and restart the MCP process to apply it."
+       "text": "gateway is the built-in fallback: with no explicit argument, no ONSHAPE_MCP_TOOL_EXPOSURE, and no tool_views.local.toml, a connection starts in gateway. Precedence is an explicit argument, then ONSHAPE_MCP_TOOL_EXPOSURE, then mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode, then gateway. Change it on a host whose launcher owns the child environment by copying tool_views.local.toml.example to tool_views.local.toml and setting mode; the environment variable still wins over the file, and the MCP process must restart to apply it."
       },
       {
        "type": "para",
-       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the same registry renders as 227,459 chars for 111 tools in static, 167,441 chars for 77 tools in semantic, and 66,051 chars for 25 tools in gateway (3.4x and 2.5x smaller; the surface grew deliberately when the prescribed chains were completed and the parameter workflow stopped paying a round between its own legs). A client that refuses unadvertised names does not need a different mode: mcp_tool_invoke is advertised in every mode and forwards one call to any registered tool by exact name, with the target's own confirmation, cost and dry-run gates intact."
+       "text": "Measured (2026-09-21, dev/tools/context_cost.py, recorded in onshape_docs/verification/context-cost-surfaces-2026-09-21.json): the registry of 111 tools renders as 227,459 chars in static, 167,441 chars for 77 tools in semantic, 89,527 chars for 40 tools in profile=browser, and 66,051 chars for 25 tools in gateway (3.4x smaller than the registry, 2.5x smaller than semantic). dynamic adds a collapsed cold start of 3 tools (mcp_tool_catalog, mcp_tool_view, mcp_tool_invoke) and, once expanded, shows static/semantic/gateway/profile as 111/77/25/40 tools. These are advertised tool-table sizes (characters, with a documented token estimate), not end-to-end task cost; they are not a mode ranking for complex tasks and must not be extrapolated into one (see onshape_docs/verification/delegation-lookup-cost-2026-09-21.md). A client that refuses unadvertised names does not need a different mode: mcp_tool_invoke is advertised in every mode and forwards one call to any registered tool by exact name, with the target's own confirmation, cost and dry-run gates intact."
       },
       {
        "type": "para",
@@ -915,7 +962,7 @@
     },
     {
      "level": 4,
-     "title": "Dynamic tool display",
+     "title": "Dynamic tool display (collapse/expand)",
      "blocks": [
       {
        "type": "para",
@@ -923,17 +970,54 @@
       },
       {
        "type": "para",
-       "text": "Deployment modes are explicit:"
+       "text": "dynamic is the collapse/expand control, orthogonal to which display set is shown once expanded. A fresh dynamic connection starts collapsed and lists only the three control/discovery entry points — mcp_tool_catalog, mcp_tool_view, and mcp_tool_invoke — with no domain-tool schema resident. mcp_tool_view drives it:"
       },
       {
        "type": "list",
        "items": [
         {
-         "text": "semantic keeps the current fixed ordinary view and is the compatibility default.",
+         "text": "action=status returns state (\"collapsed\"/\"expanded\"), expandedView, and scope (\"connection\"), alongside its prior keys.",
          "depth": 0
         },
         {
+         "text": "action=expand opens a display set; expanded_view selects static|semantic|gateway|profile and defaults to the current set, which on a cold start is gateway.",
+         "depth": 0
+        },
+        {
+         "text": "action=collapse returns to the three entry points; it is explicit, never an implicit side effect.",
+         "depth": 0
+        },
+        {
+         "text": "action=set is the compatibility alias for expand, defaulting to the connection's startup-profile view.",
+         "depth": 0
+        },
+        {
+         "text": "action=reset returns to a cold start: collapsed, gateway, and the connection's original startup profile.",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Scope, stated plainly: view state is CONNECTION-scoped, not conversation-scoped. A stdio server sees a connection and the messages on it, not the separate conversations a client may multiplex over that one connection. If a client reuses or shares a connection, an expand performed for one conversation is observed by every conversation on it. Do not claim per-conversation isolation."
+      },
+      {
+       "type": "para",
+       "text": "Collapse is pure in-memory state. It writes nothing locally or remotely, it is not exiting the browser, and it is not a permission change. Hidden and unknown names remain callable by their exact registered name, and every confirmation, quota, pacing, and permission gate still answers. Every effective change emits notifications/tools/list_changed; a repeated call that changes nothing emits nothing."
+      },
+      {
+       "type": "para",
+       "text": "The other fixed modes are explicit:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
          "text": "static keeps the complete registry visible.",
+         "depth": 0
+        },
+        {
+         "text": "semantic selects the bounded ordinary view as a fixed display set.",
          "depth": 0
         },
         {
@@ -941,7 +1025,7 @@
          "depth": 0
         },
         {
-         "text": "dynamic enables per-connection mcp_tool_view set/reset and advertises capabilities.tools.listChanged=true during initialization.",
+         "text": "gateway is the built-in default view (see above).",
          "depth": 0
         }
        ]
@@ -962,7 +1046,7 @@
          "depth": 0
         },
         {
-         "text": "Check initialize capability tools.listChanged. If false, use the fixed view or discovery gateway; do not assume the client can refresh dynamically.",
+         "text": "Check initialize capability tools.listChanged. If false, use a fixed view or the gateway; do not assume the client can refresh dynamically.",
          "depth": 0
         },
         {
@@ -970,7 +1054,7 @@
          "depth": 0
         },
         {
-         "text": "Call it with action=set, a profile, and optional browser semantic levels.",
+         "text": "Call action=expand with an optional expanded_view, profile, and browser semantic levels (action=set is the legacy alias), or action=collapse to return to the control-only list.",
          "depth": 0
         },
         {
@@ -978,14 +1062,14 @@
          "depth": 0
         },
         {
-         "text": "Use action=reset to restore that connection's startup profile. Reconnecting also creates a fresh view and does not inherit another connection's state.",
+         "text": "Use action=reset to return to a cold start (collapsed, gateway, startup profile). Reconnecting also creates a fresh view and does not inherit another connection's state.",
          "depth": 0
         }
        ]
       },
       {
        "type": "para",
-       "text": "A repeated set that does not change the effective view emits no notification. Clients that ignore list_changed should reconnect, refresh manually, or stay in semantic/profile mode. Never interpret a missing displayed tool as denied or a displayed tool as authorized."
+       "text": "A repeated change that does not alter the effective view emits no notification. Clients that ignore list_changed should reconnect, refresh manually, or stay in a fixed mode. Never interpret a missing displayed tool as denied or a displayed tool as authorized."
       }
      ]
     },
@@ -1071,6 +1155,10 @@
        "type": "code",
        "language": "text",
        "text": "1. fs_search(query=<concept or symbol>, limit=3)\n2. fs_get_function(name=<exact matched name>)"
+      },
+      {
+       "type": "para",
+       "text": "fs_get_function bounds each description by default and marks a truncated entry with descriptionTruncated; pass full=true when you need the verbatim prose (a heavily overloaded name otherwise repeats the same multi-thousand-character text once per signature). fs_search always returns its normal list — an empty query result is an empty list, not an error."
       }
      ]
     },
@@ -1094,6 +1182,10 @@
        "items": [
         {
          "text": "Schema/argument errors: correct the call from the exact tool schema; do not guess repeatedly.",
+         "depth": 0
+        },
+        {
+         "text": "A FeatureScript lookup miss (fs_get_function/fs_get_type on an unknown name, or a cross-module clash without a module) is a routing gap, not a wall: the error names up to three nearest existing entries and the exact next call (\"Did you mean ...? Related: .... Call fs_search(query=...) to list all matches.\"), and the same detail arrives as structured error.data (suggestions = [{name,module,kind}] and nextCall). Treat a suggestion as a wording hint, never as a resolved name, and do not re-send the same missed name.",
          "depth": 0
         },
         {
@@ -1540,7 +1632,7 @@
    "page": "llm-experience-fs",
    "category": "experience",
    "path": "onshape_docs/experience/featurescript.md",
-   "sha256": "6558e4ff644e04701919b8c2622da2ebc0d5c804c787d7674c1cf1184e9cc169",
+   "sha256": "e97422fbbe68662c6fcd6748738517cdf28a9dd7a78c49a1deccb7546aa941b6",
    "title": "Verified experience: FeatureScript",
    "sections": [
     {
@@ -1726,6 +1818,10 @@
         {
          "text": "**Because the server does not compile bodies at save time, the local static checker is the only body-level guard.** Run onshape_docs/scripts/fs_local_check.py before any upload: it catches structural errors (hard) and flags body symbols the server would silently accept at save (qDoesNotExist, NotARealType).",
          "depth": 0
+        },
+        {
+         "text": "**A literal opBoolean map that passes both \"tools\" and \"targets\" for UNION/INTERSECTION must also pass \"targetsAndToolsNeedGrouping\" : true.** The checker warns about that shape (check_op_boolean_grouping) on a literal third argument only, and like every rule there the warning never blocks the write. The measured failure, the reason it is a real mistake rather than a style choice, and the alternative to the flag are all stated once, in the opBoolean grouping section below.",
+         "depth": 0
         }
        ]
       }
@@ -1823,6 +1919,37 @@
         },
         {
          "text": "*A Chinese UI* label is impossible**, so a localized custom feature gets an ASCII \"Feature Type Name\" and ASCII \"Name\" labels; only model/part names can carry the Chinese text. The local checker warns about this shape (fs_check.check_annotation_ascii) rather than failing the deploy.",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "opBoolean with both tools and targets needs the grouping flag (live, browser leg)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "Measured by the reporter (issue #11) and reproduced by the local checker: an opBoolean call whose literal definition map carries both \"tools\" and \"targets\", an operationType of UNION/INTERSECTION, and no \"targetsAndToolsNeedGrouping\" fails at regeneration with the misleading @opBoolean: BOOLEAN_BAD_INPUT / \"布尔运算操作至少需要两个零件或曲面\", which cost five deployments."
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "The requirement: pass \"targetsAndToolsNeedGrouping\" : true whenever both tools and targets are supplied — or simply omit targets, because UNION already merges the tool bodies with each other. The vendored standard library writes the flag whenever it passes both fields (boolean.fs: \"targetsAndToolsNeedGrouping\" : targets != undefined).",
+         "depth": 0
+        },
+        {
+         "text": "The server text is misleading here. \"至少需要两个零件或曲面\" names the symptom, not the missing field. It is the Onshape server's own message and is **not ours to change**, which is exactly why the local rule warns earlier.",
+         "depth": 0
+        },
+        {
+         "text": "The local rule is WARNING-level and never blocks an upload. The vendored index can lag the live server, so onshape_docs/query/fs_check.py:check_op_boolean_grouping only warns; it fires on a literal third argument (the same gate as check_op_definitions), so a map held in a variable is never second-guessed. The false-positive gate is the vendored library itself (test_static_guards.OpBooleanGroupingTest).",
+         "depth": 0
+        },
+        {
+         "text": "**The targets requirement text shown by fs_get_function opBoolean (or fs_get_type) comes from the generated/vendored index and is not hand-edited.**",
          "depth": 0
         }
        ]
@@ -2363,7 +2490,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "57f5271de0dbcbdbfc20c2dbfb1109dad0ffea366785d13aad7e733f8d81d8b9",
+   "sha256": "669e10008acdd036fe5b5163510391507b7b65d89c48574ee9a9ba747e3a9048",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2444,6 +2571,38 @@
         },
         {
          "text": "强杀 vs 优雅关闭的差异是真实存在的：强杀不给页面执行登出逻辑的机会，会话文件保留 documents URL；优雅关闭会把页面写回 signin。",
+         "depth": 0
+        },
+        {
+         "text": "三种“结束方式”不能混同：action=release 关闭本进程的 browser/context，是三者中唯一 可能丢掉持久 profile 登录态的一种（返回 loginStateMayNeedRefresh）；进程级崩溃/被杀 不会丢登录态（重开复用 profile）；页面导航/刷新也不会。",
+         "depth": 0
+        },
+        {
+         "text": "action=detach 是“保留窗口”的非破坏性兄弟：仅在 resident/attached 模式 （browser.resident = true）成立，它让 Playwright 脱离并留下浏览器、标签页和登录态 （detached: true、contextClosed: false、browserLeftRunning: true）。非 resident 模式对固定版本的 browser_common 不存在真实的 detach：启动的浏览器生命周期绑定在 Playwright 连接上，唯一的释放 API 会关窗，因此返回 {\"detached\": false, \"supported\": false, \"reason\": ..., \"recommended\": \"browser_session action=release\", \"alternative\": ...} 且不改动任何状态——这是已知限制，不是调用的 bug。",
+         "depth": 0
+        },
+        {
+         "text": "默认指引：任务结束时保留会话；只有人工明确要求或确实需要释放资源时才 release。",
+         "depth": 0
+        },
+        {
+         "text": "action=login 现在报告 alreadyAuthenticated（持久 profile 仍有活会话）或 needsHumanLogin（没有），不必再从 URL 猜。",
+         "depth": 0
+        },
+        {
+         "text": "启动的浏览器是真实 Edge channel（channel = \"msedge\"），使用 checkout 本地的持久 profile（user_data_dir，默认 user_data/onshape_profile）；它不复用 OS Edge 主 profile，但在 Windows 账户是 Microsoft 账户的机器上，Edge 会自动把新 profile 登录 进去，所以窗口并非匿名，截图和 agent 读到的每个页面都可归因到该账户。",
+         "depth": 0
+        },
+        {
+         "text": "status 报告 profileDir、profileBytes、profileBytesComplete（遍历有文件上限， complete=false 的数字是下界）、accountMarkerDetected（对已知 Edge 账户键做递归 名称匹配得到的布尔值；随 Edge 版本变化，false 只表示“未找到标记”，不是“匿名”； 绝不返回账户值）。isolated_user_data_dir 可选一个独立 profile 目录用于在持久 登录 profile 之外运行；这只是目录选择（--guest 未实现），代价是独立目录意味着全新 或显式隔离的身份（除非它自己也是持久的，否则还要一次人工登录）。",
+         "depth": 0
+        },
+        {
+         "text": "清理 profile：在该窗口里退出 Edge 账户登录（不清 cookie，Onshape 登录仍在）；删除 目录最彻底，但要重做一次人工登录。",
+         "depth": 0
+        },
+        {
+         "text": "start() 不再采纳已关闭页面：跳过 closed 页、跨过 adopt 失败并前进，最后回退到新开页。 status 的 pageSelection 报告 {\"considered\", \"discarded\": [{\"url\",\"reason\"}], \"selected\"}， reason 含 closed/browserInternal；无可用页时错误里指名 browser_session action=login。 status 还新增 verdict/recommendedAction/verdictNote（与 action=health 对齐）。",
          "depth": 0
         }
        ]
@@ -2572,11 +2731,11 @@
      "blocks": [
       {
        "type": "para",
-       "text": "mcp_tool_view 的 profile/semantic-level 只缩小当前连接返回的 tools/list，不修改 完整 registry，不拒绝已知工具名，也不改变确认、quota、pacing 或验收门。正确流程是： Operator 以 ONSHAPE_MCP_TOOL_EXPOSURE=dynamic 启动；client 在 initialize 中确认 tools.listChanged=true；agent 先 status，再 set；client 收到 notifications/tools/list_changed 后重新请求并替换 tools/list，不能在旧列表上追加。 reset 回到该连接启动时的 profile；重新连接创建独立的新 view。"
+       "text": "工具展示默认是 gateway（25 个工具）。mcp_tool_view 的 collapse/expand 与 profile/semantic-level 只改变当前连接返回的 tools/list，不修改完整 registry，不拒绝 已知工具名，也不改变确认、quota、pacing 或验收门。dynamic 是折叠/展开控制：冷启动为 collapsed，只列出 mcp_tool_catalog、mcp_tool_view、mcp_tool_invoke；expand 默认 打开 gateway（expanded_view 可选 static|semantic|gateway|profile），collapse 回到 三入口，set 是兼容别名，reset 回到 collapsed + gateway + 启动 profile。折叠是纯内存 状态：不写任何地方，不等于退出浏览器，也不等于撤销权限。视图状态是连接级而非会话级： stdio server 只看到连接和其上的消息，若客户端复用/共享同一连接，一个会话的 expand 会被 该连接上的每个会话观察到，不得声称按会话隔离。每次有效变化才发 notifications/tools/list_changed；没有变化不发。正确流程是： Operator 以 ONSHAPE_MCP_TOOL_EXPOSURE=dynamic 启动；client 在 initialize 中确认 tools.listChanged=true；agent 先 status，再 expand（或兼容的 set）；client 收到 notifications/tools/list_changed 后重新请求并替换 tools/list，不能在旧列表上追加。 reset 回到该连接的冷启动（collapsed + gateway + 启动 profile）；重新连接创建独立的新 view。"
       },
       {
        "type": "para",
-       "text": "窄化 browser semantic levels 时必须常驻 browser_session 和 browser_discover_tools，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的 兼容名不常驻，只能按精确名调用。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用 固定 semantic/profile 或 discovery gateway，不要把“未展示”解释为“禁止”；若客户端拒绝未展示名， 按精确名改走被展示的 mcp_tool_invoke（见 3.1 的实测）。"
+       "text": "窄化 browser semantic levels 时必须常驻 browser_session 和 browser_discover_tools，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的 兼容名不常驻，只能按精确名调用。没有有效变化就不发 notification。客户端不支持 listChanged 时继续使用 固定视图或 gateway，不要把“未展示”解释为“禁止”；若客户端拒绝未展示名， 按精确名改走被展示的 mcp_tool_invoke（见 3.1 的实测）。"
       }
      ]
     },
@@ -3318,6 +3477,30 @@
         {
          "text": "2026-08-25 的 app-shell / Drawing 只读扫描记录在 dev/button-map/scan-app-shell.json。Drawing 的实际四视图位于 canvas 内，DOM view selector 返回 0；browser_draw_part_with_views 的视图阶段因此还要求恰好一个新 tab， 并解码 main-canvas PNG，排除图框/标题栏后检查主体墨迹比例和空间集中度。 实测 1240×694 fixture 中有四个投影视图，证据图为 dev/button-map/scan-drawing-four-views.png。不可见的 preview/drawer 候选仍标记 unverified，读取工具返回结构化 absence/unknown。",
          "depth": 0
+        },
+        {
+         "text": "browser_fs_read_notices 默认把 outOfDate（stale）通知降级：notices 只给当前行， staleNotices 给原始过期行，并附 staleNoticeCount/staleErrorCount/ staleErrorCountBasis/currentNoticeCount/returnedNoticeCount/includeStale，每行带 stale+bucket（stale/currentActiveTab/currentOtherElement）。实测动机：一条 stale 行持续报 line: 156，而当前源码的 opBoolean 在别处，把 agent 引到错误行。用 includeStale=true 才同时把原始过期行放进 notices。",
+         "depth": 0
+        },
+        {
+         "text": "browser_get_partstudio_features 的行带 errorText（同一遍从错误行的 data-bs-original-title 读出），结果带 hasErrorReadAt 和 maybeStale；hasError 必须与“何时读的”一起看。参数校验走有界收敛读（in-code read_partstudio_features_settled）：读到再生中的行不再算失败，而是 parametersApplied: null + retryVerify: true + maybeStale: true + hasErrorReadAt",
+         "depth": 0
+        },
+        {
+         "text": "settleCondition（cleanFirstRead|clearedOnReRead|stableError|unstableTimeout）。",
+         "depth": 1
+        },
+        {
+         "text": "browser_deploy_featurescript 在当前 tab 是 Part Studio 时会自己激活 Feature Studio tab；否则返回明确指令要求先调 browser_activate_tab，而不是一句“FeatureScript editor not found”。",
+         "depth": 0
+        },
+        {
+         "text": "browser_get_partstudio_features/parse_part_summary 的 partItems 仍是字符串列表； 新增 partCounts（按名计数，首次出现顺序）、duplicateNames（[{name,count}]）、 duplicateNameCount、partNameDetails（[{name,count,possibleDuplicateName[,note]}]）。 动机：一个 0.0004 mm² 的 sliver body 让计数变成 7 且出现重名。明确边界：这只是基于 名字的观察，不做任何几何判断；逐零件体积、sliver 面积阈值、连通性报告都未实现， 在没有几何或 REST 通路时也无法导出，仍是开放项。",
+         "depth": 0
+        },
+        {
+         "text": "browser_export_step 新参数 overwrite；当 STEP 其实已保存时不再误报失败：保存/下载 尾段失败返回结构化结果（exported: false、failure: {phase,error}、 stagedArtifacts、stagingComplete、alreadyStaged、browserAliveBefore/After、 以及一个 LIST 的 recovery），而 tab/URL/对话框配置和非 STEP 的预检失败仍然 raise。 关键读法：phase=wait_for_dialog_hidden 且 stagingComplete: true 不是下载失败—— STEP 与 manifest 已在磁盘且可复用（例如交给 browser_build_geometry_package）；同 export_id 重试会返回 alreadyStaged 成功，而不是旧的 “staging destination already exists” 拒绝。完整 staging 需要 manifest + 产物 + 匹配的 sha256。失败可能重启浏览器或 让 MCP 子进程不再持有浏览器资源；action=health 报 browser_not_running 且 pages: [] 只说明“本 MCP 进程不持有任何东西”，不能证明 Edge 进程已死。",
+         "depth": 0
         }
        ]
       }
@@ -3329,7 +3512,7 @@
    "page": "browser-modeling",
    "category": "experience",
    "path": "onshape_docs/experience/browser-modeling.md",
-   "sha256": "19808f7f1484f1b6be840505e2c4f534da19a5bd5ce8f79b446497d7b8d7bafb",
+   "sha256": "8c5fa35cd91c05e5251503037bc2a1c94b6c9226efbd95a01bfc03dca5b69ece",
    "title": "浏览器零 REST 配额 FeatureScript 建模工作流",
    "sections": [
     {
@@ -3583,7 +3766,7 @@
        "type": "list",
        "items": [
         {
-         "text": "零件名字只能从 DOM 取；归一化后的 partsText 不足以切名字（2026-09-20 实测，已修）。 read_partstudio_features 把 .part-list-container 的文本按 \\s+ → 单空格 归一化 并截断到 400 字符，而 parse_part_summary 按 \\s{2,}|\\n 切名字 —— 归一化之后这个 切分永远不会命中，于是两条分支都错：count == 1 走特例，把整个剩余串当成一个名字 （实测 零件数 (1) 螺旋凸棱柱 曲线数 (1) → [\"螺旋凸棱柱 曲线数 (1)\"]，把下一个分区 表头 曲线数 吞进了名字）；count > 1 直接返回 [] 且 partNamesParsed: false （实测 零件数 (9) 与 零件数 (11) 两次）。 修法：read_partstudio_features 现在同时返回 partItems（按 .os-list-item 的 os-part-list-icon 认零件行），parse_part_summary(parts_text, part_items) 在 len(partItems) == parts 时用 DOM 名字并标 partNamesSource: \"dom\"；文本兜底只在 计数自洽时用，并新增拒绝：count == 1 的剩余串里若还含 …数 (N) 分区表头，就 不再编造名字（宁可 partNames: [] + partNamesSource: \"none\"）。判定建模成功只看 parts > 0；要写名字必须核 partNamesSource == \"dom\"。",
+         "text": "零件名字只能从 DOM 取；归一化后的 partsText 不足以切名字（2026-09-20 实测，已修）。 read_partstudio_features 把 .part-list-container 的文本按 \\s+ → 单空格 归一化 并截断到 400 字符，而 parse_part_summary 按 \\s{2,}|\\n 切名字 —— 归一化之后这个 切分永远不会命中，于是两条分支都错：count == 1 走特例，把整个剩余串当成一个名字 （实测 零件数 (1) 螺旋凸棱柱 曲线数 (1) → [\"螺旋凸棱柱 曲线数 (1)\"]，把下一个分区 表头 曲线数 吞进了名字）；count > 1 直接返回 [] 且 partNamesParsed: false （实测 零件数 (9) 与 零件数 (11) 两次）。 修法：read_partstudio_features 现在同时返回 partItems（按 .os-list-item 的 os-part-list-icon 认零件行），parse_part_summary(parts_text, part_items) 在 len(partItems) == parts 时用 DOM 名字并标 partNamesSource: \"dom\"；文本兜底只在 计数自洽时用，并新增拒绝：count == 1 的剩余串里若还含 …数 (N) 分区表头，就 不再编造名字（宁可 partNames: [] + partNamesSource: \"none\"）。判定建模成功只看 parts > 0；要写名字必须核 partNamesSource == \"dom\"。 在此基础上新增只读的名字诊断（partItems 形状不变，仍是字符串列表）：partCounts （按名计数，首次出现顺序）、duplicateNames（[{name,count}]）、duplicateNameCount、 partNameDetails（[{name,count,possibleDuplicateName[,note]}]）。动机实测：一个 0.0004 mm² 的 sliver body 让 零件数 变成 7 且出现同名重复（D 跷跷板 ReleaseLever 两次）。边界要写清：这是纯粹的名字观察，不做几何结论——两个不同 body 合法地 同名，sliver 也可能继承它被切分自的 body 的名字；逐零件体积、sliver 面积阈值、连通性 报告都未实现，且在没有几何或 REST 通路时无法从 DOM 导出，仍是开放项。",
          "depth": 0
         }
        ]
@@ -11003,9 +11186,19 @@
    "page": "delegation-lookup-cost-verification",
    "category": "verification",
    "path": "onshape_docs/verification/delegation-lookup-cost-2026-09-21.md",
-   "sha256": "96751142b7f24227cc487831b87d6202f8c7ad116be924282859b587dbdfba6a",
+   "sha256": "4eab9eb7e97912c923bcb088954bb88a256d450fc5fd6d00ea8d7d6166657de9",
    "title": "委派方式 × 查资料深度：12 格消耗矩阵（2026-09-21）",
    "sections": [
+    {
+     "level": 1,
+     "title": "委派方式 × 查资料深度：12 格消耗矩阵（2026-09-21）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "> 证据边界（先读）：本页是一次 单任务实验——3 种委派方式 × 4 种查资料深度 > = 12 格，每格 n=1，任务固定为一份「网络地址归一化」小模块规格，且 12 格全部 > 一次通过。它 不是 gateway 与 semantic 的 A/B，也不测量工具暴露模式；因此 > 不得把任何一格或任何均值外推成「哪种暴露模式更省」的排名，也不得当作复杂任务 > 的端到端成本结论。它只回答一个窄问题：把同一个活派出去时，「候选来源的指定深度」 > 与「委派方式」各花多少。所有 token 数字沿用已公开报告 02 的加权口径，是估计而非 > 分词器测量；工具表的字符/估计 token 大小见 docs/roadmap/LOOKUP_DEPTH_RESEARCH.md， > 那是表大小比较，也不是任务成本。"
+      }
+     ]
+    },
     {
      "level": 2,
      "title": "1. 这次要量什么",
@@ -11843,7 +12036,7 @@
    "page": "quick-reference",
    "category": "reference",
    "path": "onshape_docs/reference/quick-reference.md",
-   "sha256": "7d9af5690151830a3d610100503b361dc23e7ca28bd1dc7d98123b4b8696e7ec",
+   "sha256": "008f357d4672d8bba05ef780a412bb2180aecfcaa97ce8cc0e9ce4ea756d988b",
    "title": "FeatureScript quick reference",
    "sections": [
     {
@@ -12008,7 +12201,7 @@
          "depth": 0
         },
         {
-         "text": "Booleans: opBoolean with BooleanOperationType.SUBTRACTION / UNION / INTERSECTION; keepTools controls the tools' fate.",
+         "text": "Booleans: opBoolean with BooleanOperationType.SUBTRACTION / UNION / INTERSECTION; keepTools controls the tools' fate. When the literal definition map passes both \"tools\" and \"targets\", also pass \"targetsAndToolsNeedGrouping\" : true (or omit targets — UNION merges the tool bodies with each other). Omitting it on UNION/INTERSECTION fails at regeneration with @opBoolean: BOOLEAN_BAD_INPUT / \"至少需要两个零件或曲面\"; that server text names the symptom, not the missing field, and is not ours to change. The local checker warns about this shape at WARNING level and never blocks an upload (the vendored index can lag the live server); the targets requirement text shown by fs_get_function opBoolean comes from the generated/vendored index and is not hand-edited.",
          "depth": 0
         },
         {
@@ -12134,6 +12327,10 @@
         {
          "text": "Sketch helpers leave bodies behind — opDeleteBodies the sketch/profile inputs.",
          "depth": 0
+        },
+        {
+         "text": "opBoolean with a literal map that passes both \"tools\" and \"targets\" for UNION/INTERSECTION also needs \"targetsAndToolsNeedGrouping\" : true (see the Booleans entry above); omitting it defers the failure to regeneration.",
+         "depth": 0
         }
        ]
       }
@@ -12148,6 +12345,10 @@
        "items": [
         {
          "text": "fs_search → find the exact name; fs_get_function → exact signature + parameters + examples; fs_get_type → enum values; fs_guide_section → language concepts; fs_library_source → the real std library implementation.",
+         "depth": 0
+        },
+        {
+         "text": "A lookup miss is actionable, not a dead end: an unknown name raises ReferenceMiss whose message names the nearest existing entries and the exact next call, for example `No function named 'opCylinder'. Did you mean 'cylinder'? Related: fCylinder, opPolyline. Call fs_search(query=\"cylinder\") to list all matches. The client receives the same detail as structured error.data` (name, kind, module, suggestions, nextCall). Suggesting a name is a hint about wording only — it does not make the miss a success, and a suggestion is never automatically applied.",
          "depth": 0
         },
         {

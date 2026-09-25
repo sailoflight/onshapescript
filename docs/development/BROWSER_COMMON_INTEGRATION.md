@@ -54,6 +54,17 @@ configured package index; only the shared-library artifact is bundled here.
 - `profileReleased` describes this process's owned-handle release, not an OS
   profile-lock probe. Cross-process ownership and MCP workflow serialization
   remain host/application responsibilities.
+- Attach/detach asymmetry against the pinned wheel: when the facade LAUNCHED the
+  browser, the browser's lifetime is bound to the Playwright connection, and the
+  only release API the wheel exposes calls `context.close()`, which closes the
+  window and can drop the persistent profile's session-cookie login. A truthful
+  `detach` therefore exists only in resident/attached mode (`browser.resident =
+  true`, no injected factory), where `context.close()` detaches Playwright over
+  CDP and leaves the browser, its tabs and its login running. `browser_session
+  action=detach` reports `detached: false`/`supported: false` in the non-resident
+  case and changes nothing; that is a known limitation, not a defect in the call.
+  The persistent profile and `isolated_user_data_dir` are directory choices only;
+  `--guest` semantics are not implemented.
 
 ## Login status refresh correction
 
@@ -125,11 +136,14 @@ The isolated setup used for development changes only ignored project files:
   --target temp/browser-common-site \
   onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl
 env -u LIVE_API_ENABLED PYTHONDONTWRITEBYTECODE=1 \
-  PYTHONPATH=temp/browser-common-site python3 -m unittest \
+  PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest \
   dev.tests.test_browser_common_integration dev.tests.test_browser_mode -v
 env -u LIVE_API_ENABLED PYTHONDONTWRITEBYTECODE=1 \
-  PYTHONPATH=temp/browser-common-site python3 -m unittest discover -s dev/tests -v
+  PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest discover -s dev/tests -v
 ```
+
+This POSIX/WSL isolated setup uses the checkout's `.venv/bin/python`; a native
+Windows host uses `.\.venv\Scripts\python.exe` (or plain `python`) instead.
 
 This is an installed wheel directory, not a shared-source import workaround.
 The tests drive the actual shared owner through a fake native Playwright factory;

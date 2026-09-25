@@ -13,7 +13,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Reviewer | `verification/MATRIX.md`, the target diff, and its module contract | Production instructions and unrelated modules |
 | Field Evaluator | one approved scenario under `evaluation/` | Production operations, credentials, and repository source beyond evidence needs |
 | Production / User (MCP consumer) | `usage/MCP_CONSUMER.md` or the MCP tool schemas | Development, internal architecture, operations, and roadmap |
-| Operator | `operations/MCP_RUNBOOK.md` | Development detail, User prompts, and roadmap |
+| Operator | `operations/MCP_RUNBOOK.md`, `operations/RELEASE.md` | Development detail, User prompts, and roadmap |
 
 ## Read by task
 
@@ -27,6 +27,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Use the MCP server | `usage/MCP_CONSUMER.md` | One tool schema or generated tool entry |
 | Choose how deep a delegated lookup may go, or which delegation route to use | `usage/MCP_CONSUMER.md` (Delegation and lookup depth) | The measured record `../onshape_docs/verification/delegation-lookup-cost-2026-09-21.md` |
 | Deploy, restart, or recover the ordinary MCP or its external adapter | `operations/MCP_RUNBOOK.md` | MCP host state, then the adapter's own runbook |
+| Install, verify, upgrade, roll back, or unregister a consumer Release artifact | `operations/RELEASE.md` | `operations/MCP_RUNBOOK.md`, then `usage/MCP_CONSUMER.md` |
 | Trace the retired project relay/shared-bridge migration | `history/TRACEABILITY.md` | Archived records under `history/legacy/` only |
 | Query FeatureScript, REST, or browser knowledge | `../onshape_docs/README.md` | One indexed section, symbol, endpoint, schema, or evidence record |
 | Check FeatureScript before an upload, or read the local-check verdict | `../onshape_docs/experience/featurescript.md` | The `fs_check_script` tool schema or `onshape_docs/query/fs_check.py` |

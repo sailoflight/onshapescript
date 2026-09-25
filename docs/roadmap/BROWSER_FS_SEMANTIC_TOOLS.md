@@ -6,7 +6,7 @@ This roadmap records the semantic tool surface the browser
 **FS 脚本模式** (FeatureScript script-authoring) workflow needs, based on a
 live read-only browser exploration of a real Feature Studio and its coupled
 Part Studio (2026-08-25). The planned surface is now in the complete registry
-with semantic default exposure as described by `../architecture/OVERVIEW.md`;
+with `gateway` default exposure as described by `../architecture/OVERVIEW.md`;
 this document retains the original rationale, verified selectors, and acceptance
 boundaries.
 

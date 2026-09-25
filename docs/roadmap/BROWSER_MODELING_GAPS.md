@@ -5,7 +5,7 @@ Status: geometry, drawing, and active non-Bambu FDM gaps resolved 2026-08-26; Wi
 This roadmap records the concrete tool capabilities exposed by a real modeling
 round (100mm PU duct -> 12025 fan exhaust adapter, 2026-08-24) and their
 subsequent resolution. Current behavior keeps a complete registry and exposes a
-semantic default view as described by `../architecture/OVERVIEW.md`. Follow the
+`gateway` default view as described by `../architecture/OVERVIEW.md`. Follow the
 optional six-level semantics defined in `DYNAMIC_TOOL_DISCOVERY.md`: L1/L2 are
 generic browser primitives/transactions, L3 is an Onshape interaction, L4 is one
 verified Onshape transaction or observation, L5 is a multi-transaction workflow,

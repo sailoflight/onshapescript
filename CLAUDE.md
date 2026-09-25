@@ -1,6 +1,14 @@
 <!-- agent-project-guides:claude-scope:start -->
 Agent role gate: resolve plane/role/mode from the package-managed routing in `AGENTS.md` before applying this file. Apply these instructions only within the selected role's permitted scope; the selected role guide controls allowed evidence and actions.
 <!-- agent-project-guides:claude-scope:end -->
+## 使用边界：消费方 vs 开发方
+
+本文件是**开发 / 维护**平面的指引。若本部署来自 Release 制品、或本检出仅用于消费
+MCP、或环境里没有 `apg`：不要运行治理命令、不要安装治理包，也不要把本文当作消费
+方指令。消费方（Production / User）改读 `docs/usage/MCP_CONSUMER.md`，运维方
+（Production / Operator）改读 `docs/operations/MCP_RUNBOOK.md`，并以 `initialize`
+返回的运行时策略为准。消费方代码缺陷记为 Issue 交给开发，不得就地修改已部署源码。
+
 # Onshape MCP 开发：API 配额保护与测试优化
 
 > 所有代理先读取根目录 `AGENTS.md`。以下检索顺序是硬约束，不得用模型记忆替代本地证据。

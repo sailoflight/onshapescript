@@ -136,29 +136,124 @@ evidence for document-level mutation isolation.
 ### Browser operations
 
 Browser tools consume zero REST API quota because they drive the Windows browser.
-`browser_session(action="release")` is the cooperative end-of-work cleanup: it
-closes only the browser/context owned by the current MCP process, releases that
-process's persistent-profile ownership, and is idempotent when no browser was
-started. An agent should call it in a `finally`-style cleanup after browser work
-unless continued use of the same browser is intentional. Release may require the
-login state to be refreshed later and cannot close a browser owned by another MCP
-process; profile contention across processes is an Operator/lifecycle failure,
-not authority to delete lock files or kill another owner.
+`browser_session(action="release")` closes only the browser/context owned by the
+current MCP process, releases that process's persistent-profile ownership, and is
+idempotent when no browser was started. **Keep the browser session at the end of a
+task by default.** Release only on an explicit human request, or when resources
+genuinely must be freed: release CLOSES the window and can drop the persistent
+profile's login state, so a later task may pay another human sign-in. It cannot
+close a browser owned by another MCP process; profile contention across processes
+is an Operator/lifecycle failure, not authority to delete lock files or kill
+another owner. Three outcomes are not interchangeable: `release` can lose login
+state; a process crash or a page navigation does not; and
+`browser_session(action="detach")` keeps the window but is supported only in
+resident/attached mode (`browser.resident = true`) — a non-resident session
+returns `detached=false`, `supported=false`, and recommends release, which is a
+known limitation of the pinned `browser_common` wheel rather than a bug in the
+call. `browser_session(action="login")` reports `alreadyAuthenticated` (the
+persistent profile still has a live session) or `needsHumanLogin` (it does not),
+so the caller no longer has to guess from the URL. `browser_session action=status`
+also reports `pageSelection` (`{"considered", "discarded":[{"url","reason"}],
+"selected"}`) from the last `start()`, and the session never adopts a closed
+candidate page: it skips closed pages, advances past an adopt failure, and falls
+back to opening a new page.
+
+| Session ending | Closes the window? | Drops the profile's login? | When to use |
+|---|---|---|---|
+| `browser_session action=release` | Yes | Maybe — it reports `loginStateMayNeedRefresh` and is the only one of the three that can | Only on an explicit human request, or when resources genuinely must be freed |
+| `browser_session action=detach` (resident/attached mode only) | No (`contextClosed: false`, `browserLeftRunning: true`) | No | Hand back MCP ownership while leaving the browser, its tabs and its login alone |
+| Process-level crash / termination | The owned browser goes with the process | No — the persistent profile keeps its login and reopening reuses it | Unexpected; no cleanup action is needed to preserve the login |
+| Page navigation / reload | No | No | Ordinary page recovery; never treat it as a session ending |
+
+The launched browser is a real Edge channel (`channel = "msedge"`) using a
+persistent, checkout-local profile (`user_data_dir`, default
+`user_data/onshape_profile`). It does not reuse the OS Edge primary profile, but
+on a machine whose Windows account is a Microsoft account Edge signs a fresh
+profile in automatically, so the window is not anonymous even though Edge created
+the profile directory; screenshots and every page the agent reads are
+attributable to that account. `browser_session(action="status")` reports
+`profileDir`, `profileBytes`, `profileBytesComplete` (the walk is file-capped, so
+`complete=false` is a lower bound), and `accountMarkerDetected` (a boolean from
+recursive name matches of known Edge account keys; it is Edge-version dependent,
+and `false` means "no marker found", NOT "anonymous" — no account value is ever
+returned). A separate profile directory can be selected with the optional
+`isolated_user_data_dir` key in `onshape_browser_mode/config/browser.toml`; that
+is only a directory choice, and the trade-off is explicit: Onshape login
+persistence is bought with a persistent profile, so a separate directory means a
+fresh or explicitly isolated identity. Guest mode (`--guest`) is deliberately NOT
+implemented. To clear the profile, sign out of the Edge account in that window
+(that does not clear cookies, so the Onshape login survives); deleting the
+directory is the most thorough and costs one manual sign-in.
+
+`browser_export_step` gained `overwrite` and no longer reports a false failure
+when the STEP was already saved. A failure returns a **structured** result
+instead of raising: `exported: false`, `failure: {phase, error}` (phase is one of
+`stage_artifact`|`save_download`|`close_internal_download_pages`|
+`wait_for_dialog_hidden`|`register_manifest`), `stagedArtifacts`
+(`[{path, fileName, bytes, sha256}]`), `stagingComplete`, `alreadyStaged`,
+`browserAliveBefore`, `browserAliveAfter`, and `recovery` (a LIST of candidate
+next actions), plus the existing zero-cost annotations. A failure at phase
+`wait_for_dialog_hidden` with `stagingComplete: true` is NOT a download failure:
+the STEP is on disk with its manifest and is reusable (for example by
+`browser_build_geometry_package`), and a same-`export_id` retry then returns
+`alreadyStaged` success instead of the old "staging destination already exists"
+refusal. Pass `overwrite=true` on a retry to reuse a staging directory a failed
+export left partial; without it a retry refuses rather than overwrite leftovers.
+Reuse is granted on **provenance**, not merely on the artifact being intact: the
+manifest records the document/workspace/element it was exported from, and a call
+naming a different target is refused ("holds a STEP exported from a different
+document/workspace/element") rather than answered with the other document's STEP.
+`overwrite=true` replaces such a staging directory instead. The `dry_run` plan
+reports `stagingProvenanceChecked`/`stagingProvenanceMatches` so it never
+advertises a reuse the real call would refuse; with no target ids it reports the
+artifact-level answer and `stagingProvenanceChecked: false`.
+Pre-flight validation failures (bad tab, URL mismatch, non-STEP download) still
+raise. A complete staging requires manifest + artifact + matching sha256. A
+failure may restart the browser or leave the MCP child holding no browser
+resources; `browser_session action=health` reporting `browser_not_running` with
+`pages: []` means only "this MCP process holds nothing" — it does NOT prove the
+Edge process died.
+
 Read-only observation should come first. `browser_fs_read_notices` opens and
 restores the active FeatureScript notice pane and returns normalized notice rows;
 `browser_get_fs_compile_status` combines those rows with Ace annotations, while
-`browser_get_fs_symbols` reads the Module-outline inventory. FeatureScript
-deployment succeeds only when the Commit state transition, exact source readback,
+`browser_get_fs_symbols` reads the Module-outline inventory. `browser_fs_read_notices`
+demotes stale (`outOfDate`) notices by default: `notices` carries current rows,
+`staleNotices` carries the raw out-of-date rows, and the result also carries
+`staleNoticeCount`, `staleErrorCount`, `staleErrorCountBasis`,
+`currentNoticeCount`, `returnedNoticeCount`, `includeStale`, and per-notice
+`stale` + `bucket` (`stale`/`currentActiveTab`/`currentOtherElement`). Pass
+`includeStale=true` to also return the raw stale rows inside `notices`. A stale
+notice's line number points at a different source version, so never read it as
+current state. FeatureScript deployment succeeds only when the Commit state
+transition, exact source readback,
 and combined compiler evidence verify with no blocking warning/error. Every
 committed deployment attempt also writes a local diagnostic package containing
 the full source and compile result under
 `onshape_browser_mode/outputs/fs_diagnostics/`; the experimental, default-hidden
 `browser_fs_capture_diagnostic` creates the same package on demand. These local
 artifacts can contain proprietary source code and must be protected accordingly.
+`browser_get_partstudio_features` rows carry `errorText` (read from the row's
+`data-bs-original-title` for errored rows in the same pass), and the result
+carries `hasErrorReadAt` plus `maybeStale`, so read `hasError` together with when
+it was read. `browser_deploy_featurescript` activates the Feature Studio tab
+itself when the active tab is a Part Studio, and otherwise returns an explicit
+instruction to call `browser_activate_tab` first. `browser_verify_feature_parameters` backs parameter verification with
+a bounded convergence reader: a read taken while the row is still regenerating is
+NOT reported as a failure — it returns `parametersApplied: null` with
+`retryVerify: true`, `maybeStale: true`, `hasErrorReadAt`, and `settleCondition`
+(one of `cleanFirstRead`|`clearedOnReRead`|`stableError`|`unstableTimeout`, plus
+`settleAttempts`, `settleWaitedMs`, and `settleTimeoutMs`). The part summary keeps
+`partItems` as a list of strings and adds `partCounts` (counts by name, first-seen
+order), `duplicateNames` (`[{name,count}]`), `duplicateNameCount`, and
+`partNameDetails` (`[{name,count,possibleDuplicateName[,note]}]`). The duplicate
+marker is a NAME-based observation only and makes no geometry claim: per-part
+volume, a sliver-area threshold, and a connectivity report are not implemented
+and cannot be derived without a geometry or REST path.
 The 22 transactions promoted from the planned registry
-are in the complete browser registry; ordinary `tools/list` uses semantic
-exposure. FS insertion writes require dry-run and
-confirmation; fold/navigation and app-shell observations are zero-REST UI
+are in the complete browser registry; ordinary `tools/list` uses the default
+`gateway` exposure (see Dynamic tool display). FS insertion writes require dry-run
+and confirmation; fold/navigation and app-shell observations are zero-REST UI
 operations. Drawing auto-view success requires exactly one new tab plus DOM or
 decoded-canvas view evidence. The draft-analysis-based
 `browser_print_orientation_check` and its dependent `browser_print_optimize_part`
@@ -208,9 +303,9 @@ ordinary list. Unclassified tools remain valid and visible by default. Set
 `ONSHAPE_MCP_TOOL_EXPOSURE=static` only for complete-registry compatibility or
 debugging.
 
-##### Compressed entry points (`ONSHAPE_MCP_TOOL_EXPOSURE=gateway`)
+##### Compressed entry points (`gateway`, the default)
 
-For a client whose context budget matters more than a visible list, `gateway`
+`gateway` is the default tool exposure when nothing else selects a mode. It
 advertises a small declarative surface:
 
 1. A discovery core — `mcp_tool_catalog`, `mcp_tool_view`, and `mcp_tool_invoke`.
@@ -249,19 +344,29 @@ IS needed, prefer the cheap path:
    handler's own `confirm_mutation`, dry-run, cost, and acceptance gates are what
    answer; the gateway changes only what is advertised.
 
-Switch it on this host by copying
-`mcp_main/win/mcp/config/tool_views.local.toml.example` to
-`tool_views.local.toml` next to it and setting `mode = "gateway"` (delete the file
-to fall back to `semantic`); `ONSHAPE_MCP_TOOL_EXPOSURE` still wins over the file,
-and restart the MCP process to apply it.
+`gateway` is the built-in fallback: with no explicit argument, no
+`ONSHAPE_MCP_TOOL_EXPOSURE`, and no `tool_views.local.toml`, a connection starts
+in `gateway`. Precedence is an explicit argument, then
+`ONSHAPE_MCP_TOOL_EXPOSURE`, then
+`mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode`, then `gateway`.
+Change it on a host whose launcher owns the child environment by copying
+`tool_views.local.toml.example` to `tool_views.local.toml` and setting `mode`;
+the environment variable still wins over the file, and the MCP process must
+restart to apply it.
 
 Measured (2026-09-21, `dev/tools/context_cost.py`, recorded in
-`onshape_docs/verification/context-cost-surfaces-2026-09-21.json`): the same
-registry renders as 227,459 chars for 111 tools in `static`, 167,441 chars for 77
-tools in `semantic`, and 66,051 chars for 25 tools in `gateway` (3.4x and 2.5x
-smaller; the surface grew deliberately when the prescribed chains were completed
-and the parameter workflow stopped paying a round between its own legs). A client
-that refuses unadvertised names does not need a different mode: `mcp_tool_invoke` is
+`onshape_docs/verification/context-cost-surfaces-2026-09-21.json`): the registry
+of 111 tools renders as 227,459 chars in `static`, 167,441 chars for 77 tools in
+`semantic`, 89,527 chars for 40 tools in `profile=browser`, and 66,051 chars for
+25 tools in `gateway` (3.4x smaller than the registry, 2.5x smaller than
+`semantic`). `dynamic` adds a collapsed cold start of 3 tools
+(`mcp_tool_catalog`, `mcp_tool_view`, `mcp_tool_invoke`) and, once expanded,
+shows `static`/`semantic`/`gateway`/`profile` as 111/77/25/40 tools. These are
+advertised **tool-table sizes** (characters, with a documented token estimate),
+not end-to-end task cost; they are not a mode ranking for complex tasks and must
+not be extrapolated into one (see
+`onshape_docs/verification/delegation-lookup-cost-2026-09-21.md`). A client that
+refuses unadvertised names does not need a different mode: `mcp_tool_invoke` is
 advertised in every mode and forwards one call to any registered tool by exact
 name, with the target's own confirmation, cost and dry-run gates intact.
 
@@ -316,22 +421,53 @@ Three result-shape rules matter when routing a modeling request:
   search and was a routing failure; such a query can still resolve a card.
 - An empty query still browses the registry in ranking order.
 
-#### Dynamic tool display
+#### Dynamic tool display (collapse/expand)
 
 Tool display is a connection-scoped context and routing convention, never an
 authorization boundary. The complete `TOOLS`/`HANDLERS` registry remains loaded;
 a known-name `tools/call` and internal composition remain available when a tool
 is absent from the current `tools/list`, and the eight absorbed compatibility
-names still answer by exact name. Confirmation, quota, browser pacing, cost, and acceptance
-gates remain authoritative.
+names still answer by exact name. Confirmation, quota, browser pacing, cost, and
+acceptance gates remain authoritative.
 
-Deployment modes are explicit:
+`dynamic` is the collapse/expand **control**, orthogonal to which display set is
+shown once expanded. A fresh `dynamic` connection starts **collapsed** and lists
+only the three control/discovery entry points — `mcp_tool_catalog`,
+`mcp_tool_view`, and `mcp_tool_invoke` — with no domain-tool schema resident.
+`mcp_tool_view` drives it:
 
-- `semantic` keeps the current fixed ordinary view and is the compatibility default.
+- `action=status` returns `state` (`"collapsed"`/`"expanded"`), `expandedView`,
+  and `scope` (`"connection"`), alongside its prior keys.
+- `action=expand` opens a display set; `expanded_view` selects
+  `static|semantic|gateway|profile` and defaults to the current set, which on a
+  cold start is `gateway`.
+- `action=collapse` returns to the three entry points; it is explicit, never an
+  implicit side effect.
+- `action=set` is the compatibility alias for `expand`, defaulting to the
+  connection's startup-profile view.
+- `action=reset` returns to a cold start: collapsed, `gateway`, and the
+  connection's original startup profile.
+
+**Scope, stated plainly: view state is CONNECTION-scoped, not
+conversation-scoped.** A stdio server sees a connection and the messages on it,
+not the separate conversations a client may multiplex over that one connection.
+If a client reuses or shares a connection, an `expand` performed for one
+conversation is observed by every conversation on it. Do not claim
+per-conversation isolation.
+
+**Collapse is pure in-memory state.** It writes nothing locally or remotely, it is
+not exiting the browser, and it is not a permission change. Hidden and unknown
+names remain callable by their exact registered name, and every confirmation,
+quota, pacing, and permission gate still answers. Every *effective* change emits
+`notifications/tools/list_changed`; a repeated call that changes nothing emits
+nothing.
+
+The other fixed modes are explicit:
+
 - `static` keeps the complete registry visible.
+- `semantic` selects the bounded ordinary view as a fixed display set.
 - `profile` selects one fixed `ONSHAPE_MCP_TOOL_PROFILE` at connection start.
-- `dynamic` enables per-connection `mcp_tool_view set/reset` and advertises
-  `capabilities.tools.listChanged=true` during initialization.
+- `gateway` is the built-in default view (see above).
 
 Profiles are `default`, `browser`, `rest`, `featurescript`, `documentation`,
 `geometry`, and `all`. An optional `semantic_levels` list narrows classified
@@ -345,19 +481,22 @@ Correct dynamic-client flow:
 
 1. Configure `ONSHAPE_MCP_TOOL_EXPOSURE=dynamic` and an optional startup
    `ONSHAPE_MCP_TOOL_PROFILE`, then restart the MCP process/client adapter.
-2. Check initialize capability `tools.listChanged`. If false, use the fixed view
-   or discovery gateway; do not assume the client can refresh dynamically.
+2. Check initialize capability `tools.listChanged`. If false, use a fixed view or
+   the gateway; do not assume the client can refresh dynamically.
 3. Call `mcp_tool_view` with `action=status` before changing the view.
-4. Call it with `action=set`, a profile, and optional browser semantic levels.
+4. Call `action=expand` with an optional `expanded_view`, `profile`, and browser
+   semantic levels (`action=set` is the legacy alias), or `action=collapse` to
+   return to the control-only list.
 5. After `notifications/tools/list_changed`, issue a fresh `tools/list`; replace
    the client's displayed tool schemas instead of appending to a stale list.
-6. Use `action=reset` to restore that connection's startup profile. Reconnecting
-   also creates a fresh view and does not inherit another connection's state.
+6. Use `action=reset` to return to a cold start (collapsed, `gateway`, startup
+   profile). Reconnecting also creates a fresh view and does not inherit another
+   connection's state.
 
-A repeated set that does not change the effective view emits no notification.
+A repeated change that does not alter the effective view emits no notification.
 Clients that ignore `list_changed` should reconnect, refresh manually, or stay in
-`semantic`/`profile` mode. Never interpret a missing displayed tool as denied or
-a displayed tool as authorized.
+a fixed mode. Never interpret a missing displayed tool as denied or a displayed
+tool as authorized.
 
 ### Live REST reads/evaluation/rendering
 
@@ -418,6 +557,12 @@ timeout or 5xx merely to see whether it worked.
 2. fs_get_function(name=<exact matched name>)
 ```
 
+`fs_get_function` bounds each description by default and marks a truncated entry
+with `descriptionTruncated`; pass `full=true` when you need the verbatim prose (a
+heavily overloaded name otherwise repeats the same multi-thousand-character text
+once per signature). `fs_search` always returns its normal list — an empty query
+result is an empty list, not an error.
+
 ### Prepare a guarded write
 
 ```text
@@ -432,6 +577,7 @@ timeout or 5xx merely to see whether it worked.
 ## Errors
 
 - Schema/argument errors: correct the call from the exact tool schema; do not guess repeatedly.
+- A FeatureScript lookup miss (`fs_get_function`/`fs_get_type` on an unknown name, or a cross-module clash without a `module`) is a routing gap, not a wall: the error names up to three nearest existing entries and the exact next call ("Did you mean ...? Related: .... Call fs_search(query=...) to list all matches."), and the same detail arrives as structured `error.data` (`suggestions` = `[{name,module,kind}]` and `nextCall`). Treat a suggestion as a wording hint, never as a resolved name, and do not re-send the same missed name.
 - Live disabled: use offline alternatives or obtain explicit deployment authorization; do not try to bypass the gate.
 - Quota shortfall/rate limit: stop and preserve the returned budget/retry evidence.
 - Missing credentials/session: route to the Operator; a User prompt cannot create those authorities.

@@ -8,10 +8,13 @@ prompt.
 ## Generate and verify
 
 ```bash
-python3 mcp_main/dsh/build_runtime_prompt_companion.py
-python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
-python3 -m unittest dev.tests.test_runtime_prompt -v
+python mcp_main/dsh/build_runtime_prompt_companion.py
+python mcp_main/dsh/build_runtime_prompt_companion.py --check
+python -m unittest dev.tests.test_runtime_prompt -v
 ```
+
+(`python3` is the POSIX alias; on a native Windows host use `python` or the
+checkout's `.\.venv\Scripts\python.exe`.)
 
 Never edit the generated JavaScript. The ordinary MCP and DSH companion must be
 deployed from the same checkout so their prompt revision cannot drift.

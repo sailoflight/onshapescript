@@ -5,6 +5,22 @@ Project ID: `onshapescript`; variant: `shared-runtime.pinned`; pinned release: `
 
 Before work, run `apg context --target . --task <current-task> --format context` and use only the returned governance content. Resolve any ambiguity before protected work. The shared CLI and exact packed digest are runtime dependencies; missing content fails explicitly and never falls back to `latest`. Returned sources are intended context and do not prove model-effective context.
 <!-- agent-project-guides:v3:end -->
+## Consumer / development plane gate
+
+- **Consumer/operator deployment** (installed from a Release artifact, or this
+  checkout is used only to consume the MCP), or any environment where `apg` is not
+  available: do NOT run `apg context`, do NOT fetch or install the governance
+  package, and do NOT treat the development governance material as a consumer
+  instruction. Route to the runtime policy returned by `initialize`,
+  `docs/usage/MCP_CONSUMER.md` (Production / User), and
+  `docs/operations/MCP_RUNBOOK.md` (Production / Operator).
+- **Development/maintenance/review/release plane** with `apg` available: the
+  pinned-dependency rule above applies unchanged (fixed release plus digest;
+  missing content fails explicitly; never fall back to `latest`).
+
+A consumer-side code defect is an Issue for development; never fix it by editing
+the deployed source in place.
+
 # Repository agent instructions
 
 ## Project scope and routes

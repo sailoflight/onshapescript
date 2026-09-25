@@ -40,6 +40,7 @@ Status: verified
 - Experience documents contain reusable verified conclusions; verification contains evidence; reference contains upstream material.
 - Source conflicts must retain version/date scope and cannot be silently merged.
 - Fetching a source and building its index are separate operations; tests and development verification remain offline.
+- A `fs_get_function`/`fs_get_type` miss raises `ReferenceMiss` (a `ValueError` subclass) whose MCP error object adds `data.suggestions` (`[{name,module,kind}]`) and `data.nextCall` (a copy-pasteable `fs_search` call); `fs_search` itself still returns its normal list, and an empty query result is an empty list, not an error.
 
 ## Dependencies
 
@@ -60,10 +61,10 @@ Status: verified
 
 | Change | Required verification |
 |---|---|
-| Indexed authored project docs | `python3 onshape_docs/scripts/build_docs_index.py` then `python3 onshape_docs/verification/verify_docs.py` |
-| Project-doc query or ownership | `python3 -m unittest dev.tests.test_project_layout dev.tests.test_mcp_server -v` |
-| FeatureScript checker/index code | Matching tests plus `python3 -m py_compile onshape_docs/query/*.py onshape_docs/scripts/*.py` |
-| Generated tool reference | `python3 onshape_docs/scripts/build_tool_reference.py --check` |
+| Indexed authored project docs | `python onshape_docs/scripts/build_docs_index.py` then `python onshape_docs/verification/verify_docs.py` |
+| Project-doc query or ownership | `python -m unittest dev.tests.test_project_layout dev.tests.test_mcp_server -v` |
+| FeatureScript checker/index code | Matching tests plus `python -m py_compile onshape_docs/query/*.py onshape_docs/scripts/*.py` |
+| Generated tool reference | `python onshape_docs/scripts/build_tool_reference.py --check` |
 | Raw/upstream reference refresh | Use the documented fetch/build workflow; do not enable live REST during regression testing |
 
 ## Documentation triggers

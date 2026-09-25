@@ -12,12 +12,12 @@
 ## Core commands
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s dev/tests -v
-PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
-PYTHONDONTWRITEBYTECODE=1 python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
-python3 onshape_docs/scripts/build_docs_index.py
-python3 onshape_docs/verification/verify_docs.py
-python3 onshape_docs/scripts/build_tool_reference.py --check
+PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s dev/tests -v
+PYTHONDONTWRITEBYTECODE=1 python -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
+PYTHONDONTWRITEBYTECODE=1 python mcp_main/dsh/build_runtime_prompt_companion.py --check
+python onshape_docs/scripts/build_docs_index.py
+python onshape_docs/verification/verify_docs.py
+python onshape_docs/scripts/build_tool_reference.py --check
 ```
 
 ## Change matrix
@@ -34,28 +34,30 @@ python3 onshape_docs/scripts/build_tool_reference.py --check
 | FS diagnostic loop (notice read, code normalization, capture) | `test_fs_diagnostics` + `test_fs_notice_collector` (node stub-DOM probe) | read-only notice-pane probe on the target host |
 | REST/budget/operations | quota guards | explicitly budgeted live fact only |
 | REST Feature List CRUD (add/update/delete/rollback/suppress/read) | `test_rest_feature_list` (spec-path agreement, spec-derived response parsing, `request.json` drift gate against the ids each fixture records, `LiveReplayTest` replaying the four server-confirmed bodies plus the recorded Feature List read, `LiveReplayTest` also covers `addPartStudioFeature`, and `RefusalShapeTest` pins the recorded 404 envelope and that an error body cannot parse as a success) | confirmed live 2026-09-19 (successes) and 2026-09-20 (read probe + one refusal); a re-confirmation is a separately authorized, budgeted fact |
-| FeatureScript source | `onshape_docs/query/fs_check.py` + `test_static_guards`, the `fs_check_script` protocol test, and the corpus gate | authorized upload/live compile only |
+| FeatureScript source | `onshape_docs/query/fs_check.py` + `test_static_guards` (incl. the WARNING-level `opBoolean` `targetsAndToolsNeedGrouping` rule and its vendored-library false-positive gate), the `fs_check_script` protocol test, and the corpus gate | authorized upload/live compile only |
+| FeatureScript reference miss | `test_reference_miss` + `test_fs_reference_suggestions` (a miss raises `ReferenceMiss` with `suggestions`/`nextCall` in `error.data`; `fs_search` still returns its normal list) | nothing; `fs_search`/module disambiguation remains the recovery |
+| Windows/consumer portability | `test_probe_portability` (portable bounded pipe reader, `sys.executable`, `failureClass` classification) + `test_consumer_release` (whitelist/denylist invariants) | target-host probe on the deployment host |
 | Local-check warn-then-confirm rule | `test_local_check_gate` (one argument name and one rule across the browser legs, the REST upload and the pipeline; warnings never ask) + the gate cases in `test_browser_mode` and `test_quota_guards` | nothing; a finding never blocks the write |
 | FS validation boundary and checker locality | `test_fs_validation_strategy` (no network/process/third-party import in the checker or the diagnostic normalizer, survey links and non-adoption recorded, offline backlog separated from machine work) | nothing; the survey is search-level evidence, and a reused analyzer stays a detected candidate |
 | Whole-feature capability contract | `test_capabilities` (bounded values, no implementation in a card, symbol gate against the vendored reference, local checker, precedent equality) | dry-run, then deploy/apply/acceptance on the target host |
 | Capability discovery/retrieval (P4) | `test_capability_retrieval` (card-vs-reference cost, prose-query resolution, no dependency expansion, discovery wiring without widening exposure) + `dev/tools/context_cost.py` (three-route size benchmark with a documented token *estimate*; raw output in `onshape_docs/verification/context-cost-2026-09-19.json`) | a real tokenizer measurement; the only in-the-loop data point is the P6 live capability run |
-| Tool surface (audit verdicts, merges, display views) | `test_tool_surface_audit` + `test_dynamic_tool_views` + `test_tool_catalog` (every row classified; no `Merge`/`Remove` left open; each absorbed name registered, default-hidden, reachable by exact name and still gated) | generated-reference and runtime-prompt `--check` |
+| Tool surface (audit verdicts, merges, display views) | `test_tool_surface_audit` + `test_dynamic_tool_views` + `test_tool_gateway_view` + `test_tool_catalog` (every row classified; no `Merge`/`Remove` left open; each absorbed name registered, default-hidden, reachable by exact name and still gated; `gateway` is the code fallback and `dynamic` collapses/expands it) | generated-reference and runtime-prompt `--check` |
 | Generated references/indexes | builder and verifier `--check` | none by default |
 | Secret/redaction/fixtures | static scan + fixture inspection | never validate using real secret output |
 
 ## Targeted commands
 
 ```bash
-python3 -m unittest dev.tests.test_mcp_server dev.tests.test_runtime_prompt \
+python -m unittest dev.tests.test_mcp_server dev.tests.test_runtime_prompt \
   dev.tests.test_project_layout dev.tests.test_mcp_probe_policy -v
-python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
-python3 -m unittest dev.tests.test_quota_guards -v
-python3 -m unittest dev.tests.test_browser_mode -v
-python3 -m unittest dev.tests.test_browser_plan_completion dev.tests.test_local_check_gate -v
-python3 -m unittest dev.tests.test_tool_surface_audit dev.tests.test_dynamic_tool_views \
+python mcp_main/dsh/build_runtime_prompt_companion.py --check
+python -m unittest dev.tests.test_quota_guards -v
+python -m unittest dev.tests.test_browser_mode -v
+python -m unittest dev.tests.test_browser_plan_completion dev.tests.test_local_check_gate -v
+python -m unittest dev.tests.test_tool_surface_audit dev.tests.test_dynamic_tool_views \
   dev.tests.test_tool_catalog dev.tests.test_tool_reference -v
-python3 -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
-python3 -m unittest dev.tests.test_rest_feature_list dev.tests.test_capabilities \
+python -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
+python -m unittest dev.tests.test_rest_feature_list dev.tests.test_capabilities \
   dev.tests.test_capability_retrieval dev.tests.test_fs_validation_strategy -v
 ```
 

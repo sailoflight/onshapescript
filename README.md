@@ -47,8 +47,11 @@ Run the ordinary stdio MCP on the host that owns the configured browser/profile
 and local REST state:
 
 ```bash
-python3 -m mcp_main.win.mcp
+python -m mcp_main.win.mcp
 ```
+
+(`python3` is the POSIX alias; a native Windows host uses `python` or the
+checkout's `.\.venv\Scripts\python.exe`. See `docs/development/START.md`.)
 
 A cross-host client registers that command with an independently installed
 `win-wsl-mcp-bridge` under id `onshape`, then invokes
@@ -91,9 +94,9 @@ calling constraints are in the MCP User document.
 Run offline with `LIVE_API_ENABLED` unset:
 
 ```bash
-python3 -m unittest discover -s dev/tests -v
-python3 -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
-python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
+python -m unittest discover -s dev/tests -v
+python -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py
+python mcp_main/dsh/build_runtime_prompt_companion.py --check
 ```
 
 The complete change-to-check mapping is `docs/verification/MATRIX.md`.
@@ -101,15 +104,15 @@ The complete change-to-check mapping is `docs/verification/MATRIX.md`.
 After changing indexed public documentation:
 
 ```bash
-python3 onshape_docs/scripts/build_docs_index.py
-python3 onshape_docs/verification/verify_docs.py
+python onshape_docs/scripts/build_docs_index.py
+python onshape_docs/verification/verify_docs.py
 ```
 
 After changing registered tool schemas or handlers:
 
 ```bash
-python3 onshape_docs/scripts/build_tool_reference.py
-python3 onshape_docs/scripts/build_tool_reference.py --check
+python onshape_docs/scripts/build_tool_reference.py
+python onshape_docs/scripts/build_tool_reference.py --check
 ```
 
 ## Example

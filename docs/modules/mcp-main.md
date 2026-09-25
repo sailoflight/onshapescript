@@ -38,6 +38,7 @@ Status: verified
 
 - Tool names are unique and each externally callable schema has a handler.
 - Known-name dispatch authority and safety gates do not change with tool views.
+- Tool exposure defaults to `gateway`; `dynamic` is the collapse/expand control and its state is CONNECTION-scoped, not conversation-scoped. Collapse is in-memory context routing: it writes nothing and revokes nothing, and a hidden known name stays callable by exact name.
 - Every tool exposes a machine-readable `cost.concurrency` contract. It is a
   conservative scheduling/risk classification and explicitly provides no
   multi-call workflow isolation or permission.
@@ -51,17 +52,28 @@ Status: verified
   `mcp_main/bridge` runtime tree. Reintroducing them is an architecture change.
 - An external bridge may launch the ordinary command, but its command registry,
   listener ports, process lifecycle, and peer metadata remain external contracts.
+- `dev/tools/mcp_probe.py` is portable and fails observably: it spawns the child
+  with `sys.executable` (never a hard-coded `python3`), reads stdio through a
+  bounded daemon-thread reader (Windows pipes do not support `select`), and on
+  failure prints one human line `FAIL [<class>]: <message>` (an unexpected
+  probe-side exception keeps `FAIL (unexpected):`) plus one machine-readable JSON
+  line `{"probe": "onshape-mcp-stdio", "result": "fail", "failureClass": ...,
+  "message": ...}`. `failureClass` is `launcher` (child could not start or exited
+  before the handshake), `dependency` (missing Python import),
+  `protocol` (broken stdio JSON-RPC), or `internal` (unexpected probe exception).
+  A missing launcher/interpreter is `launcher` and must never be read as "MCP
+  unavailable".
 
 ## Verification
 
 Run with `LIVE_API_ENABLED` unset:
 
 ```bash
-python3 -m unittest dev.tests.test_mcp_server dev.tests.test_runtime_prompt \
+python -m unittest dev.tests.test_mcp_server dev.tests.test_runtime_prompt \
   dev.tests.test_tool_catalog dev.tests.test_project_layout \
   dev.tests.test_mcp_probe_policy -v
-python3 mcp_main/dsh/build_runtime_prompt_companion.py --check
-python3 dev/tools/mcp_probe.py
+python mcp_main/dsh/build_runtime_prompt_companion.py --check
+python dev/tools/mcp_probe.py
 ```
 
 Current client compatibility is `../verification/MCP_CLIENT_COMPATIBILITY.md`.

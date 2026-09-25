@@ -1,9 +1,10 @@
 # MCP client compatibility matrix
 
 Status: repository delivery paths verified; external DSH model evidence is versioned below
-Evidence updated: 2026-08-25T01:28:39Z
-Current canonical source revision: `1.3.0/production-roles-v5`
+Evidence updated: 2026-09-25
+Current canonical source revision: `1.3.0/production-roles-v8`
 Last external-cwd DSH evidence revision: `1.3.0/production-roles-v1`
+Deployed-generation observation: `1.3.0/production-roles-v5` (2026-09-25, client session)
 
 ## Compatibility contract
 
@@ -20,7 +21,7 @@ authority is `mcp_main/win/mcp/runtime_prompt.py`; clients either consume
 |---|---|---|---|
 | Raw stdio MCP client -> `python3 -m mcp_main.win.mcp` | Native `initialize.instructions` | `dev.tests.test_mcp_server` compares the response with `RUNTIME_PROMPT` and its revision | Verified |
 | Independently installed cross-host adapter | Byte-transparent native instructions | Adapter project's protocol/lifecycle suite plus target-host ordinary MCP probe | External deployment evidence; not owned by this repository |
-| DSH `@deepseek-ai/dsh-mcp-client` 0.1.0-rc.8 | Generated companion system-prompt section | `dev.tests.test_runtime_prompt` loads the current generated plugin; isolated headless DSH from an external cwd previously returned revision `production-roles-v1` and both production roles before any tool/file call | Delivery mechanism verified; repeat the external-cwd check after deploying the current v5 generation |
+| DSH `@deepseek-ai/dsh-mcp-client` 0.1.0-rc.8 | Generated companion system-prompt section | `dev.tests.test_runtime_prompt` loads the current generated plugin; isolated headless DSH from an external cwd previously returned revision `production-roles-v1` and both production roles before any tool/file call | Delivery mechanism verified; repeat the external-cwd check after deploying the current v8 generation |
 
 ## DSH external-cwd evidence
 
@@ -45,8 +46,18 @@ Observed output at 2026-08-25T01:28:39Z:
 This historical value is absent from tool descriptions and the external cwd, so
 the result is direct model-visible companion evidence rather than a tools-list
 inference. It proves the delivery mechanism at v1, not that a particular
-production profile has installed the current v5 companion; that remains an
+production profile has installed the current v8 companion; that remains an
 Operator deployment check.
+
+The revision string is the check that catches drift, because the companion is
+generated and must be deployed with the same server revision. As of 2026-09-25 a
+client session against the deployed Windows copy still reported
+`production-roles-v5` while the repository canonical source is
+`production-roles-v8`: the deployment lags the checkout. A refresh that fixes
+that is an Operator action (it restarts the server and closes the browser), and
+it must preserve the copy's local `browser-state.json`, `browser.local.toml`, and
+persistent browser profile. Do not describe a deployment as current until its
+companion reports the same revision as `mcp_main/win/mcp/runtime_prompt.py`.
 
 ## Install and lifecycle rules
 

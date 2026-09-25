@@ -228,8 +228,21 @@ tool rather than adding another tool name:
   context close, Playwright stop, profile release, fallback method, and warnings.
   An unverified close keeps retryable handles and reports `release_failed` rather
   than converting a failed first attempt into a false already-released result.
-- Browser-using agents perform release in finally-style cleanup when their work
-  ends, unless continued use of the same browser is explicitly intended.
+- Browser-using agents historically perform release in finally-style cleanup when
+  their work ends. **The current default (2026-09-25) is the opposite: keep the
+  session at task end and release only on an explicit human request or when
+  resources genuinely must be freed**, because `release` closes the window and can
+  drop the persistent profile's login state. See `docs/usage/MCP_CONSUMER.md` and
+  the release-vs-detach-vs-crash comparison in `docs/operations/MCP_RUNBOOK.md`.
+- `action="detach"` (added 2026-09-25) is the non-destructive sibling: it
+  relinquishes MCP ownership while keeping the browser, its tabs, and its login
+  (`detached: true`, `contextClosed: false`, `browserLeftRunning: true`). It is
+  supported only in resident/attached mode (`browser.resident = true`); a
+  non-resident session returns `detached=false`/`supported=false` and recommends
+  release, because the pinned `browser_common` wheel binds a launched browser's
+  lifetime to the Playwright connection. A process crash or a page navigation
+  does **not** drop the profile's login state, unlike an explicit release. Treat a
+  non-resident detach refusal as a capability report, not a bug.
 - A process cannot release another process's browser owner. Profile contention
   therefore fails with actionable ownership guidance instead of deleting lock
   files or terminating an unrelated process.

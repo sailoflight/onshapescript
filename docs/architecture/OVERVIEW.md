@@ -5,8 +5,10 @@
 This repository implements an MCP server for offline Onshape FeatureScript and
 REST documentation lookup, guarded REST validation, and Windows-hosted browser
 automation. The complete registered tool/handler surface is static, while
-`tools/list` supports fixed semantic/static/profile views and an opt-in dynamic
-per-connection view. A one-build `mcp_tool_catalog` index covers the complete
+`tools/list` defaults to the fixed `gateway` view, supports
+`semantic`/`static`/`profile`, and exposes `dynamic` as a collapse/expand control
+over the same display sets.
+A one-build `mcp_tool_catalog` index covers the complete
 registry independent of the current view; bounded search returns summaries and
 exact describe is the only on-demand full-schema path. A fixed browser
 discovery gateway reveals default-hidden L1/L3 tools on explicit level queries and
@@ -134,9 +136,10 @@ Rules:
 ## Current tool surface
 
 The registered tool schemas and handlers in `mcp_main` are authoritative. The
-derived summary is `../generated/TOOL_REFERENCE.md`; semantic, static, fixed
-profile, and per-connection dynamic views are implemented as context-routing
-conventions and do not change known-name dispatch authority.
+derived summary is `../generated/TOOL_REFERENCE.md`; `gateway` (the code default),
+`semantic`, `static`, fixed profile, and the `dynamic` collapse/expand control are
+implemented as context-routing conventions and do not change known-name dispatch
+authority. The view state is connection-scoped, not conversation-scoped.
 
 ## Decisions and history
 

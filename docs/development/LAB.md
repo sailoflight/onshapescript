@@ -35,7 +35,7 @@ scripts, and fixtures run only when explicitly invoked.
 Run the complete offline suite from the repository root:
 
 ```bash
-python3 -m unittest discover -s dev/tests -v
+python -m unittest discover -s dev/tests -v
 ```
 
 Select narrower commands through `../verification/MATRIX.md` when changing one

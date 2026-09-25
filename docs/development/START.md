@@ -6,7 +6,12 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 ## Platform boundary
 
 - Python 3 is required for the ordinary MCP, offline indexes, tests, and tools.
-- Run `python3 -m mcp_main.win.mcp` on the host that owns configured browser and
+- Command spelling: `python3` is the POSIX/WSL/Linux alias. A native Windows host
+  has no `python3`; use `python` or the checkout's
+  `.\.venv\Scripts\python.exe` (the form `../operations/MCP_RUNBOOK.md` uses).
+  Commands below use `python` so they run on either host; substitute `python3`
+  only on a POSIX host.
+- Run `python -m mcp_main.win.mcp` on the host that owns configured browser and
   local REST state.
 - Install Windows browser dependencies from
   `onshape_browser_mode/requirements-windows.txt`; use the machine's existing
@@ -19,21 +24,21 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 
 | Purpose | Entrypoint | Boundary |
 |---|---|---|
-| Ordinary stdio MCP | `python3 -m mcp_main.win.mcp` | complete protocol/tool body |
-| Offline stdio probe | `python3 dev/tools/mcp_probe.py` | initialize/list/status only |
-| Offline tests | `python3 -m unittest discover -s dev/tests -v` | no live REST/cloud mutation |
-| Syntax | `python3 -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py` | offline |
-| Docs index | `python3 onshape_docs/scripts/build_docs_index.py` | rebuild after indexed docs change |
-| Docs verification | `python3 onshape_docs/verification/verify_docs.py` | offline |
-| FeatureScript local guard | `python3 onshape_docs/scripts/fs_local_check.py <path>` | zero API calls |
-| Tool reference | `python3 onshape_docs/scripts/build_tool_reference.py --check` | derived schema check |
-| DSH companion | `python3 mcp_main/dsh/build_runtime_prompt_companion.py --check` | generated policy adapter |
+| Ordinary stdio MCP | `python -m mcp_main.win.mcp` | complete protocol/tool body |
+| Offline stdio probe | `python dev/tools/mcp_probe.py` | initialize/list/status only |
+| Offline tests | `python -m unittest discover -s dev/tests -v` | no live REST/cloud mutation |
+| Syntax | `python -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py` | offline |
+| Docs index | `python onshape_docs/scripts/build_docs_index.py` | rebuild after indexed docs change |
+| Docs verification | `python onshape_docs/verification/verify_docs.py` | offline |
+| FeatureScript local guard | `python onshape_docs/scripts/fs_local_check.py <path>` | zero API calls |
+| Tool reference | `python onshape_docs/scripts/build_tool_reference.py --check` | derived schema check |
+| DSH companion | `python mcp_main/dsh/build_runtime_prompt_companion.py --check` | generated policy adapter |
 
 There is no root packaging manifest. Python modules, domain-owned dependency
 files, and current module contracts are executable sources of truth.
 
 Browser resource tests use the bundled pure Python wheel (Python >=3.11).
-Install it into the development environment with `python3 -m pip install
+Install it into the development environment with `python -m pip install
 --no-index --no-deps onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl`
 before running the full suite. This offline fake-test setup does not install
 Playwright or a browser. Package provenance, isolated test commands, compatibility

@@ -47,12 +47,13 @@ Project control plane (one or more L6 nodes)
 
 - A lower layer never calls a higher layer; same-level composition is allowed when it remains inside the same public contract and is acyclic.
 - Semantic levels are optional discovery metadata, not registration, execution, or permission gates.
-- Default semantic exposure omits L1/L3; `browser_discover_tools` with an explicit `semantic_levels` filter reveals exact schemas, and a candidate is then called by its exact registered name, which still passes through its original handler gates. `ONSHAPE_MCP_TOOL_EXPOSURE=static` retains complete-list compatibility. Ordinary ranking is L5 workflow, L4 verified transaction/observation, L2 generic browser transaction, then L6 deliverable recipe.
+- Default browser discovery omits L1/L3; `browser_discover_tools` with an explicit `semantic_levels` filter reveals exact schemas, and a candidate is then called by its exact registered name, which still passes through its original handler gates. Ordinary ranking is L5 workflow, L4 verified transaction/observation, L2 generic browser transaction, then L6 deliverable recipe.
 - A query that names a CAD feature also carries the matching whole-feature capability cards in the same result (`capabilities`), built by `onshape_browser_mode/capabilities.py`. Cards are contracts, not implementations: adding one adds no tool and widens no exposure level.
-- `ONSHAPE_MCP_TOOL_EXPOSURE=profile|dynamic` adds fixed or per-connection views. Dynamic `mcp_tool_view` changes only `tools/list`, emits `notifications/tools/list_changed`, and never blocks a known-name handler call; it is a context convention, not authority.
+- Tool exposure defaults to `gateway` (25 advertised tools). `static`, `semantic`, and `profile` are fixed views; `dynamic` is the collapse/expand control (a cold start is collapsed on the three control/discovery entry points and `expand` opens `gateway` by default). `mcp_tool_view` changes only `tools/list`, emits `notifications/tools/list_changed` when the effective view changes, and never blocks a known-name handler call; it is a context convention, not authority. The view state is CONNECTION-scoped, not conversation-scoped.
 - Selectors and frame/locator resolution do not appear as duplicated literals in high-level tools.
-- The Windows process owns Playwright, Edge, the persistent profile, and logged-in session.
-- `browser_session(action="release")` is idempotent cooperative cleanup for the current process only; it never starts a browser, never releases another process's owner, and may require login state to be refreshed later.
+- The Windows process owns Playwright, Edge, the persistent profile, and logged-in session. The browser is a real Edge channel (`channel = "msedge"`) with a persistent, checkout-local profile (`user_data_dir`); it does not reuse the OS Edge primary profile, but a Microsoft-account machine signs a fresh profile in automatically, so the window is not anonymous. `isolated_user_data_dir` selects a separate profile directory (a directory choice only; `--guest` is not implemented).
+- A browser session is kept at the end of a task by default. `browser_session(action="release")` is idempotent cooperative cleanup for the current process only and CLOSES the window, so it can drop the persistent login state; `browser_session(action="detach")` keeps the window but is supported only in resident/attached mode and reports `detached=false`/`supported=false` otherwise. Neither releases another process's owner.
+- `browser_session action=status` reports the last `pageSelection` (`considered`/`discarded` with reason `closed` or `browserInternal`/`selected`), plus `verdict`/`recommendedAction`/`verdictNote`. `start()` never adopts a closed page: it skips closed pages, advances past an adopt failure, and falls back to a new page; when no page is usable the error recommends `browser_session action=login`, and `action=login` itself reports `alreadyAuthenticated` or `needsHumanLogin`.
 - A persistent browser profile has one process owner; client reconnect does not own session teardown.
 - Clients sharing that backend also share its login state, current page, active Studio, dialogs, and in-memory browser state. Request serialization does not isolate a multi-call workflow, so every tool requiring the browser session is classified `exclusive_workflow/browser_profile`.
 - Until scoped document leases are accepted end to end, only one agent may perform a modifying Onshape workflow; other clients are limited to registry-classified safe reads.
@@ -64,7 +65,16 @@ Project control plane (one or more L6 nodes)
 - `browser_export_step` owns the UI/download half of canonical STEP acquisition:
   it uses live-observed export-dialog selectors, matches the active Part Studio URL
   to explicit IDs, saves a single AP242 millimeter STEP in browser staging, and
-  persists SHA/provenance. `onshape_geometry_status` reports every configured
+  persists SHA/provenance. A staging failure after the save/download tail is
+  reported as a STRUCTURED result (`exported: false`, `failure:{phase,error}`,
+  `stagedArtifacts`, `stagingComplete`, `alreadyStaged`, `browserAliveBefore/After`,
+  and a LIST `recovery`) rather than raised; the tab/URL/dialog-config and
+  non-STEP pre-flight failures still raise. A failure at `wait_for_dialog_hidden`
+  with `stagingComplete: true` is not a download failure — the STEP and its
+  manifest are on disk and reusable, and a same-`export_id` retry returns
+  `alreadyStaged` success. `overwrite=true` lets a retry reuse a partial staging
+  directory; a complete staging requires manifest + artifact + matching sha256.
+  `onshape_geometry_status` reports every configured
   backend in one answer and, per backend, first checks explicit config and then
   bounded sibling/global/Windows-WSL reusable dependencies.
   `onshape_configure_geometry_backend` accepts only a re-discovered opaque
@@ -109,11 +119,11 @@ Project control plane (one or more L6 nodes)
 
 | Change | Required verification |
 |---|---|
-| Session, page object, selector, settings | `python3 -m unittest dev.tests.test_browser_mode dev.tests.test_browser_common_integration -v` (install the bundled wheel first; no Playwright/browser needed for fakes) |
-| Tool schema, dry-run, semantic workflow, project/checkpoint | `python3 -m unittest dev.tests.test_browser_plan_completion dev.tests.test_mcp_server -v` |
-| Configuration/path ownership | `python3 -m unittest dev.tests.test_project_layout -v` |
+| Session, page object, selector, settings | `python -m unittest dev.tests.test_browser_mode dev.tests.test_browser_common_integration -v` (install the bundled wheel first; no Playwright/browser needed for fakes) |
+| Tool schema, dry-run, semantic workflow, project/checkpoint | `python -m unittest dev.tests.test_browser_plan_completion dev.tests.test_mcp_server -v` |
+| Configuration/path ownership | `python -m unittest dev.tests.test_project_layout -v` |
 | Host/external-adapter integration | Ordinary stdio tests first; use the Operator runbook and the adapter's own acceptance suite for an authorized smoke test |
-| Any Python change | Matching tests plus `python3 -m py_compile onshape_browser_mode/*.py mcp_main/win/mcp/browser_tools.py` |
+| Any Python change | Matching tests plus `python -m py_compile onshape_browser_mode/*.py mcp_main/win/mcp/browser_tools.py` |
 
 Offline regression does not start a real browser, edit a cloud document, or enable `LIVE_API_ENABLED`.
 
@@ -123,9 +133,9 @@ Offline regression does not start a real browser, edit a cloud document, or enab
 - Public browser tool schema or side effects update the MCP User contract and generated tool reference.
 - Session/process/deployment changes update architecture and the Operator runbook.
 - New L2/L3/L4 semantics update this contract when ownership or invariants change.
-- Unimplemented dynamic exposure and native-modeling plans remain roadmap content.
+- Native-modeling plans remain roadmap content; dynamic tool exposure is implemented and owned by `mcp_main`.
 
 ## Unknowns
 
 - A selector or workflow not covered by committed fixture/mock evidence remains unverified until a read-only inspection or explicitly authorized browser evaluation provides evidence.
-- Future dynamic tool exposure compatibility remains outside the current browser contract.
+- Dynamic exposure is implemented for `semantic`/`static`/`profile`/`dynamic`/`gateway`; a client that cannot refresh `tools/list` should use a fixed view.

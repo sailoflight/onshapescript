@@ -9,6 +9,19 @@
 > `dev/tests/test_lookup_depth.py`; every number below is reproducible offline at
 > zero Onshape REST quota.
 
+> **What the numbers do and do not claim.** §2–§4 measure the **advertised
+> tool-table size** (characters, converted with the documented 4-chars/token
+> estimate) and price it with a *simplified* session model. "`gateway` is 2.5×
+> cheaper" therefore means the advertised table is 2.5× smaller at one step —
+> **not** that a real task costs 2.5× less. The model prices each extra lookup
+> round at a fixed step and does not model the cumulative cost of the added
+> history or the effect on task success, so the ~27-lookup inflection in §4/F4 is
+> an illustrative output of that model, not a deployment threshold. The
+> default-gateway product decision is separate from these unproven complex-task
+> economics. The one delegation experiment is a single-task record
+> (`onshape_docs/verification/delegation-lookup-cost-2026-09-21.md`) and must not
+> be extrapolated into a mode ranking either.
+
 ## 1. Why "one more round" is the expensive thing
 
 A round trip does not cost an answer — it costs **the whole prefix**: the model
@@ -37,7 +50,7 @@ deployment host, so nothing here claims a tokenizer measurement.
 |---|---|---|---|
 | `gateway` (as shipped) | 25 | 63,467 | 15,866 |
 | `profile=browser` | 40 | 89,527 | 22,381 |
-| `semantic` (default) | 77 | 159,707 | 39,926 |
+| `semantic` | 77 | 159,707 | 39,926 |
 | `static` (registry) | 111 | 216,291 | 54,072 |
 
 Compressing `gateway` instead of `semantic` buys a **24,060 token/step budget**;
@@ -102,18 +115,22 @@ treatment (prose bounded at 400 chars, `full=true` opt-in; its bulk is the field
 list, so the entry stays ~2,354). Depth is not the lever; artifact size is.
 
 **F4. Widening the surface is priced in per-name lookups.** Over a 30-step tail,
-`gateway → semantic` costs as much as **26.5** single-name lookups,
+the model says `gateway → semantic` costs as much as **26.5** single-name lookups,
 `gateway → profile=browser` 7.2, `gateway → static` 42.1. So `mcp_tool_invoke`
 (a per-name door, zero added rent) is the right general tool; expanding the surface
 persistently is justified only in a session that will call many hidden names
 (≳7 with the browser profile, ≳27 with the full semantic view).
-*Expansion is a layer whose receipt is paid every step, not once.*
+*Expansion is a layer whose receipt is paid every step, not once.* These ratios
+are illustrative outputs of the simplified `widening_analysis` model — it prices
+every extra lookup at one fixed step and does not model the added history's
+cumulative cost or task success — so they are not a deployment threshold.
 
 **F5. Coverage of the recorded task vocabulary.** Against the 14 real task
 families recorded in `dev/fixtures-capture/` step lists and the 2026-09-21 sessions,
 the pre-addition 16 entries finished **43% (6/14) with zero lookup rounds**. The 25
 entries shipped now finish **86% (12/14)** for +5,514 tokens/step (10,352 → 15,866),
-still **2.5× under `semantic`**. The two families that still pay a round are document
+still a **2.5× smaller advertised table** than `semantic` (a size comparison, not
+an end-to-end task-cost ranking). The two families that still pay a round are document
 setup and runner capability runs, both rarer than the nine added, and both reachable
 by `mcp_tool_invoke` (reasons recorded in `REJECTED_ENTRIES`).
 
@@ -142,8 +159,8 @@ actually needed.*
    entry whose expected use is below its break-even; reach for it by
    `mcp_tool_invoke` instead.
 3. **Prefer the per-name door over widening.** Keep `mcp_tool_view set` as an
-   explicit decision, and quote its price (7.2–42.1 lookups) rather than treating it
-   as free.
+   explicit decision, and quote its illustrative model price (7.2–42.1 lookups)
+   rather than treating it as free.
 4. **Slim oversized L1 artifacts before shrinking the surface further.**
    `docs_list` first (`include_sections=false` default, page names + counts only),
    then `fs_get_function`/`fs_quick_reference` (best match + match list by default,
@@ -168,7 +185,8 @@ actually needed.*
 | Bridge layer (F6) | collapse/expand receipts measured and modelled | expand-at-step-2 policy justified |
 
 The surface grew on purpose: 15,866 tokens/step for 86% zero-round coverage, versus
-10,352 for 43%, and still 2.5× cheaper than the default `semantic` view.
+10,352 for 43%, and still a 2.5× smaller advertised table than the default
+`semantic` view.
 
 ## 5c. Delegation route and lookup depth (2026-09-21, external measurement)
 

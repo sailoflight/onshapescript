@@ -76,11 +76,11 @@ Status: verified
 
 | Change | Required verification |
 |---|---|
-| Live gate, quota, retry, redaction | `python3 -m unittest dev.tests.test_quota_guards -v` |
-| State/config/output ownership | `python3 -m unittest dev.tests.test_project_layout -v` |
-| MCP REST wrapper schema/dispatch | `python3 -m unittest dev.tests.test_mcp_server -v` |
+| Live gate, quota, retry, redaction | `python -m unittest dev.tests.test_quota_guards -v` |
+| State/config/output ownership | `python -m unittest dev.tests.test_project_layout -v` |
+| MCP REST wrapper schema/dispatch | `python -m unittest dev.tests.test_mcp_server -v` |
 | Request/response operation | Target unit/mock/replay tests; no live request for regression |
-| Any Python change | Matching tests plus `python3 -m py_compile onshape_rest_api_mode/*.py` |
+| Any Python change | Matching tests plus `python -m py_compile onshape_rest_api_mode/*.py` |
 
 All verification commands run with `LIVE_API_ENABLED` unset.
 

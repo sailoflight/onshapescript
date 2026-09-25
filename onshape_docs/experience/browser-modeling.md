@@ -107,6 +107,13 @@
   计数自洽时用，并新增拒绝：`count == 1` 的剩余串里若还含 `…数 (N)` 分区表头，就
   不再编造名字（宁可 `partNames: []` + `partNamesSource: "none"`）。判定建模成功只看
   `parts > 0`；要写名字必须核 `partNamesSource == "dom"`。
+  在此基础上新增只读的名字诊断（`partItems` 形状不变，仍是字符串列表）：`partCounts`
+  （按名计数，首次出现顺序）、`duplicateNames`（`[{name,count}]`）、`duplicateNameCount`、
+  `partNameDetails`（`[{name,count,possibleDuplicateName[,note]}]`）。动机实测：一个
+  0.0004 mm² 的 sliver body 让 `零件数` 变成 7 且出现同名重复（`D 跷跷板 ReleaseLever`
+  两次）。**边界要写清**：这是纯粹的**名字**观察，不做几何结论——两个不同 body 合法地
+  同名，sliver 也可能继承它被切分自的 body 的名字；逐零件体积、sliver 面积阈值、连通性
+  报告都**未实现**，且在没有几何或 REST 通路时无法从 DOM 导出，仍是开放项。
 
 ## 7. 已知边界
 

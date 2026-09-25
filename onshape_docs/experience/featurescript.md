@@ -140,6 +140,13 @@ corrected manifest, and a live reconfirm on 2026-08-14 matched 15/15 — see
   checker is the only body-level guard.** Run `onshape_docs/scripts/fs_local_check.py`
   before any upload: it catches structural errors (hard) and flags body symbols
   the server would silently accept at save (`qDoesNotExist`, `NotARealType`).
+- **A literal `opBoolean` map that passes both `"tools"` and `"targets"` for
+  `UNION`/`INTERSECTION` must also pass `"targetsAndToolsNeedGrouping" : true`.**
+  The checker warns about that shape (`check_op_boolean_grouping`) on a *literal*
+  third argument only, and like every rule there the warning never blocks the
+  write. The measured failure, the reason it is a real mistake rather than a
+  style choice, and the alternative to the flag are all stated once, in the
+  `opBoolean` grouping section below.
 
 ### Instantiation layer (live, 5 features POSTed into Part Studios)
 
@@ -195,6 +202,32 @@ value, not just `"Feature Type Name"`:
   ASCII `"Feature Type Name"` and ASCII `"Name"` labels; only model/part names
   can carry the Chinese text. The local checker warns about this shape
   (`fs_check.check_annotation_ascii`) rather than failing the deploy.
+
+### `opBoolean` with both `tools` and `targets` needs the grouping flag (live, browser leg)
+
+Measured by the reporter (issue #11) and reproduced by the local checker: an
+`opBoolean` call whose **literal** definition map carries both `"tools"` and
+`"targets"`, an `operationType` of `UNION`/`INTERSECTION`, and **no**
+`"targetsAndToolsNeedGrouping"` fails at *regeneration* with the misleading
+`@opBoolean: BOOLEAN_BAD_INPUT` / "布尔运算操作至少需要两个零件或曲面", which cost
+five deployments.
+
+- **The requirement:** pass `"targetsAndToolsNeedGrouping" : true` whenever both
+  `tools` and `targets` are supplied — or simply omit `targets`, because `UNION`
+  already merges the tool bodies with each other. The vendored standard library
+  writes the flag whenever it passes both fields (`boolean.fs`:
+  `"targetsAndToolsNeedGrouping" : targets != undefined`).
+- **The server text is misleading here.** "至少需要两个零件或曲面" names the symptom,
+  not the missing field. It is the Onshape server's own message and is **not ours
+  to change**, which is exactly why the local rule warns earlier.
+- **The local rule is WARNING-level and never blocks an upload.** The vendored
+  index can lag the live server, so
+  `onshape_docs/query/fs_check.py:check_op_boolean_grouping` only warns; it fires
+  on a *literal* third argument (the same gate as `check_op_definitions`), so a
+  map held in a variable is never second-guessed. The false-positive gate is the
+  vendored library itself (`test_static_guards.OpBooleanGroupingTest`).
+- **The `targets` requirement text shown by `fs_get_function opBoolean` (or
+  `fs_get_type`) comes from the generated/vendored index and is not hand-edited.**
 
 ### A precondition is what makes a generated feature look official (live)
 

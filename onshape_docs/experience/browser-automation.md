@@ -32,6 +32,35 @@
   4 秒后前端路由会把未登录会话重定向到 `/signin`。`open_login_page()` 已按最终 URL 判定。
 - 强杀 vs 优雅关闭的差异是真实存在的：强杀不给页面执行登出逻辑的机会，会话文件保留
   documents URL；优雅关闭会把页面写回 signin。
+- 三种“结束方式”不能混同：`action=release` 关闭本进程的 browser/context，是三者中唯一
+  可能丢掉持久 profile 登录态的一种（返回 `loginStateMayNeedRefresh`）；进程级崩溃/被杀
+  **不会**丢登录态（重开复用 profile）；页面导航/刷新也**不会**。
+- `action=detach` 是“保留窗口”的非破坏性兄弟：仅在 resident/attached 模式
+  （`browser.resident = true`）成立，它让 Playwright 脱离并留下浏览器、标签页和登录态
+  （`detached: true`、`contextClosed: false`、`browserLeftRunning: true`）。非 resident
+  模式对固定版本的 `browser_common` 不存在真实的 detach：启动的浏览器生命周期绑定在
+  Playwright 连接上，唯一的释放 API 会关窗，因此返回
+  `{"detached": false, "supported": false, "reason": ..., "recommended": "browser_session action=release", "alternative": ...}`
+  且不改动任何状态——这是已知限制，不是调用的 bug。
+- 默认指引：任务结束时**保留**会话；只有人工明确要求或确实需要释放资源时才 `release`。
+- `action=login` 现在报告 `alreadyAuthenticated`（持久 profile 仍有活会话）或
+  `needsHumanLogin`（没有），不必再从 URL 猜。
+- 启动的浏览器是真实 Edge channel（`channel = "msedge"`），使用 checkout 本地的持久
+  profile（`user_data_dir`，默认 `user_data/onshape_profile`）；它**不**复用 OS Edge 主
+  profile，但在 Windows 账户是 Microsoft 账户的机器上，Edge 会自动把**新** profile 登录
+  进去，所以窗口并非匿名，截图和 agent 读到的每个页面都可归因到该账户。
+- `status` 报告 `profileDir`、`profileBytes`、`profileBytesComplete`（遍历有文件上限，
+  `complete=false` 的数字是下界）、`accountMarkerDetected`（对已知 Edge 账户键做递归
+  名称匹配得到的布尔值；随 Edge 版本变化，`false` 只表示“未找到标记”，**不是**“匿名”；
+  绝不返回账户值）。`isolated_user_data_dir` 可选一个**独立** profile 目录用于在持久
+  登录 profile 之外运行；这只是目录选择（`--guest` 未实现），代价是独立目录意味着全新
+  或显式隔离的身份（除非它自己也是持久的，否则还要一次人工登录）。
+- 清理 profile：在该窗口里退出 Edge 账户登录（不清 cookie，Onshape 登录仍在）；删除
+  目录最彻底，但要重做一次人工登录。
+- `start()` 不再采纳已关闭页面：跳过 closed 页、跨过 adopt 失败并前进，最后回退到新开页。
+  `status` 的 `pageSelection` 报告 `{"considered", "discarded": [{"url","reason"}], "selected"}`，
+  reason 含 `closed`/`browserInternal`；无可用页时错误里指名 `browser_session action=login`。
+  `status` 还新增 `verdict`/`recommendedAction`/`verdictNote`（与 `action=health` 对齐）。
 
 ## 3. 浏览器工具（browser_*）
 
@@ -88,17 +117,25 @@ transaction → L6 deliverable recipe 排序。这样先复用完成的多事务
 
 ### 3.2 连接级动态展示约定
 
-`mcp_tool_view` 的 profile/semantic-level 只缩小当前连接返回的 `tools/list`，不修改
-完整 registry，不拒绝已知工具名，也不改变确认、quota、pacing 或验收门。正确流程是：
+工具展示默认是 `gateway`（25 个工具）。`mcp_tool_view` 的 collapse/expand 与
+profile/semantic-level 只改变当前连接返回的 `tools/list`，不修改完整 registry，不拒绝
+已知工具名，也不改变确认、quota、pacing 或验收门。`dynamic` 是折叠/展开控制：冷启动为
+collapsed，只列出 `mcp_tool_catalog`、`mcp_tool_view`、`mcp_tool_invoke`；`expand` 默认
+打开 `gateway`（`expanded_view` 可选 `static|semantic|gateway|profile`），`collapse` 回到
+三入口，`set` 是兼容别名，`reset` 回到 collapsed + `gateway` + 启动 profile。折叠是纯内存
+状态：不写任何地方，不等于退出浏览器，也不等于撤销权限。**视图状态是连接级而非会话级**：
+stdio server 只看到连接和其上的消息，若客户端复用/共享同一连接，一个会话的 expand 会被
+该连接上的每个会话观察到，不得声称按会话隔离。每次**有效**变化才发
+`notifications/tools/list_changed`；没有变化不发。正确流程是：
 Operator 以 `ONSHAPE_MCP_TOOL_EXPOSURE=dynamic` 启动；client 在 initialize 中确认
-`tools.listChanged=true`；agent 先 `status`，再 `set`；client 收到
+`tools.listChanged=true`；agent 先 `status`，再 `expand`（或兼容的 `set`）；client 收到
 `notifications/tools/list_changed` 后重新请求并**替换** `tools/list`，不能在旧列表上追加。
-`reset` 回到该连接启动时的 profile；重新连接创建独立的新 view。
+`reset` 回到该连接的冷启动（collapsed + `gateway` + 启动 profile）；重新连接创建独立的新 view。
 
 窄化 browser semantic levels 时必须常驻 `browser_session` 和
 `browser_discover_tools`，否则 agent 难以观察、继续发现或恢复视图；被合并吸收的
-兼容名不常驻，只能按精确名调用。重复设置同一 view 不发 notification。客户端不支持 listChanged 时继续使用
-固定 `semantic`/`profile` 或 discovery gateway，不要把“未展示”解释为“禁止”；若客户端拒绝未展示名，
+兼容名不常驻，只能按精确名调用。没有有效变化就不发 notification。客户端不支持 listChanged 时继续使用
+固定视图或 `gateway`，不要把“未展示”解释为“禁止”；若客户端拒绝未展示名，
 按精确名改走被展示的 `mcp_tool_invoke`（见 3.1 的实测）。
 
 ### 3.3 跨模块工具目录约定
@@ -673,3 +710,34 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   实测 1240×694 fixture 中有四个投影视图，证据图为
   `dev/button-map/scan-drawing-four-views.png`。不可见的 preview/drawer 候选仍标记
   unverified，读取工具返回结构化 absence/unknown。
+- `browser_fs_read_notices` 默认把 `outOfDate`（stale）通知降级：`notices` 只给当前行，
+  `staleNotices` 给原始过期行，并附 `staleNoticeCount`/`staleErrorCount`/
+  `staleErrorCountBasis`/`currentNoticeCount`/`returnedNoticeCount`/`includeStale`，每行带
+  `stale`+`bucket`（`stale`/`currentActiveTab`/`currentOtherElement`）。实测动机：一条 stale
+  行持续报 `line: 156`，而当前源码的 `opBoolean` 在别处，把 agent 引到错误行。用
+  `includeStale=true` 才同时把原始过期行放进 `notices`。
+- `browser_get_partstudio_features` 的行带 `errorText`（同一遍从错误行的
+  `data-bs-original-title` 读出），结果带 `hasErrorReadAt` 和 `maybeStale`；`hasError`
+  必须与“何时读的”一起看。参数校验走有界收敛读（in-code
+  `read_partstudio_features_settled`）：读到再生中的行不再算失败，而是
+  `parametersApplied: null` + `retryVerify: true` + `maybeStale: true` + `hasErrorReadAt`
+  + `settleCondition`（`cleanFirstRead`|`clearedOnReRead`|`stableError`|`unstableTimeout`）。
+- `browser_deploy_featurescript` 在当前 tab 是 Part Studio 时会自己激活 Feature Studio
+  tab；否则返回明确指令要求先调 `browser_activate_tab`，而不是一句“FeatureScript editor
+  not found”。
+- `browser_get_partstudio_features`/`parse_part_summary` 的 `partItems` 仍是字符串列表；
+  新增 `partCounts`（按名计数，首次出现顺序）、`duplicateNames`（`[{name,count}]`）、
+  `duplicateNameCount`、`partNameDetails`（`[{name,count,possibleDuplicateName[,note]}]`）。
+  动机：一个 0.0004 mm² 的 sliver body 让计数变成 7 且出现重名。**明确边界**：这只是基于
+  **名字**的观察，不做任何几何判断；逐零件体积、sliver 面积阈值、连通性报告都**未实现**，
+  在没有几何或 REST 通路时也无法导出，仍是开放项。
+- `browser_export_step` 新参数 `overwrite`；当 STEP 其实已保存时不再误报失败：保存/下载
+  尾段失败返回**结构化**结果（`exported: false`、`failure: {phase,error}`、
+  `stagedArtifacts`、`stagingComplete`、`alreadyStaged`、`browserAliveBefore/After`、
+  以及一个 **LIST** 的 `recovery`），而 tab/URL/对话框配置和非 STEP 的预检失败仍然 raise。
+  关键读法：`phase=wait_for_dialog_hidden` 且 `stagingComplete: true` **不是**下载失败——
+  STEP 与 manifest 已在磁盘且可复用（例如交给 `browser_build_geometry_package`）；同
+  `export_id` 重试会返回 `alreadyStaged` 成功，而不是旧的 “staging destination already
+  exists” 拒绝。完整 staging 需要 manifest + 产物 + 匹配的 sha256。失败可能重启浏览器或
+  让 MCP 子进程不再持有浏览器资源；`action=health` 报 `browser_not_running` 且 `pages: []`
+  只说明“本 MCP 进程不持有任何东西”，**不能**证明 Edge 进程已死。

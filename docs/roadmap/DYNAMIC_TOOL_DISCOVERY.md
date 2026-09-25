@@ -1,6 +1,6 @@
 # Dynamic MCP tool discovery roadmap
 
-Status: semantic/static/profile/dynamic exposure and connection-scoped replacement implemented
+Status: semantic/static/profile/dynamic/gateway exposure and connection-scoped replacement implemented; `gateway` is the code default
 
 > **Superseded in part (2026-09-19):** the eight `Merge` rows in
 > `architecture/TOOL_SURFACE_AUDIT.md` were executed. Where this page names
@@ -18,10 +18,13 @@ Status: semantic/static/profile/dynamic exposure and connection-scoped replaceme
 > modeling route. Phases A–C remain implemented and unchanged.
 
 The optional six-level catalog, bounded browser discovery, hidden-tool invocation
-gateway, semantic default exposure, static compatibility mode, fixed startup
+gateway, `gateway` default exposure, static compatibility mode, fixed startup
 profiles, and connection-scoped `listChanged` replacement are implemented.
 Dynamic display is explicitly a context-routing convention rather than an
-execution or authorization constraint.
+execution or authorization constraint. `dynamic` is the collapse/expand control:
+a cold start is collapsed on the three control/discovery entry points and
+`expand` opens `gateway` by default; the state is CONNECTION-scoped, not
+conversation-scoped.
 
 > The concrete FS script-mode transactions (compile-status, symbols, parameter
 > edit) and their Part-Studio coupling points (part context-menu drawing
@@ -106,7 +109,9 @@ TOOLS / HANDLERS
   -> browser_discover_tools + browser_invoke_discovered
 ```
 
-`ONSHAPE_MCP_TOOL_EXPOSURE=semantic` is the fixed default. `static` exposes the
+`ONSHAPE_MCP_TOOL_EXPOSURE` selects the mode, and the code fallback is `gateway`
+when neither the argument, the environment variable, nor
+`tool_views.local.toml` selects one. `static` exposes the
 complete registry, `profile` fixes one startup profile, and `dynamic` owns one
 view per connection and advertises listChanged. Direct known-name dispatch and
 internal composition remain available in every mode, so exposure is not an
@@ -150,13 +155,19 @@ complete handler registry.
 The plan must not assume every MCP client handles dynamic tool-list replacement.
 Preserve explicit modes:
 
-- `semantic` (implemented default): fixed bounded ordinary browser exposure plus
-  discovery/invocation gateways.
+- `semantic` (implemented): the bounded ordinary view, used as a fixed display set.
 - `static` (implemented): complete registry for debugging and compatibility.
 - `profile` (implemented): fixed `ONSHAPE_MCP_TOOL_PROFILE` selected at connection startup.
-- `dynamic` (implemented): per-connection `mcp_tool_view` state plus
-  `notifications/tools/list_changed` after an effective set/reset.
-- `gateway` (implemented 2026-09-21, sized by `LOOKUP_DEPTH_RESEARCH.md`):
+- `dynamic` (implemented): the collapse/expand control. A cold start is collapsed
+  and lists only `mcp_tool_catalog`, `mcp_tool_view`, and `mcp_tool_invoke`;
+  `action=expand` opens a display set (`expanded_view` =
+  `static|semantic|gateway|profile`, default `gateway`), `action=collapse` returns
+  to the control list, `action=set` is the compatibility alias, and `action=reset`
+  returns to collapsed + `gateway` + startup profile. Emits
+  `notifications/tools/list_changed` after an effective change only, and its state
+  is CONNECTION-scoped.
+- `gateway` (implemented 2026-09-21, and the code default, sized by
+  `LOOKUP_DEPTH_RESEARCH.md`):
   advertises a small **declarative** surface — a discovery core
   (`mcp_tool_catalog`, `mcp_tool_view`, `mcp_tool_invoke`) plus curated
   representatives covering every category (session, tab create/activate, feature
@@ -178,9 +189,14 @@ with no schemas and no concurrency blocks. Measured with
 `dev/tools/context_cost.py` and recorded in
 `onshape_docs/verification/context-cost-surfaces-2026-09-21.json`: the same
 registry renders as 227,459 chars / 111 tools in `static`, 167,441 chars / 77
-tools in `semantic`, and 66,051 chars / 25 tools in `gateway` — 3.4x smaller than
-the registry and 2.5x smaller than the default view, with no tool made
-unreachable. The set is sized by measurement: see `LOOKUP_DEPTH_RESEARCH.md` for
+tools in `semantic`, and 66,051 chars / 25 tools in `gateway` — a 3.4x smaller
+advertised **table** than the registry and 2.5x smaller than the `semantic` table,
+with no tool made
+unreachable. This is a table-size comparison, not an end-to-end task-cost
+measurement: the model prices each extra lookup at a fixed step and does not
+model the added history's cumulative cost, so `LOOKUP_DEPTH_RESEARCH.md`'s
+lookup-count figures are illustrative, not a deployment threshold. The set is
+sized by measurement: see `LOOKUP_DEPTH_RESEARCH.md` for
 why it grew from 16 to 25 (chain completeness plus the parameter workflow) and for
 the rent arithmetic behind it.
 
@@ -188,7 +204,7 @@ The mode is switchable **inside this product**: `mcp_main/win/mcp/config/`
 `tool_views.local.toml` (gitignored, with a tracked `.example`) sets the mode on a
 host whose launcher is an external bridge that owns the child environment.
 Precedence is an explicit argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then that
-file, then `semantic`.
+file, then `gateway`.
 
 **The one registry row the mode did add: `mcp_tool_invoke` (111th).** The P5 audit
 had merged `browser_invoke_discovered` with the reason "any registered tool can be
@@ -211,8 +227,10 @@ worth it is answered separately and with measurements in
 estimated tokens at the documented defaults; ~20.8k before the surface grew) against
 427-1,000 tokens/step for a tool schema, so the rule is "list what nearly every
 session uses, look the rest up per name"; a prescribed chain must be listed
-completely or not at all (and now is, gated by a test); widening the surface costs
-7.2-42.1 single-name lookups over a 30-step tail; and the win-wsl bridge's own
+completely or not at all (and now is, gated by a test); the model's widening
+figure prices the `semantic` table at 7.2-42.1 single-name lookups over a 30-step
+tail (an illustrative output of a simplified model, not a deployment threshold);
+and the win-wsl bridge's own
 collapse/expand is a different shape — one receipt per connection for the whole
 child surface, break-even at expand step 2.
 
