@@ -87,6 +87,15 @@
     "tests": "1105 offline tests OK (11 new in dev/tests/test_session_health.py)",
     "rollback_points": "temp/host-rollback-20260926T001312 and temp/host-rollback-20260926T001911 (tar of every file the two refreshes overwrote, with sha256 lists), plus temp/host-state-backup/20260926T001036 for the mutable state",
     "known_gap_filed": "onshape_browser_mode/config/geometry-backend.json is machine-local state that the artifact still ships; an upgrade must exclude it until the release spec moves it to the denylist (recorded in docs/operations/RELEASE.md)",
-    "known_gap_resolved": "2026-09-26 (same day, separate commit): both live geometry-backend.json paths are now in the release DENYLIST and in .gitignore, each mode ships geometry-backend.json.example (the disabled default), and fdm_analysis.configuration.load_command_geometry_config returns that in-code default when the live file is absent while a malformed existing file still raises. docs/operations/RELEASE.md now records the rule instead of a known gap; the in-place refresh keeps excluding the path and proves it by mtime."
+    "known_gap_resolved": "2026-09-26 (same day, separate commit): both live geometry-backend.json paths are now in the release DENYLIST and in .gitignore, each mode ships geometry-backend.json.example (the disabled default), and fdm_analysis.configuration.load_command_geometry_config returns that in-code default when the live file is absent while a malformed existing file still raises. docs/operations/RELEASE.md now records the rule instead of a known gap; the in-place refresh keeps excluding the path and proves it by mtime.",
+    "released_681a4cd": {
+      "commit": "681a4cd",
+      "artifact": "onshapescript-mcp-1.3.0-681a4cd.zip (2788804 bytes, unsigned; sha256 10c17e8b816af2d5fcaf61c670f7b7bca7ad0517a8cd658276f9285a741cac6f, verified with sha256sum -c)",
+      "artifact_contents": "402 entries = 399 planned files + release-manifest.json/SHA256SUMS/RELEASE-NOTES.md; zero geometry-backend.json, both geometry-backend.json.example present with the 1980 archive timestamp",
+      "in_place_refresh": "guarded rsync -rltc (no --delete): 14 planned writes, every one an artifact entry, no state path planned; 402/402 artifact files then content-equal on the host; recovery point temp/host-rollback-20260926T003157 (10 files)",
+      "state_preserved": "onshape_browser_mode/config/geometry-backend.json kept its 2026-08-26 11:07:01 mtime and its 689-byte enabled=true / cadquery-ocp-wsl body while the artifact's .example landed with the 1980 timestamp; browser-state.json, onshape-state.json and tool_views.local.toml mtimes also unchanged",
+      "restart": "win-wsl bridge restart of the onshape server: generation 6 -> 7, 6 active clients preserved, reconnectRequired=false",
+      "runtime_evidence": "onshape_geometry_status on the restarted host reports configFilePresent=true for both modes, browser backend configured=true / ready=true / converter.name=cadquery-ocp-wsl, and carries the new configPath/configFilePresent fields; browser_session health=ok with the resident browser still on the Onshape app page (no new human sign-in)"
+    }
   }
 }
