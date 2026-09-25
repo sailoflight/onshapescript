@@ -1,0 +1,91 @@
+{
+  "probe": "resident browser: does the Onshape login survive an MCP child restart, and can the child SEE that it did (issue #6)",
+  "session": "2026-09-26T00:09Z .. 2026-09-26T00:26Z (UTC)",
+  "environment": {
+    "host": "native Windows, Edge channel msedge, deployment tree C:\\MCP\\onshapescript",
+    "deployed_before": "copy dated 2026-09-21 (browser_session actions: status/login/release/reconnect/reload/health; no detach)",
+    "deployed_after": "consumer artifact 1.3.0-c10a235, deployed in place (code only), then restarted",
+    "config_that_arms_residency": "onshape_browser_mode/config/browser.local.toml (preserved state): resident = true, resident_port = 9333",
+    "bridge": "win-wsl-mcp-bridge id=onshape, mode=shared, 6 activeClients; ownedGeneration 1 -> 2 -> 3 -> 4 -> 5 across the runs below",
+    "quota": "0 Onshape REST calls; every step is browser/loopback only"
+  },
+  "question": "Issue #6 accepted two alternatives, the first being: set browser.resident = true, then prove on the real machine that login -> detach -> a NEW MCP child -> action=health reports ok WITHOUT a second human sign-in.",
+  "findings_before": [
+    "The switch was already on: the host's browser.local.toml carries resident = true, and the deployed settings.py merges it (mtime-fresh), so residency was armed but had never actually been exercised.",
+    "No browser held the MCP profile and nothing listened on 9333 (Windows process table), i.e. the resident browser did not exist yet.",
+    "The deployed build had no detach action, so the literal acceptance sequence could not run on it; the repository HEAD (and the release artifact) do."
+  ],
+  "timeline": [
+    {
+      "step": "1. spawn the resident browser via login",
+      "tool": "browser_session action=login",
+      "result": "sessionStatus=awaiting_login; a detached Edge appeared as root PID 10368 with '--remote-debugging-port=9333', '--user-data-dir=...onshape_profile' and NO '--remote-debugging-pipe'; /json/version answered with webSocketDebuggerUrl ws://127.0.0.1:9333/devtools/browser/57634b4c-b117-4245-9174-63d13c83fbfd",
+      "why_it_matters": "the driver-owned pipe route (which reaps the browser on driver exit) is not in play; this browser is owned by its own detached process"
+    },
+    {
+      "step": "2. human completes SSO once",
+      "tool": "human in the visible Edge window, then browser_session action=status",
+      "result": "loginConfirmed=true, humanActionRequired=false, pageUrl https://cad.onshape.com/documents/1ef2be8f3d45e6f996af24ab/w/bac7c0bf31912a956c44d15a/e/59f6cc99890dd2fea26d5471"
+    },
+    {
+      "step": "3. restart the MCP child (no code change yet)",
+      "tool": "bridge_control restart id=onshape",
+      "result": "generation 1 -> 2, stoppedGeneration 1, startedGeneration 2, preservedClients 6, force-kill not needed; python children 34576/22860 replaced by 36076/34912",
+      "browser_after": "PID 10368 still present, CreationDate unchanged 0:09:26, DevTools GUID unchanged 57634b4c-... ; exactly ONE onshape-profile root process (a new child ATTACHED, it did not launch a second browser)"
+    },
+    {
+      "step": "4. the new child attaches and reports the login",
+      "tool": "browser_session action=login (old build) then action=status",
+      "result": "already logged in (restored Onshape page was kept); status loginConfirmed=true, humanActionRequired=false, same document URL as before the restart",
+      "conclusion": "login survives an MCP child restart with zero extra human logins"
+    },
+    {
+      "step": "5. deploy the repository HEAD artifact (1.3.0-1f9f7c2) in place",
+      "tool": "rsync code-only refresh with an allow-list guard, then bridge restart",
+      "result": "27 files written (25 updated + docs/operations/RELEASE.md + RELEASE-NOTES.md), 0 deletions, 397/397 content equality afterwards, 93 host-only development-plane files preserved; excluded state files kept their original 2026 mtimes (a file from the reproducible archive carries 1980-01-01), and the host geometry backend still read enabled:true / cadquery-ocp-wsl",
+      "browser_after_refresh": "the resident browser was never touched: it survived a code replacement as well"
+    },
+    {
+      "step": "6. detach, then a fresh child again",
+      "tool": "browser_session action=detach, bridge_control restart, browser_session action=status/health",
+      "result": "detach returned detached=true, supported=true, keepBrowser=true, contextClosed=false, browserLeftRunning=true, profileReleased=true, playwrightStopped=true, loginStateMayNeedRefresh=false, previousPageUrl = the same Part Studio; externally PID 10368 and GUID 57634b4c-... unchanged; the next generation's login call answered alreadyAuthenticated=true / needsHumanLogin=false"
+    },
+    {
+      "step": "7. the gap this exposed",
+      "tool": "browser_session action=health on a fresh child",
+      "result": "ok=false: verdict=browser_not_running with note 'No browser resources are held by this MCP process. This probe did NOT launch one, so nothing about the page is known.' -- while the browser was demonstrably alive and still logged in",
+      "why_it_matters": "in resident mode 'this process holds nothing' is the NORMAL post-restart state, so that verdict claimed more than the evidence supported; it is also exactly where the owner's acceptance sentence would have failed"
+    },
+    {
+      "step": "8. fix + redeploy 1.3.0-c10a235",
+      "tool": "commit c10a235 (health.py/session.py/server.py + 11 tests + docs), artifact rebuilt, 8 files deployed in place, restart generation 4 -> 5",
+      "result": "health and status now read the detached browser's own loopback DevTools endpoint (one bounded GET /json/list; no Playwright, no launch, no attach, no page evaluate, no navigation) when, and only when, this process holds no page"
+    },
+    {
+      "step": "9. acceptance on the fresh child",
+      "tool": "browser_session action=health",
+      "result": "verdict=ok; note names the loopback endpoint and the same Part Studio URL and states the page itself was not read; residentBrowser={observed:true, endpoint:http://127.0.0.1:9333, source:devtools-http, pageTargets:1, pageUrl:<same document URL>, onOnshapeApp:true, onSigninPage:false}; sessionStatus=uninitialized, pages=[], probe.responded=null (this process still owns nothing), launchedBrowser=false",
+      "corroboration": "action=status on the same child: verdict=ok with the same residentBrowser block while sessionStatus=uninitialized/pageUrl=null/pages=[] kept saying this process holds nothing; action=login then returned alreadyAuthenticated=true / needsHumanLogin=false"
+    },
+    {
+      "step": "10. final external state",
+      "tool": "Windows process table + /json/version",
+      "result": "PID 10368 (CreationDate 0:09:26) and GUID 57634b4c-b117-4245-9174-63d13c83fbfd unchanged after 1 code refresh, 3 MCP-child restarts and 1 detach"
+    }
+  ],
+  "verdict": "Issue #6's first alternative is satisfied on the real machine: with browser.resident = true the Onshape login survives an MCP child restart with no second human sign-in, detach succeeds without closing the window, and a fresh child can now REPORT that state (health/status -> ok) instead of claiming no browser exists.",
+  "limits": [
+    "The loopback read proves the browser process answers and which page target it lists. It does NOT prove the page is rendered or that Onshape's server-side session has not expired; the caller's next real call establishes that.",
+    "Endpoint-only evidence is labelled as such: probe.responded stays null and the note says the page was not read, so 'ok' here is narrower than a held-page 'ok'.",
+    "With resident = false nothing changed: the probe reports browser_not_running exactly as before, because no browser is observable.",
+    "A held page is direct evidence and always outranks the endpoint observation.",
+    "The detach leg was measured on an attached resident session once; the structural refusal outside resident mode is unchanged and separately pinned by tests."
+  ],
+  "artifacts": {
+    "commit": "c10a235",
+    "release": "onshapescript-mcp-1.3.0-c10a235.zip (2786880 bytes, unsigned, sha256 sidecar)",
+    "tests": "1105 offline tests OK (11 new in dev/tests/test_session_health.py)",
+    "rollback_points": "temp/host-rollback-20260926T001312 and temp/host-rollback-20260926T001911 (tar of every file the two refreshes overwrote, with sha256 lists), plus temp/host-state-backup/20260926T001036 for the mutable state",
+    "known_gap_filed": "onshape_browser_mode/config/geometry-backend.json is machine-local state that the artifact still ships; an upgrade must exclude it until the release spec moves it to the denylist (recorded in docs/operations/RELEASE.md)"
+  }
+}

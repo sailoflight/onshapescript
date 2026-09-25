@@ -4980,7 +4980,7 @@
    "page": "verification",
    "category": "verification",
    "path": "onshape_docs/verification/README.md",
-   "sha256": "89079450c6d279386226e6c3d5d46d65e526d78c2b66e5cee1e198ba52c9c9f9",
+   "sha256": "55dbf93716a3fab52e3436c03a7b1b7ee0d546bd86fbfa724d842534499859a8",
    "title": "Documentation verification",
    "sections": [
     {
@@ -5023,6 +5023,10 @@
         [
          "mcp-gateway-live-2026-09-21.md",
          "Live 0-REST acceptance of the compressed tool view: the advertised forwarder reached a hidden registered name, and the idle-session probe caught a timed-out session whose two dialog states need different recovery."
+        ],
+        [
+         "resident-login-survival-2026-09-26.json",
+         "Real-machine acceptance of issue #6: with browser.resident = true the Onshape login survived an MCP-child restart with no second human sign-in, detach kept the window, and the gap it exposed -- a fresh child reporting browser_not_running while the detached browser was alive and logged in -- was fixed and re-measured (health/status now report residentBrowser)."
         ],
         [
          "live/",

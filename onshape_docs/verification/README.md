@@ -14,6 +14,7 @@ uses zero Onshape API quota. Reusable conclusions are published separately under
 | `browser-tools-2026-08-25.md` | Developer/tester/field-evaluator evidence and explicit live-validation boundaries for the 22 promoted browser tools. |
 | `capability-live-run-2026-09-19.md` | Live 0-REST browser run: the four capability sources compiled on the server, one applied to a real body, the row-matcher defect it found, and the selection boundary it exposed. |
 | `mcp-gateway-live-2026-09-21.md` | Live 0-REST acceptance of the compressed tool view: the advertised forwarder reached a hidden registered name, and the idle-session probe caught a timed-out session whose two dialog states need different recovery. |
+| `resident-login-survival-2026-09-26.json` | Real-machine acceptance of issue #6: with `browser.resident = true` the Onshape login survived an MCP-child restart with no second human sign-in, `detach` kept the window, and the gap it exposed -- a fresh child reporting `browser_not_running` while the detached browser was alive and logged in -- was fixed and re-measured (`health`/`status` now report `residentBrowser`). |
 | `live/` | The raw live-verification record: experiment `.fs` files, `results.json`, `instance-results.json`, and `README.md` with the budget ledger. |
 
 The four corpora verified here are: the vendored FS reference, the vendored
