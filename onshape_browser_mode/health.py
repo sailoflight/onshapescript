@@ -100,6 +100,15 @@ _PROBE_JS = """
     documentShellReady: !!document.querySelector('%s'),
     title: String(document.title || '').slice(0, 120),
     href: String((window.location && window.location.href) || '').slice(0, 300),
+    // Document identity. `performance.timeOrigin` is fixed for the lifetime of a
+    // document and changes when the document is replaced, so comparing it across
+    // two probes answers "is this still the same document?", which is how the
+    // sign-in page's self-reload becomes detectable (issue #5). Reading it here
+    // costs nothing extra: this evaluate already runs.
+    timeOrigin: Number((window.performance && window.performance.timeOrigin) || 0),
+    documentAgeMs: (window.performance && window.performance.timeOrigin)
+      ? Math.round(Date.now() - window.performance.timeOrigin)
+      : null,
   };
 }
 """ % (TIMEOUT_RECONNECT_LINK, TIMEOUT_DIALOG, DOCUMENT_TABS_BUTTON)

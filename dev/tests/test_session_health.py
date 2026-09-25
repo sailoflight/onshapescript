@@ -501,5 +501,86 @@ class StatusVerdictVocabularyTest(unittest.TestCase):
         self.assertEqual(held["recommendedAction"], "browser_session action=login")
 
 
+class SelfReloadDetectionTest(unittest.TestCase):
+    """Issue #5: surface a detected document replacement, never a guess."""
+
+    def session_with(self, page):
+        return SessionHealthTest().session_with(page=page)
+
+    def probe_read(self, url, time_origin, *, include_origin=True):
+        read = {
+            "timeoutDialogPresent": False,
+            "documentShellReady": True,
+            "title": "Document",
+            "href": url,
+        }
+        if include_origin:
+            read["timeOrigin"] = time_origin
+            read["documentAgeMs"] = 2615
+        return read
+
+    def test_the_probe_reads_the_document_identity(self):
+        # Cheap static guard: without timeOrigin in the evaluate, the detector
+        # below silently degrades to "always False".
+        self.assertIn("performance.timeOrigin", health._PROBE_JS)
+
+    def test_the_first_probe_reports_no_self_reload(self):
+        page = FakePage(read=self.probe_read(APP, 1790324679929))
+        result = self.session_with(page).health(probe_timeout_ms=1000)
+
+        self.assertFalse(result["selfReloadObserved"])
+        self.assertIsNone(result["selfReloadSince"])
+
+    def test_a_document_replaced_between_two_probes_is_reported(self):
+        page = FakePage(read=self.probe_read(APP, 1790324679929))
+        session = self.session_with(page)
+        session.health(probe_timeout_ms=1000)
+
+        page._read = self.probe_read(APP, 1790324695185)
+        result = session.health(probe_timeout_ms=1000)
+
+        self.assertTrue(result["selfReloadObserved"])
+        since = result["selfReloadSince"]
+        self.assertEqual(since["previousTimeOrigin"], 1790324679929)
+        self.assertEqual(since["currentTimeOrigin"], 1790324695185)
+        self.assertEqual(since["documentAgeMs"], 2615)
+        self.assertEqual(since["url"], APP)
+        # The signal must carry its own limit, because our own probes cannot see
+        # what another tool did to the page.
+        self.assertIn("inconclusive", since["note"])
+
+    def test_our_own_navigation_is_not_blamed_on_the_page(self):
+        page = FakePage(read=self.probe_read(APP, 1000))
+        session = self.session_with(page)
+        session.health(probe_timeout_ms=1000)
+
+        session.note_page_navigation()  # reload / reconnect / login did this
+        page._read = self.probe_read(APP, 2000)
+        result = session.health(probe_timeout_ms=1000)
+
+        self.assertFalse(result["selfReloadObserved"])
+        self.assertIsNone(result["selfReloadSince"])
+
+    def test_a_different_url_is_a_navigation_not_a_self_reload(self):
+        page = FakePage(read=self.probe_read(APP, 1000))
+        session = self.session_with(page)
+        session.health(probe_timeout_ms=1000)
+
+        other = "https://cad.onshape.com/documents/doc2/w/workspace2/e/element2"
+        page._url = other
+        page._read = self.probe_read(other, 2000)
+        result = session.health(probe_timeout_ms=1000)
+
+        self.assertFalse(result["selfReloadObserved"])
+        self.assertIsNone(result["selfReloadSince"])
+
+    def test_a_missing_time_origin_reports_false_rather_than_guessing(self):
+        page = FakePage(read=self.probe_read(APP, 0, include_origin=False))
+        result = self.session_with(page).health(probe_timeout_ms=1000)
+
+        self.assertFalse(result["selfReloadObserved"])
+        self.assertIsNone(result["selfReloadSince"])
+
+
 if __name__ == "__main__":
     unittest.main()

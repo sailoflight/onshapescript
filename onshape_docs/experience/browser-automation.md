@@ -94,6 +94,20 @@
   要关掉它需**机器级策略**（`ImplicitSignInEnabled=0`，或 `BrowserSignin=0` +
   `NonRemovableProfileEnabled=0`，注册表 `SOFTWARE\Policies\Microsoft\Edge`，需重启浏览器），
   会同时影响该机日常使用的 Edge；本仓库**不**自动写策略。
+- **结论：不存在"既持久又身份隔离"的 per-profile 开关，所以本仓库不提供半吊子隔离选项。**
+  依据是同一份策略文档自己写的 **"Per Profile: No"** —— implicit sign-in 是**机器级**而不是
+  per-profile 的开关，因此以下四条路都不满足要求：
+
+  | 做法 | 为什么不满足 |
+  |---|---|
+  | `isolated_user_data_dir`（本仓库已有） | 只是**换目录**，不改变 OS 身份——实测新目录里同样出现账户标记 |
+  | `--guest`（本仓库**刻意不实现**） | 隔离了身份但**没有持久 profile**，而 Onshape 登录态必须靠持久 profile 才存在（会话 cookie 是 `persistent=0`），等于用掉登录态换隔离 |
+  | 换 Edge 通道（Beta/Dev） | 换的是程序，账号身份仍来自同一个 OS 登录 |
+  | `ImplicitSignInEnabled=0` 等机器级策略 | **有用但波及面过大**：会一并改掉人工日常用的 Edge，属使用者的机器配置决策，不由仓库代做 |
+
+  所以真正能满足"持久 **并且** 与账号身份隔离"的只有**独立的 Windows 账户**（不改任何策略，
+  OS 侧身份本身就是另一个）。这一条写进 `browser_session` 工具描述，让消费方在调用前就知道
+  窗口里的操作可归因到已登录的 Edge 账户。
 - `status` 报告 `profileDir`、`profileBytes`、`profileBytesComplete`（遍历有文件上限，
   `complete=false` 的数字是下界）、`accountMarkerDetected`（对已知 Edge 账户键做递归
   名称匹配得到的布尔值；随 Edge 版本变化，`false` 只表示“未找到标记”，**不是**“匿名”；

@@ -10,6 +10,8 @@ violations. The release procedures live in ``docs/operations/RELEASE.md``.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -215,6 +217,64 @@ def validate(root: Path | str | None = None) -> list[str]:
     return problems
 
 
+def write_manifest(base: Path, destination: Path) -> dict[str, Path]:
+    """Materialise this checkout's release manifest and checksum sidecar.
+
+    Spec-only by construction, and it says so in the manifest: it writes the file
+    list, sizes and SHA-256 digests plus a ``sha256sum -c`` compatible sidecar.
+    It does NOT build, compress, sign, or publish anything, and the whitelist and
+    dependency constraints stay in this module.
+
+    The destination must be OUTSIDE the checkout: a file written into the tree
+    would change the very tree the plan was computed from.
+    """
+    base = Path(base).resolve()
+    destination = Path(destination).resolve()
+    if destination == base or base in destination.parents:
+        raise ValueError(
+            "refusing to write the manifest inside the checkout: it would change "
+            "the tree this plan describes"
+        )
+    current = plan(base)
+    rows = [{"path": a.path, "bytes": a.bytes, "sha256": a.sha256} for a in current.files]
+    digest = hashlib.sha256()
+    for row in rows:
+        digest.update(f"{row['sha256']}  {row['bytes']:>12}  {row['path']}\n".encode())
+    manifest = {
+        # NOT a built artifact. Anyone reading this file should be able to tell
+        # that no packaging pipeline ran.
+        "artifactStatus": "spec-only",
+        "artifactFormat": None,
+        "mcpServerVersion": MCP_SERVER_VERSION,
+        "governanceRelease": GOVERNANCE_RELEASE,
+        "fileCount": len(rows),
+        "totalBytes": sum(row["bytes"] for row in rows),
+        "planSha256": digest.hexdigest(),
+        "planSha256Means": (
+            "digest over the ordered (sha256, bytes, path) rows; two runs that "
+            "disagree describe different file sets"
+        ),
+        "excludedPaths": list(current.excluded),
+        "pendingDecision": list(current.pending_decision),
+        "checksumSidecar": CHECKSUM_SIDECAR_NAME,
+        "checksumSidecarVerification": (
+            f"cd {base} && sha256sum -c <path-to>/{CHECKSUM_SIDECAR_NAME} "
+            "(every listed path is relative to the checkout root)"
+        ),
+        "files": rows,
+    }
+    destination.mkdir(parents=True, exist_ok=True)
+    manifest_path = destination / MANIFEST_NAME
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    checksum_path = destination / CHECKSUM_SIDECAR_NAME
+    checksum_path.write_text(
+        "".join(f"{a.sha256}  {a.path}\n" for a in current.files), encoding="utf-8"
+    )
+    return {"manifest": manifest_path, "checksums": checksum_path}
+
+
 def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Consumer Release artifact specification (spec only; writes nothing)."
@@ -227,6 +287,15 @@ def _main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--list", action="store_true", help="also print every planned artifact file"
+    )
+    parser.add_argument(
+        "--emit",
+        metavar="DIR",
+        help=(
+            "write release-manifest.json and a sha256sum -c compatible SHA256SUMS for "
+            "this checkout into DIR (spec-only: no build, no compression, no signature); "
+            "refused if DIR is inside the checkout, and skipped when an invariant fails"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -253,6 +322,20 @@ def _main(argv: list[str] | None = None) -> int:
         "invariants OK: whitelist/denylist disjoint; no denylisted path planned; "
         "every whitelisted path exists; every existing denylisted path reported excluded"
     )
+    if args.emit:
+        # Only after the invariants hold: never emit a manifest for a plan that
+        # violates the spec's own rules.
+        try:
+            written = write_manifest(base, Path(args.emit))
+        except ValueError as exc:
+            print(f"refused: {exc}")
+            return 1
+        print(f"wrote {written['manifest']}")
+        print(f"wrote {written['checksums']}")
+        print(
+            "spec-only: no artifact was built, compressed, signed or published; "
+            "the manifest says artifactStatus=spec-only"
+        )
     if not args.check:
         print("(run with --check to make invariant violations fail the process)")
     return 0

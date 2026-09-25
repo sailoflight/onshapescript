@@ -1240,6 +1240,9 @@ def _browser_reconnect(arguments: dict[str, Any]) -> dict[str, Any]:
     page = session.start()
     session._enforce_single_working_page(page)
     get_guard().pace()
+    # We may replace the document; the next health probe must not report that as
+    # the page reloading itself (issue #5).
+    session.note_page_navigation()
     return actions.reconnect_if_needed(page)
 
 
@@ -1254,6 +1257,9 @@ def _browser_reload(arguments: dict[str, Any]) -> dict[str, Any]:
     session._enforce_single_working_page(page)
     actions.reconnect_if_needed(page)
     get_guard().pace()
+    # We are about to reload; the next health probe must not report that as the
+    # page reloading itself (issue #5).
+    session.note_page_navigation()
     return actions.reload_page(page)
 
 
@@ -2486,7 +2492,16 @@ TOOLS: list[dict[str, Any]] = [
             "release loses login state; a process crash or a page navigation does NOT; detach keeps the "
             "window. Keep the session at the end of a task by default, because release can cost a human "
             "sign-in; release only on an explicit human request or when the resources genuinely must be "
-            "freed. "
+            "freed. THE BROWSER IS NOT ANONYMOUS: it is a real Edge channel (channel='msedge') on a "
+            "persistent, checkout-local profile, and on a Microsoft-account machine Edge signs that "
+            "profile in by itself (its own implicit sign-in, enabled by default on Windows >=93), so the "
+            "window and everything this server reads or returns from it are attributable to that account. "
+            "action='status' reports profileDir, profileBytes and accountMarkerDetected (a boolean; "
+            "false means no marker was found, NOT that the profile is anonymous); to clear it, sign out "
+            "of the Edge account in that window, or delete the profile directory while the browser is "
+            "closed for the thorough option, which costs one manual sign-in. No per-profile switch can "
+            "isolate the identity while keeping login persistence; the only real isolation is a separate "
+            "Windows account. "
             "action='reconnect' detects the Onshape session-timeout dialog ('您的 Onshape 会话已超时…单击此处重新连接。') "
             "and clicks the reconnect link to restore the live session, without creating or modifying cloud "
             "data. action='reload' attempts a bounded reload of the current page (use it when an Onshape page, "

@@ -2494,7 +2494,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "2c6209452159296fe5e83c9cea010fea0756585fc27d1f6b0c18450b60c92c71",
+   "sha256": "5129f703694445f0412155bb8c9d19f12c75080e355dc19bc3fcd24d7cf8dc89",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2625,6 +2625,23 @@
          "text": "那个\"自动登录\"是 Edge 的默认行为，机制叫 implicit sign-in（隐式登录），不是本仓库造成的。 微软策略文档 ImplicitSignInEnabled（Windows ≥93）原文：*\"If you enable or don't configure this setting, implicit sign-in is enabled, Microsoft Edge attempts to sign in the user into their profile based on what and how they sign in to their OS.\"* 即 Edge 依据操作系统侧 的登录身份去签入浏览器 profile，所以换 --user-data-dir 换不掉身份： 实测一个全新 profile 目录里 Default\\Preferences 与 Local State 都已出现 account_info/edge_account 标记。配套证据：NonRemovableProfileEnabled 的说明把这种 profile 直接称作 \"an automatically signed in browser profile\"，BrowserSignin=Disable 时必须同时关掉它才能阻止创建。 边界：implicit sign-in 只影响 Edge profile 身份，不会把主 profile 的 cookie 搬过来，所以 Onshape 登录态仍是干净的——这正是\"非匿名\"与\"不共享主 profile\"同时成立的原因。 要关掉它需机器级策略（ImplicitSignInEnabled=0，或 BrowserSignin=0 + NonRemovableProfileEnabled=0，注册表 SOFTWARE\\Policies\\Microsoft\\Edge，需重启浏览器）， 会同时影响该机日常使用的 Edge；本仓库不自动写策略。",
          "depth": 0
         },
+        {
+         "text": "结论：不存在\"既持久又身份隔离\"的 per-profile 开关，所以本仓库不提供半吊子隔离选项。 依据是同一份策略文档自己写的 \"Per Profile: No\" —— implicit sign-in 是机器级而不是 per-profile 的开关，因此以下四条路都不满足要求：",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "| 做法 | 为什么不满足 | |---|---| | isolated_user_data_dir（本仓库已有） | 只是换目录，不改变 OS 身份——实测新目录里同样出现账户标记 | | --guest（本仓库刻意不实现） | 隔离了身份但没有持久 profile，而 Onshape 登录态必须靠持久 profile 才存在（会话 cookie 是 persistent=0），等于用掉登录态换隔离 | | 换 Edge 通道（Beta/Dev） | 换的是程序，账号身份仍来自同一个 OS 登录 | | ImplicitSignInEnabled=0 等机器级策略 | 有用但波及面过大：会一并改掉人工日常用的 Edge，属使用者的机器配置决策，不由仓库代做 |"
+      },
+      {
+       "type": "para",
+       "text": "所以真正能满足\"持久 并且 与账号身份隔离\"的只有独立的 Windows 账户（不改任何策略， OS 侧身份本身就是另一个）。这一条写进 browser_session 工具描述，让消费方在调用前就知道 窗口里的操作可归因到已登录的 Edge 账户。"
+      },
+      {
+       "type": "list",
+       "items": [
         {
          "text": "status 报告 profileDir、profileBytes、profileBytesComplete（遍历有文件上限， complete=false 的数字是下界）、accountMarkerDetected（对已知 Edge 账户键做递归 名称匹配得到的布尔值；随 Edge 版本变化，false 只表示“未找到标记”，不是“匿名”； 绝不返回账户值）。isolated_user_data_dir 可选一个独立 profile 目录用于在持久 登录 profile 之外运行；这只是目录选择（--guest 未实现），代价是独立目录意味着全新 或显式隔离的身份（除非它自己也是持久的，否则还要一次人工登录）。",
          "depth": 0

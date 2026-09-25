@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -169,6 +170,54 @@ class ConsumerReleaseSpecTest(unittest.TestCase):
             )
         self.assertNotEqual(result.returncode, 0, "a missing whitelist must fail --check")
         self.assertIn("whitelisted path does not exist", result.stdout)
+
+    def test_emit_writes_a_verifiable_spec_only_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            written = spec.write_manifest(ROOT, Path(tmp))
+            manifest = json.loads(written["manifest"].read_text(encoding="utf-8"))
+            # It must be impossible to mistake this for a built artifact.
+            self.assertEqual(manifest["artifactStatus"], "spec-only")
+            self.assertIsNone(manifest["artifactFormat"])
+
+            expected = spec.plan(ROOT).files
+            self.assertEqual(manifest["fileCount"], len(expected))
+            self.assertEqual(manifest["totalBytes"], sum(a.bytes for a in expected))
+            self.assertEqual(
+                [row["path"] for row in manifest["files"]],
+                [a.path for a in expected],
+            )
+
+            # The sidecar must be real `sha256sum -c` input, verified here against
+            # the live files rather than by trusting the manifest.
+            rows = [
+                line.split("  ", 1)
+                for line in written["checksums"].read_text(encoding="utf-8").splitlines()
+                if line
+            ]
+            self.assertEqual(len(rows), len(expected))
+            mismatched = []
+            for digest, relative in rows:
+                actual = file_sha256(ROOT / relative)
+                if actual != digest:
+                    mismatched.append(relative)
+            self.assertEqual(mismatched, [])
+
+    def test_emit_refuses_to_write_inside_the_checkout(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
+            with self.assertRaises(ValueError) as caught:
+                spec.write_manifest(ROOT, Path(tmp))
+            self.assertIn("inside the checkout", str(caught.exception))
+            self.assertFalse((Path(tmp) / spec.MANIFEST_NAME).exists())
+
+    def test_emit_returns_the_same_plan_digest_for_the_same_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            one = json.loads(
+                spec.write_manifest(ROOT, Path(first))["manifest"].read_text(encoding="utf-8")
+            )
+            two = json.loads(
+                spec.write_manifest(ROOT, Path(second))["manifest"].read_text(encoding="utf-8")
+            )
+        self.assertEqual(one["planSha256"], two["planSha256"])
 
 
 if __name__ == "__main__":

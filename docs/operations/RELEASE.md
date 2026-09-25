@@ -104,6 +104,22 @@ output directory is not "cleanup".
   `onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl`).
 - `onshape_browser_mode/requirements-windows.txt` resolves `./wheels` relative to
   itself; verify the bundled wheel digest before installing.
+- That integrity information is **already producible offline, and only that**:
+
+  ```
+  python dev/tools/consumer_release_spec.py --check --emit /some/dir/outside/the/checkout
+  ```
+
+  writes `release-manifest.json` (per-file path / bytes / SHA-256, the excluded
+  paths, and a `planSha256` digest over the ordered rows) and a `SHA256SUMS`
+  sidecar in real `sha256sum -c` format — every listed path is relative to the
+  checkout root, so verify with
+  `cd <checkout> && sha256sum -c <dir>/SHA256SUMS`. It emits nothing when an
+  invariant fails, refuses a destination inside the checkout (that would change
+  the tree it just described), and the manifest states `artifactStatus:
+  "spec-only"` with `artifactFormat: null`: **no artifact is built, compressed,
+  signed, or published.** Artifact format, publication, and signing remain open
+  decisions above.
 
 ## Procedures
 

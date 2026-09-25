@@ -431,6 +431,22 @@ class BrowserSession:
         #: `{"considered": n, "discarded": [{"url": ..., "reason": ...}],
         #: "selected": "reused" | "new" | None}`; None before the first start.
         self.last_page_selection: dict[str, Any] | None = None
+        #: Document identity seen by the last `health()` probe:
+        #: `{"url": normalized, "timeOrigin": int, "observedAt": float}`. Cleared
+        #: by `note_page_navigation()` whenever this server navigates the page
+        #: itself, so a self-reload can be told apart from our own navigation.
+        self._document_probe: dict[str, Any] | None = None
+
+    def note_page_navigation(self) -> None:
+        """Forget the last probed document identity; this server is navigating.
+
+        The self-reload signal (issue #5) compares `performance.timeOrigin` across
+        two of this server's own probes, so it is only meaningful if nothing
+        replaced the document in between. Our own navigations -- `login`,
+        `reload`, `reconnect` -- are exactly such a replacement, so each one
+        clears the record instead of letting the next probe blame the page.
+        """
+        self._document_probe = None
 
     def _resource(self, name: str):
         if self._resources is None:
@@ -1136,7 +1152,7 @@ class BrowserSession:
             page_url = evidence.get("href") or _safe_page_url(page)
         normalized = (page_url or "").split("?", 1)[0].split("#", 1)[0].rstrip("/")
         on_onshape_app = _is_onshape_app_url(page_url)
-        return report(
+        result = report(
             evidence,
             session_running=running,
             on_onshape_app=on_onshape_app,
@@ -1146,6 +1162,60 @@ class BrowserSession:
             page_url=page_url,
             pages_seen=pages_seen,
         )
+        result.update(self._self_reload_finding(evidence, normalized))
+        return result
+
+    def _self_reload_finding(
+        self, evidence: dict[str, Any], normalized: str
+    ) -> dict[str, Any]:
+        """Detect a document replaced between two of this server's own probes.
+
+        Issue #5's report asks for a stable signal "if the tool can detect one".
+        `performance.timeOrigin` is fixed per document, so two probes of the same
+        URL that see different values prove the document was replaced. The signal
+        is deliberately narrow:
+
+        * it is only produced by `health`, because that is the only probe that
+          reads the page at all (`status` avoids evaluate on purpose);
+        * `note_page_navigation()` clears the record whenever THIS server navigates
+          (`login`, `reload`, `reconnect`), so an ordinary reload is never blamed
+          on the page;
+        * an unchanged URL is required: a real navigation is not a self-reload;
+        * ``False`` means "no replacement observed", NOT "the page never reloads".
+          A caller that navigated the page itself (e.g. `browser_eval` with
+          `location.assign`) makes the signal inconclusive rather than wrong.
+        """
+        origin = evidence.get("timeOrigin")
+        if not isinstance(origin, (int, float)) or origin <= 0:
+            return {"selfReloadObserved": False, "selfReloadSince": None}
+        previous = self._document_probe
+        observed = {"url": normalized, "timeOrigin": float(origin), "observedAt": time.time()}
+        self._document_probe = observed
+        if (
+            previous is None
+            or previous.get("url") != normalized
+            or float(previous.get("timeOrigin", 0)) == float(origin)
+        ):
+            return {"selfReloadObserved": False, "selfReloadSince": None}
+        return {
+            "selfReloadObserved": True,
+            "selfReloadSince": {
+                "previousTimeOrigin": previous["timeOrigin"],
+                "currentTimeOrigin": float(origin),
+                "previousObservedAgoMs": int(
+                    max(0.0, observed["observedAt"] - float(previous.get("observedAt", 0.0))) * 1000
+                ),
+                "documentAgeMs": evidence.get("documentAgeMs"),
+                "url": normalized,
+                "note": (
+                    "The document was replaced between two health probes that this "
+                    "server did not navigate in between, which is the sign-in page "
+                    "self-reload measured in issue #5 (it also covers Onshape's own "
+                    "credential-step navigation). If another tool navigated this page "
+                    "in the meantime, treat this as inconclusive."
+                ),
+            },
+        }
 
     def open_login_page(self) -> dict[str, Any]:
         """Open sign-in only when restored/saved app entry cannot reuse login.
@@ -1179,6 +1249,9 @@ class BrowserSession:
                 ),
             }
         saved_url = self._load_saved_app_url()
+        # This call is about to replace the document itself, so the next health
+        # probe must not report that as a page self-reload (#5).
+        self.note_page_navigation()
         if saved_url:
             try:
                 page.goto(saved_url, wait_until="domcontentloaded", timeout=60_000)

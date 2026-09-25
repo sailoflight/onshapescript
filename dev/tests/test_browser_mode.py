@@ -150,10 +150,15 @@ class FakeSession:
         self.enforce_calls = 0
         self.release_calls = 0
         self.detach_calls = 0
+        self.navigation_notices = 0
 
     def start(self) -> FakePage:
         self.start_calls += 1
         return self.page
+
+    def note_page_navigation(self) -> None:
+        # The self-reload detector must be told whenever we navigate ourselves.
+        self.navigation_notices += 1
 
     def _enforce_single_working_page(self, page) -> None:
         self.enforce_calls += 1
@@ -1435,6 +1440,20 @@ class BrowserReloadTest(unittest.TestCase):
         reload_page.assert_called_once()
         self.assertEqual(session.start_calls, 1)
         self.assertEqual(guard.pace_calls, 1)
+        # We are the one replacing the document, so the self-reload detector
+        # (issue #5) must be told and not blame the page.
+        self.assertEqual(session.navigation_notices, 1)
+
+    def test_reconnect_tells_the_session_that_we_navigated(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.reconnect_if_needed",
+                        return_value={"reconnected": True}):
+            server._browser_reconnect({})
+        self.assertEqual(session.navigation_notices, 1)
 
 
     def test_reload_action_uses_bounded_waits_and_reads_tabs(self) -> None:
