@@ -118,8 +118,34 @@ output directory is not "cleanup".
   invariant fails, refuses a destination inside the checkout (that would change
   the tree it just described), and the manifest states `artifactStatus:
   "spec-only"` with `artifactFormat: null`: **no artifact is built, compressed,
-  signed, or published.** Artifact format, publication, and signing remain open
-  decisions above.
+  signed, or published.**
+
+## Building the artifact
+
+Decided 2026-09-25 (owner: "prepare the release"); format, publication, and
+signing are recorded here rather than left implicit, and each remains reversible
+by re-running the build with a different choice:
+
+| Decision | Value | Why |
+|---|---|---|
+| Format | **zip** | The consumer is native Windows with no Git, APG or WSL, so the artifact must be extractable and runnable with what Windows already has. A wheel needs pip and would not carry the offline docs tree; zipapp/PyInstaller add a toolchain and hide the file list the manifest exists to publish |
+| Contents | **exactly `consumer_release_spec.plan()`** | One source of truth. The builder never invents a file list, and refuses to build when the spec's own invariants fail |
+| Layout | **no wrapper directory** | The archive root IS the install root, so "extract into an empty directory" is the whole install |
+| Publication | **local file, handed over out of band** | This repository has no distribution authority or credentials; the builder writes wherever it is told (outside the checkout) and names the file `onshapescript-mcp-<version>-<revision>.zip` |
+| Signing | **unsigned** (SHA-256 only) | Code signing needs a certificate, which is a human/host decision. `release-manifest.json` records `"signed": false` so an unsigned artifact cannot be mistaken for a signed one |
+
+```
+python dev/tools/build_release.py --out <dir outside the checkout> [--revision <name>]
+```
+
+The build is **reproducible**: fixed zip entry timestamps, sorted entries, fixed
+compression level, and the same tree gives byte-identical output. The revision
+defaults to the git short HEAD (with `-dirty` when the tree is dirty), so the
+artifact always names the source it came from. A build writes only outside the
+checkout and writes nothing at all when the spec has an invariant violation.
+
+Beside the archive it writes `<artifact>.sha256`, whose digest is over the
+**archive itself** — that is what a consumer verifies before extracting.
 
 ## Procedures
 
@@ -130,17 +156,52 @@ denylisted mutable state listed above before changing anything.
 ### Install
 
 1. Confirm prerequisites (native Windows, Python >= 3.11, existing Chrome/Edge).
-2. Unpack the artifact to the deployment directory, conventionally
-   `C:\MCP\onshapescript`. Do not clone and do not create a Git workspace.
-3. Verify `SHA256SUMS` and `release-manifest.json` against the artifact; stop on
-   any mismatch.
-4. Create the venv and install only the module-owned requirements:
+2. Verify the archive before extracting: compare `onshapescript-mcp-<version>-<revision>.zip`
+   against its `.sha256` sidecar. Stop on any mismatch.
+3. Unpack the artifact to the deployment directory, conventionally
+   `C:\MCP\onshapescript`. The archive root is the install root, so extract into an
+   empty directory. Do not clone and do not create a Git workspace.
+4. Verify the extracted tree against the shipped `SHA256SUMS`
+   (`sha256sum -c SHA256SUMS` from the install root) and read
+   `release-manifest.json`; stop on any mismatch.
+5. Create the venv and install only the module-owned requirements:
    `.\.venv\Scripts\python.exe -m pip install -r onshape_browser_mode\requirements-windows.txt`.
    Verify the bundled wheel digest first.
-5. Run the offline self-check (below). It must complete with zero Onshape
+6. Run the offline self-check (below). It must complete with zero Onshape
    requests.
-6. Register the client/adapter (next section), then complete one human SSO/2FA
+7. Register the client/adapter (next section), then complete one human SSO/2FA
    login only when browser work is actually needed.
+
+### Upgrade and rollback
+
+Upgrade replaces code and never deletes state by default. `release-manifest.json`
+lists `excludedPaths`: that is the preserved state, and it is absent from the
+artifact precisely so extracting can never overwrite it.
+
+1. Record the recovery point (the Operator runbook procedure) and stop the server.
+2. Extract the new release into a **new** directory, for example
+   `C:\MCP\onshapescript-1.3.0-<revision>`; verify it as in install steps 2-4.
+3. Carry the preserved state forward by copying the `excludedPaths` that exist in
+   the old install into the same relative locations in the new one: the browser
+   profile, `browser-state.json`, `browser.local.toml`, the REST credential and
+   state files, `api-usage.json`, `tool_views.local.toml`, and the output trees.
+   Copying `api-usage.json` is not optional — the annual Onshape quota ledger must
+   not be reset by an upgrade.
+4. Re-point the client/adapter registration at the new directory and start it.
+5. **Rollback** is steps 3-4 in reverse: re-point the registration at the previous
+   directory. Keep the previous directory until the new one has served a request,
+   and never delete either one as part of rollback.
+
+### Unregister / uninstall
+
+1. Remove the client/adapter registration (and the DSH patch) first, so nothing
+   restarts the server mid-removal.
+2. Stop the server and confirm no MCP child and no browser process remain.
+3. Uninstall deletes **code only**. Do not delete the preserved state unless the
+   Operator has explicit user approval, and delete named paths rather than using a
+   wildcard. A deleted profile costs a manual SSO/2FA login; a deleted
+   `api-usage.json` costs the only local record of consumed Onshape quota.
+
 
 ### DSH register
 
@@ -232,15 +293,23 @@ browser work is actually requested.
 
 ## Open decisions (not yet specified)
 
-These are **undecided**, not silently assumed. A human must choose before a
-packaging pipeline is written:
+These are **undecided**, not silently assumed:
 
-1. **Artifact format**: zip vs wheel vs zipapp vs PyInstaller.
-2. **Publication location**: where the artifact is stored and distributed.
-3. **Code signing**: whether the artifact and/or manifest is signed.
+1. **Publication location and distribution channel**: where the built artifact is
+   stored and how it reaches a consumer host. The builder writes a local file and
+   nothing else; nothing is uploaded.
+2. **Code signing**: whether the artifact and/or manifest is signed. Today's
+   artifact is unsigned and says so.
+3. **The native-Windows acceptance run** on a clean consumer environment (see the
+   acceptance section above). The offline proxy is automated — the built archive
+   is extracted and the server is started over stdio from that directory with
+   `PYTHONPATH` removed (`dev/tests/test_release_artifact.py`) — but that is not
+   the same as a clean Windows host.
 
-No path is pending a membership decision: `PENDING_DECISION` in
-`dev/tools/consumer_release_spec.py` is empty.
+Decided and no longer open: **artifact format (zip)** and **contents** (the
+whitelist), both recorded in the build section above. No path is pending a
+membership decision: `PENDING_DECISION` in `dev/tools/consumer_release_spec.py`
+is empty.
 
 ## Decided: `fdm_analysis/` ships, and the dependency shape was adjusted
 

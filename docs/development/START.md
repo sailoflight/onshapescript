@@ -33,6 +33,8 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 | FeatureScript local guard | `python onshape_docs/scripts/fs_local_check.py <path>` | zero API calls |
 | Tool reference | `python onshape_docs/scripts/build_tool_reference.py --check` | derived schema check |
 | DSH companion | `python mcp_main/dsh/build_runtime_prompt_companion.py --check` | generated policy adapter |
+| Release spec check | `python dev/tools/consumer_release_spec.py --check` | whitelist/denylist invariants |
+| Release artifact | `python dev/tools/build_release.py --out <dir outside the checkout>` | reproducible unsigned zip; writes only outside the checkout |
 
 There is no root packaging manifest. Python modules, domain-owned dependency
 files, and current module contracts are executable sources of truth.
