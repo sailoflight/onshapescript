@@ -32,7 +32,7 @@ service, relay, or launcher.
 ### Browser lifetime and the login
 
 Onshape Web has no "stay signed in": its auth cookies (`on-session-id`, `_u`) are
-session cookies, so closing the browser signs the human out. In the default
+session cookies, so closing the browser signs the human out. In a non-resident
 configuration each bridge/MCP child launches the browser and closes it on stdin
 EOF, which means **a bridge restart costs one human SSO/2FA login**. That is a
 property of Onshape, not of this module.
@@ -40,8 +40,11 @@ property of Onshape, not of this module.
 `browser.resident = true` removes that cost. The module then spawns one detached
 browser publishing a loopback-only DevTools endpoint (`127.0.0.1:<resident_port>`)
 and every child attaches over CDP instead of launching; a child's exit detaches and
-leaves the browser, its tabs and its session cookies alive. Consequences for an
-operator:
+leaves the browser, its tabs and its session cookies alive. **This is the shipped
+default since 2026-09-26** (owner decision; `config/browser.toml` and the loader
+fallback agree), so it is what an operator should expect unless the deployment
+opted out with `resident = false` in its gitignored `browser.local.toml`.
+Consequences for an operator:
 
 - the browser outlives the MCP process, so client EOF does **not** clean it up;
   ending it means closing its window or stopping the browser process;

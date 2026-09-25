@@ -22,9 +22,24 @@ from unittest import mock
 from onshape_browser_mode import health
 from onshape_browser_mode import session as session_module
 from onshape_browser_mode.session import BrowserSession
+from onshape_browser_mode.settings import BrowserCfg, BrowserConfig, ListenerCfg, PacingCfg
 
 APP = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element1"
 SIGNIN = "https://cad.onshape.com/signin"
+
+#: Residency explicitly OFF. The shipped default is ON, and with residency on an
+#: unheld session legitimately probes the loopback DevTools endpoint -- so a test
+#: whose subject is "nothing is running" must not depend on whether a resident
+#: browser happens to answer on the machine running the suite. `_resident_cdp_port`
+#: reads the module-level config, so the gate is patched at that same source.
+NON_RESIDENT = BrowserConfig(BrowserCfg(resident=False), PacingCfg(), ListenerCfg())
+
+
+def residency_off():
+    """Patch the residency gate off for one test's `with` block."""
+    return mock.patch.object(
+        session_module, "load_browser_config", return_value=NON_RESIDENT
+    )
 
 
 class FakePage:
@@ -205,9 +220,15 @@ class SessionHealthTest(unittest.TestCase):
         self.assertIn("https://cad.onshape.com/documents/abc", result["pageUrl"])
 
     def test_no_resources_is_browser_not_running_and_probes_nothing(self):
-        session = BrowserSession()
-        result = session.health()
+        # Residency off: an unheld, non-resident session must not read any endpoint.
+        # The gate lives inside the observation helper, so assert on the HTTP step.
+        with residency_off(), mock.patch.object(
+            session_module, "_devtools_page_targets"
+        ) as read:
+            result = BrowserSession().health()
+        read.assert_not_called()
         self.assertEqual(result["verdict"], health.BROWSER_NOT_RUNNING)
+        self.assertIsNone(result["residentBrowser"])
         self.assertIsNone(result["pageUrl"])
         self.assertEqual(result["pages"], [])
         self.assertIn("did NOT launch", result["note"])
@@ -473,7 +494,8 @@ class StatusVerdictVocabularyTest(unittest.TestCase):
     """Issue #10.4: status() and health() share one verdict vocabulary."""
 
     def test_status_without_resources_reports_browser_not_running(self):
-        result = BrowserSession().status()
+        with residency_off():
+            result = BrowserSession().status()
 
         self.assertEqual(result["verdict"], health.BROWSER_NOT_RUNNING)
         self.assertEqual(result["recommendedAction"], "browser_session action=login")
@@ -664,9 +686,13 @@ class ResidentEndpointObservationTest(unittest.TestCase):
         self.assertEqual(result["verdict"], health.INDETERMINATE)
 
     def test_disabled_residency_reports_no_resident_browser(self):
-        # The shipped default is resident = False, so no browser may be invented.
-        result = BrowserSession().health()
+        # Explicitly opted out, so no browser may be invented and no endpoint read.
+        with residency_off(), mock.patch.object(
+            session_module, "_devtools_page_targets"
+        ) as read:
+            result = BrowserSession().health()
 
+        read.assert_not_called()
         self.assertEqual(result["verdict"], health.BROWSER_NOT_RUNNING)
         self.assertIsNone(result["residentBrowser"])
 

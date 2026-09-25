@@ -157,7 +157,11 @@ Playwright driver owns its whole process tree (on exit it reaps it with
 not retry it; **when login state must outlive the MCP child, use resident mode
 instead** — `browser.resident = true` has the server spawn Edge detached with
 `--remote-debugging-port` and attach over CDP, where `context.close()` is already a
-detach (measured on `Edg/153.0.4234.32`). `browser_session(action="login")` reports `alreadyAuthenticated` (the
+detach (measured on `Edg/153.0.4234.32`). **Resident mode is the shipped default
+since 2026-09-26** (owner decision), in `config/browser.toml` and in the loader's
+fallback alike, because the alternative costs a human SSO/2FA sign-in on every
+child restart; a deployment that must not own a browser process sets
+`resident = false` in its gitignored `browser.local.toml`. `browser_session(action="login")` reports `alreadyAuthenticated` (the
 persistent profile still has a live session) or `needsHumanLogin` (it does not),
 so the caller no longer has to guess from the URL. When it does need a human, the
 result also carries `pageMaySelfReload: true` and a `humanInputAdvisory`: the

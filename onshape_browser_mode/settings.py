@@ -29,7 +29,11 @@ class BrowserCfg:
     # Resident mode: keep ONE browser alive across MCP child processes so the Onshape
     # login survives a bridge restart. Onshape auth cookies are session cookies, so a
     # browser death costs a human login; see onshape_browser_mode/resident.py.
-    resident: bool = False
+    # ON by default (owner decision, 2026-09-26): the alternative's cost is a human
+    # SSO/2FA sign-in on child restart, which is the worse default. This matches the
+    # shipped `config/browser.toml`; a deployment that must not own a browser process
+    # opts out with `resident = false` in its gitignored browser.local.toml.
+    resident: bool = True
     resident_port: int = 9333  # loopback DevTools endpoint of the resident browser
     # Isolation: optional SEPARATE profile directory, used instead of `user_data_dir`
     # when non-empty. Trade-off, stated plainly: the shared persistent profile keeps

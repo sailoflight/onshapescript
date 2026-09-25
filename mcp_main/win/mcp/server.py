@@ -2489,7 +2489,7 @@ TOOLS: list[dict[str, Any]] = [
             "reports detached=false and recommends release. That refusal is STRUCTURAL, not a missing "
             "wheel API: a launched browser runs on --remote-debugging-pipe, exposes no CDP endpoint to "
             "re-attach to, and is reaped with its Playwright driver (taskkill /T /F). When login state "
-            "must outlive this MCP child, use resident mode (browser.resident=true) instead of retrying "
+            "must outlive this MCP child, use resident mode (browser.resident=true, the shipped default) instead of retrying "
             "detach. Three outcomes are not interchangeable: "
             "release loses login state; a process crash or a page navigation does NOT; detach keeps the "
             "window. Keep the session at the end of a task by default, because release can cost a human "

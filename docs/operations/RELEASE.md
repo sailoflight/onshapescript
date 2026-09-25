@@ -345,6 +345,13 @@ server restarts — so a code refresh does not cost the human a login.
   layer uses the machine's existing Chrome/Edge; a geometry backend is
   configured explicitly by opaque candidate id and `ask_before_install` always
   asks the human first.
+- **Resident browser mode is ON** (`onshape_browser_mode/config/browser.toml`,
+  matching the `BrowserCfg` fallback): one detached browser outlives the MCP child
+  processes so the session-cookie login survives a bridge restart instead of
+  costing a human SSO/2FA sign-in. An install that must not own a browser process
+  opts out with `resident = false` in its gitignored `browser.local.toml`. The
+  DevTools endpoint is loopback-only, and the browser outliving the process means
+  client EOF does not clean it up — see `docs/operations/MCP_RUNBOOK.md`.
 
 ## Optional browser layer
 

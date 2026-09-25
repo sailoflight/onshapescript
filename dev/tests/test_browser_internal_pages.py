@@ -191,15 +191,14 @@ class FakeResources:
 
 
 def session_with(context, page=None, *, resident=False):
-    if resident:
-        config = BrowserConfig(
-            browser=BrowserCfg(resident=True),
-            pacing=PacingCfg(),
-            listener=ListenerCfg(),
-        )
-        session = BrowserSession(config)
-    else:
-        session = BrowserSession()
+    # Explicit on both branches: the shipped default is now resident = True, and a
+    # test about the NON-resident refusal must not be decided by the default.
+    config = BrowserConfig(
+        browser=BrowserCfg(resident=resident),
+        pacing=PacingCfg(),
+        listener=ListenerCfg(),
+    )
+    session = BrowserSession(config)
     session._resources = FakeResources(context, page)
     session._status = "started"
     return session

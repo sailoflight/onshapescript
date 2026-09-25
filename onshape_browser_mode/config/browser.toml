@@ -28,8 +28,10 @@ proxy_server = ""                     # optional HTTP proxy, e.g. "http://127.0.
 # login survives a bridge restart. Onshape auth cookies are session cookies, so a
 # browser death costs a human SSO/2FA login every time. When enabled, the module
 # spawns a detached browser with a loopback-only DevTools endpoint and every child
-# merely attaches to it. Off by default; enable per deployment in browser.local.toml.
-resident = false
+# merely attaches to it. ON by default since 2026-09-26 (owner decision): the
+# alternative costs a human sign-in on every child restart. Opt out per deployment
+# with `resident = false` in the gitignored browser.local.toml.
+resident = true
 resident_port = 9333                  # 127.0.0.1 only; one port per profile/host
 
 [pacing]

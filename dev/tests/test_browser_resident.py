@@ -472,17 +472,24 @@ class ExecutableResolutionTest(unittest.TestCase):
 
 
 class ResidentWiringTest(unittest.TestCase):
-    """Default off; the switch lives in module-owned config, not in code."""
+    """Default ON (owner decision 2026-09-26); the switch is a config value."""
 
     def session(self, **options):
         options.setdefault("user_data_dir", str(PROFILE))
         config = BrowserConfig(BrowserCfg(**options), PacingCfg(), ListenerCfg())
         return BrowserSession(config)
 
-    def test_resident_mode_is_off_by_default(self):
-        self.assertFalse(BrowserCfg().resident)
+    def test_resident_mode_is_on_by_default(self):
+        # The shipped browser.toml and this dataclass default must agree, because a
+        # deployment that reads either one has to get the same ownership model.
+        self.assertTrue(BrowserCfg().resident)
         self.assertEqual(BrowserCfg().resident_port, DEFAULT_RESIDENT_PORT)
-        self.assertIsNone(self.session()._make_resources()._factory)
+        self.assertIsNotNone(self.session()._make_resources()._factory)
+
+    def test_an_explicit_false_still_opts_out(self):
+        """The default decides for an unconfigured host, not against a configured one."""
+        self.assertFalse(BrowserCfg(resident=False).resident)
+        self.assertIsNone(self.session(resident=False)._make_resources()._factory)
 
     def test_the_switch_injects_only_the_spawn_time_identity(self):
         browser = self.session(resident=True, resident_port=9444, channel="msedge", locale="zh-CN")
@@ -518,18 +525,23 @@ class ResidentWiringTest(unittest.TestCase):
         resources = BrowserSession(config, playwright_factory=injected)._make_resources()
         self.assertIs(resources._factory, injected)
 
-    def test_the_local_config_file_can_enable_it(self):
+    def test_the_local_config_file_can_override_it(self):
         with tempfile.TemporaryDirectory(prefix="onshape-resident-config-") as temporary:
             local = Path(temporary) / "browser.local.toml"
             local.write_text(
-                '[browser]\nresident = true\nresident_port = 9444\nchannel = "msedge"\n',
+                '[browser]\nresident = false\nresident_port = 9444\nchannel = "msedge"\n',
                 encoding="utf-8",
             )
             with mock.patch.object(settings, "LOCAL_CONFIG_PATH", local):
                 config = settings.load_browser_config(ROOT / "onshape_browser_mode/config/browser.toml")
-        self.assertTrue(config.browser.resident)
+        self.assertFalse(config.browser.resident)
         self.assertEqual(config.browser.resident_port, 9444)
         self.assertEqual(config.browser.channel, "msedge")
+
+    def test_the_shipped_config_enables_it(self):
+        """The artifact's own browser.toml must carry the ON default, not just the code."""
+        config = settings.load_browser_config(ROOT / "onshape_browser_mode/config/browser.toml")
+        self.assertTrue(config.browser.resident)
 
 
 if __name__ == "__main__":
