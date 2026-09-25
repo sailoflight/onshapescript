@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "21bdd0f27d7eb335c120f79a76e5cb44d19ad80db4774263777fbd354182d988",
+   "sha256": "e65d87241707bdd06a822636ff994652362f4a415f9c85d0e48c4961da15744a",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -789,7 +789,7 @@
       },
       {
        "type": "para",
-       "text": "browser_export_step gained overwrite and no longer reports a false failure when the STEP was already saved. A failure returns a structured result instead of raising: exported: false, failure: {phase, error} (phase is one of stage_artifact|save_download|close_internal_download_pages| wait_for_dialog_hidden|register_manifest), stagedArtifacts ([{path, fileName, bytes, sha256}]), stagingComplete, alreadyStaged, browserAliveBefore, browserAliveAfter, and recovery (a LIST of candidate next actions), plus the existing zero-cost annotations. A failure at phase wait_for_dialog_hidden with stagingComplete: true is NOT a download failure: the STEP is on disk with its manifest and is reusable (for example by browser_build_geometry_package), and a same-export_id retry then returns alreadyStaged success instead of the old \"staging destination already exists\" refusal. Pass overwrite=true on a retry to reuse a staging directory a failed export left partial; without it a retry refuses rather than overwrite leftovers. Reuse is granted on provenance, not merely on the artifact being intact: the manifest records the document/workspace/element it was exported from, and a call naming a different target is refused (\"holds a STEP exported from a different document/workspace/element\") rather than answered with the other document's STEP. overwrite=true replaces such a staging directory instead. The dry_run plan reports stagingProvenanceChecked/stagingProvenanceMatches so it never advertises a reuse the real call would refuse; with no target ids it reports the artifact-level answer and stagingProvenanceChecked: false. Pre-flight validation failures (bad tab, URL mismatch, non-STEP download) still raise. A complete staging requires manifest + artifact + matching sha256. A failure may restart the browser or leave the MCP child holding no browser resources; browser_session action=health reporting browser_not_running with pages: [] means only \"this MCP process holds nothing\" — it does NOT prove the Edge process died."
+       "text": "browser_export_step gained overwrite and no longer reports a false failure when the STEP was already saved. A failure returns a structured result instead of raising: exported: false, failure: {phase, error} (phase is one of stage_artifact|save_download|close_internal_download_pages| wait_for_dialog_hidden|register_manifest), stagedArtifacts ([{path, fileName, bytes, sha256}]), stagingComplete, alreadyStaged, browserAliveBefore, browserAliveAfter, and recovery (a LIST of candidate next actions), plus the existing zero-cost annotations. A failure at phase wait_for_dialog_hidden with stagingComplete: true is NOT a download failure: the STEP is on disk with its manifest and is reusable (for example by browser_build_geometry_package), and a same-export_id retry then returns alreadyStaged success instead of the old \"staging destination already exists\" refusal. Pass overwrite=true on a retry to reuse a staging directory a failed export left partial; without it a retry refuses rather than overwrite leftovers. Reuse is granted on provenance, not merely on the artifact being intact: the manifest records the document/workspace/element it was exported from, and a call naming a different target is refused (\"holds a STEP exported from a different document/workspace/element\") rather than answered with the other document's STEP. overwrite=true replaces such a staging directory instead. The dry_run plan reports stagingProvenanceChecked/stagingProvenanceMatches so it never advertises a reuse the real call would refuse; with no target ids it reports the artifact-level answer and stagingProvenanceChecked: false. Pre-flight validation failures (bad tab, URL mismatch, non-STEP download) still raise. A complete staging requires manifest + artifact + matching sha256. A failure may restart the browser or leave the MCP child holding no browser resources. browser_session action=health separates those two: pages: [] still means only \"this MCP process holds nothing\", but in resident mode (browser.resident = true) the probe additionally reads the detached browser's own loopback DevTools endpoint and reports it as residentBrowser. So browser_not_running now means no browser answered at all, while ok with residentBrowser.observed: true means the detached browser is alive and still holding an Onshape page: its login survived this child, and any browser call attaches to it without a human sign-in. That read launches nothing, attaches nothing, evaluates no page, and navigates nowhere. status reports the same residentBrowser observation, so a browser that is merely unheld is never described as dead."
       },
       {
        "type": "para",
@@ -2494,7 +2494,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "5129f703694445f0412155bb8c9d19f12c75080e355dc19bc3fcd24d7cf8dc89",
+   "sha256": "74169af6d974ab9e8101dd7930d17b94a62068f42179424298c8cfe03a11217b",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2606,6 +2606,14 @@
          "depth": 0
         },
         {
+         "text": "真机验证（2026-09-26，Edg/153.0.4234.48）：resident 模式下登录态确实跨子进程存活。 action=login（人工一次 SSO）拉起 detached Edge 根进程（命令行含 --remote-debugging-port=9333、--user-data-dir=…onshape_profile，且没有 --remote-debugging-pipe）；bridge 重启 onshape 子进程后，该 PID 与 DevTools webSocketDebuggerUrl 里的浏览器 GUID 都不变，新子进程 action=login 直接报 alreadyAuthenticated: true（needsHumanLogin: false，未发生任何导航）——即**零额外人工 登录**。同一序列中 action=detach 返回 `detached: true / contextClosed: false / browserLeftRunning: true / playwrightStopped: true / loginStateMayNeedRefresh: false`， 外部复查 PID 与 GUID 依旧不变。",
+         "depth": 0
+        },
+        {
+         "text": "health/status 在“本进程未持有”时改读回环 DevTools 端点（2026-09-26 新增，issue #6）。 resident 模式下浏览器故意活得比子进程久，“不持有”因此是重启后的正常状态，而此前 该分支写死 browser_not_running，是证据不支持的结论。现在它用一次有界 GET http://127.0.0.1:<port>/json/list 读那个 detached 浏览器自己的端点，并在结果里给出 residentBrowser（observed/pageTargets/pageUrl/onOnshapeApp/onSigninPage）： 存活且停在 Onshape 页面上即报 ok（note 注明证据只来自端点、页面未被 evaluate）， 端点无人应答才报 browser_not_running。该读取不启动、不附着、不 evaluate、不导航，且只在 “本进程未持有”时执行——持有页面时直接证据优先。browser_not_running 的语义因此收紧为 “没有任何浏览器应答”。",
+         "depth": 0
+        },
+        {
          "text": "默认指引：任务结束时保留会话；只有人工明确要求或确实需要释放资源时才 release。",
          "depth": 0
         },
@@ -2651,7 +2659,7 @@
          "depth": 0
         },
         {
-         "text": "start() 不再采纳已关闭页面：跳过 closed 页、跨过 adopt 失败并前进，最后回退到新开页。 status 的 pageSelection 报告 {\"considered\", \"discarded\": [{\"url\",\"reason\"}], \"selected\"}， reason 含 closed/browserInternal；无可用页时错误里指名 browser_session action=login。 status 还新增 verdict/recommendedAction/verdictNote（与 action=health 对齐）。",
+         "text": "start() 不再采纳已关闭页面：跳过 closed 页、跨过 adopt 失败并前进，最后回退到新开页。 status 的 pageSelection 报告 {\"considered\", \"discarded\": [{\"url\",\"reason\"}], \"selected\"}， reason 含 closed/browserInternal；无可用页时错误里指名 browser_session action=login。 status 还新增 verdict/recommendedAction/verdictNote（与 action=health 对齐）， 以及 residentBrowser（本进程未持有时，对 detached 常驻浏览器回环端点的读数）。",
          "depth": 0
         }
        ]
@@ -3548,7 +3556,7 @@
          "depth": 0
         },
         {
-         "text": "browser_export_step 新参数 overwrite；当 STEP 其实已保存时不再误报失败：保存/下载 尾段失败返回结构化结果（exported: false、failure: {phase,error}、 stagedArtifacts、stagingComplete、alreadyStaged、browserAliveBefore/After、 以及一个 LIST 的 recovery），而 tab/URL/对话框配置和非 STEP 的预检失败仍然 raise。 关键读法：phase=wait_for_dialog_hidden 且 stagingComplete: true 不是下载失败—— STEP 与 manifest 已在磁盘且可复用（例如交给 browser_build_geometry_package）；同 export_id 重试会返回 alreadyStaged 成功，而不是旧的 “staging destination already exists” 拒绝。完整 staging 需要 manifest + 产物 + 匹配的 sha256。失败可能重启浏览器或 让 MCP 子进程不再持有浏览器资源；action=health 报 browser_not_running 且 pages: [] 只说明“本 MCP 进程不持有任何东西”，不能证明 Edge 进程已死。",
+         "text": "browser_export_step 新参数 overwrite；当 STEP 其实已保存时不再误报失败：保存/下载 尾段失败返回结构化结果（exported: false、failure: {phase,error}、 stagedArtifacts、stagingComplete、alreadyStaged、browserAliveBefore/After、 以及一个 LIST 的 recovery），而 tab/URL/对话框配置和非 STEP 的预检失败仍然 raise。 关键读法：phase=wait_for_dialog_hidden 且 stagingComplete: true 不是下载失败—— STEP 与 manifest 已在磁盘且可复用（例如交给 browser_build_geometry_package）；同 export_id 重试会返回 alreadyStaged 成功，而不是旧的 “staging destination already exists” 拒绝。完整 staging 需要 manifest + 产物 + 匹配的 sha256。失败可能重启浏览器或 让 MCP 子进程不再持有浏览器资源。这一点 action=health 现在分得清：pages: [] 只说明 “本 MCP 进程不持有任何东西”，但 resident 模式（browser.resident = true）下探针还会读 那个 detached 浏览器自己的回环 DevTools 端点，并把它报成 residentBrowser。于是 browser_not_running 的含义收紧为“没有任何浏览器应答”，而 ok + residentBrowser.observed: true 表示该浏览器活着且仍停在 Onshape 页面上——登录态确实 跨过了这个子进程，随后任何 browser_* 调用会附着上去、不需要人工再登录。这次读取不启动、 不附着、不 evaluate 页面、也不导航；status 报同一份 residentBrowser，所以“只是没被 持有”再也不会被描述成“已死”。",
          "depth": 0
         }
        ]

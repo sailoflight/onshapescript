@@ -17,8 +17,10 @@ here with fake pages and a fake session (no browser, no network, no quota):
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 from onshape_browser_mode import health
+from onshape_browser_mode import session as session_module
 from onshape_browser_mode.session import BrowserSession
 
 APP = "https://cad.onshape.com/documents/doc1/w/workspace1/e/element1"
@@ -580,6 +582,179 @@ class SelfReloadDetectionTest(unittest.TestCase):
 
         self.assertFalse(result["selfReloadObserved"])
         self.assertIsNone(result["selfReloadSince"])
+
+
+class ResidentEndpointObservationTest(unittest.TestCase):
+    """Issue #6: an unheld resident browser must never be reported as gone.
+
+    In resident mode the browser outlives the MCP child on purpose, so "this
+    process holds nothing" is the normal state right after a restart. These tests
+    pin that the loopback DevTools read supplies the missing evidence, that it
+    stays a read (no launch, no page round trip), and that a held page always
+    outranks it.
+    """
+
+    def observation(self, **overrides):
+        base = {
+            "observed": True,
+            "endpoint": "http://127.0.0.1:9333",
+            "source": "devtools-http",
+            "pageTargets": 1,
+            "pageUrl": APP,
+            "onOnshapeApp": True,
+            "onSigninPage": False,
+        }
+        base.update(overrides)
+        return base
+
+    def test_an_unheld_resident_browser_is_ok_and_launches_nothing(self):
+        with mock.patch.object(
+            session_module,
+            "_resident_endpoint_observation",
+            return_value=self.observation(),
+        ):
+            result = BrowserSession().health()
+
+        self.assertEqual(result["verdict"], health.OK)
+        self.assertEqual(result["recommendedAction"], "browser_session action=login")
+        self.assertFalse(result["launchedBrowser"])
+        # No page round trip happened: the verdict rests on the endpoint read.
+        self.assertIsNone(result["probe"]["responded"])
+        self.assertEqual(result["residentBrowser"]["pageUrl"], APP)
+        self.assertIn("loopback endpoint", result["note"])
+        self.assertIn("survived this MCP child", result["note"])
+        # An endpoint-only read must not pretend the page itself was read.
+        self.assertIn("was not read", result["note"])
+
+    def test_an_unheld_resident_browser_on_signin_requires_a_human(self):
+        with mock.patch.object(
+            session_module,
+            "_resident_endpoint_observation",
+            return_value=self.observation(
+                onOnshapeApp=False, onSigninPage=True, pageUrl=SIGNIN
+            ),
+        ):
+            result = BrowserSession().health()
+
+        self.assertEqual(result["verdict"], health.LOGIN_REQUIRED)
+
+    def test_a_silent_resident_endpoint_is_browser_not_running(self):
+        with mock.patch.object(
+            session_module,
+            "_resident_endpoint_observation",
+            return_value=self.observation(
+                observed=False, pageTargets=None, pageUrl=None, onOnshapeApp=False
+            ),
+        ):
+            result = BrowserSession().health()
+
+        self.assertEqual(result["verdict"], health.BROWSER_NOT_RUNNING)
+        self.assertIn("did not answer", result["note"])
+
+    def test_a_resident_browser_with_no_page_target_is_indeterminate(self):
+        with mock.patch.object(
+            session_module,
+            "_resident_endpoint_observation",
+            return_value=self.observation(
+                pageTargets=0, pageUrl=None, onOnshapeApp=False
+            ),
+        ):
+            result = BrowserSession().health()
+
+        self.assertEqual(result["verdict"], health.INDETERMINATE)
+
+    def test_disabled_residency_reports_no_resident_browser(self):
+        # The shipped default is resident = False, so no browser may be invented.
+        result = BrowserSession().health()
+
+        self.assertEqual(result["verdict"], health.BROWSER_NOT_RUNNING)
+        self.assertIsNone(result["residentBrowser"])
+
+    def test_status_reports_the_unheld_resident_browser(self):
+        with mock.patch.object(
+            session_module,
+            "_resident_endpoint_observation",
+            return_value=self.observation(),
+        ):
+            result = BrowserSession().status()
+
+        # Ownership is unchanged (`uninitialized`, no pages) while the verdict
+        # follows the browser that is actually alive.
+        self.assertEqual(result["verdict"], health.OK)
+        self.assertEqual(result["sessionStatus"], "uninitialized")
+        self.assertEqual(result["pages"], [])
+        self.assertEqual(result["residentBrowser"]["pageUrl"], APP)
+
+    def test_a_held_page_is_direct_evidence_and_wins(self):
+        working = FakePage(url=APP)
+
+        class Resources:
+            def __init__(self):
+                self.page = working
+                self.context = type("Context", (), {"pages": [working]})()
+
+        session = BrowserSession()
+        session._resources = Resources()
+        with mock.patch.object(
+            session_module, "_resident_endpoint_observation"
+        ) as observation:
+            result = session.health()
+
+        self.assertEqual(result["verdict"], health.OK)
+        self.assertIsNone(result["residentBrowser"])
+        observation.assert_not_called()
+
+
+class ResidentEndpointReadTest(unittest.TestCase):
+    """The loopback read itself: bounded, one call, and honest about failure."""
+
+    def test_no_port_when_residency_is_disabled(self):
+        with mock.patch.object(session_module, "_resident_cdp_port", return_value=None):
+            self.assertIsNone(session_module._resident_endpoint_observation())
+
+    def test_an_unreachable_endpoint_is_reported_as_unobserved(self):
+        with mock.patch.object(
+            session_module, "_resident_cdp_port", return_value=9333
+        ), mock.patch.object(
+            session_module, "_devtools_page_targets", return_value=None
+        ):
+            observation = session_module._resident_endpoint_observation()
+
+        self.assertFalse(observation["observed"])
+        self.assertEqual(observation["endpoint"], "http://127.0.0.1:9333")
+        self.assertEqual(observation["source"], "devtools-http")
+
+    def test_the_app_page_is_preferred_over_other_targets(self):
+        targets = [
+            {"type": "page", "url": "about:blank"},
+            {"type": "page", "url": APP},
+        ]
+        with mock.patch.object(
+            session_module, "_resident_cdp_port", return_value=9333
+        ), mock.patch.object(
+            session_module, "_devtools_page_targets", return_value=targets
+        ) as read:
+            observation = session_module._resident_endpoint_observation()
+
+        self.assertTrue(observation["observed"])
+        self.assertEqual(observation["pageTargets"], 2)
+        self.assertEqual(observation["pageUrl"], APP)
+        self.assertTrue(observation["onOnshapeApp"])
+        self.assertFalse(observation["onSigninPage"])
+        # One bounded loopback read; the caller supplies the timeout.
+        read.assert_called_once()
+
+    def test_a_signin_target_is_reported_as_signin(self):
+        targets = [{"type": "page", "url": SIGNIN}]
+        with mock.patch.object(
+            session_module, "_resident_cdp_port", return_value=9333
+        ), mock.patch.object(
+            session_module, "_devtools_page_targets", return_value=targets
+        ):
+            observation = session_module._resident_endpoint_observation()
+
+        self.assertTrue(observation["onSigninPage"])
+        self.assertFalse(observation["onOnshapeApp"])
 
 
 if __name__ == "__main__":

@@ -279,6 +279,59 @@ def _devtools_page_targets(port: int, timeout: float) -> list[dict[str, Any]] | 
     ]
 
 
+def _resident_endpoint_observation(*, timeout: float = 2.0) -> dict[str, Any] | None:
+    """What the resident browser's own loopback endpoint lists, without Playwright.
+
+    `status`/`health` report what THIS process holds and refuse to launch or
+    attach anything, so in resident mode their honest answer to "is the browser
+    gone, or merely unheld?" is reachable only through the browser's own DevTools
+    endpoint: one bounded loopback HTTP read, no Playwright, no page evaluate, no
+    navigation, no launch. Measured live 2026-09-26: a detached resident Edge that
+    outlived its MCP child answers this endpoint, so a child holding nothing can
+    still distinguish "unheld but alive" from "gone".
+
+    ``None`` means residency is disabled, so nothing about any browser could be
+    observed. Otherwise the answer always says what was read: ``observed`` is
+    False when the endpoint did not answer -- which is evidence that the detached
+    browser is really gone -- and ``pageTargets`` separates "answers with nothing
+    to read" from "answers and holds pages".
+    """
+    port = _resident_cdp_port()
+    if port is None:
+        return None
+    endpoint = f"http://127.0.0.1:{port}"
+    targets = _devtools_page_targets(port, timeout)
+    if targets is None:
+        return {
+            "observed": False,
+            "endpoint": endpoint,
+            "source": "devtools-http",
+            "pageTargets": None,
+            "pageUrl": None,
+        }
+    urls = [
+        str(target["url"])
+        for target in targets
+        if isinstance(target.get("url"), str) and target.get("url")
+    ]
+    # A browser-internal page (edge://downloads-hub/) is listed but is never a
+    # usable working page, so it must not become the reported page URL.
+    usable = [url for url in urls if not _is_browser_internal_noise_url(url)]
+    page_url = next((url for url in usable if _is_onshape_app_url(url)), None)
+    if page_url is None and usable:
+        page_url = usable[0]
+    normalized = (page_url or "").split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    return {
+        "observed": True,
+        "endpoint": endpoint,
+        "source": "devtools-http",
+        "pageTargets": len(targets),
+        "pageUrl": page_url,
+        "onOnshapeApp": _is_onshape_app_url(page_url),
+        "onSigninPage": normalized == _SIGNIN_URL,
+    }
+
+
 def _browser_internal_targets(port: int, timeout: float) -> list[dict[str, Any]] | None:
     """Browser-internal page targets currently listed; None when unreachable."""
     targets = _devtools_page_targets(port, timeout)
@@ -1072,14 +1125,20 @@ class BrowserSession:
         profile_bytes, profile_bytes_complete = _profile_dir_size_bytes(profile)
         # The same verdict vocabulary the health probe uses, applied to what this
         # process HOLDS. `sessionStatus` above is untouched; the verdict is additive.
+        held_running = context is not None and any(
+            not item.get("closed") for item in pages_seen
+        )
+        # Only when nothing is held: ask the detached resident browser's own
+        # endpoint, because "this process holds nothing" is not "no browser".
+        # A held page is direct evidence and is never overridden by it.
+        resident = None if held_running else _resident_endpoint_observation()
         from onshape_browser_mode.health import classify_held_state
         held = classify_held_state(
-            session_running=context is not None and any(
-                not item.get("closed") for item in pages_seen
-            ),
+            session_running=held_running,
             on_onshape_app=_is_onshape_app_url(page_url),
             login_confirmed=self.login_confirmed,
             session_status=self._status,
+            resident=resident,
         )
         return {
             "playwrightInstalled": self.playwright_available(),
@@ -1094,6 +1153,7 @@ class BrowserSession:
             "verdict": held["verdict"],
             "recommendedAction": held["recommendedAction"],
             "verdictNote": held["note"],
+            "residentBrowser": resident,
             "pageSelection": self.last_page_selection,
             # Bounded recursive size: `profileBytesComplete` is False once the file
             # cap is hit, so a capped number is never presented as exact.
@@ -1112,6 +1172,12 @@ class BrowserSession:
         that also performs recovery cannot be used to decide whether recovery is
         needed. Findings and the fixed verdict vocabulary live in
         `onshape_browser_mode.health`.
+
+        Nothing held is the normal state right after an MCP child restarts in
+        resident mode, so in that case this also reads the detached browser's own
+        loopback DevTools endpoint (no Playwright, no launch, no evaluate) and
+        reports what it lists as `residentBrowser`; an alive-but-unheld browser is
+        therefore never reported as gone.
         """
         from onshape_browser_mode.health import DEFAULT_PROBE_TIMEOUT_MS, probe_page, report
 
@@ -1138,12 +1204,17 @@ class BrowserSession:
                     page = candidate
 
         running = context is not None and page is not None
+        resident: dict[str, Any] | None = None
         if not running:
             evidence: dict[str, Any] = {
                 "responded": None,
                 "skipped": "no live working page is held by this MCP process",
             }
             page_url = None
+            # Holding nothing is the NORMAL state after a restart in resident
+            # mode, so ask the detached browser's own endpoint before this
+            # process claims there is no browser at all.
+            resident = _resident_endpoint_observation()
         else:
             evidence = probe_page(
                 page,
@@ -1161,6 +1232,7 @@ class BrowserSession:
             session_status=self._status,
             page_url=page_url,
             pages_seen=pages_seen,
+            resident=resident,
         )
         result.update(self._self_reload_finding(evidence, normalized))
         return result

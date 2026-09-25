@@ -82,6 +82,23 @@ exclusion overlay that always wins. `dev/tools/consumer_release_spec.py` shows
 which denylisted candidates currently exist in a checkout and reports them as
 excluded.
 
+### Known gap: the geometry backend selection is machine-local state (2026-09-26)
+
+`onshape_browser_mode/config/geometry-backend.json` holds the selected geometry
+backend — provider, executable, argument template, tolerances — for one host. It
+is machine-local state in exactly the sense above, but it is currently **inside**
+the artifact, because it is a tracked file rather than a generated one. Writing it
+therefore silently disables a configured backend: a real host was measured
+carrying `enabled: true` / `cadquery-ocp-wsl` while the artifact carried the
+shipped `enabled: false` default.
+
+Until the spec moves it to the denylist — which also needs a shipped
+`geometry-backend.json.example` plus an in-code default so a fresh install still
+has the schema — an Operator upgrading or refreshing an install **MUST** exclude
+that path from the copy and verify afterwards that the host's selection is
+unchanged. The in-place procedure below does both. `onshape_rest_api_mode/config/geometry-backend.json`
+is the same file name in the REST module and is excluded with it.
+
 ### State preservation rule
 
 The artifact carries **versioned code only**. Configuration and state are owned
@@ -191,6 +208,36 @@ artifact precisely so extracting can never overwrite it.
 5. **Rollback** is steps 3-4 in reverse: re-point the registration at the previous
    directory. Keep the previous directory until the new one has served a request,
    and never delete either one as part of rollback.
+
+### In-place code-only refresh (measured 2026-09-26)
+
+The upgrade above extracts into a **new** directory and re-points the
+registration, which keeps the old directory as the rollback point. That move is
+not always available: re-pointing needs Operator tooling that edits the
+registration, and the persistent profile belongs to the old directory while a
+detached resident browser holds it open — hundreds of MB, and copying it live is
+both slow and inconsistent. The measured alternative replaces versioned code
+only, in place:
+
+1. Record the recovery point: back up the mutable state (the denylist above) and
+   `tar` every file the refresh will overwrite, with a sha256 list of them.
+2. Verify the artifact as in install steps 2-4.
+3. Dry-run the copy (`rsync -c -n --itemize-changes`) with every denylisted path
+   and the geometry-backend selection excluded, and assert that the planned file
+   set is exactly an allow-list the Operator has reviewed. Any unlisted path
+   aborts before a single byte is written.
+4. Apply the same command for real. It must carry no `--delete` and must not
+   write an excluded path.
+5. Re-verify content equality against the extracted artifact, then confirm the
+   excluded state files still carry their original mtimes: every file from the
+   reproducible archive carries the fixed 1980 archive timestamp, so an unchanged
+   2026 mtime proves the artifact did not overwrite it.
+6. Restart the server so children load the new code. Roll back by extracting the
+   `tar` from step 1 and restarting again.
+
+A detached resident browser survives this refresh — measured 2026-09-26: the same
+browser PID and the same DevTools browser GUID answered before and after two
+server restarts — so a code refresh does not cost the human a login.
 
 ### Unregister / uninstall
 

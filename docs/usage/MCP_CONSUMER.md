@@ -233,9 +233,17 @@ artifact-level answer and `stagingProvenanceChecked: false`.
 Pre-flight validation failures (bad tab, URL mismatch, non-STEP download) still
 raise. A complete staging requires manifest + artifact + matching sha256. A
 failure may restart the browser or leave the MCP child holding no browser
-resources; `browser_session action=health` reporting `browser_not_running` with
-`pages: []` means only "this MCP process holds nothing" — it does NOT prove the
-Edge process died.
+resources. `browser_session action=health` separates those two: `pages: []` still
+means only "this MCP process holds nothing", but in resident mode
+(`browser.resident = true`) the probe additionally reads the detached browser's
+own loopback DevTools endpoint and reports it as `residentBrowser`. So
+`browser_not_running` now means no browser answered at all, while `ok` with
+`residentBrowser.observed: true` means the detached browser is alive and still
+holding an Onshape page: its login survived this child, and any browser call
+attaches to it without a human sign-in. That read launches nothing, attaches
+nothing, evaluates no page, and navigates nowhere. `status` reports the same
+`residentBrowser` observation, so a browser that is merely unheld is never
+described as dead.
 
 Read-only observation should come first. `browser_fs_read_notices` opens and
 restores the active FeatureScript notice pane and returns normalized notice rows;

@@ -63,6 +63,24 @@
   `connect_over_cdp` 又能看到 1 个 context + 1 个 page，`playwright.stop()` 也不影响端点。
   Chromium 无法销毁浏览器的 **default** context，所以这条连接上 `close()` 不可能是销毁。
   因此：**要让登录态跨 MCP 子进程存活，就用 resident 模式；而不是等一个不会来的 detach。**
+- **真机验证（2026-09-26，`Edg/153.0.4234.48`）：resident 模式下登录态确实跨子进程存活。**
+  `action=login`（人工一次 SSO）拉起 detached Edge 根进程（命令行含
+  `--remote-debugging-port=9333`、`--user-data-dir=…onshape_profile`，且**没有**
+  `--remote-debugging-pipe`）；bridge 重启 onshape 子进程后，该 PID 与 DevTools
+  `webSocketDebuggerUrl` 里的浏览器 GUID **都不变**，新子进程 `action=login` 直接报
+  `alreadyAuthenticated: true`（`needsHumanLogin: false`，未发生任何导航）——即**零额外人工
+  登录**。同一序列中 `action=detach` 返回 `detached: true / contextClosed: false /
+  browserLeftRunning: true / playwrightStopped: true / loginStateMayNeedRefresh: false`，
+  外部复查 PID 与 GUID 依旧不变。
+- **`health`/`status` 在“本进程未持有”时改读回环 DevTools 端点（2026-09-26 新增，issue #6）。**
+  resident 模式下浏览器**故意**活得比子进程久，“不持有”因此是重启后的**正常**状态，而此前
+  该分支写死 `browser_not_running`，是证据不支持的结论。现在它用一次有界
+  `GET http://127.0.0.1:<port>/json/list` 读那个 detached 浏览器自己的端点，并在结果里给出
+  `residentBrowser`（`observed`/`pageTargets`/`pageUrl`/`onOnshapeApp`/`onSigninPage`）：
+  存活且停在 Onshape 页面上即报 `ok`（note 注明证据只来自端点、页面未被 evaluate），
+  端点无人应答才报 `browser_not_running`。该读取不启动、不附着、不 evaluate、不导航，且只在
+  “本进程未持有”时执行——持有页面时直接证据优先。`browser_not_running` 的语义因此收紧为
+  “**没有任何浏览器应答**”。
 - 默认指引：任务结束时**保留**会话；只有人工明确要求或确实需要释放资源时才 `release`。
 - `action=login` 现在报告 `alreadyAuthenticated`（持久 profile 仍有活会话）或
   `needsHumanLogin`（没有），不必再从 URL 猜。
@@ -119,7 +137,8 @@
 - `start()` 不再采纳已关闭页面：跳过 closed 页、跨过 adopt 失败并前进，最后回退到新开页。
   `status` 的 `pageSelection` 报告 `{"considered", "discarded": [{"url","reason"}], "selected"}`，
   reason 含 `closed`/`browserInternal`；无可用页时错误里指名 `browser_session action=login`。
-  `status` 还新增 `verdict`/`recommendedAction`/`verdictNote`（与 `action=health` 对齐）。
+  `status` 还新增 `verdict`/`recommendedAction`/`verdictNote`（与 `action=health` 对齐），
+  以及 `residentBrowser`（本进程未持有时，对 detached 常驻浏览器回环端点的读数）。
 
 ## 3. 浏览器工具（browser_*）
 
@@ -798,5 +817,11 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   STEP 与 manifest 已在磁盘且可复用（例如交给 `browser_build_geometry_package`）；同
   `export_id` 重试会返回 `alreadyStaged` 成功，而不是旧的 “staging destination already
   exists” 拒绝。完整 staging 需要 manifest + 产物 + 匹配的 sha256。失败可能重启浏览器或
-  让 MCP 子进程不再持有浏览器资源；`action=health` 报 `browser_not_running` 且 `pages: []`
-  只说明“本 MCP 进程不持有任何东西”，**不能**证明 Edge 进程已死。
+  让 MCP 子进程不再持有浏览器资源。这一点 `action=health` 现在分得清：`pages: []` 只说明
+  “本 MCP 进程不持有任何东西”，但 resident 模式（`browser.resident = true`）下探针还会读
+  那个 detached 浏览器自己的回环 DevTools 端点，并把它报成 `residentBrowser`。于是
+  `browser_not_running` 的含义收紧为“**没有任何浏览器应答**”，而 `ok` +
+  `residentBrowser.observed: true` 表示该浏览器活着且仍停在 Onshape 页面上——登录态确实
+  跨过了这个子进程，随后任何 browser_* 调用会附着上去、不需要人工再登录。这次读取不启动、
+  不附着、不 evaluate 页面、也不导航；`status` 报同一份 `residentBrowser`，所以“只是没被
+  持有”再也不会被描述成“已死”。

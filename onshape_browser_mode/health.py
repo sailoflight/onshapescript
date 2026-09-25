@@ -36,6 +36,19 @@ It is a read: it never launches the browser, never navigates, never clicks the
 reconnect link, and never spends Onshape REST quota. Its verdict names the
 recovery action; performing that action stays the caller's decision.
 
+One further question is answerable with no Playwright at all. In resident mode
+(``browser.resident = true``) the browser deliberately OUTLIVES every MCP child,
+so "this process holds nothing" is the normal state after a restart rather than
+a fault -- and answering it with ``browser_not_running`` claims something the
+evidence does not support (the Edge process can be alive and still logged in).
+When the process holds no page, the probe therefore reads the resident browser's
+own loopback DevTools endpoint (one bounded ``GET /json/list``) and reports what
+that endpoint lists as ``residentBrowser``: ``observed`` says whether anything
+answered, ``pageTargets``/``pageUrl`` say what it holds, and the verdict follows
+from those. That read still launches nothing, attaches nothing, evaluates no
+page, and navigates nowhere; it is a socket read of a loopback HTTP endpoint,
+not a page round trip, and the ``probe`` block keeps saying so.
+
 Honest limits
 -------------
 
@@ -151,6 +164,68 @@ def probe_page(page: Any, *, timeout_ms: int = DEFAULT_PROBE_TIMEOUT_MS) -> dict
     return evidence
 
 
+def _unheld_verdict(resident: dict[str, Any] | None) -> tuple[str, str, str]:
+    """The verdict for a process that holds no browser resources.
+
+    Holding nothing is the normal state in resident mode, so this asks the
+    resident browser's own endpoint instead of assuming death. ``resident`` is
+    the observation ``session._resident_endpoint_observation`` collected, or
+    ``None`` when residency is disabled -- and then no browser is observable at
+    all and ``browser_not_running`` is the honest answer.
+    """
+    if resident is None:
+        return (
+            BROWSER_NOT_RUNNING,
+            "browser_session action=login",
+            "No browser resources are held by this MCP process. This probe did "
+            "NOT launch one, so nothing about the page is known.",
+        )
+    endpoint = resident.get("endpoint") or "the resident DevTools endpoint"
+    if resident.get("observed") is not True:
+        return (
+            BROWSER_NOT_RUNNING,
+            "browser_session action=login",
+            "No browser resources are held by this MCP process, and its resident "
+            f"DevTools endpoint ({endpoint}) did not answer, so no live resident "
+            "browser was observed either.",
+        )
+    targets = resident.get("pageTargets")
+    url = resident.get("pageUrl")
+    if not isinstance(targets, int) or targets <= 0:
+        return (
+            INDETERMINATE,
+            "browser_session action=login",
+            f"The resident browser answers its loopback endpoint ({endpoint}) but "
+            "lists no page target, so it is alive with nothing to read.",
+        )
+    if resident.get("onSigninPage"):
+        return (
+            LOGIN_REQUIRED,
+            "browser_session action=login",
+            f"The unheld resident browser is showing Onshape's sign-in page ({url}), "
+            "so a human has to complete the login before any browser work.",
+        )
+    if resident.get("onOnshapeApp"):
+        # Endpoint-only evidence: the browser is alive and its page target is an
+        # Onshape application URL, which is what proves the login survived this
+        # child. The page itself was NOT evaluated, and the note says so.
+        return (
+            OK,
+            "browser_session action=login",
+            f"The unheld resident browser answers its loopback endpoint ({endpoint}) "
+            f"and holds an Onshape application page ({url}): its login survived this "
+            "MCP child. `action=login` attaches to that browser and reuses the "
+            "session without a human sign-in. The page itself was not read.",
+        )
+    return (
+        INDETERMINATE,
+        "browser_session action=login",
+        f"The unheld resident browser answers its loopback endpoint ({endpoint}) "
+        f"holding a page that is not an Onshape application URL ({url}), so login "
+        "state is not established either way.",
+    )
+
+
 def classify(
     evidence: dict[str, Any],
     *,
@@ -158,6 +233,7 @@ def classify(
     on_onshape_app: bool,
     login_confirmed: bool,
     session_status: str | None = None,
+    resident: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Turn probe evidence into one verdict plus the recovery action that fits it.
 
@@ -171,12 +247,7 @@ def classify(
     note = ""
 
     if not session_running:
-        verdict = BROWSER_NOT_RUNNING
-        recommended = "browser_session action=login"
-        note = (
-            "No browser resources are held by this MCP process. This probe did "
-            "NOT launch one, so nothing about the page is known."
-        )
+        verdict, recommended, note = _unheld_verdict(resident)
     elif evidence.get("timeoutDialogPresent"):
         verdict = SESSION_TIMEOUT_DIALOG
         if evidence.get("timeoutDialogActionable") is False:
@@ -265,6 +336,7 @@ def classify_held_state(
     on_onshape_app: bool,
     login_confirmed: bool,
     session_status: str | None = None,
+    resident: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The verdict vocabulary applied to state a process HOLDS, with no probe.
 
@@ -275,6 +347,10 @@ def classify_held_state(
     URL -- and leaves the timeout-dialog and document-shell questions to the real
     health probe. One verdict vocabulary and one set of recommended actions stay
     shared by `status` and `health`; no `sessionStatus` value is rewritten.
+
+    ``resident`` is the same loopback-endpoint observation `health` uses, and it
+    is only consulted when the process holds no page: a held page is direct
+    evidence and outranks anything an endpoint lists.
     """
     evidence = {
         "responded": bool(session_running),
@@ -290,6 +366,7 @@ def classify_held_state(
         on_onshape_app=on_onshape_app,
         login_confirmed=login_confirmed,
         session_status=session_status,
+        resident=resident,
     )
 
 
@@ -302,8 +379,14 @@ def report(
     session_status: str | None = None,
     page_url: str | None = None,
     pages_seen: list[dict[str, Any]] | None = None,
+    resident: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The public health answer: probe evidence, one verdict, one next action."""
+    """The public health answer: probe evidence, one verdict, one next action.
+
+    ``residentBrowser`` always reports what the resident-browser observation
+    found (``None`` when residency is disabled), so a caller never has to infer
+    "the browser is gone" from "this process holds nothing".
+    """
     return {
         "health": "probe",
         "quota": 0,
@@ -315,8 +398,10 @@ def report(
             on_onshape_app=on_onshape_app,
             login_confirmed=login_confirmed,
             session_status=session_status,
+            resident=resident,
         ),
         "pageUrl": page_url,
         "pages": pages_seen or [],
+        "residentBrowser": resident,
         "probe": evidence,
     }
