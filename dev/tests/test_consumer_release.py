@@ -21,6 +21,8 @@ from fdm_analysis.contracts import file_sha256  # noqa: E402
 MUTABLE_STATE = (
     "onshape_browser_mode/config/browser-state.json",
     "onshape_browser_mode/config/browser.local.toml",
+    "onshape_browser_mode/config/geometry-backend.json",
+    "onshape_rest_api_mode/config/geometry-backend.json",
     "onshape_browser_mode/user_data/",
     "onshape_browser_mode/outputs/",
     "onshape_rest_api_mode/config/onshape-credentials.json",
@@ -121,6 +123,17 @@ class ConsumerReleaseSpecTest(unittest.TestCase):
                     excluded,
                     f"existing denylisted path not reported as excluded: {entry}",
                 )
+
+    def test_geometry_backend_ships_as_an_example_not_as_live_state(self) -> None:
+        """The artifact must carry the template, never this machine's selection."""
+        planned = {entry.path for entry in spec.plan(ROOT).files}
+        for mode in ("onshape_browser_mode", "onshape_rest_api_mode"):
+            self.assertIn(f"{mode}/config/geometry-backend.json.example", planned)
+            self.assertNotIn(f"{mode}/config/geometry-backend.json", planned)
+            self.assertTrue(
+                spec.is_denied(f"{mode}/config/geometry-backend.json"),
+                f"{mode} geometry selection is not denylisted",
+            )
 
     def test_plan_sha256_values_recompute(self) -> None:
         released = spec.plan(ROOT)

@@ -90,6 +90,11 @@ DENYLIST: tuple[str, ...] = (
     # mutable runtime state: preserved across install/upgrade/rollback
     "onshape_browser_mode/config/browser-state.json",
     "onshape_browser_mode/config/browser.local.toml",
+    # Operator-owned geometry backend selection. Each mode ships
+    # ``geometry-backend.json.example`` (the disabled default) instead, so a
+    # fresh install has no live file at all and the loader must tolerate that.
+    "onshape_browser_mode/config/geometry-backend.json",
+    "onshape_rest_api_mode/config/geometry-backend.json",
     "onshape_browser_mode/user_data/",
     "onshape_browser_mode/outputs/",
     "onshape_rest_api_mode/config/onshape-credentials.json",

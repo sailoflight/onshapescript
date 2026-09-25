@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "e65d87241707bdd06a822636ff994652362f4a415f9c85d0e48c4961da15744a",
+   "sha256": "fd6163f60dc40ab348dfb46062f3dd478f2f5b1fe0b96a362420d63d2f43ea08",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -1079,7 +1079,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "These consume annual API quota even when they do not mutate the model. Use them only for a specific fact that cannot be obtained offline. Provide explicit IDs to avoid hidden lookup chains. onshape_export_step is a bounded asynchronous POST/poll/download transaction: dry-run first, pass an existing translation_id to resume without repeating POST, and treat exported=false as a resumable non-terminal result rather than starting another export. A completed export persists step-manifest.json. Use the owning mode's geometry status before its build tool. Status first checks explicit configuration, then performs a bounded sibling-project/global/Windows-WSL scan. A reusable dependency is represented by an opaque versioned candidateId; configure only through onshape_configure_geometry_backend with backend='rest' or backend='browser', which re-scans and never accepts executable/argv input. Candidate ids come from one shared scan and are not backend-specific, so the target mode must be stated. onshape_geometry_status answers for every backend in one report; the old browser-only status and configure names remain callable as deprecated wrappers. When status returns nextAction.kind=ask_before_install, ask the human whether to install and do nothing until answered. Installation is never automatic. Geometry build remains an offline L6 recipe accepting only its staged export/translation ID."
+       "text": "These consume annual API quota even when they do not mutate the model. Use them only for a specific fact that cannot be obtained offline. Provide explicit IDs to avoid hidden lookup chains. onshape_export_step is a bounded asynchronous POST/poll/download transaction: dry-run first, pass an existing translation_id to resume without repeating POST, and treat exported=false as a resumable non-terminal result rather than starting another export. A completed export persists step-manifest.json. Use the owning mode's geometry status before its build tool. Status first checks explicit configuration, then performs a bounded sibling-project/global/Windows-WSL scan. The geometry backend selection is machine-local operator state that no release carries: a missing file means the disabled default, so configFilePresent=false with ready=false is a normal unconfigured install, not a fault, and configuring creates the file. A reusable dependency is represented by an opaque versioned candidateId; configure only through onshape_configure_geometry_backend with backend='rest' or backend='browser', which re-scans and never accepts executable/argv input. Candidate ids come from one shared scan and are not backend-specific, so the target mode must be stated. onshape_geometry_status answers for every backend in one report; the old browser-only status and configure names remain callable as deprecated wrappers. When status returns nextAction.kind=ask_before_install, ask the human whether to install and do nothing until answered. Installation is never automatic. Geometry build remains an offline L6 recipe accepting only its staged export/translation ID."
       }
      ]
     },
@@ -12430,7 +12430,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "d03f60cbf4197ce6594b9566b3e2d80910a50a377328a974251f92a22a4b90e7",
+   "sha256": "543ea132c8b04649518dd38149e916a8718a283ea43c35a07baad89eb316060e",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -13366,7 +13366,7 @@
          "-",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration",
-         "Report non-slicer geometry readiness for EVERY owning mode in one answer: the top-level fields mirror the rest backend and backends carries each mode's own report. If a select..."
+         "Report non-slicer geometry readiness for EVERY owning mode in one answer: the top-level fields mirror the rest backend and backends carries each mode's own report. Each report..."
         ],
         [
          "onshape_get_feature_studio_status",

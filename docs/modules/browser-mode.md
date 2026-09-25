@@ -106,7 +106,7 @@ Project control plane (one or more L6 nodes)
 | Item | Owner | Behavior | Source of truth |
 |---|---|---|---|
 | Browser defaults | `onshape_browser_mode/config/browser.toml` | Committed defaults | Settings loader |
-| Geometry backend | `onshape_browser_mode/config/geometry-backend.json` | Disabled-by-default pinned executable/argv/tolerances | Browser mode owner |
+| Geometry backend | `onshape_browser_mode/config/geometry-backend.json` | Disabled-by-default pinned executable/argv/tolerances; machine-local operator state the artifact excludes (`.example` ships, a missing file reads as the disabled default) | Browser mode owner |
 | STEP and geometry staging | `onshape_browser_mode/outputs/{step_exports,geometry_packages}/` | Runtime artifacts with verified manifests | Browser export/geometry transactions |
 | FeatureScript diagnostics | `onshape_browser_mode/outputs/fs_diagnostics/` | Ignored full-source, compile-result, and manifest packages | FeatureScript deploy/capture tools |
 | Local config/state | `onshape_browser_mode/config/` | Ignored local/runtime writes where applicable | Browser settings/session |

@@ -43,6 +43,11 @@ def geometry_backend_status(
     repo_root: Path = REPO_ROOT,
 ) -> dict[str, Any]:
     status = command_geometry_status(load_geometry_config(config_path))
+    # The live file is excluded from the release artifact, so its absence is a
+    # normal fresh-install state rather than a broken install. Report that fact
+    # instead of leaving `configured: false` ambiguous.
+    status["configPath"] = str(config_path)
+    status["configFilePresent"] = config_path.is_file()
     if status["ready"]:
         status["dependencyResolution"] = {
             "state": "configured_backend_ready",

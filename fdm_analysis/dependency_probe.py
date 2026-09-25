@@ -14,6 +14,7 @@ from typing import Any, Callable, Iterable
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from fdm_analysis.configuration import load_command_geometry_config
 from fdm_analysis.conversion.command import subprocess_platform_kwargs
 
 
@@ -328,7 +329,11 @@ def configure_geometry_dependency(
     )
     if candidate is None:
         raise ValueError("candidate_id is not present in the current bounded dependency scan")
-    base = json.loads(config_path.read_text(encoding="utf-8"))
+    # A missing live config is the normal state of a fresh install: the release
+    # artifact excludes it (it is operator state), so configuring a backend has
+    # to start from the shipped default rather than from a file that may not
+    # exist yet.
+    base = load_command_geometry_config(config_path)
     command = candidate["command"]
     configured = {
         **base,
@@ -347,6 +352,9 @@ def configure_geometry_dependency(
             "wouldWriteConfig": True,
             "automaticInstall": False,
         }
+    # The live config is operator state excluded from the release artifact, so
+    # its parent directory may be absent on a fresh install.
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = config_path.with_suffix(config_path.suffix + ".tmp")
     temporary.write_text(json.dumps(configured, indent=2) + "\n", encoding="utf-8")
     temporary.replace(config_path)

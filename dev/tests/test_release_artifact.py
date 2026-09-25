@@ -232,6 +232,22 @@ class BuiltArtifactTest(unittest.TestCase):
                 # Same tool surface as the checkout the artifact was built from:
                 # a missing module would change this count or fail the import.
                 self.assertEqual(status["registryCount"], len(mcp_server.TOOLS))
+
+                geometry = call({
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {"name": "onshape_geometry_status", "arguments": {}},
+                })
+                report = json.loads(geometry["result"]["content"][0]["text"])
+                # The geometry backend selection is operator state and does not
+                # ship, so a fresh install has no live file: readiness must read
+                # as "not configured" instead of failing the tool.
+                for mode in ("rest", "browser"):
+                    self.assertFalse(
+                        report["backends"][mode]["configFilePresent"], mode
+                    )
+                    self.assertFalse(report["backends"][mode]["ready"], mode)
             finally:
                 if proc.stdin:
                     proc.stdin.close()

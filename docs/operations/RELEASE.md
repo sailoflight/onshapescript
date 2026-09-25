@@ -82,22 +82,31 @@ exclusion overlay that always wins. `dev/tools/consumer_release_spec.py` shows
 which denylisted candidates currently exist in a checkout and reports them as
 excluded.
 
-### Known gap: the geometry backend selection is machine-local state (2026-09-26)
+### Geometry backend selection is machine-local state (resolved 2026-09-26)
 
 `onshape_browser_mode/config/geometry-backend.json` holds the selected geometry
 backend — provider, executable, argument template, tolerances — for one host. It
-is machine-local state in exactly the sense above, but it is currently **inside**
-the artifact, because it is a tracked file rather than a generated one. Writing it
-therefore silently disables a configured backend: a real host was measured
-carrying `enabled: true` / `cadquery-ocp-wsl` while the artifact carried the
-shipped `enabled: false` default.
+is machine-local state in exactly the sense above, so it is **denylisted**: the
+artifact never carries it, and an upgrade never writes or deletes it. It used to
+be a tracked file and therefore *inside* the artifact, which meant a plain extract
+silently disabled a configured backend: a real host was measured carrying
+`enabled: true` / `cadquery-ocp-wsl` while the artifact carried its shipped
+`enabled: false` default. `onshape_rest_api_mode/config/geometry-backend.json` is
+the same file name in the REST module and is treated with it.
 
-Until the spec moves it to the denylist — which also needs a shipped
-`geometry-backend.json.example` plus an in-code default so a fresh install still
-has the schema — an Operator upgrading or refreshing an install **MUST** exclude
-that path from the copy and verify afterwards that the host's selection is
-unchanged. The in-place procedure below does both. `onshape_rest_api_mode/config/geometry-backend.json`
-is the same file name in the REST module and is excluded with it.
+Absence is a supported state, not a broken install. Each mode ships
+`geometry-backend.json.example` — the disabled default template — and
+`fdm_analysis.configuration.load_command_geometry_config` substitutes that same
+in-code default when the live file does not exist, while a file that *exists* but
+is malformed still raises (an operator mistake must not be hidden). A fresh
+install therefore reports `configFilePresent: false` / `ready: false` from
+`onshape_geometry_status` instead of failing, and
+`onshape_configure_geometry_backend` creates the live file and its parent
+directory on first configuration.
+
+For an upgrade or an in-place refresh, both live paths are state: exclude them
+from the copy — the in-place procedure below does — and verify afterwards that the
+host's selection is unchanged.
 
 ### State preservation rule
 
@@ -223,15 +232,16 @@ only, in place:
    `tar` every file the refresh will overwrite, with a sha256 list of them.
 2. Verify the artifact as in install steps 2-4.
 3. Dry-run the copy (`rsync -c -n --itemize-changes`) with every denylisted path
-   and the geometry-backend selection excluded, and assert that the planned file
-   set is exactly an allow-list the Operator has reviewed. Any unlisted path
+   excluded — the geometry-backend selection included — and assert that the planned
+   file set is exactly an allow-list the Operator has reviewed. Any unlisted path
    aborts before a single byte is written.
 4. Apply the same command for real. It must carry no `--delete` and must not
    write an excluded path.
 5. Re-verify content equality against the extracted artifact, then confirm the
    excluded state files still carry their original mtimes: every file from the
    reproducible archive carries the fixed 1980 archive timestamp, so an unchanged
-   2026 mtime proves the artifact did not overwrite it.
+   2026 mtime proves the artifact did not overwrite it. A live geometry-backend
+   selection keeps its 2026 mtime and stays byte-identical through the refresh.
 6. Restart the server so children load the new code. Roll back by extracting the
    `tar` from step 1 and restarting again.
 

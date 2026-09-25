@@ -133,6 +133,36 @@ class GeometryDependencyProbeTest(unittest.TestCase):
         self.assertEqual(configured["version"], "cadquery-2.8.0+OCP-7.9.3.1")
         self.assertEqual(configured["executable"], str(python.resolve()))
 
+    def test_configure_creates_a_missing_live_config_from_the_default(self):
+        """A fresh install has no live file, so configuring has to create it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, _, python = self._layout(root)
+            config = root / "config" / "geometry-backend.json"
+            self.assertFalse(config.parent.exists())
+            resolution = discover_geometry_dependencies(
+                repo,
+                runner=self._runner(python),
+                platform_name="posix",
+            )
+            candidate_id = resolution["candidates"][0]["candidateId"]
+            result = configure_geometry_dependency(
+                config,
+                repo_root=repo,
+                candidate_id=candidate_id,
+                runner=self._runner(python),
+                platform_name="posix",
+            )
+            configured = json.loads(config.read_text(encoding="utf-8"))
+        self.assertTrue(result["configured"])
+        self.assertTrue(configured["enabled"])
+        self.assertEqual(configured["provider"], "command")
+        # The untouched fields come from the shipped default, not from nothing.
+        self.assertEqual(configured["timeoutSeconds"], 300)
+        self.assertEqual(configured["linearToleranceMm"], 0.05)
+        self.assertEqual(configured["angularToleranceDegrees"], 5.0)
+        self.assertEqual(configured["overhangFromVerticalDegrees"], 45.0)
+
     def test_probe_script_bootstraps_repo_when_executed_by_path(self):
         script = Path(__file__).resolve().parents[2] / "fdm_analysis" / "dependency_probe.py"
         process = subprocess.run(

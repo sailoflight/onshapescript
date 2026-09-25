@@ -2289,7 +2289,9 @@ TOOLS: list[dict[str, Any]] = [
         "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": False},
         "description": (
             "Report non-slicer geometry readiness for EVERY owning mode in one answer: the top-level fields "
-            "mirror the rest backend and `backends` carries each mode's own report. If a selected backend is "
+            "mirror the rest backend and `backends` carries each mode's own report. Each report states "
+            "`configFilePresent`: the backend selection is machine-local operator state that no release carries, "
+            "so a missing file reads as the shipped disabled default rather than a fault. If a selected backend is "
             "unavailable, perform a bounded zero-network search of sibling project virtual environments, global "
             "Python environments, and the Windows/WSL counterpart. Returns opaque versioned candidates without "
             "executable paths; when none exist, agents are instructed to ask before installation. Never installs "

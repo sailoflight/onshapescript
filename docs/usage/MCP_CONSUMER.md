@@ -539,7 +539,11 @@ to resume without repeating POST, and treat `exported=false` as a resumable
 non-terminal result rather than starting another export. A completed export
 persists `step-manifest.json`. Use the owning mode's geometry status before its
 build tool. Status first checks explicit configuration, then performs a bounded
-sibling-project/global/Windows-WSL scan. A reusable dependency is represented by
+sibling-project/global/Windows-WSL scan. The geometry backend selection is
+machine-local operator state that no release carries: a missing file means the
+disabled default, so `configFilePresent=false` with `ready=false` is a normal
+unconfigured install, not a fault, and configuring creates the file. A reusable
+dependency is represented by
 an opaque versioned `candidateId`; configure only through
 `onshape_configure_geometry_backend` with `backend='rest'` or
 `backend='browser'`, which re-scans and never accepts executable/argv input.

@@ -27,7 +27,7 @@ Status: verified
 | STEP export | `onshape_rest_api_mode/step_export.py` | Bounded asynchronous AP242 export, resume, external-data download, persisted STEP manifest, module-owned staging |
 | Geometry package | `onshape_rest_api_mode/geometry.py` | Offline readiness observation and REST-owned non-slicer L6 package orchestration from module configuration |
 | Stable configuration | `onshape_rest_api_mode/config/onshape-state.json` | Target IDs and quota configuration |
-| Geometry backend configuration | `onshape_rest_api_mode/config/geometry-backend.json` | Disabled-by-default pinned command provider; never selected through MCP arguments |
+| Geometry backend configuration | `onshape_rest_api_mode/config/geometry-backend.json` | Disabled-by-default pinned command provider; never selected through MCP arguments; machine-local operator state the artifact excludes (`.example` ships) |
 | Guard tests | `dev/tests/test_quota_guards.py` | Live gate, budgets, retry, redaction, and failure paths |
 | Layout tests | `dev/tests/test_project_layout.py` | Module-owned path contracts |
 
@@ -44,7 +44,9 @@ Status: verified
 - Stable metadata uses explicit IDs, cached state, fixtures, or prior results rather than implicit discovery.
 - Local converter executable/version/argv ownership stays in
   `config/geometry-backend.json`; MCP arguments may select only a staged
-  translation ID and cannot choose a process.
+  translation ID and cannot choose a process. That file is operator state: a
+  missing file means the shipped disabled default (never an error), while an
+  existing malformed file is reported, and an upgrade must not write or delete it.
 - `onshape_geometry_status` performs bounded sibling/global/Windows-WSL reuse
   discovery when explicit configuration is unavailable. Candidates expose opaque
   IDs and pinned versions only; `onshape_configure_geometry_backend` re-scans the
@@ -64,7 +66,7 @@ Status: verified
 | Item | Owner | Behavior | Source of truth |
 |---|---|---|---|
 | Stable target/quota config | `onshape_rest_api_mode/config/onshape-state.json` | Read and explicit updates | Committed state file |
-| Geometry backend config | `onshape_rest_api_mode/config/geometry-backend.json` | Disabled by default; operator-owned pinned executable/argv/tolerances | Committed non-secret config |
+| Geometry backend config | `onshape_rest_api_mode/config/geometry-backend.json` | Disabled by default; operator-owned pinned executable/argv/tolerances | Operator-owned local file, gitignored; `geometry-backend.json.example` is the shipped template |
 | Credentials | `onshape_rest_api_mode/config/onshape-credentials.json` | Ignored, read only at live boundary | Local secret file |
 | Passive usage ledger | `onshape_rest_api_mode/config/api-usage.json` | Ignored runtime accounting | Successful response accounting |
 | REST outputs/previews | `onshape_rest_api_mode/outputs/` | Generated | Operations producing them |

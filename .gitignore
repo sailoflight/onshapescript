@@ -4,6 +4,11 @@ onshape_rest_api_mode/config/api-usage.json
 onshape_browser_mode/config/browser.local.toml
 mcp_main/win/mcp/config/tool_views.local.toml
 onshape_browser_mode/config/browser-state.json
+# Operator-owned geometry backend selection: machine-local state created by the
+# configure tool. Each mode ships `geometry-backend.json.example`; the live file
+# must never be committed, and an upgrade must never write or delete it.
+onshape_browser_mode/config/geometry-backend.json
+onshape_rest_api_mode/config/geometry-backend.json
 onshape_browser_mode/user_data/
 mcp_main/bridge/logs/
 onshape_rest_api_mode/outputs/

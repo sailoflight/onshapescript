@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -9,9 +10,46 @@ from fdm_analysis.conversion import CommandStepConverter
 from fdm_analysis.metrics import StlGeometryAnalyzer
 
 
+#: The shipped default: a command backend that has a shape but is disabled.
+#:
+#: This is also what a checkout or install with NO live file gets. The live
+#: `config/geometry-backend.json` is machine-local operator state (the selected
+#: executable, argument template and tolerances), so the release artifact
+#: deliberately does not carry it and an upgrade must never write it; absence
+#: therefore has to mean "never configured", not "broken install". The matching
+#: `geometry-backend.json.example` in each owning mode ships this exact object,
+#: and `dev/tests/test_geometry_backend_default.py` pins the two together so the
+#: example cannot drift away from the default.
+DEFAULT_COMMAND_GEOMETRY_CONFIG: dict[str, Any] = {
+    "enabled": False,
+    "provider": "command",
+    "name": "",
+    "version": "",
+    "executable": "",
+    "argumentTemplate": [],
+    "timeoutSeconds": 300,
+    "linearToleranceMm": 0.05,
+    "angularToleranceDegrees": 5.0,
+    "overhangFromVerticalDegrees": 45.0,
+}
+
+
+def default_command_geometry_config() -> dict[str, Any]:
+    """A fresh copy of the disabled default, safe for a caller to edit."""
+    return copy.deepcopy(DEFAULT_COMMAND_GEOMETRY_CONFIG)
+
+
 def load_command_geometry_config(path: Path) -> dict[str, Any]:
+    """The configured command backend; a MISSING file means the default.
+
+    Absence is not an error. The live file is operator-owned state that the
+    release artifact excludes (see `docs/operations/RELEASE.md`), so an install
+    that was never configured has no file and must report a disabled backend
+    instead of raising. A file that EXISTS but is malformed still raises: that is
+    an operator mistake, and silently substituting a default would hide it.
+    """
     if not path.is_file():
-        raise ValueError(f"geometry backend configuration is missing: {path}")
+        return default_command_geometry_config()
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("geometry backend configuration must be an object")
