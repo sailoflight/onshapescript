@@ -164,7 +164,7 @@ by re-running the build with a different choice:
 | Format | **zip** | The consumer is native Windows with no Git, APG or WSL, so the artifact must be extractable and runnable with what Windows already has. A wheel needs pip and would not carry the offline docs tree; zipapp/PyInstaller add a toolchain and hide the file list the manifest exists to publish |
 | Contents | **exactly `consumer_release_spec.plan()`** | One source of truth. The builder never invents a file list, and refuses to build when the spec's own invariants fail |
 | Layout | **no wrapper directory** | The archive root IS the install root, so "extract into an empty directory" is the whole install |
-| Publication | **local file, handed over out of band** | This repository has no distribution authority or credentials; the builder writes wherever it is told (outside the checkout) and names the file `onshapescript-mcp-<version>-<revision>.zip` |
+| Publication | **GitHub Release** (decided 2026-09-26) | A consumer obtains the artifact from the Release tagged for the revision it was built from, at `https://github.com/sailoflight/onshapescript/releases`. The builder itself still uploads nothing and writes only local files; publishing is a separate, explicit step with its own procedure below. Handing over the same local file out of band remains the fallback for an Operator who cannot reach GitHub |
 | Signing | **unsigned** (SHA-256 only) | Code signing needs a certificate, which is a human/host decision. `release-manifest.json` records `"signed": false` so an unsigned artifact cannot be mistaken for a signed one |
 
 ```
@@ -186,9 +186,40 @@ Each procedure starts by establishing environment, identity, user/data impact,
 recovery point, stop conditions, and explicit Operator approval. Back up the
 denylisted mutable state listed above before changing anything.
 
+### Publish (GitHub Release)
+
+Publishing is the one step that writes outside this machine. The builder never
+uploads anything; **this procedure is the upload**, and it runs only on explicit
+user/owner approval (done 2026-09-26 for `v1.3.0`).
+
+1. Establish the environment and identity: the GitHub account, the exact
+   repository, and the revision the artifact was built from. `gh auth status` must
+   show that account with `repo` scope; stop if it does not.
+2. Publish from a **committed, clean** revision, because the tag names that
+   revision. A `-dirty` build must never be published.
+3. Tag that exact revision and push the tag:
+   `git tag -a v<version> <revision> -m "<artifact name>"` then
+   `git push origin v<version>`.
+4. Create the Release with the archive and its `.sha256` sidecar as the only
+   assets, and the archive's own `RELEASE-NOTES.md` as the description:
+   `gh release create v<version> <zip> <zip>.sha256 --title "<artifact name>"
+   --notes-file <(unzip -p <zip> RELEASE-NOTES.md)`.
+   `--latest` is correct only for the newest revision; an older revision is
+   published without it.
+5. Verify what is actually published by **downloading it back**, never by
+   trusting the upload: `gh release download v<version> -D <dir outside the
+   checkout>`, then compare the downloaded archive digest with the local build's
+   sidecar. Stop, and delete the Release and tag, if any digest differs.
+6. Roll back by deleting the Release (`gh release delete v<version>`) and the tag.
+   The local artifact is unaffected either way. Never re-point a published tag at
+   a different artifact; publish a new revision instead.
+
 ### Install
 
-1. Confirm prerequisites (native Windows, Python >= 3.11, existing Chrome/Edge).
+1. Obtain the archive **and** its `.sha256` sidecar from the GitHub Release for the
+   version being installed (`https://github.com/sailoflight/onshapescript/releases`),
+   or from the Operator's handover of that same local file. Then confirm
+   prerequisites (native Windows, Python >= 3.11, existing Chrome/Edge).
 2. Verify the archive before extracting: compare `onshapescript-mcp-<version>-<revision>.zip`
    against its `.sha256` sidecar. Stop on any mismatch.
 3. Unpack the artifact to the deployment directory, conventionally
@@ -368,21 +399,20 @@ browser work is actually requested.
 
 These are **undecided**, not silently assumed:
 
-1. **Publication location and distribution channel**: where the built artifact is
-   stored and how it reaches a consumer host. The builder writes a local file and
-   nothing else; nothing is uploaded.
-2. **Code signing**: whether the artifact and/or manifest is signed. Today's
+1. **Code signing**: whether the artifact and/or manifest is signed. Today's
    artifact is unsigned and says so.
-3. **The native-Windows acceptance run** on a clean consumer environment (see the
+2. **The native-Windows acceptance run** on a clean consumer environment (see the
    acceptance section above). The offline proxy is automated — the built archive
    is extracted and the server is started over stdio from that directory with
    `PYTHONPATH` removed (`dev/tests/test_release_artifact.py`) — but that is not
    the same as a clean Windows host.
 
-Decided and no longer open: **artifact format (zip)** and **contents** (the
-whitelist), both recorded in the build section above. No path is pending a
-membership decision: `PENDING_DECISION` in `dev/tools/consumer_release_spec.py`
-is empty.
+Decided and no longer open: **artifact format (zip)**, **contents** (the
+whitelist), and — decided 2026-09-26 — **publication channel**: the artifact is
+attached to a GitHub Release tagged for the revision it was built from. The
+original open item read "the builder writes a local file and nothing else; nothing
+is uploaded", and that is still true of the builder: it uploads nothing, and the
+upload is a separate, explicitly approved publishing step (procedure above).
 
 ## Decided: `fdm_analysis/` ships, and the dependency shape was adjusted
 
