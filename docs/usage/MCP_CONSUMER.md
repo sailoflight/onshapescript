@@ -152,7 +152,14 @@ returns `detached=false`, `supported=false`, and recommends release, which is a
 known limitation of the pinned `browser_common` wheel rather than a bug in the
 call. `browser_session(action="login")` reports `alreadyAuthenticated` (the
 persistent profile still has a live session) or `needsHumanLogin` (it does not),
-so the caller no longer has to guess from the URL. `browser_session action=status`
+so the caller no longer has to guess from the URL. When it does need a human, the
+result also carries `pageMaySelfReload: true` and a `humanInputAdvisory`: the
+Onshape sign-in page reloads **itself** while the human types (measured — it
+replaces its own document, so typed input and all window-level state are lost),
+and this server neither causes that nor can prevent or recover it. **Do not poll
+or read the sign-in page during human input**; wait for the human to report
+completion and then decide with `action=health` rather than page reads.
+`browser_session action=status`
 also reports `pageSelection` (`{"considered", "discarded":[{"url","reason"}],
 "selected"}`) from the last `start()`, and the session never adopts a closed
 candidate page: it skips closed pages, advances past an adopt failure, and falls
@@ -171,7 +178,16 @@ persistent, checkout-local profile (`user_data_dir`, default
 on a machine whose Windows account is a Microsoft account Edge signs a fresh
 profile in automatically, so the window is not anonymous even though Edge created
 the profile directory; screenshots and every page the agent reads are
-attributable to that account. `browser_session(action="status")` reports
+attributable to that account. That automatic sign-in is **Edge's own documented
+default**, not this server's doing: it is Edge's *implicit sign-in*, enabled by
+default on Windows, which signs the browser profile in from the OS sign-in — so
+choosing another profile directory does **not** change the identity. It only
+affects the Edge profile identity; it does not copy the primary profile's cookies,
+which is why the Onshape session still starts empty here. Suppressing it requires
+a **machine-wide** Edge policy (`ImplicitSignInEnabled=0`, or `BrowserSignin=0`
+with `NonRemovableProfileEnabled=0`, under `SOFTWARE\Policies\Microsoft\Edge`);
+this repository never writes those, because they would also change the Edge the
+human uses normally. `browser_session(action="status")` reports
 `profileDir`, `profileBytes`, `profileBytesComplete` (the walk is file-capped, so
 `complete=false` is a lower bound), and `accountMarkerDetected` (a boolean from
 recursive name matches of known Edge account keys; it is Edge-version dependent,

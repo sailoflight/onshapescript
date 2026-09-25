@@ -45,6 +45,12 @@ WHITELIST: tuple[str, ...] = (
     "onshape_docs/reference/quick-reference.md",
     "onshape_docs/reference/index/",
     "onshape_docs/reference/quick/",
+    # Native/original Onshape documentation. DECIDED (owner, 2026-09-25): it IS
+    # part of the artifact. Measured 10,258,423 bytes (~9.8 MiB) -- by far the
+    # largest entry -- and it is the offline fallback the `fs_library_source` /
+    # "raw source last" read order depends on, so dropping it would silently
+    # degrade an advertised offline capability.
+    "onshape_docs/reference/raw/",
     # consumer / operator docs
     "docs/usage/MCP_CONSUMER.md",
     "docs/operations/MCP_RUNBOOK.md",
@@ -81,10 +87,22 @@ DENYLIST: tuple[str, ...] = (
 
 #: Paths whose artifact membership still needs a human decision. Neither
 #: whitelisted nor denylisted; not planned by default.
-PENDING_DECISION: tuple[str, ...] = (
-    "onshape_docs/reference/raw/",
-    "fdm_analysis/",
-)
+#:
+#: ``fdm_analysis/`` is the one open item, and it is NOT a file-list question.
+#: The owner's intent is to keep the FDM/apparatus out of an Onshape artifact,
+#: but the import graph does not allow that yet: ``mcp_main/win/mcp/server.py:35``
+#: imports ``onshape_rest_api_mode.geometry`` at module level, which does
+#: ``from fdm_analysis import ...`` at module level, so excluding the package
+#: makes the MCP server itself fail to import (verified with an import blocker:
+#: blocking ``fdm_analysis`` breaks ``mcp_main.win.mcp.server`` while
+#: session/transactions/actions still import). Importing the package also pulls
+#: 17 submodules -- slicers/Bambu, delivery, metrics, reports, conversion -- via
+#: the ``__init__`` re-exports, so shipping a subset of files is not possible
+#: without a code change.
+#:
+#: Resolving it is therefore either "include the 224K package as a shared
+#: geometry-contract library" or a deliberate split task, not a whitelist edit.
+PENDING_DECISION: tuple[str, ...] = ("fdm_analysis/",)
 
 
 @dataclass(frozen=True)

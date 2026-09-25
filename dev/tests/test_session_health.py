@@ -440,6 +440,32 @@ class LoginAwarenessTest(unittest.TestCase):
         self.assertTrue(result["needsHumanLogin"])
         self.assertEqual(page.gotos, [SIGNIN])
 
+    def test_the_human_login_path_warns_that_the_page_reloads_itself(self):
+        """Issue #5: the sign-in page replaces its own document while a human types.
+
+        The server cannot prevent that or recover the input, so the honest answer
+        is an advisory that stops a caller from polling the page mid-input. The
+        already-authenticated paths touch no sign-in page and must NOT carry it.
+        """
+        page = self.LoginPage("about:blank")
+
+        result = self.login_session(page).open_login_page()
+
+        self.assertTrue(result["pageMaySelfReload"])
+        advisory = result["humanInputAdvisory"]
+        self.assertIn("reloads itself", advisory)
+        self.assertIn("Do not poll", advisory)
+        self.assertIn("health", advisory)
+
+    def test_the_already_authenticated_path_carries_no_reload_advisory(self):
+        page = self.LoginPage(APP)
+
+        result = self.login_session(page).open_login_page()
+
+        self.assertTrue(result["alreadyAuthenticated"])
+        self.assertNotIn("pageMaySelfReload", result)
+        self.assertNotIn("humanInputAdvisory", result)
+
 
 class StatusVerdictVocabularyTest(unittest.TestCase):
     """Issue #10.4: status() and health() share one verdict vocabulary."""

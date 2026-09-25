@@ -1196,6 +1196,23 @@ class BrowserSession:
             "sessionStatus": self._status,
             "alreadyAuthenticated": False,
             "needsHumanLogin": True,
+            # Issue #5, measured by the reporter and NOT fixable from here: the
+            # Onshape sign-in page replaces its own document (`nav[0].type ==
+            # "reload"`, a fresh `performance.timeOrigin`, `window` sentinels
+            # gone) while the human is typing, with no agent action in between.
+            # Anything typed is lost with the document, and the page's own
+            # credential-step navigation (`/signin` -> `/signin?page=2&email=...`)
+            # is a page-level navigation too. The server cannot prevent it or
+            # recover the input, so it states the fact instead of implying that
+            # reading the page while a human types is safe.
+            "pageMaySelfReload": True,
+            "humanInputAdvisory": (
+                "Do not poll or read this page while the human types credentials or "
+                "a 2FA code: the Onshape sign-in page reloads itself (measured), "
+                "which discards typed input and all window-level state. Wait for the "
+                "human to report completion, then use browser_session(action='health') "
+                "rather than page reads to decide whether the session is live."
+            ),
             "message": (
                 "Opened Onshape sign-in in the browser window. Complete login "
                 "manually, then call browser_session(action='status')."

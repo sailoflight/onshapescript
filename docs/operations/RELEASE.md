@@ -45,10 +45,13 @@ below is whitelisted; anything not listed is not part of the artifact.
 | `docs/operations/RELEASE.md` | This document |
 | `docs/generated/` | Derived tool reference (`TOOL_REFERENCE.md`) |
 
-`onshape_docs/reference/raw/` is **not** in the whitelist by default; whether it
-is shipped or slimmed is an open decision below. `onshape_docs/scripts/` and
-`onshape_docs/verification/` are development/build-plane content and are not
-part of the consumer artifact.
+`onshape_docs/reference/raw/` **is** in the whitelist and ships with the
+artifact: it is the provenance and last-resort full-text layer that the
+lookup-first protocol falls back to, and the query tools only expose indexes
+over it. Measured: `du -sb onshape_docs/reference/raw` is 10,258,423 bytes
+(~9.8 MiB); it is the single largest whitelisted tree. `onshape_docs/scripts/`
+and `onshape_docs/verification/` are development/build-plane content and are
+not part of the consumer artifact.
 
 ## Never bundled, never deleted (denylist)
 
@@ -214,11 +217,36 @@ packaging pipeline is written:
 1. **Artifact format**: zip vs wheel vs zipapp vs PyInstaller.
 2. **Publication location**: where the artifact is stored and distributed.
 3. **Code signing**: whether the artifact and/or manifest is signed.
-4. **`onshape_docs/reference/raw/`**: shipped or slimmed. Measured now:
-   `du -sb onshape_docs/reference/raw` is 10,258,423 bytes (~9.8 MiB); the whole
-   `onshape_docs/reference/` directory is ~14 MiB.
-5. **`fdm_analysis/`**: consumer runtime or development-only. It is currently
+4. **`fdm_analysis/`**: consumer runtime or development-only. It is currently
    neither whitelisted nor denylisted and is reported under pending decisions.
+
+   Blocking evidence (verified, 2026-08): excluding it is **not** a
+   ready-to-apply option. `mcp_main/win/mcp/server.py` imports
+   `onshape_rest_api_mode.geometry`, which does
+   `from fdm_analysis import StepArtifact, build_geometry_package` at module
+   level. With `fdm_analysis` unimportable, importing
+   `mcp_main.win.mcp.server` fails, so the whole MCP surface is lost
+   (`session.py`, `transactions.py`, `actions.py` still import on their own).
+   Blocking it is therefore a code change, not a packaging choice.
+
+   Shipping a *subset* of files is also not possible as-is: `fdm_analysis/__init__.py`
+   re-exports and `import fdm_analysis` transitively loads 17 submodules
+   (conversion, delivery, geometry_pipeline, metrics, pipeline,
+   slicers/bambu_studio, slicers/execution, …), so dropping the slicer and
+   delivery modules breaks the package import before any consumer call runs.
+   `fdm_analysis/` measures 224K — the format/decision is about dependency
+   direction, not size.
+
+   Three options for the human:
+   - **A** ship the 224K package as a shared geometry-contract library
+     (smallest change; widens the consumer surface to FDM code).
+   - **B** split: move the contracts `geometry.py` needs (`StepArtifact`,
+     `build_geometry_package`) into a neutral shared spot, or make
+     `fdm_analysis/__init__` and the FDM-only submodules lazy, keeping
+     slicers/Bambu/delivery/metrics/reports/conversion out of the artifact
+     (requires code work in the development plane).
+   - **C** exclude and accept a non-importable server — rejected as stated
+     above.
 
 ## Related documents
 

@@ -45,10 +45,34 @@
 - 默认指引：任务结束时**保留**会话；只有人工明确要求或确实需要释放资源时才 `release`。
 - `action=login` 现在报告 `alreadyAuthenticated`（持久 profile 仍有活会话）或
   `needsHumanLogin`（没有），不必再从 URL 猜。
+- **登录页会自己 reload，这一条本仓库修不了，只能如实告警（2026-09-25 实测）。** 人工在
+  `action=login` 打开的 Onshape 登录页输入邮箱/密码/2FA 期间，页面会**自行替换自己的文档**：
+  `nav[0].type = "reload"`、`performance.timeOrigin` 变成新值、文档年龄仅 2.6 s、
+  此前注入的 `window` 哨兵消失，而 agent 期间**没有**发出任何导航/点击/reload。已输入内容
+  随文档一起丢失；凭据步骤切换（`/signin` → `/signin?page=2&email=…`）也是页面级导航。
+  这是 Onshape 前端的页面级行为，**不是**本仓库发起的：我们无法阻止它、也无法恢复已输入内容
+  （向登录页注入脚本去暂存字段既脆弱又涉及凭据，故不做）。
+  因此 `action=login` 在需要人工登录时返回 `pageMaySelfReload: true` 与
+  `humanInputAdvisory`：**人工输入期间不要轮询或读取该页面**，等人工报告完成后再用
+  `action=health` 判定会话是否存活，而不是靠页面读取。
 - 启动的浏览器是真实 Edge channel（`channel = "msedge"`），使用 checkout 本地的持久
   profile（`user_data_dir`，默认 `user_data/onshape_profile`）；它**不**复用 OS Edge 主
   profile，但在 Windows 账户是 Microsoft 账户的机器上，Edge 会自动把**新** profile 登录
   进去，所以窗口并非匿名，截图和 agent 读到的每个页面都可归因到该账户。
+- **那个"自动登录"是 Edge 的默认行为，机制叫 implicit sign-in（隐式登录），不是本仓库造成的。**
+  微软策略文档 `ImplicitSignInEnabled`（Windows ≥93）原文：*"If you enable or don't configure
+  this setting, implicit sign-in is enabled, Microsoft Edge attempts to sign in the user into
+  their profile based on what and how they sign in to their OS."* 即 Edge 依据**操作系统侧**
+  的登录身份去签入浏览器 profile，所以**换 `--user-data-dir` 换不掉身份**：
+  实测一个全新 profile 目录里 `Default\Preferences` 与 `Local State` 都已出现
+  `account_info`/`edge_account` 标记。配套证据：`NonRemovableProfileEnabled` 的说明把这种
+  profile 直接称作 "an automatically signed in browser profile"，`BrowserSignin=Disable`
+  时必须同时关掉它才能阻止创建。
+  **边界**：implicit sign-in 只影响 Edge **profile 身份**，**不会**把主 profile 的 cookie
+  搬过来，所以 Onshape 登录态仍是干净的——这正是"非匿名"与"不共享主 profile"同时成立的原因。
+  要关掉它需**机器级策略**（`ImplicitSignInEnabled=0`，或 `BrowserSignin=0` +
+  `NonRemovableProfileEnabled=0`，注册表 `SOFTWARE\Policies\Microsoft\Edge`，需重启浏览器），
+  会同时影响该机日常使用的 Edge；本仓库**不**自动写策略。
 - `status` 报告 `profileDir`、`profileBytes`、`profileBytesComplete`（遍历有文件上限，
   `complete=false` 的数字是下界）、`accountMarkerDetected`（对已知 Edge 账户键做递归
   名称匹配得到的布尔值；随 Edge 版本变化，`false` 只表示“未找到标记”，**不是**“匿名”；

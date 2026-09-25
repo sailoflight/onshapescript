@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "9a331f7991e458e541a4aaebb1d158e97c1c7435e5a35020afe2d63ea91b8dd7",
+   "sha256": "0239069f3645565e8e22799851e5c4b1f2995302f531e774e3445629499f9689",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -746,7 +746,7 @@
      "blocks": [
       {
        "type": "para",
-       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. Keep the browser session at the end of a task by default. Release only on an explicit human request, or when resources genuinely must be freed: release CLOSES the window and can drop the persistent profile's login state, so a later task may pay another human sign-in. It cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Three outcomes are not interchangeable: release can lose login state; a process crash or a page navigation does not; and browser_session(action=\"detach\") keeps the window but is supported only in resident/attached mode (browser.resident = true) — a non-resident session returns detached=false, supported=false, and recommends release, which is a known limitation of the pinned browser_common wheel rather than a bug in the call. browser_session(action=\"login\") reports alreadyAuthenticated (the persistent profile still has a live session) or needsHumanLogin (it does not), so the caller no longer has to guess from the URL. browser_session action=status also reports pageSelection ({\"considered\", \"discarded\":[{\"url\",\"reason\"}], \"selected\"}) from the last start(), and the session never adopts a closed candidate page: it skips closed pages, advances past an adopt failure, and falls back to opening a new page."
+       "text": "Browser tools consume zero REST API quota because they drive the Windows browser. browser_session(action=\"release\") closes only the browser/context owned by the current MCP process, releases that process's persistent-profile ownership, and is idempotent when no browser was started. Keep the browser session at the end of a task by default. Release only on an explicit human request, or when resources genuinely must be freed: release CLOSES the window and can drop the persistent profile's login state, so a later task may pay another human sign-in. It cannot close a browser owned by another MCP process; profile contention across processes is an Operator/lifecycle failure, not authority to delete lock files or kill another owner. Three outcomes are not interchangeable: release can lose login state; a process crash or a page navigation does not; and browser_session(action=\"detach\") keeps the window but is supported only in resident/attached mode (browser.resident = true) — a non-resident session returns detached=false, supported=false, and recommends release, which is a known limitation of the pinned browser_common wheel rather than a bug in the call. browser_session(action=\"login\") reports alreadyAuthenticated (the persistent profile still has a live session) or needsHumanLogin (it does not), so the caller no longer has to guess from the URL. When it does need a human, the result also carries pageMaySelfReload: true and a humanInputAdvisory: the Onshape sign-in page reloads itself while the human types (measured — it replaces its own document, so typed input and all window-level state are lost), and this server neither causes that nor can prevent or recover it. Do not poll or read the sign-in page during human input; wait for the human to report completion and then decide with action=health rather than page reads. browser_session action=status also reports pageSelection ({\"considered\", \"discarded\":[{\"url\",\"reason\"}], \"selected\"}) from the last start(), and the session never adopts a closed candidate page: it skips closed pages, advances past an adopt failure, and falls back to opening a new page."
       },
       {
        "type": "table",
@@ -785,7 +785,7 @@
       },
       {
        "type": "para",
-       "text": "The launched browser is a real Edge channel (channel = \"msedge\") using a persistent, checkout-local profile (user_data_dir, default user_data/onshape_profile). It does not reuse the OS Edge primary profile, but on a machine whose Windows account is a Microsoft account Edge signs a fresh profile in automatically, so the window is not anonymous even though Edge created the profile directory; screenshots and every page the agent reads are attributable to that account. browser_session(action=\"status\") reports profileDir, profileBytes, profileBytesComplete (the walk is file-capped, so complete=false is a lower bound), and accountMarkerDetected (a boolean from recursive name matches of known Edge account keys; it is Edge-version dependent, and false means \"no marker found\", NOT \"anonymous\" — no account value is ever returned). A separate profile directory can be selected with the optional isolated_user_data_dir key in onshape_browser_mode/config/browser.toml; that is only a directory choice, and the trade-off is explicit: Onshape login persistence is bought with a persistent profile, so a separate directory means a fresh or explicitly isolated identity. Guest mode (--guest) is deliberately NOT implemented. To clear the profile, sign out of the Edge account in that window (that does not clear cookies, so the Onshape login survives); deleting the directory is the most thorough and costs one manual sign-in."
+       "text": "The launched browser is a real Edge channel (channel = \"msedge\") using a persistent, checkout-local profile (user_data_dir, default user_data/onshape_profile). It does not reuse the OS Edge primary profile, but on a machine whose Windows account is a Microsoft account Edge signs a fresh profile in automatically, so the window is not anonymous even though Edge created the profile directory; screenshots and every page the agent reads are attributable to that account. That automatic sign-in is Edge's own documented default, not this server's doing: it is Edge's implicit sign-in, enabled by default on Windows, which signs the browser profile in from the OS sign-in — so choosing another profile directory does not change the identity. It only affects the Edge profile identity; it does not copy the primary profile's cookies, which is why the Onshape session still starts empty here. Suppressing it requires a machine-wide Edge policy (ImplicitSignInEnabled=0, or BrowserSignin=0 with NonRemovableProfileEnabled=0, under SOFTWARE\\Policies\\Microsoft\\Edge); this repository never writes those, because they would also change the Edge the human uses normally. browser_session(action=\"status\") reports profileDir, profileBytes, profileBytesComplete (the walk is file-capped, so complete=false is a lower bound), and accountMarkerDetected (a boolean from recursive name matches of known Edge account keys; it is Edge-version dependent, and false means \"no marker found\", NOT \"anonymous\" — no account value is ever returned). A separate profile directory can be selected with the optional isolated_user_data_dir key in onshape_browser_mode/config/browser.toml; that is only a directory choice, and the trade-off is explicit: Onshape login persistence is bought with a persistent profile, so a separate directory means a fresh or explicitly isolated identity. Guest mode (--guest) is deliberately NOT implemented. To clear the profile, sign out of the Edge account in that window (that does not clear cookies, so the Onshape login survives); deleting the directory is the most thorough and costs one manual sign-in."
       },
       {
        "type": "para",
@@ -2494,7 +2494,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "669e10008acdd036fe5b5163510391507b7b65d89c48574ee9a9ba747e3a9048",
+   "sha256": "3152ccb4945aff6bd046e66281a3ad365402be77e37c4fbad07987eee3e8d9a1",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -2594,7 +2594,15 @@
          "depth": 0
         },
         {
+         "text": "登录页会自己 reload，这一条本仓库修不了，只能如实告警（2026-09-25 实测）。 人工在 action=login 打开的 Onshape 登录页输入邮箱/密码/2FA 期间，页面会自行替换自己的文档： nav[0].type = \"reload\"、performance.timeOrigin 变成新值、文档年龄仅 2.6 s、 此前注入的 window 哨兵消失，而 agent 期间没有发出任何导航/点击/reload。已输入内容 随文档一起丢失；凭据步骤切换（/signin → /signin?page=2&email=…）也是页面级导航。 这是 Onshape 前端的页面级行为，不是本仓库发起的：我们无法阻止它、也无法恢复已输入内容 （向登录页注入脚本去暂存字段既脆弱又涉及凭据，故不做）。 因此 action=login 在需要人工登录时返回 pageMaySelfReload: true 与 humanInputAdvisory：人工输入期间不要轮询或读取该页面，等人工报告完成后再用 action=health 判定会话是否存活，而不是靠页面读取。",
+         "depth": 0
+        },
+        {
          "text": "启动的浏览器是真实 Edge channel（channel = \"msedge\"），使用 checkout 本地的持久 profile（user_data_dir，默认 user_data/onshape_profile）；它不复用 OS Edge 主 profile，但在 Windows 账户是 Microsoft 账户的机器上，Edge 会自动把新 profile 登录 进去，所以窗口并非匿名，截图和 agent 读到的每个页面都可归因到该账户。",
+         "depth": 0
+        },
+        {
+         "text": "那个\"自动登录\"是 Edge 的默认行为，机制叫 implicit sign-in（隐式登录），不是本仓库造成的。 微软策略文档 ImplicitSignInEnabled（Windows ≥93）原文：*\"If you enable or don't configure this setting, implicit sign-in is enabled, Microsoft Edge attempts to sign in the user into their profile based on what and how they sign in to their OS.\"* 即 Edge 依据操作系统侧 的登录身份去签入浏览器 profile，所以换 --user-data-dir 换不掉身份： 实测一个全新 profile 目录里 Default\\Preferences 与 Local State 都已出现 account_info/edge_account 标记。配套证据：NonRemovableProfileEnabled 的说明把这种 profile 直接称作 \"an automatically signed in browser profile\"，BrowserSignin=Disable 时必须同时关掉它才能阻止创建。 边界：implicit sign-in 只影响 Edge profile 身份，不会把主 profile 的 cookie 搬过来，所以 Onshape 登录态仍是干净的——这正是\"非匿名\"与\"不共享主 profile\"同时成立的原因。 要关掉它需机器级策略（ImplicitSignInEnabled=0，或 BrowserSignin=0 + NonRemovableProfileEnabled=0，注册表 SOFTWARE\\Policies\\Microsoft\\Edge，需重启浏览器）， 会同时影响该机日常使用的 Edge；本仓库不自动写策略。",
          "depth": 0
         },
         {
