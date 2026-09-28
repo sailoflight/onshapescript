@@ -102,11 +102,12 @@ unpacks an artifact, verifies `SHA256SUMS`/`release-manifest.json`, and needs no
 Git checkout.
 
 Ship `onshape_browser_mode/wheels/` with the deployment. The requirements file
-resolves its bundled `lijq-browser-common==0.1.0.dev2` wheel using a path relative
-to that requirements file; it does not require the sibling `pythonpubliclib`
-checkout. Verify its SHA-256 against
-`../development/BROWSER_COMMON_INTEGRATION.md` before installation. The package
-requires Python >=3.11. Source integration and offline tests do not install into
+resolves its bundled `lijq-browser-common==0.1.0.dev2` and
+`lijq-mcp-surface==0.1.0.dev2` wheels using a path relative to that requirements
+file; it does not require the sibling `pythonpubliclib` checkout. Verify their
+SHA-256 against `../development/BROWSER_COMMON_INTEGRATION.md` and
+`../development/MCP_SURFACE_INTEGRATION.md` before installation. Both packages
+require Python >=3.11. Source integration and offline tests do not install into
 or restart the Windows deployment.
 
 On release failure, inspect `contextClosed`, `playwrightStopped` and `warnings`.

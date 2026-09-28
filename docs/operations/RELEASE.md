@@ -449,7 +449,9 @@ Two consequences worth keeping:
 - `docs/usage/MCP_CONSUMER.md` — Production / User calling contract.
 - `docs/development/START.md` — development commands; states there is no root
   packaging manifest.
-- `docs/development/BROWSER_COMMON_INTEGRATION.md` — pinned wheel and its SHA-256
-  convention.
+- `docs/development/BROWSER_COMMON_INTEGRATION.md` — pinned browser wheel and its
+  SHA-256 convention.
+- `docs/development/MCP_SURFACE_INTEGRATION.md` — pinned tool-surface wheel, what
+  is delegated, and the library gap.
 - `dev/tools/consumer_release_spec.py` — the machine-checkable whitelist/denylist,
   `plan()`, `validate()`, and `--check`.

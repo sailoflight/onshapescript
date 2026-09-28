@@ -650,7 +650,19 @@ class BrowserOptionalDependencyContractTest(unittest.TestCase):
         env = os.environ.copy()
         for name in ("LIVE_API_ENABLED", "PYTHONPATH", "PYTHONOPTIMIZE", "PYTHONHOME"):
             env.pop(name, None)
-        env["PYTHONPATH"] = str(ROOT)
+        # Only the OPTIONAL browser dependencies are blocked, by the meta-path
+        # finder below. The MCP server additionally requires the pinned
+        # `mcp_surface` tool-surface library, and `-S` hides site-packages, so
+        # that required location is made explicit here while the optional names
+        # stay unimportable by name.
+        search = [str(ROOT)]
+        try:
+            import mcp_surface
+        except ImportError:
+            pass
+        else:
+            search.append(str(Path(mcp_surface.__file__).resolve().parents[1]))
+        env["PYTHONPATH"] = os.pathsep.join(search)
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         with tempfile.TemporaryDirectory(prefix="onshape-no-browser-deps-") as temporary:
             process = subprocess.run(

@@ -45,6 +45,16 @@ MCP response mappings remain in `onshape_browser_mode`; there is no extra servic
 or source-path dependency. The wheel is bundled under that module for host
 installation. See `../development/BROWSER_COMMON_INTEGRATION.md`.
 
+The tool-surface mechanism is a second pinned shared wheel:
+`mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` are declaration and
+rendering layers over `lijq-mcp-surface`, which owns profile selection, the
+six-level filter, the absorbed-compatibility rule, the connection-scoped
+collapse/expand state machine and the bounded catalog lookup. This repository
+keeps only its own facts on top: the profile vocabulary, the curated gateway
+list, the browser semantic records, the catalog taxonomy and the deployment
+configuration (`tool_views.local.toml` and the environment switch). See
+`../development/MCP_SURFACE_INTEGRATION.md`.
+
 The MCP process owns its browser resources, configured profile, local REST
 state, and canonical runtime prompt at `mcp_main/win/mcp/runtime_prompt.py`. A
 deployment that needs WSL-to-Windows transport registers this ordinary command
@@ -139,7 +149,9 @@ The registered tool schemas and handlers in `mcp_main` are authoritative. The
 derived summary is `../generated/TOOL_REFERENCE.md`; `gateway` (the code default),
 `semantic`, `static`, fixed profile, and the `dynamic` collapse/expand control are
 implemented as context-routing conventions and do not change known-name dispatch
-authority. The view state is connection-scoped, not conversation-scoped.
+authority. The view state is connection-scoped, not conversation-scoped. The
+selection and state-machine mechanism is the pinned `lijq-mcp-surface` wheel; the
+control tools' schemas and handlers remain in `server.py`.
 
 ## Decisions and history
 

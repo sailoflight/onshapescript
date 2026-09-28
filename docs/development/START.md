@@ -26,7 +26,7 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 |---|---|---|
 | Ordinary stdio MCP | `python -m mcp_main.win.mcp` | complete protocol/tool body |
 | Offline stdio probe | `python dev/tools/mcp_probe.py` | initialize/list/status only |
-| Offline tests | `python -m unittest discover -s dev/tests -v` | no live REST/cloud mutation |
+| Offline tests | `PYTHONPATH=temp/browser-common-site python -m unittest discover -s dev/tests -v` | no live REST/cloud mutation |
 | Syntax | `python -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py` | offline |
 | Docs index | `python onshape_docs/scripts/build_docs_index.py` | rebuild after indexed docs change |
 | Docs verification | `python onshape_docs/verification/verify_docs.py` | offline |
@@ -39,12 +39,18 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 There is no root packaging manifest. Python modules, domain-owned dependency
 files, and current module contracts are executable sources of truth.
 
-Browser resource tests use the bundled pure Python wheel (Python >=3.11).
-Install it into the development environment with `python -m pip install
---no-index --no-deps onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl`
-before running the full suite. This offline fake-test setup does not install
-Playwright or a browser. Package provenance, isolated test commands, compatibility
-changes and rollback are in `BROWSER_COMMON_INTEGRATION.md`.
+Two bundled pure Python wheels under `onshape_browser_mode/wheels/` (Python
+>=3.11) back the full suite: `lijq-browser-common==0.1.0.dev2` for browser
+resources and `lijq-mcp-surface==0.1.0.dev2` for the MCP tool-surface mechanism
+that `mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` delegate to. Install
+them with `python -m pip install --no-index --no-deps
+onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl
+onshape_browser_mode/wheels/lijq_mcp_surface-0.1.0.dev2-py3-none-any.whl`
+(add `PYTHONPATH=temp/browser-common-site` instead when `browser_common` is only
+installed into that ignored target). This offline fake-test setup does not
+install Playwright or a browser. Package provenance, isolated test commands,
+compatibility changes and rollback are in `BROWSER_COMMON_INTEGRATION.md` and
+`MCP_SURFACE_INTEGRATION.md`.
 
 ## Workflow
 

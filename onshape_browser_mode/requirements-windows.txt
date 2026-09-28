@@ -3,4 +3,8 @@
 # or Edge configured through browser.toml/browser.local.toml.
 --find-links ./wheels
 lijq-browser-common==0.1.0.dev2
+# Shared MCP tool-surface mechanism (view selection, catalog lookup, cost). The
+# `mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` modules are declaration
+# and rendering layers over it; the wheel is bundled beside the browser one.
+lijq-mcp-surface==0.1.0.dev2
 playwright>=1.40,<2

@@ -1,18 +1,51 @@
+"""Bounded discovery over the registry: index, search, describe, status.
+
+The registry model, the per-profile selection and the confirmation
+classification are the shared ``mcp_surface`` library's (see
+``docs/development/MCP_SURFACE_INTEGRATION.md``): a tool's semantic level,
+default exposure, absorbed-compatibility flag and confirmation mode all come
+from one ``ToolRecord``/``Surface`` built by ``tool_views.build_surface``, so
+this module does not keep a second metadata model. The bounded *lookup* engine
+is the library's ``ToolCatalog`` where it is contract-compatible (name
+resolution and the unknown-name path in ``describe``); the result rendering,
+filters and capability cards below are this project's, because the documented
+``mcp_tool_catalog`` contract carries keys the generic library does not emit.
+
+Retrieval is not free, which is the whole reason these bounds exist: a
+three-result ``search`` measures ~6,800 characters because every summary carries
+its concurrency and confirmation contract, and one ``describe`` of a modelling
+tool ~10,500. So ``index`` is the cheap map, ``search`` is bounded and never
+returns a schema, and ``describe`` is the only schema path. Caps come from the
+shared library (``MAX_SEARCH_RESULTS``/``MAX_INDEX_RESULTS``) so the mechanism
+and its arithmetic cannot drift between the two.
+"""
+
 from __future__ import annotations
 
 import hashlib
 import json
-import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from mcp_surface import (
+    DEFAULT_INDEX_RESULTS,
+    DEFAULT_SEARCH_RESULTS,
+    MAX_INDEX_RESULTS,
+    MAX_SEARCH_RESULTS,
+    ToolCatalog,
+    UnknownToolName,
+    compact,
+    tokenize,
+)
+
 from mcp_main.win.mcp.concurrency import CONCURRENCY_CONTRACT_VERSION
 from mcp_main.win.mcp.tool_views import (
+    BROWSER_LEVEL_PRIORITY_ORDER,
     REST_REFERENCE_TOOL_NAMES,
     VALID_PROFILES,
     VALID_SEMANTIC_LEVELS,
-    select_view_tools,
+    build_surface,
 )
 
 
@@ -28,14 +61,6 @@ VALID_NETWORKS = ("offline", "browser", "live")
 # The one tool that takes a `capability` plus bounded `values`. A capability is
 # not a registered tool, so it is never returned as a tool summary.
 CAPABILITY_DEPLOY_TOOL = "browser_deploy_and_apply_featurescript"
-MAX_SEARCH_RESULTS = 12
-DEFAULT_SEARCH_RESULTS = 8
-#: The compact index is deliberately small: one line per category, or a bounded
-#: page of lines for one category. 40 is above the largest category (browser, 70)
-#: only when asked twice, which keeps a single answer in the low single-digit
-#: kilobytes instead of echoing the whole registry.
-MAX_INDEX_RESULTS = 40
-DEFAULT_INDEX_RESULTS = 40
 
 #: One sentence per category, so a caller can route without reading a tool.
 MODULE_PURPOSES = {
@@ -46,15 +71,10 @@ MODULE_PURPOSES = {
     "featurescript": "Offline FeatureScript reference: functions, types, guides, and source checks.",
     "documentation": "Project documentation index and section reads.",
 }
-_TOKEN = re.compile(r"[a-z0-9]+")
+#: Token weights and the level tie-break are the shared surface's; this project
+#: reads its declared preference tuple instead of keeping a second copy.
 _BROWSER_LEVEL_PRIORITY = {
-    "L5": 0,
-    "L4": 1,
-    "L2": 2,
-    "L6": 3,
-    None: 4,
-    "L3": 5,
-    "L1": 6,
+    level: index for index, level in enumerate(BROWSER_LEVEL_PRIORITY_ORDER)
 }
 
 
@@ -75,7 +95,11 @@ def tool_module(name: str) -> str:
 
 
 def _tokens(value: str) -> tuple[str, ...]:
-    return tuple(_TOKEN.findall(value.lower().replace("_", " ").replace("-", " ")))
+    return tokenize(value)
+
+
+def _compact(value: str, limit: int = 180) -> str:
+    return compact(value, limit)
 
 
 def capability_section(query: str, limit: int = 3) -> dict[str, Any]:
@@ -83,6 +107,8 @@ def capability_section(query: str, limit: int = 3) -> dict[str, Any]:
 
     Shared by every discovery entry (the catalog and `browser_discover_tools`)
     so a card cannot describe one invocation in one place and another elsewhere.
+    This layer is deliberately NOT in the shared library: a capability card
+    names a FeatureScript job this project owns.
     """
     from onshape_browser_mode import capabilities
 
@@ -92,11 +118,6 @@ def capability_section(query: str, limit: int = 3) -> dict[str, Any]:
     for match in matches:
         match["invocation"]["tool"] = CAPABILITY_DEPLOY_TOOL
     return {"capabilities": matches, "capabilityInvocationTool": CAPABILITY_DEPLOY_TOOL}
-
-
-def _compact(value: str, limit: int = 180) -> str:
-    normalized = " ".join(value.split())
-    return normalized if len(normalized) <= limit else normalized[: limit - 3].rstrip() + "..."
 
 
 def _browser_semantics(name: str) -> dict[str, Any] | None:
@@ -126,20 +147,39 @@ def _validate_string_list(
     return tuple(value)
 
 
-def _confirmation_mode(
-    name: str,
-    properties: dict[str, Any],
-    required: tuple[str, ...],
-) -> str:
-    if "confirm_mutation" not in properties:
-        return "none"
-    if name == "onshape_eval_featurescript":
-        return "budget_override"
-    if "dry_run" in properties:
-        return "non_dry_run"
-    if "confirm_mutation" in required:
-        return "always"
-    return "runtime_required"
+def _catalog_metadata(name: str, tool: dict[str, Any]) -> dict[str, Any]:
+    """The catalog-specific facts layered onto one shared ``ToolRecord``.
+
+    Module taxonomy, network classification, mutation/cost annotations and the
+    one confirmation overrides the schema rule cannot express
+    (``onshape_eval_featurescript``'s budget override) live here, so the record
+    carries them and the generic rule stays in the library.
+    """
+    cost = tool.get("cost") or {}
+    annotations = tool.get("annotations") or {}
+    concurrency = cost.get("concurrency")
+    if not isinstance(concurrency, dict):
+        raise ValueError(f"tool {name} is missing concurrency metadata")
+    network = str(cost.get("network", "offline"))
+    if network not in VALID_NETWORKS:
+        raise ValueError(f"tool {name} has unsupported network value: {network}")
+    semantic = _browser_semantics(name)
+    properties = (tool.get("inputSchema") or {}).get("properties") or {}
+    return {
+        "category": tool_module(name),
+        # The semantic name is searchable text in the original index; the
+        # library derives `search_tokens` from name + keywords + category +
+        # description, so this keeps the token set identical.
+        "keywords": (semantic.get("semanticName", ""),) if semantic else (),
+        "network": network,
+        "mutating": bool(cost.get("mutating", not annotations.get("readOnlyHint", True))),
+        "dry_run": "dry_run" in properties,
+        "side_effects": tuple(str(value) for value in cost.get("side_effects") or ()),
+        "concurrency": dict(concurrency),
+        "confirmation_override": (
+            "budget_override" if name == "onshape_eval_featurescript" else None
+        ),
+    }
 
 
 @dataclass(frozen=True)
@@ -234,7 +274,12 @@ class CatalogEntry:
 
 
 class ToolCatalogIndex:
-    """Immutable, one-build search index over the authoritative tool registry."""
+    """Immutable, one-build search index over the authoritative tool registry.
+
+    The registry is wrapped as the shared library's ``Surface`` once; every
+    derived fact (level, default exposure, absorbed flag, confirmation mode,
+    search tokens) is read back off that record rather than recomputed here.
+    """
 
     def __init__(self, tools: list[dict[str, Any]]) -> None:
         names = [tool.get("name") for tool in tools]
@@ -244,60 +289,48 @@ class ToolCatalogIndex:
         if duplicates:
             raise ValueError(f"duplicate catalog tool names: {duplicates}")
 
-        profile_names: dict[str, set[str]] = {}
-        for profile in VALID_PROFILES:
-            profile_names[profile] = {
-                tool["name"]
-                for tool in select_view_tools(tools, profile=profile, semantic_levels=None)
-            }
+        surface = build_surface(tools, metadata=_catalog_metadata)
+        self.surface = surface
+        # The shared bounded-lookup engine over the same surface. The project's
+        # filters, paging and result keys layer on top; `describe` resolves a
+        # name through it so the unknown-name path is the library's.
+        self.lookup = ToolCatalog(surface)
+
+        profile_names: dict[str, set[str]] = {
+            profile: {record.name for record in surface.select(profile=profile)}
+            for profile in VALID_PROFILES
+        }
 
         entries: list[CatalogEntry] = []
         postings: dict[str, set[str]] = defaultdict(set)
-        for tool in tools:
-            name = tool["name"]
-            description = str(tool.get("description") or "")
-            module = tool_module(name)
-            profiles = tuple(profile for profile in VALID_PROFILES if name in profile_names[profile])
-            semantic = _browser_semantics(name)
-            schema = tool.get("inputSchema") or {}
-            properties = schema.get("properties") or {}
-            annotations = tool.get("annotations") or {}
-            cost = tool.get("cost") or {}
-            concurrency = cost.get("concurrency")
-            if not isinstance(concurrency, dict):
-                raise ValueError(f"tool {name} is missing concurrency metadata")
-            network = str(cost.get("network", "offline"))
-            if network not in VALID_NETWORKS:
-                raise ValueError(f"tool {name} has unsupported network value: {network}")
-            mutating = bool(cost.get("mutating", not annotations.get("readOnlyHint", True)))
-            name_tokens = _tokens(name)
-            search_tokens = frozenset(_tokens(
-                " ".join((name, description, module, semantic.get("semanticName", "") if semantic else ""))
-            ))
-            required = tuple(schema.get("required") or ())
-            confirmation_mode = _confirmation_mode(name, properties, required)
+        for tool, record in zip(tools, surface.records):
+            name = record.name
+            confirmation_mode = record.confirmation_mode
             entry = CatalogEntry(
                 tool=tool,
                 name=name,
-                description=description,
-                module=module,
-                profiles=profiles,
-                semantic=semantic,
-                network=network,
-                mutating=mutating,
-                dry_run="dry_run" in properties,
-                confirmation_exposed="confirm_mutation" in properties,
-                confirmation_required=confirmation_mode in {"always", "non_dry_run", "runtime_required"},
-                confirmation_schema_required="confirm_mutation" in required,
+                description=record.description,
+                module=record.category,
+                profiles=tuple(
+                    profile for profile in VALID_PROFILES if name in profile_names[profile]
+                ),
+                semantic=_browser_semantics(name),
+                network=record.network,
+                mutating=record.mutating,
+                dry_run=record.dry_run,
+                confirmation_exposed=record.confirmation_exposed,
+                confirmation_required=confirmation_mode
+                in {"always", "non_dry_run", "runtime_required"},
+                confirmation_schema_required=record.confirmation_schema_required,
                 confirmation_mode=confirmation_mode,
-                side_effects=tuple(str(value) for value in cost.get("side_effects") or ()),
-                concurrency=dict(concurrency),
-                required=required,
-                name_tokens=name_tokens,
-                search_tokens=search_tokens,
+                side_effects=record.side_effects,
+                concurrency=dict(record.concurrency),
+                required=tuple((tool.get("inputSchema") or {}).get("required") or ()),
+                name_tokens=record.name_tokens,
+                search_tokens=record.search_tokens,
             )
             entries.append(entry)
-            for token in search_tokens:
+            for token in entry.search_tokens:
                 postings[token].add(name)
 
         self._entries = tuple(entries)
@@ -468,9 +501,13 @@ class ToolCatalogIndex:
         name = arguments.get("name")
         if not isinstance(name, str) or not name:
             raise ValueError("name is required for action=describe")
-        entry = self._by_name.get(name)
-        if entry is None:
-            raise ValueError("name must exactly match one registered tool; use action=search first")
+        try:
+            resolved = self.lookup.describe(name, view=visible_names)
+        except UnknownToolName as error:
+            raise ValueError(
+                "name must exactly match one registered tool; use action=search first"
+            ) from error
+        entry = self._by_name[resolved["name"]]
         return {
             "tool": entry.detail(visible=entry.name in visible_names),
             "schemaIncluded": True,
@@ -578,4 +615,3 @@ class ToolCatalogIndex:
         if action == "index":
             return self.index(arguments, visible_names=visible_names)
         raise ValueError("action must be status, search, describe, or index")
-

@@ -7,6 +7,9 @@ Status: verified
 - MCP identity, initialization, canonical runtime prompt, JSON-RPC dispatch,
   tool schemas/handlers, conservative concurrency/risk metadata, browser-tool
   installation, and result formatting.
+- The tool-surface declaration layer: this project's profiles, curated gateway,
+  browser semantic records and catalog taxonomy, expressed as one
+  `SurfacePolicy` over the pinned `lijq-mcp-surface` wheel.
 - The complete ordinary stdio entry `python -m mcp_main.win.mcp`.
 - Generated DSH runtime-policy companion and external-adapter configuration example.
 - Protocol-clean stdout and bounded diagnostics on stderr.
@@ -16,6 +19,10 @@ Status: verified
 - FeatureScript/REST/project documentation content and indexes: `onshape_docs`.
 - REST credentials, quota policy, state, transport, outputs: `onshape_rest_api_mode`.
 - Browser session, selectors, page/workflow state: `onshape_browser_mode`.
+- The generic tool-surface mechanism (view selection, level/exposure rules,
+  collapse/expand state machine, bounded catalog lookup): the pinned
+  `lijq-mcp-surface` wheel. This module declares the Onshape vocabulary and
+  renders the catalog contract on top of it.
 - Cross-host relay, registry, listeners, supervision, reconnect, or scheduled tasks:
   independently installed bridge infrastructure.
 - Tests/probes/fixtures: `dev/`.
@@ -29,6 +36,8 @@ Status: verified
 | Runtime prompt | `mcp_main/win/mcp/runtime_prompt.py` | canonical User/Operator policy |
 | Registry/dispatch | `mcp_main/win/mcp/server.py` | schemas, handlers, serve loop |
 | Browser registration | `mcp_main/win/mcp/browser_tools.py` | browser schema/handler adapters |
+| Tool views | `mcp_main/win/mcp/tool_views.py` | profile/level selection and dynamic view state over `mcp_surface` |
+| Tool catalog | `mcp_main/win/mcp/tool_catalog.py` | bounded index/search/describe over the shared surface |
 | DSH generator | `mcp_main/dsh/build_runtime_prompt_companion.py` | namespaced prompt plugin |
 | DSH example | `mcp_main/dsh/cordis.patch.yml.example` | external registered-bridge client + companion |
 | Protocol tests | `dev/tests/test_mcp_server.py` | initialize/list/local calls and guards |
@@ -39,6 +48,12 @@ Status: verified
 - Tool names are unique and each externally callable schema has a handler.
 - Known-name dispatch authority and safety gates do not change with tool views.
 - Tool exposure defaults to `gateway`; `dynamic` is the collapse/expand control and its state is CONNECTION-scoped, not conversation-scoped. Collapse is in-memory context routing: it writes nothing and revokes nothing, and a hidden known name stays callable by exact name.
+- The selection/level/absorbed mechanism, the collapse/expand state machine and
+  the bounded catalog lookup are the pinned `lijq-mcp-surface` wheel. The
+  host-local `config/tool_views.local.toml` and the
+  `ONSHAPE_MCP_TOOL_EXPOSURE`/`ONSHAPE_MCP_TOOL_PROFILE` switches stay local
+  deployment facts; provenance and rollback are in
+  `../development/MCP_SURFACE_INTEGRATION.md`.
 - Every tool exposes a machine-readable `cost.concurrency` contract. It is a
   conservative scheduling/risk classification and explicitly provides no
   multi-call workflow isolation or permission.
