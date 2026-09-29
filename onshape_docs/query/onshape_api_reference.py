@@ -8,11 +8,12 @@ REST questions offline. Nothing here contacts the network or Onshape.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
 from typing import Any
+
+from onshape_docs.query.source_digest import text_sha256
 
 DOCS_ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = DOCS_ROOT / "reference" / "raw"
@@ -53,14 +54,6 @@ def _load_quick() -> dict[str, Any]:
     return _quick
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def reload() -> None:
     """Drop cached indexes so a re-fetch + rebuild is visible immediately."""
     global _index, _quick
@@ -72,7 +65,7 @@ def spec_version() -> dict[str, str]:
     """Report the vendored REST API spec version and index health."""
     index = _load_index()
     consistent = (
-        index.get("sourceSha256") == _sha256(OPENAPI_PATH)
+        index.get("sourceSha256") == text_sha256(OPENAPI_PATH)
         if OPENAPI_PATH.is_file()
         else False
     )

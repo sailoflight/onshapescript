@@ -21,7 +21,6 @@ Outputs:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import sys
@@ -30,6 +29,11 @@ from typing import Any
 
 DOCS_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = DOCS_ROOT.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
+
 INDEX_PATH = DOCS_ROOT / "index.json"
 
 # Ordered category -> (stable page id -> project-relative authored markdown).
@@ -294,7 +298,7 @@ def build() -> list[dict[str, Any]]:
                 "page": page,
                 "category": category,
                 "path": relpath,
-                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "sha256": text_sha256(path),
                 **parsed,
             })
     return pages

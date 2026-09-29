@@ -14,7 +14,6 @@ Nothing is fetched here; each page's sha256 is recorded for staleness checks.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import sys
@@ -23,6 +22,12 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = ROOT.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
+
 DOCS_DIR = ROOT / "reference" / "raw" / "onshape-api-docs"
 DOCS_PATH = ROOT / "reference" / "index" / "onshape-api-docs" / "api_docs.json"
 
@@ -37,14 +42,6 @@ PAGES = tuple(PAGE_URLS.keys())
 # Blocks that end an in-progress paragraph / start a new block type.
 _START_BLOCK = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "pre", "ul", "ol",
                 "table", "blockquote"}
-
-
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 class DocsParser(HTMLParser):
@@ -196,7 +193,7 @@ def build() -> dict[str, Any]:
             "page": page,
             "title": title,
             "url": PAGE_URLS[page],
-            "sha256": sha256_of(path),
+            "sha256": text_sha256(path),
             "sections": parser.sections,
         }
         pages.append(entry)

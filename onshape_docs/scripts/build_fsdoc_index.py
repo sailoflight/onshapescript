@@ -19,7 +19,6 @@ Outputs (all data is vendored; nothing is fetched here):
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import sys
@@ -28,6 +27,12 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = ROOT.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
+
 FSDOC_DIR = ROOT / "reference" / "raw" / "fsdoc"
 LIBRARY_PATH = FSDOC_DIR / "library.html"
 INDEX_PATH = ROOT / "reference" / "index" / "fsdoc" / "index.json"
@@ -645,7 +650,7 @@ def build_guide() -> list[dict[str, Any]]:
         pages.append({
             "page": page,
             "path": relpath,
-            "sha256": hashlib.sha256(html.encode("utf-8")).hexdigest(),
+            "sha256": text_sha256(path),
             **parsed,
         })
     return pages
@@ -703,7 +708,7 @@ def build() -> dict[str, Any]:
         for e in parser.predicates
     ]
 
-    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    digest = text_sha256(LIBRARY_PATH)
     return {
         "librarySha256": digest,
         "builtFrom": "library.html",

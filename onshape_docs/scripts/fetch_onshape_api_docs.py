@@ -16,12 +16,17 @@ Afterwards run onshape_docs/scripts/build_onshape_api_docs_index.py to parse the
 from __future__ import annotations
 
 import argparse
-import hashlib
 import sys
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = ROOT.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
+
 DOCS_DIR = ROOT / "reference" / "raw" / "onshape-api-docs"
 
 PAGES = {
@@ -30,14 +35,6 @@ PAGES = {
     "oauth": "https://onshape-public.github.io/docs/auth/oauth/",
     "apikeys": "https://onshape-public.github.io/docs/auth/apikeys/",
 }
-
-
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def write_readme() -> None:
@@ -75,7 +72,7 @@ def main() -> int:
         target = DOCS_DIR / f"{page}.html"
         target.write_bytes(data)
         if not args.quiet:
-            print(f"  ok   {page}.html ({len(data)} bytes) sha256={sha256_of(target)}")
+            print(f"  ok   {page}.html ({len(data)} bytes) sha256={text_sha256(target)}")
     write_readme()
     return 1 if failed else 0
 

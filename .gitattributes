@@ -1,0 +1,17 @@
+# This project's integrity checks compare recorded digests against files on
+# disk, so Git must never re-normalize a file when it is checked out. Git for
+# Windows defaults to core.autocrlf=true, which would turn every tracked text
+# file into CRLF and make the docs indexes look stale. The digests themselves
+# are content-level and newline-safe (onshape_docs/query/source_digest.py);
+# this keeps the working tree LF on every platform anyway.
+* text=auto eol=lf
+
+# Never treated as text, never converted, never diffed.
+*.whl binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

@@ -15,13 +15,18 @@ Outputs (all data is vendored; nothing is fetched here):
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = ROOT.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
+
 RAW_DIR = ROOT / "reference" / "raw"
 ONSHAPE_API_DIR = RAW_DIR / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
@@ -32,12 +37,8 @@ QUICK_PATH = ROOT / "reference" / "quick" / "onshape-api" / "api_quick.json"
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head")
 
 
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+# The builders and the runtime/verify checkers share one content-level digest.
+sha256_of = text_sha256
 
 
 def resolve_ref(ref: str | None) -> str | None:

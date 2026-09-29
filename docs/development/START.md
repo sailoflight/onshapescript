@@ -27,6 +27,7 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 | Ordinary stdio MCP | `python -m mcp_main.win.mcp` | complete protocol/tool body |
 | Offline stdio probe | `python dev/tools/mcp_probe.py` | initialize/list/status only |
 | Offline tests | `PYTHONPATH=temp/browser-common-site python -m unittest discover -s dev/tests -v` | no live REST/cloud mutation |
+| Windows/Git checkout | after a clone made before `.gitattributes`, re-checkout: `git rm --cached -r . && git reset --hard` (or `git restore .`) | repository pins LF via `.gitattributes`; do not set `core.autocrlf=true` |
 | Syntax | `python -m py_compile mcp_main/*.py mcp_main/dsh/*.py mcp_main/win/*.py mcp_main/win/mcp/*.py onshape_browser_mode/*.py onshape_docs/query/*.py onshape_docs/scripts/*.py onshape_rest_api_mode/*.py examples/branch-cable-trophy/scripts/*.py` | offline |
 | Docs index | `python onshape_docs/scripts/build_docs_index.py` | rebuild after indexed docs change |
 | Docs verification | `python onshape_docs/verification/verify_docs.py` | offline |

@@ -14,7 +14,6 @@ Corpora verified:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import sys
@@ -24,6 +23,11 @@ from typing import Any
 
 DOCS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
+
 # Tier 0: raw build inputs — only sha256-compared, never loaded for content.
 RAW = DOCS_ROOT / "reference" / "raw"
 FSDOC_RAW = RAW / "fsdoc"
@@ -39,8 +43,9 @@ checks: list[dict[str, Any]] = []
 stats: dict[str, Any] = {}
 
 
-def sha256_of(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+# Every digest here is over a text source; share the builders' newline-safe
+# digest so a CRLF checkout cannot look stale (onshape_docs/query/source_digest.py).
+sha256_of = text_sha256
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:

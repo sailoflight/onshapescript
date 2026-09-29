@@ -26,6 +26,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
+from onshape_docs.query.source_digest import text_sha256
+
 DOCS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INDEX_PATH = DOCS_ROOT / "reference" / "index" / "fsdoc" / "index.json"
@@ -792,7 +794,7 @@ def _reference_health() -> dict[str, Any]:
     }
     try:
         index = _load_index()
-        actual = hashlib.sha256((FSDOC_DIR / "library.html").read_bytes()).hexdigest()
+        actual = text_sha256(FSDOC_DIR / "library.html")
         health["indexConsistent"] = index.get("librarySha256") == actual
         health["functionsIndexed"] = len(index.get("functions", []))
     except (OSError, ValueError):
@@ -804,7 +806,7 @@ def _reference_health() -> dict[str, Any]:
             path = FSDOC_DIR / entry.get("path", "")
             if not path.is_file():
                 stale.append(entry["page"])
-            elif hashlib.sha256(path.read_bytes()).hexdigest() != entry.get("sha256"):
+            elif text_sha256(path) != entry.get("sha256"):
                 stale.append(entry["page"])
         health["guideConsistent"] = not stale
         health["guideSectionsIndexed"] = sum(

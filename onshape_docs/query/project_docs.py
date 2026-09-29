@@ -10,11 +10,12 @@ all of them. Everything is local and deterministic — no network, no Onshape qu
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from pathlib import Path
 from typing import Any, Iterable
+
+from onshape_docs.query.source_digest import text_sha256
 
 DOCS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -263,14 +264,19 @@ def search(query: str, page: str | None = None, limit: int = 20) -> dict[str, An
 # --------------------------------------------------------------------------
 
 def index_health() -> dict[str, Any]:
-    """Check every indexed page's sha256 against its source markdown file."""
+    """Check every indexed page's sha256 against its source markdown file.
+
+    The digest is content-level: it hashes the decoded text with universal
+    newlines, so a tree whose line endings differ from the index (a Windows
+    clone, a copied tree) is not reported as stale.
+    """
     stale: list[str] = []
     pages = _load()["pages"]
     for entry in pages:
         path = REPO_ROOT / entry["path"]
         if not path.is_file():
             stale.append(entry["page"])
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != entry.get("sha256"):
+        elif text_sha256(path) != entry.get("sha256"):
             stale.append(entry["page"])
     return {
         "indexConsistent": not stale,

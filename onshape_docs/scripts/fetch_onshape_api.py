@@ -12,28 +12,22 @@ Afterwards run scripts/build_onshape_api_index.py to rebuild the JSON indexes.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
 
 DOCS_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = DOCS_ROOT.parent
-sys.path.insert(0, str(REPO_ROOT))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from onshape_docs.query.source_digest import text_sha256  # noqa: E402
 from onshape_rest_api_mode.budget import live_blocker  # noqa: E402
 from onshape_rest_api_mode.client import OnshapeClient  # noqa: E402
 
 ONSHAPE_API_DIR = DOCS_ROOT / "reference" / "raw" / "onshape-api"
 OPENAPI_PATH = ONSHAPE_API_DIR / "openapi.json"
 OPENAPI_URL = "https://cad.onshape.com/api/openapi"
-
-
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def main() -> int:
@@ -58,7 +52,7 @@ def main() -> int:
         json.dumps(spec, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
-    digest = sha256_of(OPENAPI_PATH)
+    digest = text_sha256(OPENAPI_PATH)
     print(f"  ok   openapi.json ({OPENAPI_PATH.stat().st_size} bytes) sha256 = {digest}")
     if not args.quiet:
         print(f"  spec version {info.get('version')} "
