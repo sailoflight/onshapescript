@@ -1,36 +1,41 @@
 """Split each tool description into a short advertised text and a kept full text.
 
 A caller pays for ``tools/list`` before it makes a single call, and this
-registry's 111 descriptions carry 53,409 characters. Most of that is contract
-(a precondition, an irreversibility, a refusal), but a real part is narrative:
+registry's 111 descriptions carry 53,409 characters. Most of that is contract (a
+precondition, an irreversibility, a refusal) or routing (a parameter name, an
+``action='...'`` value, another tool to call next); the rest is narrative --
 "measured live <date>" evidence, historical "why" prose, and rationale a caller
-does not need to route or to avoid a trap.
+needs neither to route with nor to avoid a trap.
 
 This module performs the split **once**, at import time, with no library
 change: the payload that ``tools/list`` advertises keeps a short summary, while
 the shared ``ToolRecord`` (and therefore ``mcp_tool_catalog action=describe``)
 keeps the complete original text.
 
-The rule, in order:
+A sentence is **kept** when it is:
 
 1. the opening sentence, verbatim;
-2. every sentence that states a prohibition, a precondition or an
-   irreversibility, matched by :data:`SAFETY_MARKERS` (a documented helper, not
-   the authority -- the authority is item 3);
-3. every sentence containing a phrase in :data:`REQUIRED_PHRASES`, which is the
-   exact set the test suite asserts must appear in the advertised payload;
-4. optionally further leading sentences, in order, while the accumulated
-   summary stays at or below :data:`SUMMARY_CHAR_CAP`.
+2. a sentence stating a prohibition, a precondition or an irreversibility,
+   matched by :data:`SAFETY_MARKERS`;
+3. a sentence with an uppercase emphasis negation (:data:`EMPHASIS_NEGATIONS`) --
+   this registry writes its hazards in caps;
+4. a sentence containing a phrase in :data:`REQUIRED_PHRASES`, the exact set the
+   test suite asserts must appear in the advertised payload;
+5. a **routing** sentence: one naming one of this tool's parameter names,
+   another registered tool, a configuration knob, an ``action='...'`` value, or
+   a backticked identifier or value (:class:`RoutingContext`).
 
-Everything removed stays reachable: :func:`apply` records the original text and
-:func:`detail_for` returns it for any record built from the same registry, so
-``describe`` is never lossy. The visible text is always a **subsequence of
-whole sentences** of the original, so the advertised text can only shrink and
-every kept sentence is byte-identical to its source.
+Everything else is dropped from the payload and stays reachable: :func:`apply`
+records the original text and :func:`detail_for` returns it for any record built
+from the same registry, so ``describe`` is never lossy. The visible text is
+always a **subsequence of whole sentences** of the original, so it can only
+shrink, every kept sentence is byte-identical to its source, and -- the point of
+rule 5 -- no parameter name, action value, peer-tool reference, config knob or
+backticked value can leave the advertised payload.
 
 Determinism: :func:`summarize_tool_description` is a pure function of
-``(name, description)``. Same input, same output; no clock, no environment, no
-iteration over an unordered collection.
+``(name, description, context)``. Same input, same output; no clock, no
+environment, no iteration over an unordered collection.
 
 This module must not import ``server`` or ``tool_views``: ``server`` imports
 this at assembly time, and importing back would be a cycle. It only holds the
@@ -40,12 +45,7 @@ summary rule plus the small registry that makes the full text reachable.
 from __future__ import annotations
 
 import re
-from typing import Any, Mapping
-
-#: The per-tool target for the optional leading-sentence extension. Rule 1-3
-#: sentences are mandatory and may push a summary past the cap; the cap only
-#: bounds how much *further* routing prose is carried.
-SUMMARY_CHAR_CAP = 600
+from typing import Any, Iterable, Mapping, Sequence
 
 #: Phrases the existing suite asserts appear in the ADVERTISED payload
 #: (``server.TOOLS[name]["description"]``). They are the tripwire proving the
@@ -105,16 +105,94 @@ SAFETY_MARKERS: tuple[str, ...] = (
     "not anonymous",
 )
 
+#: Rule 3: the emphasis negations this registry writes in capitals when a
+#: sentence carries a hazard a lowercase marker might miss ("false means no
+#: marker was found, NOT that the profile is anonymous").
+EMPHASIS_NEGATIONS: tuple[str, ...] = ("NOT", "NEVER", "MUST", "ONLY", "CANNOT")
+
 #: Sentence-final abbreviations that must not end a sentence boundary. Without
 #: this, "... calls with (context, id), e.g. 'function(...)'." would split into a
 #: fragment ending in "e.g." and a detached code example.
 _ABBREVIATIONS: tuple[str, ...] = ("e.g.", "i.e.", "vs.", "etc.", "no.", "cf.", "resp.")
 
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+")
+_EMPHASIS = re.compile(r"\b(?:" + "|".join(EMPHASIS_NEGATIONS) + r")\b")
+_BACKTICKED = re.compile(r"`[^`]+`")
+_ACTION_VALUE = re.compile(r"action\s*=\s*['\"][^'\"]+['\"]")
+_CONFIG_KNOB = re.compile(r"\b(?:MCP|ONSHAPE)_[A-Z][A-Z_]*\b")
 
 #: name -> (advertised summary, complete original text) for every split tool.
 #: Written once by :func:`apply` during server assembly and read-only after.
 _SPLIT: dict[str, tuple[str, str]] = {}
+
+
+def _word_pattern(words: Iterable[str], *, exclude: Iterable[str] = ()) -> re.Pattern[str] | None:
+    """Compile a word-boundary alternation, longest first, or ``None`` if empty."""
+    try:
+        skip = set(exclude)
+    except TypeError:  # pragma: no cover - defensive
+        skip = set()
+    kept = sorted({word for word in words if word and word not in skip}, key=lambda w: (-len(w), w))
+    if not kept:
+        return None
+    return re.compile(r"\b(?:" + "|".join(re.escape(word) for word in kept) + r")\b")
+
+
+class RoutingContext:
+    """The names that make a sentence routing-relevant for one tool.
+
+    Built once per registry by :func:`routing_contexts`; matching is
+    word-bounded so a parameter name is not found inside a longer word. A
+    compiled pattern is a pure value, so two contexts built from the same
+    arguments behave identically.
+    """
+
+    __slots__ = ("name", "parameters", "tool_names", "_parameters", "_peers")
+
+    def __init__(
+        self,
+        name: str,
+        parameters: Sequence[str] = (),
+        tool_names: Sequence[str] = (),
+    ) -> None:
+        self.name = name
+        self.parameters = tuple(parameters)
+        self.tool_names = tuple(tool_names)
+        self._parameters = _word_pattern(self.parameters)
+        self._peers = _word_pattern(self.tool_names, exclude=(name,))
+
+    def carries_routing(self, sentence: str) -> bool:
+        """True when dropping this sentence could hide how to drive or route."""
+        if _BACKTICKED.search(sentence) or _ACTION_VALUE.search(sentence):
+            return True
+        if _CONFIG_KNOB.search(sentence):
+            return True
+        if self._parameters is not None and self._parameters.search(sentence) is not None:
+            return True
+        return self._peers is not None and self._peers.search(sentence) is not None
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return (
+            f"RoutingContext(name={self.name!r}, parameters={len(self.parameters)}, "
+            f"tool_names={len(self.tool_names)})"
+        )
+
+
+def routing_contexts(tools: Sequence[Mapping[str, Any]]) -> dict[str, RoutingContext]:
+    """One :class:`RoutingContext` per tool, from the registry itself.
+
+    The parameter names come from each tool's ``inputSchema.properties`` and the
+    peer names from the registry, so the rule needs no hand-maintained list of
+    names that could drift from the schemas it describes.
+    """
+    names = tuple(str(tool["name"]) for tool in tools)
+    contexts: dict[str, RoutingContext] = {}
+    for tool in tools:
+        properties = (tool.get("inputSchema") or {}).get("properties") or {}
+        contexts[str(tool["name"])] = RoutingContext(
+            str(tool["name"]), tuple(str(key) for key in properties), names
+        )
+    return contexts
 
 
 def split_sentences(text: str) -> list[str]:
@@ -132,12 +210,19 @@ def split_sentences(text: str) -> list[str]:
     return sentences
 
 
-def summarize_tool_description(name: str, description: str) -> str:
+def summarize_tool_description(
+    name: str,
+    description: str,
+    context: RoutingContext | None = None,
+) -> str:
     """Return the short advertised text for one tool, per the module docstring.
 
-    Pure and deterministic. The result is a subset of the original sentences in
-    their original order, so it is never longer than ``description``; when the
-    rules retain every sentence the original string is returned unchanged.
+    Pure and deterministic given the registry-derived ``context`` (rule 5 needs
+    the tool's parameter names and its peers; without one, only the name-free
+    routing classes apply). The result is a subsequence of whole original
+    sentences in their original order, so it is never longer than
+    ``description``; when the rules retain every sentence the original string is
+    returned unchanged.
     """
     sentences = split_sentences(description)
     if not sentences:
@@ -148,19 +233,13 @@ def summarize_tool_description(name: str, description: str) -> str:
     for index, sentence in enumerate(sentences):
         if index == 0:
             continue
-        if any(phrase in sentence for phrase in required) or any(
-            marker in lowered[index] for marker in SAFETY_MARKERS
+        if (
+            any(phrase in sentence for phrase in required)
+            or any(marker in lowered[index] for marker in SAFETY_MARKERS)
+            or _EMPHASIS.search(sentence) is not None
+            or (context is not None and context.carries_routing(sentence))
         ):
             keep.add(index)
-    # Rule 4: extend the leading run while it still fits the cap. Mandatory
-    # sentences already in `keep` are counted but never block the extension of
-    # an earlier, still-missing leading sentence.
-    running = len(sentences[0])
-    for index in range(1, len(sentences)):
-        if index not in keep and running + 1 + len(sentences[index]) > SUMMARY_CHAR_CAP:
-            break
-        keep.add(index)
-        running += 1 + len(sentences[index])
     return " ".join(sentences[index] for index in sorted(keep))
 
 
@@ -173,12 +252,13 @@ def apply(tools: list[dict[str, Any]]) -> dict[str, str]:
     explicitly.
     """
     details: dict[str, str] = {}
+    contexts = routing_contexts(tools)
     for tool in tools:
         name = str(tool["name"])
         original = tool.get("description")
         if not isinstance(original, str):
             continue
-        summary = summarize_tool_description(name, original)
+        summary = summarize_tool_description(name, original, contexts.get(name))
         details[name] = original
         _SPLIT[name] = (summary, original)
         if summary != original:

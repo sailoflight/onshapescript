@@ -204,14 +204,31 @@ launch, REST request or host restart is implied.
 registry's 111 descriptions carried 53,409 characters of prose. The split keeps
 the contract visible and moves the narrative out; nothing became unreachable.
 
-- `mcp_main/win/mcp/tool_descriptions.py` owns the rule. Per tool it keeps, in
-  order: the opening sentence verbatim; every sentence carrying a prohibition,
-  precondition or irreversibility (the documented `SAFETY_MARKERS`); every
+- `mcp_main/win/mcp/tool_descriptions.py` owns the rule. Per tool it keeps: the
+  opening sentence verbatim; every sentence carrying a prohibition, precondition
+  or irreversibility (the documented `SAFETY_MARKERS`); every sentence with an
+  uppercase emphasis negation (`NOT`, `NEVER`, `MUST`, `ONLY`, `CANNOT`); every
   sentence containing a phrase the existing suite asserts on the advertised
-  payload (`REQUIRED_PHRASES`, each entry naming its test); then further leading
-  sentences while the accumulated summary stays at or below 600 characters. The
-  result is a subsequence of whole original sentences, so it can only shrink and
-  every kept sentence is byte-identical to its source.
+  payload (`REQUIRED_PHRASES`, each entry naming its test); and every **routing**
+  sentence — one naming one of this tool's parameter names, another registered
+  tool, a configuration knob, an `action='...'` value, or a backticked
+  identifier or value. What leaves is narrative that carries none of those:
+  "measured live <date>" evidence and historical "why" prose.
+  `RoutingContext`/`routing_contexts()` derive the parameter names from each
+  tool's `inputSchema.properties` and the peers from the registry, so the rule
+  has no hand-kept name list to drift. The result is a subsequence of whole
+  original sentences, so it can only shrink and every kept sentence is
+  byte-identical to its source.
+- The first pass at this split used a length cap instead (keep the opening run
+  of sentences while the summary stayed at or below 600 characters). Measured
+  against the registry, that rule dropped a parameter, action or peer reference
+  from 15 tools' visible text — including `dry_run=true` on
+  `onshape_update_feature_list`, the `confirm_mutation` guard sentence on
+  `onshape_eval_featurescript`, and "run it before
+  `onshape_upload_feature_studio`" on `fs_check_script` — because a cap cannot
+  tell contract from narrative. The class rule replaced it and
+  `test_no_routing_token_leaves_the_advertised_text` now asserts the invariant
+  against the whole registry.
 - The long literals stay the single source in `server.py`. After `TOOLS` is
   assembled, `apply()` rewrites each payload `description` in place and returns
   `TOOL_DETAILS` (name -> complete original text). No library change was needed:
@@ -229,34 +246,37 @@ the table the sections above quote):
 
 | Surface | Before | After | Moved |
 |---|---|---|---|
-| `gateway` (25) | 69,953 chars / 17,488 tokens | 62,638 / 15,659 | -7,315 |
-| `semantic` (77) | 166,193 / 41,548 | 157,196 / 39,299 | -8,997 |
-| `static` (111) | 223,495 / 55,873 | 214,498 / 53,624 | -8,997 |
+| `gateway` (25) | 69,953 chars / 17,488 tokens | 64,446 / 16,111 | -5,507 |
+| `semantic` (77) | 166,193 / 41,548 | 157,148 / 39,287 | -9,045 |
+| `static` (111) | 223,495 / 55,873 | 212,704 / 53,176 | -10,791 |
 
 `dev/tools/context_cost.py` measures the same registry with default (spaced)
 JSON and reports a larger absolute size: registry/static 234,700 / 58,732 ->
-225,703 / 56,478; semantic 173,958 / 43,530 -> 164,961 / 41,276; gateway
-72,568 / 18,162 -> 65,253 / 16,328. Both tools' output changed, so the dev4
+223,909 / 56,027; semantic 173,958 / 43,530 -> 164,913 / 41,262; gateway
+72,568 / 18,162 -> 67,061 / 16,778. Both tools' output changed, so the dev4
 round's "byte-identical" claim does not extend to this round.
 
-19 of 111 advertised descriptions changed; 8,555 description characters plus 442
-parameter-description characters (the >600-character outliers) moved out. Seven
-tools over 600 characters kept every sentence, because each sentence stated a
-precondition, an irreversibility or a required phrase: `browser_export_step`,
-`fs_update_reference`, `browser_click`, `onshape_geometry_status`,
-`onshape_list_document_elements`, `browser_get_partstudio_features`,
-`browser_fs_read_notices`. The 85 descriptions at or below 600 characters are
-unchanged.
+72 of 111 advertised descriptions changed and 10,349 description characters
+plus 442 parameter-description characters moved out of the payload. Compared
+with the superseded cap pass, the default gateway page is 1,808 characters
+(450 estimated tokens, 2.6%) larger, because the 25 curated tools keep their
+routing tails; `semantic` and `static` are slightly smaller and the registry
+loses 1,794 characters more narrative in total. That is the deliberate price of
+the invariant: nothing that tells a caller how to drive or route the tool leaves
+the page.
 
 `RUNTIME_PROMPT` is hand-written policy text and reads no tool description, so
 `RUNTIME_PROMPT_REVISION` does not move and the DSH companion is not regenerated.
 
-Verification: full offline suite 1124 tests, `OK`, exit 0 (1119 before, plus the
-five new split tests in `test_tool_description_split.py`); `test_tool_gateway_view`
-standalone 26 tests, `OK`; `build_tool_reference.py --check` reports the generated
-reference current because no tool's first 180 characters changed; `verify_docs.py`,
-`build_runtime_prompt_companion.py --check` and `consumer_release_spec.py --check`
-pass; `py_compile` and `git diff --check` are clean.
+Verification: full offline suite `OK`, exit 0, in `dev/tests` (the split module
+now runs eight tests, including the routing-token invariant and the
+registry-derived-context checks); `test_tool_gateway_view` standalone 26 tests,
+`OK`; `build_tool_reference.py` regenerated `docs/generated/TOOL_REFERENCE.md`
+(33 first-180-character rows changed) and now reports it current, and
+`build_docs_index.py` rebuilt `onshape_docs/index.json` for the new reference
+digest; `verify_docs.py`, `build_runtime_prompt_companion.py --check` and
+`consumer_release_spec.py --check` pass; `py_compile` and `git diff --check` are
+clean.
 
 ## Backup and rollback
 

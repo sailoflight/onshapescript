@@ -12430,7 +12430,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "543ea132c8b04649518dd38149e916a8718a283ea43c35a07baad89eb316060e",
+   "sha256": "95e7572469f1037cf36b99c0651b3528c6516bce8c86eac2e63e86beb5702d7c",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -12538,7 +12538,7 @@
          "L5 onshape_workflow",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Deprecated compatibility wrapper: use browser_draw_part_with_views with a one-entry dimensions array (flat tool/geometry/placement arguments are normalized the same way). Kept s..."
+         "Deprecated compatibility wrapper: use browser_draw_part_with_views with a one-entry dimensions array (flat tool/geometry/placement arguments are normalized the same way)."
         ],
         [
          "browser_apply_blend",
@@ -12578,7 +12578,7 @@
          "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it. Read-only; ze..."
+         "Capture the current browser page (or a scoped element) to a PNG file so the caller or the visual tools (read_image / vision_glance / vision_ground) can inspect it."
         ],
         [
          "browser_click",
@@ -12602,7 +12602,7 @@
          "L4 onshape_transaction",
          "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Create a new Onshape document through the browser UI (documents page → 创建 → 文档… → name → 创建). Zero Onshape API quota. This mutates the account by creating a document, so it requ..."
+         "Create a new Onshape document through the browser UI (documents page → 创建 → 文档… → name → 创建). This mutates the account by creating a document, so it requires confirm_mutation=true."
         ],
         [
          "browser_create_document_version",
@@ -12626,7 +12626,7 @@
          "L4 onshape_transaction",
          "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Create a Feature Studio, Part Studio, or Assembly tab and verify that a new visible tab appears. Zero Onshape API quota. Adding a tab creates a document element, so confirm_muta..."
+         "Create a Feature Studio, Part Studio, or Assembly tab and verify that a new visible tab appears. Adding a tab creates a document element, so confirm_mutation=true is required. U..."
         ],
         [
          "browser_delete_element",
@@ -12642,7 +12642,7 @@
          "L4 onshape_transaction",
          "feature_name",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. Zero REST API quota. It is the only way..."
+         "Delete exactly one USER feature row from the Part Studio feature list through its row context menu and verify the row NAME left the list. It is the only way to undo a row that a..."
         ],
         [
          "browser_delete_tab",
@@ -12650,7 +12650,7 @@
          "L4 onshape_transaction",
          "name, confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=no; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Deprecated compatibility wrapper: resolve one exact unique visible tab name to its observed data-id, then execute the same exact-ID deletion core as browser_delete_element. Ambi..."
+         "Deprecated compatibility wrapper: resolve one exact unique visible tab name to its observed data-id, then execute the same exact-ID deletion core as browser_delete_element. Pref..."
         ],
         [
          "browser_deploy_and_apply_featurescript",
@@ -12810,7 +12810,7 @@
          "boundary_observation",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration",
-         "Deprecated compatibility wrapper: use onshape_geometry_status, which reports every configured backend in one answer. Kept so an existing caller keeps working; it delegates and r..."
+         "Deprecated compatibility wrapper: use onshape_geometry_status, which reports every configured backend in one answer."
         ],
         [
          "browser_get_fs_compile_status",
@@ -12826,7 +12826,7 @@
          "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names. Read-only and zero REST API quota."
+         "Open Module outline and return the active FeatureScript symbol inventory with normalized kinds and names."
         ],
         [
          "browser_get_page_tabs",
@@ -12834,7 +12834,7 @@
          "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), marking which one is active. Read-only, zero Onshape API quota. Use it to f..."
+         "List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), marking which one is active."
         ],
         [
          "browser_get_partstudio_features",
@@ -12842,7 +12842,7 @@
          "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Read the Part Studio feature tree and part list currently on screen. Returns the feature-list header, each feature item (with isUserFeature/isDefault classification), and the pa..."
+         "Read the Part Studio feature tree and part list currently on screen. Read-only; never calls the Onshape REST API. headerCount is the whole-list count, and ready=false or rowsCom..."
         ],
         [
          "browser_group_instances",
@@ -12866,7 +12866,7 @@
          "L4 onshape_transaction",
          "confirm_mutation",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. Optionally switches to the given Part Studio tab, opens the wor..."
+         "Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. It counts the element's USER feature rows before the click and..."
         ],
         [
          "browser_inspect",
@@ -12882,7 +12882,7 @@
          "L2 browser_transaction",
          "name, arguments",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Deprecated compatibility wrapper: call the registered tool by the exact name that mcp_tool_catalog returns. It invokes one browser tool from the discovery catalog; nested tool s..."
+         "Deprecated compatibility wrapper: call the registered tool by the exact name that mcp_tool_catalog returns."
         ],
         [
          "browser_notifications_status",
@@ -12906,7 +12906,7 @@
          "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Open a document from the Onshape documents list by its visible name. Read-only navigation: it goes to the documents list and clicks the matching document link, then returns the..."
+         "Open a document from the Onshape documents list by its visible name. Does not create or modify any cloud data."
         ],
         [
          "browser_open_insert_feature_dialog",
@@ -12922,7 +12922,7 @@
          "L1 browser_primitive",
          "key",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Send one trusted Playwright key press to a main-page or frame target. Zero REST API quota."
+         "Send one trusted Playwright key press to a main-page or frame target."
         ],
         [
          "browser_read_feature_parameters",
@@ -12930,7 +12930,7 @@
          "unclassified",
          "feature_name",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Read one custom feature's current parameter values without changing the model: open the row's parameter dialog, read its named fields, and cancel it with Escape. Zero REST API q..."
+         "Read one custom feature's current parameter values without changing the model: open the row's parameter dialog, read its named fields, and cancel it with Escape. When a paramete..."
         ],
         [
          "browser_read_featurescript",
@@ -12938,7 +12938,7 @@
          "L4 onshape_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Read the FeatureScript source currently open in the browser's Ace editor and return it together with the document/workspace/element ids parsed from the page URL. Read-only, zero..."
+         "Read the FeatureScript source currently open in the browser's Ace editor and return it together with the document/workspace/element ids parsed from the page URL. If no FeatureSc..."
         ],
         [
          "browser_read_selection_preview",
@@ -12962,7 +12962,7 @@
          "L2 browser_transaction",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Deprecated compatibility wrapper: use browser_session with action='reload'. Kept so an existing caller keeps working; it attempts a bounded reload of the current browser page wh..."
+         "Deprecated compatibility wrapper: use browser_session with action='reload'."
         ],
         [
          "browser_rename_tab",
@@ -12978,7 +12978,7 @@
          "project_control",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Execute a validated browser project with checkpoints and resume. Legacy v1 runs flat steps; v2 runs setup plus a DAG of one or more independently asserted L6 deliverables and re..."
+         "Execute a validated browser project with checkpoints and resume."
         ],
         [
          "browser_scroll",
@@ -12986,7 +12986,7 @@
          "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Scroll the current Onshape browser page up/down, either the whole window or a specific element matched by a CSS selector. Returns how far it actually scrolled plus the container..."
+         "Scroll the current Onshape browser page up/down, either the whole window or a specific element matched by a CSS selector."
         ],
         [
          "browser_session",
@@ -13026,7 +13026,7 @@
          "boundary_operation",
          "-",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state",
-         "Explicitly cache browser-observed document/workspace/element ids in REST-owned local state. Performs local file I/O only and no REST request."
+         "Explicitly cache browser-observed document/workspace/element ids in REST-owned local state."
         ],
         [
          "browser_toggle_left_panel",
@@ -13042,7 +13042,7 @@
          "L1 browser_primitive",
          "text",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
-         "Type text with trusted sequential keyboard events into a main-page or frame target. Zero REST API quota."
+         "Type text with trusted sequential keyboard events into a main-page or frame target."
         ],
         [
          "browser_verify_feature_parameters",
@@ -13066,7 +13066,7 @@
          "L1 browser_primitive",
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
-         "Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition. Read-only and zero REST API quota."
+         "Wait up to 60 seconds for an element, text, URL, network-idle, or frame condition."
         ],
         [
          "browser_wall_thickness_report",
@@ -13133,7 +13133,7 @@
          "-",
          "name",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration",
-         "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, EntityType): its kind, description, and each allowed value with type and description..."
+         "Return the full definition of a FeatureScript type or enum (for example BoundingType, Query, EntityType): its kind, description, and each allowed value with type and description."
         ],
         [
          "fs_guide_section",
@@ -13165,7 +13165,7 @@
          "-",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration",
-         "Deprecated compatibility wrapper: use fs_quick_reference with include_modules=true (optionally with category). Kept so an existing caller keeps working; it returns the same cate..."
+         "Deprecated compatibility wrapper: use fs_quick_reference with include_modules=true (optionally with category)."
         ],
         [
          "fs_quick_reference",
@@ -13216,7 +13216,7 @@
          "-",
          "-",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. The index is built once after registration. search is bounded and never retu..."
+         "Search, map, and describe the complete authoritative MCP tool registry without expanding tools/list. search is bounded and never returns input schemas; a query that names a CAD..."
         ],
         [
          "mcp_tool_invoke",
@@ -13318,7 +13318,7 @@
          "-",
          "parameters",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Convert a local parameter mapping into Onshape's explicit custom-feature parameter blocks. Booleans become BTMParameterBoolean values; strings and numbers become quantity expres..."
+         "Convert a local parameter mapping into Onshape's explicit custom-feature parameter blocks. This deterministic local helper makes no network request and does not validate Feature..."
         ],
         [
          "onshape_check_model",
@@ -13342,7 +13342,7 @@
          "-",
          "confirm_mutation",
          "network=live; api_max=1; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state",
-         "Create a new Part Studio in the configured Onshape document. Each call creates another cloud element; by default it also changes onshape_rest_api_mode/config/onshape-state.json..."
+         "Create a new Part Studio in the configured Onshape document. This is not a read-only inspection tool and requires explicit mutation confirmation."
         ],
         [
          "onshape_eval_featurescript",
@@ -13350,7 +13350,7 @@
          "-",
          "script",
          "network=live; api_max=1; mutating=no; dry_run=no; confirm=yes; concurrency=shared_read/explicit_target",
-         "Evaluate a FeatureScript snippet on the live Onshape server. ⚠️ Each call spends 1 API call of the annual quota. Document-first discipline: BEFORE calling this, use the free loc..."
+         "Evaluate a FeatureScript snippet on the live Onshape server. Document-first discipline: BEFORE calling this, use the free local tools (fs_get_function, fs_search, fs_library_sou..."
         ],
         [
          "onshape_export_step",
@@ -13358,7 +13358,7 @@
          "-",
          "confirm_mutation, document_id, wv, wvid, element_id",
          "network=live; api_max=7; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_document",
-         "Asynchronously export one explicit Part Studio to a canonical millimeter AP242 STEP file. The operation creates at most one translation request, polls with a caller-bounded budg..."
+         "Asynchronously export one explicit Part Studio to a canonical millimeter AP242 STEP file. Pass translation_id to resume without repeating the POST. dry_run=true constructs the e..."
         ],
         [
          "onshape_geometry_status",
@@ -13374,7 +13374,7 @@
          "-",
          "-",
          "network=live; api_max=2; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration_target_state",
-         "Read the configured Feature Studio metadata and compiled feature specifications. It reports whether branchCableTrophyDisplay is exposed and how many parameters its compiled spec..."
+         "Read the configured Feature Studio metadata and compiled feature specifications. This uses authenticated read-only Onshape requests and does not upload source."
         ],
         [
          "onshape_get_parameter_set",
@@ -13382,7 +13382,7 @@
          "-",
          "name",
          "network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none",
-         "Read one maintained local parameter set for the Branch Cable Trophy FeatureScript. The default set produces the detailed 132-part model; preview produces the simplified 65-part..."
+         "Read one maintained local parameter set for the Branch Cable Trophy FeatureScript. This does not read credentials or contact Onshape."
         ],
         [
          "onshape_get_project_state",
@@ -13406,7 +13406,7 @@
          "-",
          "-",
          "network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration_target_state",
-         "List elements in the configured Onshape workspace (names, element types, IDs, microversions). By default it returns the locally cached element table at ZERO API cost — that tabl..."
+         "List elements in the configured Onshape workspace (names, element types, IDs, microversions). Pass refresh=true to make one authenticated read-only GET /elements and repopulate..."
         ],
         [
          "onshape_render_preview",
@@ -13414,7 +13414,7 @@
          "-",
          "view",
          "network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/explicit_target",
-         "Request one shaded PNG rendering of the existing configured Part Studio from Onshape. The remote operation is read-only but may consume rendering resources. By default it return..."
+         "Request one shaded PNG rendering of the existing configured Part Studio from Onshape. By default it returns the image as MCP image content without writing a file; set save=true..."
         ],
         [
          "onshape_run_validation_pipeline",
