@@ -9,7 +9,7 @@ Status: verified
   installation, and result formatting.
 - The tool-surface declaration layer: this project's profiles, curated gateway,
   browser semantic records and catalog taxonomy, expressed as one
-  `SurfacePolicy` over the pinned `lijq-mcp-surface` wheel.
+  `SurfacePolicy` over the pinned `mcp-surface` wheel.
 - The complete ordinary stdio entry `python -m mcp_main.win.mcp`.
 - Generated DSH runtime-policy companion and external-adapter configuration example.
 - Protocol-clean stdout and bounded diagnostics on stderr.
@@ -21,7 +21,7 @@ Status: verified
 - Browser session, selectors, page/workflow state: `onshape_browser_mode`.
 - The generic tool-surface mechanism (view selection, level/exposure rules,
   collapse/expand state machine, bounded catalog lookup): the pinned
-  `lijq-mcp-surface` wheel. This module declares the Onshape vocabulary and
+  `mcp-surface` wheel. This module declares the Onshape vocabulary and
   renders the catalog contract on top of it.
 - Cross-host relay, registry, listeners, supervision, reconnect, or scheduled tasks:
   independently installed bridge infrastructure.
@@ -49,7 +49,7 @@ Status: verified
 - Known-name dispatch authority and safety gates do not change with tool views.
 - Tool exposure starts from this project's declared page (`DEFAULT_EXPOSURE_MODE`, passed to `SurfacePolicy.default_exposure`): the compressed `gateway` set, a fixed always-expanded view that needs no client notification capability. `semantic`, `static`, `profile` and `dynamic` are explicit choices; the library fallback for an undeclared project stays `semantic`. `dynamic` state is CONNECTION-scoped, not conversation-scoped. Collapse is in-memory context routing: it writes nothing and revokes nothing, and a hidden known name stays callable by exact name.
 - The selection/level/absorbed mechanism, the collapse/expand state machine and
-  the bounded catalog lookup are the pinned `lijq-mcp-surface` wheel. The
+  the bounded catalog lookup are the pinned `mcp-surface` wheel. The
   host-local `config/tool_views.local.toml` and the
   `ONSHAPE_MCP_TOOL_EXPOSURE`/`ONSHAPE_MCP_TOOL_PROFILE` switches stay local
   deployment facts; provenance and rollback are in

@@ -39,7 +39,7 @@ MCP client or independently installed adapter
        -> onshape_browser_mode (host Playwright/Edge boundary)
 ```
 
-The browser facade composes the pinned `lijq-browser-common` Python wheel in
+The browser facade composes the pinned `browser-common` Python wheel in
 process: `SyncSession` alone owns native Playwright driver/context/current-page
 resources. Onshape configuration, login, recovery decisions, page operations and
 MCP response mappings remain in `onshape_browser_mode`; there is no extra service
@@ -48,7 +48,7 @@ installation. See `../development/BROWSER_COMMON_INTEGRATION.md`.
 
 The tool-surface mechanism is a second pinned shared wheel:
 `mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` are declaration and
-rendering layers over `lijq-mcp-surface`, which owns profile selection, the
+rendering layers over `mcp-surface`, which owns profile selection, the
 six-level filter, the absorbed-compatibility rule, the connection-scoped
 collapse/expand state machine and the bounded catalog lookup. This repository
 keeps only its own facts on top: the profile vocabulary, the curated gateway
@@ -152,7 +152,7 @@ derived summary is `../generated/TOOL_REFERENCE.md`; the declared `gateway` page
 `semantic`, `static`, fixed profile, and the `dynamic`
 collapse/expand control are implemented as context-routing conventions and do not
 change known-name dispatch authority. The view state is connection-scoped, not conversation-scoped. The
-selection and state-machine mechanism is the pinned `lijq-mcp-surface` wheel; the
+selection and state-machine mechanism is the pinned `mcp-surface` wheel; the
 control tools' schemas and handlers remain in `server.py`.
 
 ## Decisions and history

@@ -6,18 +6,21 @@
 implement the tool-surface mechanism. View selection, the six-level filter, the
 absorbed-compatibility rule, the gateway curated set, the connection-scoped
 collapse/expand state machine and the bounded-catalog engine are
-`lijq-mcp-surface==0.1.0.dev4` (import name `mcp_surface`, Python >=3.11). The
+`mcp-surface==0.1.0.dev4` (import name `mcp_surface`, Python >=3.11). The
 original artifact is
-`/home/lijq/code/pythonpubliclib/dist/lijq_mcp_surface-0.1.0.dev4-py3-none-any.whl`.
+`/home/lijq/code/pythonpubliclib/dist/mcp_surface-0.1.0.dev4-py3-none-any.whl`.
 An unchanged copy ships in `onshape_browser_mode/wheels/`; the sibling
 `pythonpubliclib` checkout is neither needed at runtime nor added to Python.
 
-SHA-256: `58f331b222adfea6fd2e633bc6d3c97744326dfbd1311b826b3ec337fe9453ec`
-(42806 bytes). The superseded dev3 artifact (41437 bytes,
-`81116952455cca78a507760625100af97aa798ce65c4997cda019f9ee858f732`) and the dev2
-artifact (40335 bytes,
-`1ea972f0a539a4487f170047e28d7a2012c3de863abce5b1aaa3d150f8784c45`) remain in
-the library's `dist/` but are no longer bundled here.
+SHA-256: `6f33d65a17ce4866d992f908c51bc8715e49c4ff17aebc6da98bcb7f6d1dc497`
+(42758 bytes). The superseded dev3 artifact (41392 bytes,
+`49c5283c966fb8657f98508fc861ea09bf53d91b4fd012028e84585c14a62e7f`) and the dev2
+artifact (40288 bytes,
+`a662eaa92207cfaedc713956b7e0e50daf2bdfe407ad2b359d3079ab6765871d`) remain in
+the library's `dist/` but are no longer bundled here. These sizes and digests are
+the post-rename values (2026-09-29: the library's distribution names dropped
+their owner prefix; only `METADATA`/`.dist-info`/`RECORD` changed, payloads are
+byte-identical to the pre-rename builds).
 
 ## Default exposure mode: project-declared `gateway` (dev4)
 
@@ -137,7 +140,7 @@ observable catalog output is byte-identical after the change.
 ```bash
 # Install the bundled wheel into the development environment (no network):
 .venv/bin/python -m pip install --no-index --no-deps \
-  onshape_browser_mode/wheels/lijq_mcp_surface-0.1.0.dev4-py3-none-any.whl
+  onshape_browser_mode/wheels/mcp_surface-0.1.0.dev4-py3-none-any.whl
 
 # Full offline suite (browser_common comes from the ignored PYTHONPATH target):
 env -u LIVE_API_ENABLED PYTHONDONTWRITEBYTECODE=1 \

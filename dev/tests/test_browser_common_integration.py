@@ -30,17 +30,17 @@ try:
     from browser_common import ExecutionContextError, PageCleanupError, SyncSession
 except ImportError as exc:
     raise ImportError(
-        "Browser integration tests require the pinned lijq-browser-common 0.1.0.dev2 wheel. "
+        "Browser integration tests require the pinned browser-common 0.1.0.dev2 wheel. "
         "From the repository root run: python3 -m pip install --no-deps "
         "--target temp/browser-common-site "
-        "onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl; "
+        "onshape_browser_mode/wheels/browser_common-0.1.0.dev2-py3-none-any.whl; "
         "then run tests with PYTHONPATH=temp/browser-common-site. "
         "See docs/development/START.md."
     ) from exc
 
 ROOT = Path(__file__).resolve().parents[2]
-WHEEL = ROOT / "onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl"
-WHEEL_SHA256 = "c1763265aa5c968032e7d18116d07e18ddbdbd873a4d6c7db033686a58913cc8"
+WHEEL = ROOT / "onshape_browser_mode/wheels/browser_common-0.1.0.dev2-py3-none-any.whl"
+WHEEL_SHA256 = "72580e67b28a9e7254e87ea6504636df1f0a8ac4622f766b8e63f6c437f9932b"
 APP = "https://cad.onshape.com/documents/test/w/workspace/e/studio"
 SIGNIN = "https://cad.onshape.com/signin"
 SECRET = "synthetic-cookie=do-not-expose-this-value"
@@ -617,7 +617,7 @@ class BrowserCommonIntegrationTest(unittest.TestCase):
 
     def test_wheel_hash_version_and_executed_owner_match_distributed_artifact(self):
         self.assertEqual(hashlib.sha256(WHEEL.read_bytes()).hexdigest(), WHEEL_SHA256)
-        self.assertEqual(importlib.metadata.version("lijq-browser-common"), "0.1.0.dev2")
+        self.assertEqual(importlib.metadata.version("browser-common"), "0.1.0.dev2")
         package = Path(browser_common.__file__).resolve().parent
         with zipfile.ZipFile(WHEEL) as archive:
             for name in ("sync_session.py", "_core.py", "config.py", "results.py", "errors.py"):
@@ -710,7 +710,7 @@ class BrowserOptionalDependencyContractTest(unittest.TestCase):
             try:
                 injected.start()
             except BrowserLaunchError as error:
-                assert 'lijq-browser-common 0.1.0.dev2 is required' in str(error)
+                assert 'browser-common 0.1.0.dev2 is required' in str(error)
             else:
                 raise AssertionError('Missing shared wheel did not fail before startup')
             assert injected._resources is None and not profile.exists()

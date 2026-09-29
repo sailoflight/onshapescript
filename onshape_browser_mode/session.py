@@ -543,7 +543,7 @@ class BrowserSession:
             from browser_common import SessionConfig, SyncSession
         except ImportError as exc:
             raise BrowserLaunchError(
-                "lijq-browser-common 0.1.0.dev2 is required on the MCP browser host. "
+                "browser-common 0.1.0.dev2 is required on the MCP browser host. "
                 "Install onshape_browser_mode/requirements-windows.txt with its bundled wheels."
             ) from exc
         browser_cfg = self.config.browser

@@ -134,7 +134,7 @@ output directory is not "cleanup".
 - SHA-256 is computed as in `fdm_analysis/contracts.py:file_sha256` and matches
   the existing bundled-wheel convention in
   `docs/development/BROWSER_COMMON_INTEGRATION.md` (which pins
-  `onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl`).
+  `onshape_browser_mode/wheels/browser_common-0.1.0.dev2-py3-none-any.whl`).
 - `onshape_browser_mode/requirements-windows.txt` resolves `./wheels` relative to
   itself; verify the bundled wheel digest before installing.
 - That integrity information is **already producible offline, and only that**:

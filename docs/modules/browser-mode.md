@@ -95,7 +95,7 @@ Project control plane (one or more L6 nodes)
 
 ## Dependencies
 
-- Allowed: Python >=3.11, pinned `lijq-browser-common==0.1.0.dev2` from the module's bundled wheel, Windows Playwright/Edge runtime, module-owned page objects/selectors/settings, explicit REST state synchronization boundary, and development fixtures.
+- Allowed: Python >=3.11, pinned `browser-common==0.1.0.dev2` from the module's bundled wheel, Windows Playwright/Edge runtime, module-owned page objects/selectors/settings, explicit REST state synchronization boundary, and development fixtures.
 - `BrowserSession` lazily composes a single shared owner and delegates native page/context access; imports, offline status and unstarted release work without browser dependencies. It never adds sibling source paths to `sys.path`.
 - Single-page reconciliation runs at explicit preparation boundaries, protects active temporary scopes, and raises on incomplete cleanup. Status observes an app page without adopting it. Release preserves existing response fields, records operation/type-only warnings, and retains the driver when context/browser closure fails so another release can retry.
 - The adapter preserves business app-URL preference, launch options and three-attempt launch retry only after complete cleanup. See `../development/BROWSER_COMMON_INTEGRATION.md` for package provenance, offline checks and rollback.

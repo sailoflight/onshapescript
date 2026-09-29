@@ -3,12 +3,14 @@
 ## Dependency and provenance
 
 `onshape_browser_mode/session.py` composes `browser_common.SyncSession` from
-`lijq-browser-common==0.1.0.dev2` (Python >=3.11). The original artifact is
-`/home/lijq/code/pythonpubliclib/dist/lijq_browser_common-0.1.0.dev2-py3-none-any.whl`.
+`browser-common==0.1.0.dev2` (Python >=3.11). The original artifact is
+`/home/lijq/code/pythonpubliclib/dist/browser_common-0.1.0.dev2-py3-none-any.whl`.
 An unchanged copy is shipped in `onshape_browser_mode/wheels/`; the sibling
 checkout is not needed at runtime and no sibling source path is added to Python.
 
-SHA-256: `c1763265aa5c968032e7d18116d07e18ddbdbd873a4d6c7db033686a58913cc8`.
+SHA-256: `72580e67b28a9e7254e87ea6504636df1f0a8ac4622f766b8e63f6c437f9932b`
+(23527 bytes; post-rename value — 2026-09-29 the library dropped its owner
+prefix from distribution names, changing only `METADATA`/`.dist-info`/`RECORD`).
 The wheel includes `browser_common/docs/ADAPTATION_GUIDE.md` and declares
 `playwright>=1.40,<2`. Neither the library nor this adapter installs a browser.
 The Windows requirements file pins the library version and resolves `./wheels`
@@ -134,7 +136,7 @@ The isolated setup used for development changes only ignored project files:
 ```bash
 .venv/bin/python -m pip install --no-index --no-deps \
   --target temp/browser-common-site \
-  onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl
+  onshape_browser_mode/wheels/browser_common-0.1.0.dev2-py3-none-any.whl
 env -u LIVE_API_ENABLED PYTHONDONTWRITEBYTECODE=1 \
   PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest \
   dev.tests.test_browser_common_integration dev.tests.test_browser_mode -v

@@ -292,7 +292,7 @@ class ResidentOwnershipContractTest(unittest.TestCase):
 
     def setUp(self):
         if RealSyncSession is None:
-            self.skipTest("pinned lijq-browser-common wheel is not importable here")
+            self.skipTest("pinned browser-common wheel is not importable here")
         temporary = tempfile.TemporaryDirectory(prefix="onshape-resident-")
         self.addCleanup(temporary.cleanup)
         self.profile = Path(temporary.name) / "profile"

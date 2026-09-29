@@ -61,7 +61,7 @@ def require(condition):
 
 def versions():
     result = {"python": platform.python_version()}
-    for distribution in ("lijq-browser-common", "playwright"):
+    for distribution in ("browser-common", "playwright"):
         try:
             result[distribution] = importlib.metadata.version(distribution)
         except importlib.metadata.PackageNotFoundError:
