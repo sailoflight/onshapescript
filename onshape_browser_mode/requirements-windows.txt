@@ -6,5 +6,7 @@ lijq-browser-common==0.1.0.dev2
 # Shared MCP tool-surface mechanism (view selection, catalog lookup, cost). The
 # `mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` modules are declaration
 # and rendering layers over it; the wheel is bundled beside the browser one.
-lijq-mcp-surface==0.1.0.dev2
+# dev3's default exposure mode is `semantic` (always expanded, no client
+# notification capability required); see docs/development/MCP_SURFACE_INTEGRATION.md.
+lijq-mcp-surface==0.1.0.dev3
 playwright>=1.40,<2

@@ -3,10 +3,11 @@
 # registration or the child environment.
 #
 # Precedence: an explicit argument, then ONSHAPE_MCP_TOOL_EXPOSURE, then this
-# file, then the built-in default (`gateway`).
+# file, then the built-in default (`semantic`: a fixed, always-expanded bounded
+# view that does not require the client to handle notifications/tools/list_changed).
 #
 # [exposure]
-# mode = "gateway"      # semantic | static | profile | dynamic | gateway
+# mode = "semantic"     # semantic | static | profile | dynamic | gateway
 # profile = "default"   # only used by the profile and dynamic modes
 #
 # `dynamic` is the collapse/expand control, orthogonal to which display set is

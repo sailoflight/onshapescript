@@ -103,7 +103,7 @@ Git checkout.
 
 Ship `onshape_browser_mode/wheels/` with the deployment. The requirements file
 resolves its bundled `lijq-browser-common==0.1.0.dev2` and
-`lijq-mcp-surface==0.1.0.dev2` wheels using a path relative to that requirements
+`lijq-mcp-surface==0.1.0.dev3` wheels using a path relative to that requirements
 file; it does not require the sibling `pythonpubliclib` checkout. Verify their
 SHA-256 against `../development/BROWSER_COMMON_INTEGRATION.md` and
 `../development/MCP_SURFACE_INTEGRATION.md` before installation. Both packages

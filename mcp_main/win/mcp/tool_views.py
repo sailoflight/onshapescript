@@ -68,7 +68,13 @@ CONTROL_TOOL_ORDER = (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME, INVOKE_TOOL_NAME)
 # the ordinary deployment is launched by an external bridge whose registration
 # owns the child environment: a mode an operator cannot set without editing
 # someone else's registry is not really configurable. Precedence is explicit
-# argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then `gateway`.
+# argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then `semantic`.
+# The default is the fixed, always-expanded ordinary view on purpose: a
+# collapsed `dynamic` start requires the client to process
+# `notifications/tools/list_changed`, which is a capability not every client
+# has (matching `mcp_surface` dev3's `resolve_exposure` default), and the
+# compressed `gateway` set is a curation decision rather than a neutral start.
+# Both stay fully available as explicit choices.
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 LOCAL_CONFIG_PATH = CONFIG_DIR / "tool_views.local.toml"
 
@@ -368,12 +374,18 @@ def _local_section(name: str) -> dict[str, Any]:
 
 
 def exposure_mode(value: str | None = None) -> str:
+    """The exposure mode, defaulting to the fixed, always-expanded `semantic`.
+
+    `dynamic` is a deliberate, explicit choice: a collapsed start is only correct
+    for a client that can refresh `tools/list`. `gateway` is a curation choice,
+    also explicit, not a neutral starting point.
+    """
     if value is not None:
         mode = value
     elif "ONSHAPE_MCP_TOOL_EXPOSURE" in os.environ:
         mode = os.environ["ONSHAPE_MCP_TOOL_EXPOSURE"]
     else:
-        mode = _local_section("exposure").get("mode", "gateway")
+        mode = _local_section("exposure").get("mode", "semantic")
     if not isinstance(mode, str):
         raise ValueError("the exposure mode must be a string")
     mode = mode.strip().lower()
@@ -489,7 +501,8 @@ class ToolViewState:
             # starts collapsed on the three control/discovery entry points and
             # remembers `gateway` as the default expanded display set.
             # static/semantic/profile/gateway have no collapse state and list
-            # their own fixed set.
+            # their own fixed set, so `expanded_view` is inert there: the status
+            # still reports it alongside `switchingAvailable=false`.
             collapsed=mode == "dynamic",
             expanded_view="gateway",
         )

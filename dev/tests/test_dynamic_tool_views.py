@@ -234,8 +234,12 @@ class ConnectionToolViewTest(unittest.TestCase):
 
 
 class CollapseExpandToolViewTest(unittest.TestCase):
-    """Issue #3: ordinary default is `gateway`; `dynamic` is collapse/expand.
+    """The ordinary default is the fixed, always-expanded `semantic` view.
 
+    `dynamic` (collapse/expand) is an explicit choice because a collapsed start
+    requires the client to process `notifications/tools/list_changed`, and
+    `gateway` is an explicit choice because a curated representative set is a
+    project decision rather than a neutral starting point.
     The display set is orthogonal to the collapse state: a fresh `dynamic`
     connection lists no domain schema at all, and expanding selects one of the
     static / semantic / gateway / profile sets.
@@ -268,17 +272,101 @@ class CollapseExpandToolViewTest(unittest.TestCase):
             "jsonrpc": "2.0", "id": 0, "method": "tools/list", "params": {}
         })[0]["result"]
 
-    def test_an_empty_environment_defaults_to_the_gateway_view(self):
+    def explicit_connection(self, mode, profile=None):
+        environment = {"ONSHAPE_MCP_TOOL_EXPOSURE": mode}
+        if profile is not None:
+            environment["ONSHAPE_MCP_TOOL_PROFILE"] = profile
+        with mock.patch.dict(os.environ, environment):
+            return server.McpConnection(
+                ToolViewState.from_environment(server.TOOLS)
+            )
+
+    def default_connection(self):
+        """A connection with no argument, no environment and no host file."""
         from mcp_main.win.mcp import tool_views
 
         with mock.patch.dict(os.environ, {}, clear=True), \
                 mock.patch.object(tool_views, "_local_section", lambda name: {}):
-            self.assertEqual(exposure_mode(), "gateway")
+            return server.McpConnection(
+                ToolViewState.from_environment(server.TOOLS)
+            )
+
+    def test_an_empty_environment_defaults_to_the_semantic_view(self):
+        from mcp_main.win.mcp import tool_views
+
+        with mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(tool_views, "_local_section", lambda name: {}):
+            self.assertEqual(exposure_mode(), "semantic")
             state = ToolViewState.from_environment(server.TOOLS)
-        self.assertEqual(state.mode, "gateway")
-        self.assertEqual(self.names(state.listed_tools()), set(GATEWAY_TOOL_NAMES))
-        self.assertEqual(len(state.listed_tools()), 25)
-        self.assertEqual(state.status()["state"], "expanded")
+        self.assertEqual(state.mode, "semantic")
+        # The bounded ordinary view: exactly the `default` profile set.
+        self.assertEqual(
+            self.names(state.listed_tools()),
+            self.names(select_view_tools(
+                server.TOOLS, profile="default", semantic_levels=None
+            )),
+        )
+        self.assertEqual(len(state.listed_tools()), 77)
+        # Emphatically not the compressed gateway start, and not collapsed.
+        self.assertGreater(len(state.listed_tools()), len(GATEWAY_TOOL_NAMES))
+        self.assertNotEqual(
+            self.names(state.listed_tools()), set(GATEWAY_TOOL_NAMES)
+        )
+        status = state.status()
+        self.assertEqual(status["state"], "expanded")
+        self.assertFalse(status["switchingAvailable"])
+        self.assertFalse(status["listChangedCapability"])
+
+    def test_the_no_config_list_matches_the_explicit_semantic_mode(self):
+        default = self.listed(self.default_connection())
+        explicit = self.listed(self.explicit_connection("semantic"))
+        self.assertEqual(default["exposureMode"], "semantic")
+        self.assertEqual(explicit["exposureMode"], "semantic")
+        self.assertEqual(
+            [tool["name"] for tool in default["tools"]],
+            [tool["name"] for tool in explicit["tools"]],
+        )
+        self.assertEqual(default["toolView"]["toolCount"], 77)
+        self.assertEqual(default["toolView"]["state"], "expanded")
+
+    def test_a_no_config_start_emits_no_list_changed(self):
+        connection = self.default_connection()
+        initialized = connection.dispatch_messages({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18", "capabilities": {}},
+        })
+        self.assertEqual(len(initialized), 1)
+        self.assertFalse(
+            initialized[0]["result"]["capabilities"]["tools"]["listChanged"]
+        )
+        listing = connection.dispatch_messages({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
+        })
+        self.assertEqual(len(listing), 1)
+        self.assertEqual(listing[0]["result"]["exposureMode"], "semantic")
+        # A switch attempt is refused, and a refusal is not a view change: no
+        # `notifications/tools/list_changed` may appear on this path either.
+        refused = self.call(connection, 3, {"action": "set", "profile": "browser"})
+        self.assertEqual(len(refused), 1)
+        self.assertEqual(refused[0]["error"]["code"], -32602)
+
+    def test_explicit_gateway_and_dynamic_remain_selectable(self):
+        gateway = self.listed(self.explicit_connection("gateway"))
+        self.assertEqual(gateway["exposureMode"], "gateway")
+        self.assertEqual(self.names(gateway["tools"]), set(GATEWAY_TOOL_NAMES))
+        self.assertEqual(len(gateway["tools"]), 25)
+
+        dynamic = self.dynamic_connection()
+        cold = self.listed(dynamic)
+        self.assertEqual(cold["exposureMode"], "dynamic")
+        self.assertEqual(self.names(cold["tools"]), self.CONTROL_NAMES)
+        opened = self.call(dynamic, 1, {"action": "expand"})
+        result = opened[0]["result"]["structuredContent"]
+        self.assertEqual(result["expandedView"], "gateway")
+        self.assertEqual(set(result["listedNames"]), set(GATEWAY_TOOL_NAMES))
+        self.assertEqual(opened[1]["method"], "notifications/tools/list_changed")
 
     def test_a_fresh_dynamic_connection_starts_collapsed(self):
         connection = self.dynamic_connection()

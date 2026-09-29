@@ -1,6 +1,6 @@
 # Dynamic MCP tool discovery roadmap
 
-Status: semantic/static/profile/dynamic/gateway exposure and connection-scoped replacement implemented; `gateway` is the code default
+Status: semantic/static/profile/dynamic/gateway exposure and connection-scoped replacement implemented; `semantic` is the code default (fixed, always expanded; `gateway`/`dynamic` are explicit)
 
 > **Superseded in part (2026-09-19):** the eight `Merge` rows in
 > `architecture/TOOL_SURFACE_AUDIT.md` were executed. Where this page names
@@ -18,7 +18,9 @@ Status: semantic/static/profile/dynamic/gateway exposure and connection-scoped r
 > modeling route. Phases A–C remain implemented and unchanged.
 
 The optional six-level catalog, bounded browser discovery, hidden-tool invocation
-gateway, `gateway` default exposure, static compatibility mode, fixed startup
+gateway, `semantic` default exposure (fixed and always expanded, so no client
+`list_changed` capability is needed; `gateway` is now an explicit choice), static
+compatibility mode, fixed startup
 profiles, and connection-scoped `listChanged` replacement are implemented.
 Dynamic display is explicitly a context-routing convention rather than an
 execution or authorization constraint. `dynamic` is the collapse/expand control:
@@ -109,7 +111,7 @@ TOOLS / HANDLERS
   -> browser_discover_tools + browser_invoke_discovered
 ```
 
-`ONSHAPE_MCP_TOOL_EXPOSURE` selects the mode, and the code fallback is `gateway`
+`ONSHAPE_MCP_TOOL_EXPOSURE` selects the mode, and the code fallback is `semantic`
 when neither the argument, the environment variable, nor
 `tool_views.local.toml` selects one. `static` exposes the
 complete registry, `profile` fixes one startup profile, and `dynamic` owns one
@@ -166,7 +168,7 @@ Preserve explicit modes:
   returns to collapsed + `gateway` + startup profile. Emits
   `notifications/tools/list_changed` after an effective change only, and its state
   is CONNECTION-scoped.
-- `gateway` (implemented 2026-09-21, and the code default, sized by
+- `gateway` (implemented 2026-09-21, an explicit choice since dev3, sized by
   `LOOKUP_DEPTH_RESEARCH.md`):
   advertises a small **declarative** surface — a discovery core
   (`mcp_tool_catalog`, `mcp_tool_view`, `mcp_tool_invoke`) plus curated

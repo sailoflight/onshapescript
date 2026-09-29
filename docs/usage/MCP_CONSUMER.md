@@ -338,9 +338,10 @@ ordinary list. Unclassified tools remain valid and visible by default. Set
 `ONSHAPE_MCP_TOOL_EXPOSURE=static` only for complete-registry compatibility or
 debugging.
 
-##### Compressed entry points (`gateway`, the default)
+##### Compressed entry points (`gateway`, an explicit choice)
 
-`gateway` is the default tool exposure when nothing else selects a mode. It
+`gateway` is a compressed tool exposure selected explicitly (the no-config
+default is `semantic`, a fixed always-expanded view; see below). It
 advertises a small declarative surface:
 
 1. A discovery core — `mcp_tool_catalog`, `mcp_tool_view`, and `mcp_tool_invoke`.
@@ -379,12 +380,14 @@ IS needed, prefer the cheap path:
    handler's own `confirm_mutation`, dry-run, cost, and acceptance gates are what
    answer; the gateway changes only what is advertised.
 
-`gateway` is the built-in fallback: with no explicit argument, no
+`semantic` is the built-in fallback: with no explicit argument, no
 `ONSHAPE_MCP_TOOL_EXPOSURE`, and no `tool_views.local.toml`, a connection starts
-in `gateway`. Precedence is an explicit argument, then
-`ONSHAPE_MCP_TOOL_EXPOSURE`, then
-`mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode`, then `gateway`.
-Change it on a host whose launcher owns the child environment by copying
+in `semantic` — a fixed, always-expanded list that needs no client
+`notifications/tools/list_changed` support. Precedence is an explicit argument,
+then `ONSHAPE_MCP_TOOL_EXPOSURE`, then
+`mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode`, then `semantic`.
+Select `gateway` (or `dynamic`) deliberately with one of those switches. Change
+it on a host whose launcher owns the child environment by copying
 `tool_views.local.toml.example` to `tool_views.local.toml` and setting `mode`;
 the environment variable still wins over the file, and the MCP process must
 restart to apply it.
@@ -499,10 +502,11 @@ nothing.
 
 The other fixed modes are explicit:
 
+- `semantic` is the built-in default view: the bounded ordinary set (77 tools),
+  fixed and always expanded (see above).
 - `static` keeps the complete registry visible.
-- `semantic` selects the bounded ordinary view as a fixed display set.
 - `profile` selects one fixed `ONSHAPE_MCP_TOOL_PROFILE` at connection start.
-- `gateway` is the built-in default view (see above).
+- `gateway` is the compressed curated view (25 tools), selected explicitly.
 
 Profiles are `default`, `browser`, `rest`, `featurescript`, `documentation`,
 `geometry`, and `all`. An optional `semantic_levels` list narrows classified

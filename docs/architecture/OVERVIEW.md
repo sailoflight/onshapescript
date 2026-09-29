@@ -5,8 +5,9 @@
 This repository implements an MCP server for offline Onshape FeatureScript and
 REST documentation lookup, guarded REST validation, and Windows-hosted browser
 automation. The complete registered tool/handler surface is static, while
-`tools/list` defaults to the fixed `gateway` view, supports
-`semantic`/`static`/`profile`, and exposes `dynamic` as a collapse/expand control
+`tools/list` defaults to the fixed, always-expanded `semantic` view (chosen so no
+client notification capability is required), supports
+`gateway`/`static`/`profile`, and exposes `dynamic` as a collapse/expand control
 over the same display sets.
 A one-build `mcp_tool_catalog` index covers the complete
 registry independent of the current view; bounded search returns summaries and
@@ -146,10 +147,10 @@ Rules:
 ## Current tool surface
 
 The registered tool schemas and handlers in `mcp_main` are authoritative. The
-derived summary is `../generated/TOOL_REFERENCE.md`; `gateway` (the code default),
-`semantic`, `static`, fixed profile, and the `dynamic` collapse/expand control are
-implemented as context-routing conventions and do not change known-name dispatch
-authority. The view state is connection-scoped, not conversation-scoped. The
+derived summary is `../generated/TOOL_REFERENCE.md`; `semantic` (the code default,
+fixed and always expanded), `gateway`, `static`, fixed profile, and the `dynamic`
+collapse/expand control are implemented as context-routing conventions and do not
+change known-name dispatch authority. The view state is connection-scoped, not conversation-scoped. The
 selection and state-machine mechanism is the pinned `lijq-mcp-surface` wheel; the
 control tools' schemas and handlers remain in `server.py`.
 

@@ -307,7 +307,9 @@ server restarts — so a code refresh does not cost the human a login.
    `multiProcessAllowed=false`.
 2. Configure DSH from `mcp_main/dsh/cordis.patch.yml.example`. Install the MCP
    client and the generated runtime-policy companion as one generation.
-3. Set `ONSHAPE_MCP_TOOL_EXPOSURE=gateway` in the registration (see Defaults).
+3. Tool exposure defaults to `semantic`; set `ONSHAPE_MCP_TOOL_EXPOSURE` in the
+   registration only when this deployment deliberately wants another mode (for
+   example `gateway`), see Defaults.
 4. Verify the model-visible runtime policy, not merely listed tools. The DSH
    client `@deepseek-ai/dsh-mcp-client` >=0.1.0-rc.8 registers tools without
    projecting `initialize.instructions`, which is why the companion is required.
@@ -364,14 +366,16 @@ server restarts — so a code refresh does not cost the human a login.
   server, complete one `initialize`/`tools/list` exchange against the local
   process, and confirm identity and the runtime-policy revision. Nothing in the
   artifact may contact Onshape during install or self-check.
-- Default tool display is **`gateway`**, and that is now the in-repo code fallback
-  too: with no explicit argument, no `ONSHAPE_MCP_TOOL_EXPOSURE`, and no
+- Default tool display is **`semantic`**: the fixed, always-expanded bounded view
+  (77 tools) that a client can consume without handling
+  `notifications/tools/list_changed`. That is the in-repo code fallback too: with
+  no explicit argument, no `ONSHAPE_MCP_TOOL_EXPOSURE`, and no
   `tool_views.local.toml`, `mcp_main/win/mcp/tool_views.py` starts a connection in
-  `gateway`. Precedence is an explicit argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`,
+  `semantic`. Precedence is an explicit argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`,
   then `mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode`, then
-  `gateway`; pinning `ONSHAPE_MCP_TOOL_EXPOSURE=gateway` in the registration is
-  therefore an explicit statement of intent, not a correction of the default.
-  `dynamic` collapse/expand is a separate, orthogonal control.
+  `semantic`; the compressed `gateway` view and the `dynamic` collapse/expand
+  control remain explicit, unchanged choices (`ONSHAPE_MCP_TOOL_EXPOSURE=gateway`
+  starts the 25-tool curated surface).
 - **No implicit download** of a large browser or geometry backend. The browser
   layer uses the machine's existing Chrome/Edge; a geometry backend is
   configured explicitly by opaque candidate id and `ask_before_install` always

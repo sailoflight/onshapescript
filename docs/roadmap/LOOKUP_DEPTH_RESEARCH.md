@@ -17,7 +17,7 @@
 > round at a fixed step and does not model the cumulative cost of the added
 > history or the effect on task success, so the ~27-lookup inflection in §4/F4 is
 > an illustrative output of that model, not a deployment threshold. The
-> default-gateway product decision is separate from these unproven complex-task
+> The choice of a default display mode is separate from these unproven complex-task
 > economics. The one delegation experiment is a single-task record
 > (`onshape_docs/verification/delegation-lookup-cost-2026-09-21.md`) and must not
 > be extrapolated into a mode ranking either.
