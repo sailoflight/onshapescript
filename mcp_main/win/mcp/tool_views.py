@@ -19,6 +19,11 @@ What stays here, deliberately:
   so the shared library takes the mode as a parameter and never reads a file.
 * the Onshape vocabulary -- profile names and their membership rules, the
   curated gateway list, the browser semantic records, the absorbed wrapper set.
+* the project's starting page -- ``DEFAULT_EXPOSURE_MODE``, declared on the
+  policy *and* used as the last-resort value in the switch precedence. Which
+  set is a good first page is a project fact (registry size and whether a
+  curated set exists), so it is declared here rather than inherited from the
+  library's client-compatibility fallback.
 
 Hiding is context routing, never authority: a name absent from ``tools/list``
 stays callable by exact registered name, and every confirmation, quota, pacing
@@ -62,19 +67,36 @@ CONTROL_TOOL_NAMES = frozenset(
 #: `mcp_tool_catalog` and what `status().gateway.core` reports.
 CONTROL_TOOL_ORDER = (CATALOG_TOOL_NAME, CONTROL_TOOL_NAME, INVOKE_TOOL_NAME)
 
+#: **This project's starting page, declared once.** ``mcp_surface`` dev4 added
+#: ``SurfacePolicy.default_exposure``; the library fallback stays ``semantic``
+#: because a library default must work for a project that has not chosen, but
+#: which set is a good *starting* page is a project fact. Onshape has 111
+#: registered names and a curated 22-representative gateway set (25 names with
+#: the three control tools, ~17.5k estimated tokens) against the 77-name
+#: always-expanded ordinary view (~41.5k). Starting from the curated page is a
+#: statement about this registry, not about client capabilities: `gateway` is a
+#: FIXED, always-expanded view too, so it emits nothing and asks the client for
+#: nothing (only `dynamic` needs ``notifications/tools/list_changed``).
+#:
+#: This single constant feeds both the policy declaration
+#: (:func:`surface_policy` -> ``default_exposure=``) and the host-local TOML
+#: fallback (:func:`exposure_mode`), so the declaration and the last-resort
+#: value cannot drift apart; a test asserts both against the library's own
+#: resolution of ``view(environ={})``.
+DEFAULT_EXPOSURE_MODE = "gateway"
+
 # Host-local switch for the exposure mode, in the same shape as the other
 # module-local configurations (`<name>.toml` in the module's `config/`
 # directory, overridden by a gitignored `<name>.local.toml`). It exists because
 # the ordinary deployment is launched by an external bridge whose registration
 # owns the child environment: a mode an operator cannot set without editing
 # someone else's registry is not really configurable. Precedence is explicit
-# argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then `semantic`.
-# The default is the fixed, always-expanded ordinary view on purpose: a
-# collapsed `dynamic` start requires the client to process
-# `notifications/tools/list_changed`, which is a capability not every client
-# has (matching `mcp_surface` dev3's `resolve_exposure` default), and the
-# compressed `gateway` set is a curation decision rather than a neutral start.
-# Both stay fully available as explicit choices.
+# argument, then `ONSHAPE_MCP_TOOL_EXPOSURE`, then this file, then
+# `DEFAULT_EXPOSURE_MODE`. The declared default is a FIXED, always-expanded view
+# (`gateway`): it needs no client notification capability -- only `dynamic`
+# does -- and the curated set is a deliberate project choice, not a neutral
+# fallback. An operator's environment variable or file always outvotes the
+# declaration.
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 LOCAL_CONFIG_PATH = CONFIG_DIR / "tool_views.local.toml"
 
@@ -268,7 +290,12 @@ def _declared_metadata(name: str) -> dict[str, Any]:
 
 
 def surface_policy() -> SurfacePolicy:
-    """This project's declaration, as the shared library's one policy object."""
+    """This project's declaration, as the shared library's one policy object.
+
+    ``default_exposure`` is declared here rather than left to the library
+    fallback: this registry is large enough to have a curated set worth
+    starting from (see ``DEFAULT_EXPOSURE_MODE``).
+    """
     return SurfacePolicy(
         control_names=CONTROL_TOOL_ORDER,
         profiles=(
@@ -307,6 +334,7 @@ def surface_policy() -> SurfacePolicy:
         rank_levels=BROWSER_LEVEL_PRIORITY_ORDER,
         chains=PRESCRIBED_LOOKUP_CHAINS,
         default_profile="default",
+        default_exposure=DEFAULT_EXPOSURE_MODE,
         default_expanded_view="gateway",
         gateway_reason=GATEWAY_REASON,
     )
@@ -374,18 +402,19 @@ def _local_section(name: str) -> dict[str, Any]:
 
 
 def exposure_mode(value: str | None = None) -> str:
-    """The exposure mode, defaulting to the fixed, always-expanded `semantic`.
+    """The exposure mode, last-resort value ``DEFAULT_EXPOSURE_MODE``.
 
-    `dynamic` is a deliberate, explicit choice: a collapsed start is only correct
-    for a client that can refresh `tools/list`. `gateway` is a curation choice,
-    also explicit, not a neutral starting point.
+    Precedence: explicit argument, then ``ONSHAPE_MCP_TOOL_EXPOSURE``, then the
+    host-local file, then the project's declared starting page. The declaration
+    is the fixed, always-expanded ``gateway`` page, so a no-config connection
+    needs no client notification capability; only ``dynamic`` does.
     """
     if value is not None:
         mode = value
     elif "ONSHAPE_MCP_TOOL_EXPOSURE" in os.environ:
         mode = os.environ["ONSHAPE_MCP_TOOL_EXPOSURE"]
     else:
-        mode = _local_section("exposure").get("mode", "semantic")
+        mode = _local_section("exposure").get("mode", DEFAULT_EXPOSURE_MODE)
     if not isinstance(mode, str):
         raise ValueError("the exposure mode must be a string")
     mode = mode.strip().lower()
@@ -490,8 +519,9 @@ class ToolViewState:
         elif mode in {"profile", "dynamic"}:
             profile = startup_profile()
         else:
-            # `semantic` is the bounded ordinary view; `gateway` ignores the
-            # profile entirely because its listed surface is fixed above.
+            # `semantic` is the bounded ordinary view; `gateway` (the declared
+            # default) ignores the profile entirely because its listed surface
+            # is fixed above.
             profile = "default"
         return cls(
             tools=tools,

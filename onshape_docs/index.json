@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "99e6236df0d86b8a5b41b2d2ee31e9b0787d1c0ddcec732d6d02b7ed289997b3",
+   "sha256": "5f75a7178b1e28f708d80699b3eec1c22d351b2acbc801609e30f868706739f9",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -842,11 +842,11 @@
     },
     {
      "level": 5,
-     "title": "Compressed entry points (gateway, an explicit choice)",
+     "title": "Compressed entry points (gateway, this project's declared default)",
      "blocks": [
       {
        "type": "para",
-       "text": "gateway is a compressed tool exposure selected explicitly (the no-config default is semantic, a fixed always-expanded view; see below). It advertises a small declarative surface:"
+       "text": "gateway is this project's declared starting page (SurfacePolicy.default_exposure = gateway; the library fallback for an undeclared project is semantic). It advertises a small declarative surface:"
       },
       {
        "type": "list",
@@ -884,7 +884,7 @@
       },
       {
        "type": "para",
-       "text": "semantic is the built-in fallback: with no explicit argument, no ONSHAPE_MCP_TOOL_EXPOSURE, and no tool_views.local.toml, a connection starts in semantic — a fixed, always-expanded list that needs no client notifications/tools/list_changed support. Precedence is an explicit argument, then ONSHAPE_MCP_TOOL_EXPOSURE, then mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode, then semantic. Select gateway (or dynamic) deliberately with one of those switches. Change it on a host whose launcher owns the child environment by copying tool_views.local.toml.example to tool_views.local.toml and setting mode; the environment variable still wins over the file, and the MCP process must restart to apply it."
+       "text": "gateway is the built-in default: with no explicit argument, no ONSHAPE_MCP_TOOL_EXPOSURE, and no tool_views.local.toml, a connection starts in this project's declared page — a fixed, always-expanded list that needs no client notifications/tools/list_changed support. Precedence is an explicit argument, then ONSHAPE_MCP_TOOL_EXPOSURE, then mcp_main/win/mcp/config/tool_views.local.toml [exposure].mode, then the declared DEFAULT_EXPOSURE_MODE. Select semantic (77 tools) or dynamic deliberately with one of those switches. Change it on a host whose launcher owns the child environment by copying tool_views.local.toml.example to tool_views.local.toml and setting mode; the environment variable still wins over the file, and the MCP process must restart to apply it."
       },
       {
        "type": "para",
@@ -1013,7 +1013,11 @@
        "type": "list",
        "items": [
         {
-         "text": "semantic is the built-in default view: the bounded ordinary set (77 tools), fixed and always expanded (see above).",
+         "text": "gateway is the declared default view: the compressed curated set (25 tools), fixed and always expanded (see above).",
+         "depth": 0
+        },
+        {
+         "text": "semantic selects the bounded ordinary set (77 tools), also fixed and always expanded.",
          "depth": 0
         },
         {
@@ -1022,10 +1026,6 @@
         },
         {
          "text": "profile selects one fixed ONSHAPE_MCP_TOOL_PROFILE at connection start.",
-         "depth": 0
-        },
-        {
-         "text": "gateway is the compressed curated view (25 tools), selected explicitly.",
          "depth": 0
         }
        ]

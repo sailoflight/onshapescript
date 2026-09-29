@@ -88,20 +88,21 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("Production / Operator", instructions)
         self.assertIn("permissions never merge", instructions)
         tool_result = responses[1]["result"]
-        # The ordinary deployment defaults to the fixed, always-expanded
-        # `semantic` view: the bounded ordinary set, no collapse state, and no
-        # `notifications/tools/list_changed`, which is a client capability not
-        # every client has. It is a fixed view, so it reports `expanded`.
-        self.assertEqual(tool_result["exposureMode"], "semantic")
+        # The ordinary deployment starts from this project's DECLARED page
+        # (`SurfacePolicy.default_exposure = gateway`): the curated set, which is
+        # a fixed, always-expanded view -- no collapse state and no
+        # `notifications/tools/list_changed`, so it needs nothing from the
+        # client. It reports `expanded`.
+        self.assertEqual(tool_result["exposureMode"], "gateway")
         self.assertEqual(tool_result["toolView"]["state"], "expanded")
         self.assertEqual(tool_result["toolView"]["scope"], "connection")
         self.assertFalse(tool_result["toolView"]["switchingAvailable"])
         self.assertFalse(tool_result["toolView"]["listChangedCapability"])
         tools = tool_result["tools"]
         names = {tool["name"] for tool in tools}
-        # Tripwire: 77 = the bounded `default` profile view. The compressed
-        # `gateway` (25) and complete `static` (111) sets are explicit modes.
-        self.assertEqual(len(tools), 77)
+        # Tripwire: 25 = mcp_tool_catalog + mcp_tool_view + mcp_tool_invoke plus
+        # the curated representatives in tool_views.GATEWAY_CURATED_TOOL_NAMES.
+        self.assertEqual(len(tools), 25)
         self.assertIn("mcp_tool_invoke", names)
         self.assertIn("mcp_tool_catalog", names)
         self.assertIn("mcp_tool_view", names)
@@ -114,10 +115,8 @@ class McpServerTest(unittest.TestCase):
         self.assertIn("onshape_api_endpoint", names)
         self.assertIn("onshape_api_quota", names)
         self.assertIn("onshape_geometry_status", names)
-        # A default-visible browser tool the compressed `gateway` view omits.
-        self.assertIn("browser_create_document", names)
-        # Hidden names stay registered and callable by exact name, but this
-        # ordinary view does not advertise them.
+        # Hidden names stay registered and callable by exact name, but the
+        # declared gateway view does not advertise them.
         self.assertNotIn("browser_fix_instances", names)
         self.assertNotIn("browser_group_instances", names)
         self.assertNotIn("browser_geometry_status", names)
@@ -128,6 +127,7 @@ class McpServerTest(unittest.TestCase):
         self.assertNotIn("browser_drawing_insert_views", names)
         self.assertNotIn("browser_add_drawing_dimension", names)
         self.assertNotIn("fs_list_modules", names)
+        self.assertNotIn("browser_create_document", names)
         self.assertNotIn("browser_inspect", names)
         self.assertNotIn("browser_click", names)
         self.assertNotIn("browser_fs_goto_definition", names)

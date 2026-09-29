@@ -41,12 +41,13 @@ files, and current module contracts are executable sources of truth.
 
 Two bundled pure Python wheels under `onshape_browser_mode/wheels/` (Python
 >=3.11) back the full suite: `lijq-browser-common==0.1.0.dev2` for browser
-resources and `lijq-mcp-surface==0.1.0.dev3` for the MCP tool-surface mechanism
-that `mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` delegate to (its
-default exposure mode is the fixed, always-expanded `semantic` view). Install
+resources and `lijq-mcp-surface==0.1.0.dev4` for the MCP tool-surface mechanism
+that `mcp_main/win/mcp/tool_views.py` and `tool_catalog.py` delegate to (this
+project declares `gateway` as its starting page via
+`SurfacePolicy.default_exposure`; the library fallback is `semantic`). Install
 them with `python -m pip install --no-index --no-deps
 onshape_browser_mode/wheels/lijq_browser_common-0.1.0.dev2-py3-none-any.whl
-onshape_browser_mode/wheels/lijq_mcp_surface-0.1.0.dev3-py3-none-any.whl`
+onshape_browser_mode/wheels/lijq_mcp_surface-0.1.0.dev4-py3-none-any.whl`
 (add `PYTHONPATH=temp/browser-common-site` instead when `browser_common` is only
 installed into that ignored target). This offline fake-test setup does not
 install Playwright or a browser. Package provenance, isolated test commands,

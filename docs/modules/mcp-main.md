@@ -47,7 +47,7 @@ Status: verified
 
 - Tool names are unique and each externally callable schema has a handler.
 - Known-name dispatch authority and safety gates do not change with tool views.
-- Tool exposure defaults to `semantic`, a fixed always-expanded view that needs no client notification capability; `gateway` (compressed) and `dynamic` (collapse/expand) are explicit choices. `dynamic` state is CONNECTION-scoped, not conversation-scoped. Collapse is in-memory context routing: it writes nothing and revokes nothing, and a hidden known name stays callable by exact name.
+- Tool exposure starts from this project's declared page (`DEFAULT_EXPOSURE_MODE`, passed to `SurfacePolicy.default_exposure`): the compressed `gateway` set, a fixed always-expanded view that needs no client notification capability. `semantic`, `static`, `profile` and `dynamic` are explicit choices; the library fallback for an undeclared project stays `semantic`. `dynamic` state is CONNECTION-scoped, not conversation-scoped. Collapse is in-memory context routing: it writes nothing and revokes nothing, and a hidden known name stays callable by exact name.
 - The selection/level/absorbed mechanism, the collapse/expand state machine and
   the bounded catalog lookup are the pinned `lijq-mcp-surface` wheel. The
   host-local `config/tool_views.local.toml` and the

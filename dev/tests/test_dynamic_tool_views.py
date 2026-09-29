@@ -234,15 +234,16 @@ class ConnectionToolViewTest(unittest.TestCase):
 
 
 class CollapseExpandToolViewTest(unittest.TestCase):
-    """The ordinary default is the fixed, always-expanded `semantic` view.
+    """The ordinary default is `gateway`, this project's declared starting page.
 
-    `dynamic` (collapse/expand) is an explicit choice because a collapsed start
-    requires the client to process `notifications/tools/list_changed`, and
-    `gateway` is an explicit choice because a curated representative set is a
-    project decision rather than a neutral starting point.
-    The display set is orthogonal to the collapse state: a fresh `dynamic`
-    connection lists no domain schema at all, and expanding selects one of the
-    static / semantic / gateway / profile sets.
+    `mcp_surface` dev4 lets a project declare `SurfacePolicy.default_exposure`;
+    the library fallback stays `semantic`, but Onshape's registry (111 names)
+    has a curated 22-representative set worth starting from. `gateway` is a
+    FIXED, always-expanded view, so the default still emits nothing and needs no
+    client `notifications/tools/list_changed` support -- only `dynamic` does, and
+    it is an explicit choice. The display set is orthogonal to the collapse
+    state: a fresh `dynamic` connection lists no domain schema at all, and
+    expanding selects one of the static / semantic / gateway / profile sets.
     """
 
     CONTROL_NAMES = {"mcp_tool_catalog", "mcp_tool_view", "mcp_tool_invoke"}
@@ -291,42 +292,59 @@ class CollapseExpandToolViewTest(unittest.TestCase):
                 ToolViewState.from_environment(server.TOOLS)
             )
 
-    def test_an_empty_environment_defaults_to_the_semantic_view(self):
+    def test_an_empty_environment_defaults_to_the_declared_gateway_view(self):
         from mcp_main.win.mcp import tool_views
 
         with mock.patch.dict(os.environ, {}, clear=True), \
                 mock.patch.object(tool_views, "_local_section", lambda name: {}):
-            self.assertEqual(exposure_mode(), "semantic")
+            self.assertEqual(exposure_mode(), "gateway")
             state = ToolViewState.from_environment(server.TOOLS)
-        self.assertEqual(state.mode, "semantic")
-        # The bounded ordinary view: exactly the `default` profile set.
-        self.assertEqual(
-            self.names(state.listed_tools()),
-            self.names(select_view_tools(
-                server.TOOLS, profile="default", semantic_levels=None
-            )),
-        )
-        self.assertEqual(len(state.listed_tools()), 77)
-        # Emphatically not the compressed gateway start, and not collapsed.
-        self.assertGreater(len(state.listed_tools()), len(GATEWAY_TOOL_NAMES))
-        self.assertNotEqual(
-            self.names(state.listed_tools()), set(GATEWAY_TOOL_NAMES)
-        )
+        # The project's declared starting page is the curated gateway set: the
+        # three control tools plus the 22 curated representatives.
+        self.assertEqual(state.mode, "gateway")
+        self.assertEqual(self.names(state.listed_tools()), set(GATEWAY_TOOL_NAMES))
+        self.assertEqual(len(state.listed_tools()), 25)
         status = state.status()
         self.assertEqual(status["state"], "expanded")
         self.assertFalse(status["switchingAvailable"])
         self.assertFalse(status["listChangedCapability"])
 
-    def test_the_no_config_list_matches_the_explicit_semantic_mode(self):
+    def test_the_declared_default_matches_the_library_resolution(self):
+        """One declaration, two readers: the policy and the TOML fallback."""
+        from mcp_main.win.mcp import tool_views
+
+        with mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(tool_views, "_local_section", lambda name: {}):
+            fallback = exposure_mode()
+        surface = tool_views.build_surface(server.TOOLS)
+        self.assertIn(tool_views.DEFAULT_EXPOSURE_MODE, tool_views.VALID_EXPOSURE_MODES)
+        self.assertEqual(fallback, tool_views.DEFAULT_EXPOSURE_MODE)
+        self.assertEqual(
+            surface.policy.default_exposure, tool_views.DEFAULT_EXPOSURE_MODE
+        )
+        self.assertEqual(
+            surface.view(environ={}).mode, tool_views.DEFAULT_EXPOSURE_MODE
+        )
+        # The environment must outvote the declaration, and the library must be
+        # reading the same variable name this module reads.
+        self.assertEqual(
+            surface.view(
+                environ={"ONSHAPE_MCP_TOOL_EXPOSURE": "dynamic"},
+                env_prefix="ONSHAPE_MCP_TOOL_",
+            ).mode,
+            "dynamic",
+        )
+
+    def test_the_no_config_list_matches_the_explicit_gateway_mode(self):
         default = self.listed(self.default_connection())
-        explicit = self.listed(self.explicit_connection("semantic"))
-        self.assertEqual(default["exposureMode"], "semantic")
-        self.assertEqual(explicit["exposureMode"], "semantic")
+        explicit = self.listed(self.explicit_connection("gateway"))
+        self.assertEqual(default["exposureMode"], "gateway")
+        self.assertEqual(explicit["exposureMode"], "gateway")
         self.assertEqual(
             [tool["name"] for tool in default["tools"]],
             [tool["name"] for tool in explicit["tools"]],
         )
-        self.assertEqual(default["toolView"]["toolCount"], 77)
+        self.assertEqual(default["toolView"]["toolCount"], 25)
         self.assertEqual(default["toolView"]["state"], "expanded")
 
     def test_a_no_config_start_emits_no_list_changed(self):
@@ -345,18 +363,23 @@ class CollapseExpandToolViewTest(unittest.TestCase):
             "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
         })
         self.assertEqual(len(listing), 1)
-        self.assertEqual(listing[0]["result"]["exposureMode"], "semantic")
+        self.assertEqual(listing[0]["result"]["exposureMode"], "gateway")
         # A switch attempt is refused, and a refusal is not a view change: no
         # `notifications/tools/list_changed` may appear on this path either.
         refused = self.call(connection, 3, {"action": "set", "profile": "browser"})
         self.assertEqual(len(refused), 1)
         self.assertEqual(refused[0]["error"]["code"], -32602)
 
-    def test_explicit_gateway_and_dynamic_remain_selectable(self):
-        gateway = self.listed(self.explicit_connection("gateway"))
-        self.assertEqual(gateway["exposureMode"], "gateway")
-        self.assertEqual(self.names(gateway["tools"]), set(GATEWAY_TOOL_NAMES))
-        self.assertEqual(len(gateway["tools"]), 25)
+    def test_explicit_semantic_and_dynamic_remain_selectable(self):
+        semantic = self.listed(self.explicit_connection("semantic"))
+        self.assertEqual(semantic["exposureMode"], "semantic")
+        self.assertEqual(
+            [tool["name"] for tool in semantic["tools"]],
+            [tool["name"] for tool in select_view_tools(
+                server.TOOLS, profile="default", semantic_levels=None
+            )],
+        )
+        self.assertEqual(len(semantic["tools"]), 77)
 
         dynamic = self.dynamic_connection()
         cold = self.listed(dynamic)

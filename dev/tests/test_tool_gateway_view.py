@@ -142,10 +142,14 @@ class HostLocalConfigTest(unittest.TestCase):
             self.assertEqual(tool_views.exposure_mode(), "gateway")
         with mock.patch.dict(os.environ, {}, clear=True), \
                 mock.patch.object(tool_views, "_local_section", lambda name: {}):
-            # No argument, no environment, no host file: the fixed, always
-            # expanded `semantic` view (dev3 default), not the compressed
-            # `gateway` start that needs a client able to refresh tools/list.
-            self.assertEqual(tool_views.exposure_mode(), "semantic")
+            # No argument, no environment, no host file: the project's declared
+            # starting page. It is the fixed, always-expanded `gateway` view
+            # (dev4 `SurfacePolicy.default_exposure`), so nothing here needs a
+            # client that can refresh tools/list.
+            self.assertEqual(tool_views.exposure_mode(), "gateway")
+            self.assertEqual(
+                tool_views.exposure_mode(), tool_views.DEFAULT_EXPOSURE_MODE
+            )
 
     def test_explicit_argument_still_wins(self):
         from mcp_main.win.mcp import tool_views

@@ -489,7 +489,9 @@ checks.
 ### Phase 2: catalog and discovery metadata — implemented
 
 - Keep the complete authoritative registry/handlers intact.
-- Default `tools/list` to fixed semantic exposure; retain static compatibility
+- Default `tools/list` to fixed semantic exposure (superseded 2026-09-29: this
+  project now declares `gateway` as its `SurfacePolicy.default_exposure`, a fixed
+  always-expanded page); retain static compatibility
   and add fixed profile plus opt-in per-connection dynamic modes.
 - Expose bounded `browser_discover_tools` and `browser_invoke_discovered` so L1/L3
   schemas load only after an explicit level query.
