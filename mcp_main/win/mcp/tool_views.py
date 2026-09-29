@@ -39,7 +39,7 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from mcp_surface import (
     ProfileRule,
@@ -344,6 +344,7 @@ def build_surface(
     tools: list[dict[str, Any]],
     *,
     metadata: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
+    details: Mapping[str, str] | None = None,
 ) -> Surface:
     """Wrap a registry as the shared library's validated ``Surface``.
 
@@ -352,11 +353,27 @@ def build_surface(
     needs none of that. Construction validates the declaration, so a curated name
     that is not registered or a level outside the vocabulary fails at build time
     instead of silently dropping a tool from one session.
+
+    ``details`` is the description-split channel: the payload keeps the short
+    advertised text that ``tools/list`` sends, while the record -- which
+    ``describe``, the search tokens and the catalog fingerprint read -- keeps
+    the complete original text. When it is omitted the split registry
+    (``tool_descriptions``) is consulted, so a record built from the same
+    payload always carries the full text and the fingerprint cannot depend on
+    which call site constructed the surface.
     """
+    from mcp_main.win.mcp.tool_descriptions import detail_for
+
     records: list[ToolRecord] = []
     for tool in tools:
         name = str(tool["name"])
         fields = _declared_metadata(name)
+        advertised = str(tool.get("description") or "")
+        fields["description"] = (
+            details[name]
+            if details is not None and name in details
+            else detail_for(name, advertised)
+        )
         if metadata is not None:
             fields.update(metadata(name, tool))
         records.append(ToolRecord.from_payload(tool, **fields))

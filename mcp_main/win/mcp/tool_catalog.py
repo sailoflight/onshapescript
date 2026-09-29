@@ -26,7 +26,7 @@ import hashlib
 import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from mcp_surface import (
     DEFAULT_INDEX_RESULTS,
@@ -281,7 +281,12 @@ class ToolCatalogIndex:
     search tokens) is read back off that record rather than recomputed here.
     """
 
-    def __init__(self, tools: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        tools: list[dict[str, Any]],
+        *,
+        details: Mapping[str, str] | None = None,
+    ) -> None:
         names = [tool.get("name") for tool in tools]
         if any(not isinstance(name, str) or not name for name in names):
             raise ValueError("every catalog tool must have a non-empty string name")
@@ -289,7 +294,10 @@ class ToolCatalogIndex:
         if duplicates:
             raise ValueError(f"duplicate catalog tool names: {duplicates}")
 
-        surface = build_surface(tools, metadata=_catalog_metadata)
+        # ``details`` carries the pre-split description: the payload advertises
+        # the short summary while the record -- what ``describe`` returns and
+        # what the fingerprint hashes -- keeps the complete original text.
+        surface = build_surface(tools, metadata=_catalog_metadata, details=details)
         self.surface = surface
         # The shared bounded-lookup engine over the same surface. The project's
         # filters, paging and result keys layer on top; `describe` resolves a

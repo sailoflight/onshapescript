@@ -21,6 +21,7 @@ from mcp_main.win.mcp.tool_catalog import (
     VALID_NETWORKS,
     ToolCatalogIndex,
 )
+from mcp_main.win.mcp.tool_descriptions import apply as apply_tool_descriptions
 from mcp_main.win.mcp.tool_views import (
     CATALOG_TOOL_NAME,
     CONTROL_TOOL_NAME,
@@ -2534,19 +2535,17 @@ TOOLS: list[dict[str, Any]] = [
                 "default": "status",
                 "description": (
                     "status = read-only session report; login = open Onshape sign-in for the human; "
-                    "release = close only this MCP process's browser/context and release profile ownership; "
+                    "release = close only this MCP process's browser/context, release profile ownership, "
+                    "and CLOSE the window (the persistent login state may need refreshing); "
                     "reconnect = click the session-timeout dialog's reconnect link; reload = bounded reload "
                     "of the current page; health = bounded read-only probe returning a verdict plus the "
-                    "recovery action, without starting the browser or touching it beyond one timed round trip; "
-                    "when this call holds nothing, it reads the unheld resident browser's loopback DevTools "
-                    "endpoint instead of reporting that no browser exists; "
+                    "recovery action, without starting the browser; when this call holds nothing, it reads "
+                    "the unheld resident browser's loopback DevTools endpoint instead; "
                     "detach = relinquish MCP ownership WITHOUT closing the browser, context, or profile, "
-                    "keeping the window and its login state, and only in resident/attached mode (a "
-                    "non-resident session returns detached=false and recommends release, because a "
-                    "--remote-debugging-pipe browser has no CDP endpoint and is reaped with its driver). "
-                    "Three outcomes "
-                    "differ: release CLOSES the window and may invalidate the persistent login state; a "
-                    "process crash or page navigation does NOT lose login state; detach keeps the window."
+                    "only in resident/attached mode (a non-resident session returns detached=false and "
+                    "recommends release). "
+                    "Three outcomes differ: release loses login state; a process crash or page navigation "
+                    "does NOT; detach keeps the window."
                 ),
             },
             "probe_timeout_ms": {
@@ -3142,8 +3141,8 @@ TOOLS: list[dict[str, Any]] = [
                     "expression-driven dimension; numbers compare with a relative 1e-9 tolerance and "
                     "the unit must match. For a key it states it is the ONLY accepted confirmation: "
                     "the widget shows the typed expression for a moment before it parses it, and "
-                    "accepting in that window commits the field's previous value (measured live "
-                    "2026-09-21). Ignored for parameters that hold no expression."
+                    "accepting in that window commits the field's previous value. Ignored for "
+                    "parameters that hold no expression."
                 ),
                 "additionalProperties": {"type": ["string", "number", "boolean"]},
             },
@@ -3185,10 +3184,7 @@ TOOLS: list[dict[str, Any]] = [
                     "call: the call then returns as soon as the accept landed, `inserted` is null "
                     "(unknown, never a false success) and `applyState` is `pending_verification`, "
                     "and the caller must prove the new row itself with "
-                    "browser_read_feature_parameters or a feature-list read before the next step. "
-                    "Measured live 2026-09-21: a 45-degree-draft subtract extrude of 2.15 mm "
-                    "timed out twice at a clean tree and created NO row, while four thinner "
-                    "instances of the same feature in the same element completed."
+                    "browser_read_feature_parameters or a feature-list read before the next step."
                 ),
             },
             "confirm_mutation": mutating_confirmation(),
@@ -3498,7 +3494,12 @@ _install_browser_tools(TOOLS, HANDLERS)
 _annotate_conditional_side_effects(TOOLS)
 _complete_cost_metadata(TOOLS)
 annotate_concurrency_contracts(TOOLS)
-TOOL_CATALOG = ToolCatalogIndex(TOOLS)
+# Split the narrative out of the advertised text: `TOOLS` keeps the short
+# summary `tools/list` sends, and TOOL_DETAILS keeps the complete original so
+# every record -- `mcp_tool_catalog action=describe`, the search tokens and the
+# fingerprint -- still reads the full contract. See tool_descriptions.
+TOOL_DETAILS: dict[str, str] = apply_tool_descriptions(TOOLS)
+TOOL_CATALOG = ToolCatalogIndex(TOOLS, details=TOOL_DETAILS)
 
 
 def _json_text(value: Any) -> str:
