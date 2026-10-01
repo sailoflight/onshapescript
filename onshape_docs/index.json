@@ -2498,7 +2498,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "f33339538dcc04c53da11aed34d8056a74bfc691ef0498d133c86b751e4e502b",
+   "sha256": "db7bc5677e1e7b0d4d6be1a38e6c7afd134131f141222d7d94d749c35a66cec6",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -3805,6 +3805,53 @@
         },
         {
          "text": "组合建议（issue #16 实测 2026-10-01）：诊断先行（把关键量写进零件名一次性带回）→ 只提交一次 → 用一次性读取定位全部问题。调用方本次三个真实 bug（唇部残留、舌根残留、map 缺键）都是靠一轮诊断同时定位的；对应做法见 §13.4 与 §13.6。",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 3,
+     "title": "13.8 复查\"拒绝歧义\"的实现：排序并列就是隐藏的猜（2026-10-01，离线）",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "给按行补丁引擎写\"任何歧义都拒绝\"的承诺之后，本轮离线复查（cb15caf → 10ff568）在同一天 发现承诺没兑现，失效方式全是\"静默\"，不报错、不提示，只是写进去的东西不是你要的："
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "零宽区间等于一个\"点\"，两个编辑共享这个点就是并列。before/after 锚点产生的是 start == end 的零宽区间；两个编辑落在同一个位置时，current.start < previous.end 这条 重叠判据不成立，于是既不报错也不提示。实测同一组编辑：",
+         "depth": 0
+        },
+        {
+         "text": "插入在前 → a\\nB2\\nb\\nc（替换把插入的行吞掉）",
+         "depth": 1
+        },
+        {
+         "text": "替换在前 → a\\nX\\nB2\\nc 同一请求有两个答案，只取决于 edits 的书写顺序 ⇒ 必须显式拒绝（本仓库返回 conflictingEdits + insertionLine）。注意别过度拒绝：替换区间末尾紧接的插入 （[3,4) 之后 before line5）是单义的，必须继续放行。",
+         "depth": 1
+        },
+        {
+         "text": "写判据时要用\"是否与位置有关\"而不是\"区间是否非空\"：sorted(key=(start,end)) 的并列 项完全是输入顺序，凡是让结果依赖这个并列的判据都在猜。",
+         "depth": 0
+        },
+        {
+         "text": "布尔是 int：{\"start\": true} 被早前的检查拦住了，{\"end\": true} 却因为只检查了 start 而当成行号 1 通过。范围的两端要对称校验（isinstance(x, bool)）。",
+         "depth": 0
+        },
+        {
+         "text": "一个字段两种写法同时给出时不要静默取一个（lines 与 text 同时给），否则调用方以为 改的是 text。",
+         "depth": 0
+        },
+        {
+         "text": "同一\"取第一个节点\"的危害也在读路径上：编译裁决的注解读取器当时仍在跑 document.querySelector('.ace_editor')，于是在页面上还留着上一个页签的残留编辑器时， annotationCount/errors（进而 compiled，browser_deploy_featurescript 的验收正是读它） 描述的是另一个缓冲区。写入路径修好、它自己的证据来源没修 ⇒ 工具会用它刚学会不信任的 那个节点给出裁决。凡是要读/写编辑器的地方（含读取器、诊断采集、页签就绪等待）都要先按 可见性解析（§5.5、§13.1）。",
+         "depth": 0
+        },
+        {
+         "text": "复查方法本身可复用：这类缺陷只在\"离线纯函数 + 先让新测试在旧代码上失败\"下才抓得住。 本轮五个修复各自都有先在旧代码上失败、修复后转绿的回归测试；纯靠读代码很容易漏掉 start==end 这种边界。",
          "depth": 0
         }
        ]
