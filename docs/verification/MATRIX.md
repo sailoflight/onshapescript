@@ -44,6 +44,8 @@ python onshape_docs/scripts/build_tool_reference.py --check
 | Tool surface (audit verdicts, merges, display views) | `test_tool_surface_audit` + `test_dynamic_tool_views` + `test_tool_gateway_view` + `test_tool_catalog` (every row classified; no `Merge`/`Remove` left open; each absorbed name registered, default-hidden, reachable by exact name and still gated; `gateway` is this project's declared default — a fixed, always-expanded curated page needing no client notification capability — with `exposure_mode()` and `SurfacePolicy.default_exposure` pinned to one constant by a drift test, and `semantic`/`dynamic` explicit with unchanged collapse/expand) + the pinned `mcp_surface` wheel 0.1.0.dev4 (`MCP_SURFACE_INTEGRATION.md`: `SurfacePolicy.default_exposure` added) | generated-reference and runtime-prompt `--check` |
 | Tool description split (narrative out of `tools/list`) | `test_tool_description_split` (every tool's `describe` equals the complete pre-split text; every asserted phrase is still in the advertised payload; **no parameter name, peer tool, config knob, `action='...'` value, backticked value or uppercase negation leaves the advertised text**; the routing context is derived from the schemas and the registry, not a hand-kept list; the rule is deterministic and only shrinks; the fingerprint is equal across construction sites; `authorityChanged=false`) + the unchanged `assertIn(..., tool["description"])` tripwires in `test_browser_mode`, `test_mcp_server` and `test_reference_miss`, which keep reading `server.TOOLS` | generated-reference `--check` (33 first-180-character rows changed, so the reference and the project-doc index were regenerated); `RUNTIME_PROMPT` reads no description, so the DSH companion and its revision are unaffected |
 | Generated references/indexes | builder and verifier `--check`; `test_docs_index_digests` pins every recorded page digest | index digests are content-level and newline-normalized via `onshape_docs/query/source_digest.py`, shared by builders and checkers, and `.gitattributes` pins `eol=lf` so a Windows checkout cannot renormalize the tree |
+| REST document variables (read/write) | `test_rest_variables` (spec-derived paths and enums, one-GET read, element refusal when the cache is ambiguous, POST sent once, readback comparison, registration metadata, live gate) | `onshapescript_set_variables` live acceptance is still pending; the shapes are spec-derived, not live captures |
+| EWF project instance (`ewf/`) | `test_ewf_instance` (deliverables-only layout, no private `x-*` keys, generator `--check` freshness, README version projection, OQ hits declared in the instance, queue/narrative id agreement, execution node count) | the two external EWF validators run when their read-only repositories are present and skip otherwise; live nothing |
 | Secret/redaction/fixtures | static scan + fixture inspection | never validate using real secret output |
 
 ## Targeted commands
@@ -60,6 +62,8 @@ python -m unittest dev.tests.test_tool_surface_audit dev.tests.test_dynamic_tool
 python -m unittest dev.tests.test_fs_diagnostics dev.tests.test_fs_notice_collector -v
 python -m unittest dev.tests.test_rest_feature_list dev.tests.test_capabilities \
   dev.tests.test_capability_retrieval dev.tests.test_fs_validation_strategy -v
+python -m unittest dev.tests.test_rest_variables -v
+python -m unittest dev.tests.test_ewf_instance -v
 ```
 
 `test_fs_notice_collector` runs the production notice-collector string against a
