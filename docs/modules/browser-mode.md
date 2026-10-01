@@ -60,6 +60,9 @@ Project control plane (one or more L6 nodes)
 - Generic observation does not claim business success. High-level operations verify the relevant state, part count, feature history, DOM increment, or canvas change.
 - New write tools perform a pure-local dry run where supported and require explicit mutation confirmation for real UI actions.
 - FeatureScript compile acceptance combines Ace annotations with active-tab rows from the FeatureScript notice pane; a visible notice indicator that cannot be read fails closed.
+- A Part Studio read reports a regeneration verdict scoped to THAT element (`regenStatus` + `regenStatusBasis`, plus `freshness`); a clean list proves the last successful regeneration and never that a FeatureScript commit compiled, so `maybeStale: false` is an error-flag statement, not a freshness claim.
+- FeatureScript source is read and written through the one VISIBLE Ace editor: zero visible editors, or several, refuses instead of writing through a detached node, and a verified write reports the `sha256` of the bytes it submitted. `browser_deploy_featurescript` additionally refuses on `expect_pre_sha256` mismatch, refuses a write whose `element_id` is not the active element, and accepts a bounded line-addressed `patch` (resolved against the live buffer, applied high-to-low) in place of a full script.
+- `browser_create_tab` creates a Variable Studio through the recorded dropdown label; the element only. Reading or writing document variable rows is not implemented.
 - Every committed FeatureScript deployment writes a module-owned local diagnostic package containing the full browser-visible source and compile result; these ignored artifacts may contain proprietary code.
 - Browser tools consume zero REST quota, but real UI actions can still mutate cloud data.
 - `browser_export_step` owns the UI/download half of canonical STEP acquisition:

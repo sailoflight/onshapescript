@@ -869,6 +869,68 @@ class PartStudioRowErrorEvidenceTest(unittest.TestCase):
         self.assertEqual(read["settleTimeoutMs"], 0)
 
 
+    def test_a_clean_list_is_scoped_to_the_part_studio_and_points_at_the_compile_verdict(self):
+        """Issue #14: a healthy part list after a broken commit is not freshness.
+
+        The list proves the LAST successful regeneration of THIS element, so the
+        read must name that scope and the tool that can actually answer whether the
+        FeatureScript compiled -- `maybeStale: false` alone was read as "current".
+        """
+        read = actions.read_partstudio_features(
+            self._page(self._payload([{"name": "Bc 1", "hasError": False, "errorText": None}]))
+        )
+        self.assertFalse(read["maybeStale"], "no error flag was seen at all")
+        self.assertEqual(read["regenStatus"], actions.REGEN_STATUS_NO_ERROR)
+        self.assertIn("LAST successful regeneration", read["regenStatusBasis"])
+        self.assertEqual(read["freshness"]["scope"], "part-studio-element-only")
+        self.assertTrue(read["freshness"]["provesLastSuccessfulRegeneration"])
+        self.assertTrue(
+            read["freshness"]["mayPrecedeFailedCommitElsewhere"],
+            "a Feature Studio compile error does not change this element's list",
+        )
+        self.assertEqual(
+            read["freshness"]["compileVerdictTool"], "browser_get_fs_compile_status"
+        )
+        self.assertTrue(read["freshness"]["compileVerdictRequiresActiveFeatureStudio"])
+        self.assertEqual(read["freshness"]["readAt"], read["hasErrorReadAt"])
+
+    def test_an_errored_single_pass_is_unsettled_and_still_not_a_document_verdict(self):
+        read = actions.read_partstudio_features(
+            self._page(self._payload([{"name": "Bc 1", "hasError": True, "errorText": "boom"}]))
+        )
+        self.assertTrue(read["maybeStale"])
+        self.assertEqual(read["regenStatus"], actions.REGEN_STATUS_ERROR_UNSETTLED)
+        self.assertIn("mid-regeneration", read["regenStatusBasis"])
+        self.assertTrue(read["freshness"]["mayPrecedeFailedCommitElsewhere"])
+
+    def test_an_unrendered_page_reports_unknown_and_proves_nothing(self):
+        payload = self._payload([{"name": "Bc 1", "hasError": False, "errorText": None}])
+        payload["documentTabsButtonPresent"] = False
+        read = actions.read_partstudio_features(self._page(payload))
+        self.assertFalse(read["ready"])
+        self.assertEqual(read["regenStatus"], actions.REGEN_STATUS_UNKNOWN)
+        self.assertIn("had not rendered", read["regenStatusBasis"])
+        self.assertFalse(read["freshness"]["provesLastSuccessfulRegeneration"])
+
+    def test_a_settled_clean_read_keeps_the_element_scope(self):
+        clean = self._payload([{"name": "Bc 1", "hasError": False, "errorText": None}])
+        read = actions.read_partstudio_features_settled(
+            self._page(clean), timeout_ms=1000, poll_ms=1
+        )
+        self.assertEqual(read["regenStatus"], actions.REGEN_STATUS_NO_ERROR)
+        self.assertIn("cleanFirstRead", read["regenStatusBasis"])
+        self.assertEqual(read["freshness"]["scope"], "part-studio-element-only")
+
+    def test_a_settled_stable_error_is_confirmed_not_inferred(self):
+        errored = self._payload([{"name": "Bc 1", "hasError": True, "errorText": "boom"}])
+        read = actions.read_partstudio_features_settled(
+            self._page(errored, dict(errored)), timeout_ms=1000, poll_ms=1
+        )
+        self.assertFalse(read["maybeStale"])
+        self.assertEqual(read["regenStatus"], actions.REGEN_STATUS_ERROR_CONFIRMED)
+        self.assertIn("stableError", read["regenStatusBasis"])
+
+
 class WatchAndProjectTest(unittest.TestCase):
     def test_watch_rejects_path_shaped_workflow_before_session(self):
         with mock.patch("onshape_browser_mode.session.get_session") as get_session:

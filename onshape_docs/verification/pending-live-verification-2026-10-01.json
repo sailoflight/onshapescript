@@ -1,0 +1,79 @@
+{
+  "probe": "Pending live verification for issues #14-#18: the offline half landed on 2026-10-01 while the Windows host was unreachable (no Windows interop from WSL, nothing listening on 127.0.0.1:9333, win-wsl-bridge-control status/diagnostics answered 'internal control error'), so every browser-touching acceptance below is still unverified.",
+  "status": "pending-live-verification",
+  "session": "2026-10-01 (offline implementation); the live run below is NOT yet done",
+  "environment_when_implemented": {
+    "repo": "/home/lijq/code/onshapescript, HEAD 497417b + this change set",
+    "host_side": "native Windows deployment tree \\\\?\\C:\\MCP\\onshapescript (readable from WSL, revision 6ceacfb)",
+    "host_reachability": "no cmd.exe/powershell.exe interop from WSL; http://127.0.0.1:9333/json/version returned nothing; mcp__win-wsl-bridge-control__bridge_control action=status -> 'MCP error -32603: internal control error'",
+    "quota": "0 Onshape REST calls; every check below is browser/loopback only"
+  },
+  "already_verified_offline": [
+    "browser_discover_tools returns browser_get_fs_compile_status, browser_read_featurescript, browser_delete_element and browser_duplicate_element for ordinary queries -- run against the DEPLOYED revision's own code (6ceacfb) as well as HEAD. That is why #14/#17/#18's 'the tool does not exist' claims are discoverability, not capability.",
+    "1167 offline tests OK; verify_docs 17/17; generated tool reference + runtime companion current; release-spec invariants OK."
+  ],
+  "checks": [
+    {
+      "id": "T1",
+      "issues": ["#14", "#17", "#18"],
+      "tool": "browser_discover_tools",
+      "arguments": {"query": "FeatureScript compile status error verdict", "semantic_levels": ["L3"]},
+      "pass_criteria": "browser_get_fs_compile_status is returned for the ordinary query and browser_fs_read_notices appears once L3 is requested; same for 'delete element tab' (browser_delete_element) and 'read FeatureScript source sha256' (browser_read_featurescript).",
+      "if_it_fails": "the deployed surface differs from the revision being read; treat the exposure gap as real and re-open the discoverability finding."
+    },
+    {
+      "id": "T2",
+      "issues": ["#14"],
+      "tool": "browser_get_partstudio_features",
+      "arguments": {},
+      "pass_criteria": "The result carries regenStatus/regenStatusBasis and freshness. With a deliberately broken Feature Studio commit in a throwaway document, the Part Studio read must NOT read as healthy freshness: freshness.mayPrecedeFailedCommitElsewhere is true and freshness.compileVerdictTool names browser_get_fs_compile_status; with the Feature Studio tab active that tool reports compiled:false plus the error text.",
+      "if_it_fails": "the cross-element blind spot is still silent; fix before treating #14 as closed."
+    },
+    {
+      "id": "T3",
+      "issues": ["#14"],
+      "tool": "browser_eval",
+      "arguments": {"expression": "1 + 1"},
+      "pass_criteria": "The call returns an isError tool result (confirm_mutation gate). The MCP child SURVIVES: a following browser_session(action='health') and mcp_tool_catalog both answer. This is expected to pass on the deployed revision too, because 08ae283 (2026-09-25, ancestor of the deployed 6ceacfb) already wraps handlers in try/except.",
+      "if_it_fails": "the child died on a client input error; capture serve()/stdin-EOF evidence and reopen as a robustness defect."
+    },
+    {
+      "id": "T4",
+      "issues": ["#17"],
+      "tool": "browser_read_featurescript / browser_deploy_featurescript",
+      "arguments": {},
+      "pass_criteria": "With a Part Studio tab active (no Feature Studio editor on screen), browser_read_featurescript returns read=false with the editor-resolution reason (editorCount/visibleEditors) instead of an empty source, and browser_deploy_featurescript refuses with that reason plus editor evidence instead of reporting a successful write. On the Feature Studio tab, read returns sha256 and exactly one visible editor.",
+      "if_it_fails": "the visible-editor resolution needs the real DOM's geometry rule (a hidden tab may still report a non-zero rect); re-derive the visibility test from that measurement."
+    },
+    {
+      "id": "T5",
+      "issues": ["#15"],
+      "tool": "browser_deploy_featurescript",
+      "arguments": {"patch": {"edits": [{"start": 2, "lines": ["var b = 2;"]}]}, "expect_pre_sha256": "<sha256 from browser_read_featurescript>"},
+      "pass_criteria": "The patched source is what gets written and committed; the result carries preSha256, postSha256 and patchApplied with the touched 1-based lines. An anchor that appears twice refuses with matches/candidateLines and writes nothing. A patch without expect_pre_sha256 is refused before the browser is touched. verbosity='terse' drops notices and keeps the counts.",
+      "if_it_fails": "check whether the live Onshape editor normalises line endings before hashing (sha256 is over the exact string, so a CRLF difference would show up as a pre-hash mismatch -- that would be a finding, not a bug in the patch engine)."
+    },
+    {
+      "id": "T6",
+      "issues": ["#18"],
+      "tool": "browser_create_tab",
+      "arguments": {"tab_type": "Variable Studio", "confirm_mutation": true},
+      "pass_criteria": "On a throwaway document: triggered/created true, a new tab whose name is not one of the previous ones, and clickedItem containing '创建 Variable Studio'. browser_delete_element then removes that element and verifies the tab disappears.",
+      "if_it_fails": "the recorded label (browser-automation.md section 8) has changed or the item needs the source/template dialog like a Drawing; capture the dropdown inventory the tool already returns and re-address it."
+    },
+    {
+      "id": "T7",
+      "issues": ["#18"],
+      "tool": "(no tool yet -- recording probe)",
+      "arguments": {},
+      "pass_criteria": "With a Variable Studio tab active, record the variable table's DOM (row elements, the name/value cells, the add-row control) as a new section in onshape_docs/experience/browser-automation.md with the same measured-live discipline as section 8. ONLY THEN implement document-variable read/write.",
+      "if_it_fails": "n/a -- this is the deliberately un-implemented half of #18: writing selectors from memory is what the repository forbids."
+    }
+  ],
+  "how_to_run": [
+    "Wait for the Windows host to be reachable again (bridge control status answers, a resident browser holds the MCP profile).",
+    "Run the checks from a development MCP instance against a throwaway document; never reconfigure the deployed server from here (Operator action).",
+    "Record each result in this file (status -> verified/failed, with the tool output) and update the issue comments.",
+    "Any check that fails becomes the next code change; a check that passes closes its issue's remaining live item."
+  ]
+}

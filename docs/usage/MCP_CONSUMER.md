@@ -262,7 +262,28 @@ demotes stale (`outOfDate`) notices by default: `notices` carries current rows,
 notice's line number points at a different source version, so never read it as
 current state. FeatureScript deployment succeeds only when the Commit state
 transition, exact source readback,
-and combined compiler evidence verify with no blocking warning/error. Every
+and combined compiler evidence verify with no blocking warning/error. The same
+transaction accepts a bounded `patch` instead of a full `script`
+(`{"edits":[{"start":601,"end":617,"lines":[…]} ,{"anchor":"…","placement":"after","lines":[…]}]}`),
+resolved against the LIVE buffer and applied high-to-low so an earlier insertion
+cannot shift a later edit; an anchor that does not match exactly one line, two
+edits touching one line, or a range outside the source refuse with candidate
+lines as evidence, and a `patch` requires `expect_pre_sha256` (from
+`browser_read_featurescript`). `element_id` refuses a write aimed at another
+element, and `verbosity: "terse"` bounds the answer (errors capped at three
+truncated texts, the unbounded `notices` array dropped, counts kept). The result
+carries `preSha256`, `postSha256`, and `patchApplied`.
+`browser_read_featurescript` returns the source's `sha256` and resolves exactly
+one VISIBLE Ace editor (`editorCount`/`visibleEditors`): a page whose only editor
+is hidden or detached is answered with `read=false` plus the reason instead of
+that node's text, because writing through such a node silently misses the real
+buffer. The write follows the same rule — no visible editor, or several, is a
+refusal, never a self-consistent success — and `expect_element_id` refuses a read
+of an element the caller did not activate. `browser_create_tab` also creates a
+`Variable Studio` (a recorded dropdown label); creating that element is all that
+is offered, reading or writing its variable rows is not implemented, and
+`browser_delete_element` removes the element again.
+Every
 committed deployment attempt also writes a local diagnostic package containing
 the full source and compile result under
 `onshape_browser_mode/outputs/fs_diagnostics/`; the experimental, default-hidden
@@ -271,7 +292,15 @@ artifacts can contain proprietary source code and must be protected accordingly.
 `browser_get_partstudio_features` rows carry `errorText` (read from the row's
 `data-bs-original-title` for errored rows in the same pass), and the result
 carries `hasErrorReadAt` plus `maybeStale`, so read `hasError` together with when
-it was read. `browser_deploy_featurescript` activates the Feature Studio tab
+it was read. The result also carries a regeneration verdict scoped to THAT
+element — `regenStatus` (`no-error-observed` | `error-observed-unsettled` |
+`error-confirmed` | `unknown`) with `regenStatusBasis` — and `freshness`, which
+names the blind spot: a clean list proves the LAST successful regeneration, not
+that a FeatureScript commit compiled, because a studio that fails to compile
+leaves this list unchanged. `maybeStale` is about the error flag only (one pass
+cannot tell a real error from a mid-regeneration read), so `maybeStale: false` is
+**not** a freshness claim: ask `browser_get_fs_compile_status` with the Feature
+Studio tab active for the commit verdict. `browser_deploy_featurescript` activates the Feature Studio tab
 itself when the active tab is a Part Studio, and otherwise returns an explicit
 instruction to call `browser_activate_tab` first. `browser_verify_feature_parameters` backs parameter verification with
 a bounded convergence reader: a read taken while the row is still regenerating is
@@ -369,6 +398,16 @@ The curated names exist so ordinary work does not have to start with a lookup:
 retrieval is not free (a three-result `search` is ~6.8 kB, one modelling
 `describe` ~10.5 kB), which is why the surface is not search-only. When a lookup
 IS needed, prefer the cheap path:
+
+The browser leg is the sharpest case, because a curated set cannot list every
+step: `browser_get_fs_compile_status`, `browser_fs_read_notices`,
+`browser_read_featurescript`, `browser_delete_element`, and
+`browser_duplicate_element` are registered, implemented and reachable, but they
+are NOT in the gateway list above. "I cannot see it in `tools/list`" is therefore
+not evidence that a capability is missing — a set of real capability reports was
+filed that way (issues #14, #17, #18). Before concluding that something is absent,
+run `browser_discover_tools` with the task's own wording (it returns these at
+their ordinary level) or `mcp_tool_catalog action=index category=browser`.
 
 1. `mcp_tool_catalog` with `action=index` — one line per category (~1.3 kB). Add
    `category=<browser|rest|rest_reference|featurescript|documentation|control>` to

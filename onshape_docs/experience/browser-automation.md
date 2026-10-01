@@ -560,6 +560,25 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 8. 实测：dry_run 纯本地预览（不启动浏览器）→ 部署修改（23907 字符，`verified:true`）→
    恢复原内容（23875 字符，`verified:true`）。
 
+**2026-10-01 起的契约补充（issue #14/#15/#17；离线实现并离线测试，待真机复验）**：
+
+- 编辑器解析从「`document.querySelector('.ace_editor')` 的第一个命中」改成
+  「**唯一可见**的 `.ace_editor`」：0 个可见、或多个可见都**拒绝**，而不是把某个
+  游离节点的内容当成模型源码。写入后从**同一个** editor 对象回读比对，只有
+  `verified:true` 才带 `sha256`（此前"写进去再读回来一致"无法区分是否真写入）。
+- `browser_read_featurescript` 返回 `sha256` 与 `editorCount`/`visibleEditors`，并接受
+  `expect_element_id`（与页面 URL 的活动元素比对，不符即拒）。
+- `browser_deploy_featurescript` 新增：`expect_pre_sha256`（不符即拒，返回
+  `preSha256`/`expectedPreSha256`）、`element_id`（写入前确认活动页签）、
+  `patch`（按行区间或"锚点 + placement"的**有界补丁**，对**实时缓冲区**解析、
+  从高行往低行应用；锚点必须唯一命中、两个编辑不得压同一行，否则带候选行号拒绝）、
+  `verbosity="terse"`（errors 截断为 3 条、去掉 notices 大数组，计数保留）。
+- 零件表读取新增 `regenStatus`/`regenStatusBasis`/`freshness`：干净的清单只证明
+  **本元素上一次成功再生成**，不证明某个 Feature Studio 提交编译通过；`maybeStale`
+  只谈错误标志，`false` 不等于"新鲜"。
+- `browser_create_tab` 现在也接受 `Variable Studio`（§8 的录制标签）；只做"建元素"，
+  变量行的读写尚未实现。
+
 关键 JS（`actions.py`）：
 - 读全文：`ed.getValue()`
 - 写全文：`ed.setValue(text); ed.clearSelection(); ed.moveCursorTo(0,0)`
@@ -825,3 +844,140 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   跨过了这个子进程，随后任何 browser_* 调用会附着上去、不需要人工再登录。这次读取不启动、
   不附着、不 evaluate 页面、也不导航；`status` 报同一份 `residentBrowser`，所以“只是没被
   持有”再也不会被描述成“已死”。
+
+## 13. 迭代大型 FeatureScript（浏览器腿）实测陷阱清单（2026-10-01）
+
+来源说明：本节整理自 issue #16 的**调用方经验报告**。调用方在真机浏览器腿上迭代一个约
+1116 行 / ~5 万字符的 FeatureScript，跑了约 10 轮「改 → 提交 → 等重生成 → 回读」，做了
+3 次 STEP 导出。因此每条都是**调用方实测**（逐条标注 `issue #16 实测 2026-10-01`），
+不是本仓库复现或验证过的契约；与仓库现有实现或表述冲突的地方按「调用方视角 / 仓库现状」
+两段写，不把报告里的抱怨当成仓库事实。工具粒度类诉求见 issue #15，重生成失败被静默见
+issue #14。
+
+### 13.1 Ace 缓冲区：页签绑定与整份止损
+
+- **缓冲区读写只在 Feature Studio 页签激活时有效**（issue #16 实测 2026-10-01）：在 Part
+  Studio 页签上执行 `ace.edit(document.querySelector('.ace_editor'))` 拿到的是**游离的空
+  编辑器**，`getValue()` 返回 `""`，`setValue()` 写进去无害但白跑一趟（本次会话误写入空串，
+  事后哈希核对 Feature Studio 本体完好）。改缓冲区前先确认该页签是 active，否则基于行的
+  锚点会全部返回 `-1`。
+  - 仓库现状：`browser_deploy_featurescript` 在当前 tab 是 Part Studio 时会自己激活
+    Feature Studio tab，否则返回明确指令要求先调 `browser_activate_tab`（§12）；读全文的
+    稳定写法在 §4.2（优先 `el.env.editor`，再退回 `ace.edit(el)`）。
+- **`setValue()` 是一次原子变更，`ed.undo()` 能整份救回**（issue #16 实测 2026-10-01）：
+  调用方按行重建时上界找太远、误删 154 行，一次 `ed.undo()` 就把缓冲区恢复到上一次提交的
+  样子（`getUndoManager().isClean()` 回到 true）。这是最有效的止损手段，前提是 `ace.edit()`
+  拿到的是真编辑器（见上一条）。
+- **每次改动后对「已知良好基线」做 sha256 对比**（issue #16 实测 2026-10-01）：这是立刻
+  发现"多一行 / 少一行 / 注释被吃"的手段；哈希一致即内容逐字节相同，调用方用它在两次回退里
+  确认恢复成功。仓库侧同一份能力在部署返回值里已有：`diagnosticCapture.sourceSha256` /
+  `sourceLength`（browser-modeling §18）。
+
+### 13.2 按行锚点打补丁：两个真实事故
+
+- **按行锚点定位，不用裸正则或整文件字符串替换**（issue #16 实测 2026-10-01）：模式是
+  `const i = L.findIndex(t => t.indexOf('--- 7)') >= 0)`，再
+  `L.slice(0, i).concat(block, L.slice(iEnd))`。
+- **`findIndex` 必须带下界**（issue #16 实测 2026-10-01）：用 `t.trim() === '});'` 找
+  "调用点结束行"时命中了**全文件第一个** `});`，于是循环收尾 `}` 被留在原地 ⇒ 括号不平衡
+  ⇒ 编译失败 ⇒ `零件数 (0)`。必须写 `L.findIndex((t, i) => i > iCall && …)`。
+- **索引偏移是第二大坑**（issue #16 实测 2026-10-01）：一旦在某行前 `splice` 插入一行，
+  之前算好的**所有**索引都失效。调用方因此把一段收尾 `}` 追加到了 map 的
+  `"cut" : [dcut[pi]]` 那一行上，直接得到
+  `no viable alternative at input '{ … gfDrawer(...)'`。对策：先做高位修改，或每次重新
+  `findIndex`。该消息族在 §5.6 被归为 `compilerMessage`（前缀 `FS_`、标注不稳定），同一
+  文本在 featurescript.md 也出现过，不要按固定文案匹配。
+- **同一文件里可能有多个同名循环**（issue #16 实测 2026-10-01）：
+  `for (var pi = 0; pi < 2; pi += 1)` 在竖板分件和抽屉分件里各有一处，用它的行号当锚点会
+  定位到**另一个**循环（调用方一度以为在改抽屉、实际在改竖板）。锚点要带上下文，例如
+  `gfDrawer(context, id + ("d" ~ tag …`。
+
+### 13.3 提交之后：怎么判断到底成没成
+
+- **重生成期间零件表会先返回 `零件数 (0)`**（issue #16 实测 2026-10-01）：本次实测需
+  ~30–45 s 才稳定，`0` **不等于**失败，直接读第二次。
+  - 仓库现状：`browser_get_partstudio_features` 的参数校验已走有界收敛读
+    `read_partstudio_features_settled`，读到再生中的行不再算失败，而是
+    `parametersApplied: null` + `retryVerify: true` + `maybeStale: true` +
+    `hasErrorReadAt` + `settleCondition`（§12）。另注意 `零件数 (0)` 还有别的成因：只产生
+    `not-computed` 行也会这样显示（browser-modeling §3），别把两种 `0` 混为一谈。
+- **通知面板会累积旧通知，调用方分不清当前与历史**（issue #16 实测 2026-10-01，= issue #14）：
+  修好语法错误并重新提交后，面板**仍显示上一条** `extraneous input 's' … Result: Error
+  regenerating`；没有时间戳、没有"当前状态"标记。
+  - 仓库现状：这正是 `browser_fs_read_notices` 默认降级 `outOfDate`（stale）通知的动机——
+    `notices` 只给当前行，`staleNotices` 给原始过期行，并附 `staleNoticeCount` /
+    `currentNoticeCount` / `includeStale`；`browser_get_fs_compile_status` 另给
+    `documentClean` / `elementNotice*` / `staleError*`（§5.6、§12）。也就是说"没有编译判定"
+    是调用方视角的问题：仓库已有判定工具，只是默认 `tools/list` 不广告，需要按 §3.1 的
+    六级语义发现显式查询。`extraneous input` 文本本身已收在 featurescript.md（map 字面量
+    缺 `key : value`），这里记录的是**通知累积**现象，不是新语义。
+- **零件表"健康"不代表几何正确**（issue #16 实测 2026-10-01）：调用方实测反例——每个抽屉
+  出现**两份完全相同、未裁切的整件** + 4 块整幅巨板，而零件表显示 `零件数 (58)`、每行
+  `hasError:false`、`maybeStale:false`；只有导出 STEP 才看出模型是坏的（文件体积也从
+  11.6 MB 涨到 22 MB，是个有用的旁证）。
+  - 仓库现状：§12 已明确 `partItems` 只是**名字**观察、不做任何几何判断，逐零件体积 /
+    sliver 面积阈值 / 连通性报告都未实现；仓库已有的最便宜几何旁证是几何包质心
+    （browser-modeling §17），不是零件表。
+- **也有"重生成成功但零件数 0"**（issue #16 实测 2026-10-01）：
+  `opBoolean(UNION, {targets: qNothing(), tools: bodyQ})` 把原件吃掉了，后续布尔没有目标。
+  `Result: Regeneration complete` 与"产出正确"是两件事。
+
+### 13.4 最划算的观测手段：把诊断写进零件名
+
+- **逐件自报**（issue #16 实测 2026-10-01）：调用方把关键量写进零件名，形如
+  `Drawer A1 Frame-1 n3 z3.5-76 213.2x169.6x72.5`（`n` = 该件由几个实体组成、`z` = 该件
+  z 区间、之后是 xyz 外形）。一次读取就定位出"这一趟裂成了 3 个实体、最低 z=3.5"，而 3.5
+  恰好是侧舌起始高度，直接指向"切割盒外扩不足、舌根残留"。
+- **为什么划算**：比读通知面板便宜（后者一次要回 ~700 字符并可能内嵌源码片段），比导出
+  STEP 快得多（导出一次分钟级 + 一次工具调用）。诊断用完再删后缀，不影响交付。
+- 仓库现状：零件名可从 DOM 读到（`browser_get_partstudio_features`）；把名字写进零件的手段
+  是 `setProperty(..., PropertyType.NAME)`（featurescript.md；中文名可行，见
+  browser-modeling §23）。
+
+### 13.5 FeatureScript 侧容易反直觉的语义
+
+- **`opBoolean` 的 `keepTools` 默认 `false`**（issue #16 实测 2026-10-01）：即 tools 默认
+  被吃掉，而不是"tools do not get consumed"的反面。想"复制一份实体"而写
+  `targets: qNothing(), tools: bodyQ`，**原件会被吃掉，不是复制**。
+  - 仓库现状：`onshape_docs/reference/quick-reference.md` 只说 `keepTools` "controls the
+    tools' fate"，**没有写默认值**；这是个文档缺口，本条只作为调用方实测记录，尚未在仓库侧
+    复现或验证。
+- **`INTERSECTION` + `targets` + 区域盒工具会被拒**（issue #16 实测 2026-10-01）：
+  `@opBoolean: BOOLEAN_BAD_INPUT`。同样目的改成**两次 `SUBTRACTION`**（"削掉地板顶面以上
+  的全部" / "削掉地板盒以下"）就稳了。
+  - 注意与 featurescript.md 已收的 `BOOLEAN_BAD_INPUT` **区分**：那条的触发是 `tools` +
+    `targets` 同时出现却没给 `"targetsAndToolsNeedGrouping"`，修复是补 flag；本条是另一种
+    触发形态，两个 code 相同、处置不同，不要合并。
+- **布尔切割的外扩量必须盖过所有局部凸出**（issue #16 实测 2026-10-01）：1 mm 外扩会在侧舌
+  （外凸 1.5 mm）根部残留碎片；改成 50 mm 后碎片消失、实体数精确落到预期。**外扩不足的表现
+  是"多出小碎片实体"，而不是报错**——只看错误信息永远查不到。
+- **逐件裁剪的稳定写法**（issue #16 实测 2026-10-01）：
+  `opBoolean(targets: <stale query>, …)` 之后
+  `q = qUnion([q, qCreatedBy(opId, EntityType.BODY)])`，再 `evBox3d` / `setProperty` 命名；
+  stale query 会晚绑定到被就地修改的实体上。相关边界见 browser-modeling §8（UNION 之后
+  `qCreatedBy(unionId, BODY)` 为空、SUBTRACTION 之后要查 target 体）。
+- **undefined 参与逻辑运算，真身是调用方 map 漏传键**（issue #16 实测 2026-10-01）：
+  `First operand of logical or conditional operator must be boolean, value is undefined 609:39`
+  的原因是函数里用了 `g.floor`，而调用方 map 里漏传了 `"floor"`。FS 不会报"缺键"，只在下游
+  报"undefined 参与逻辑运算"。⇒ 给 map 加键时必须同时确认调用方真的传了。
+
+### 13.6 验证判据的优先级（调用方本次得出的排序）
+
+- （issue #16 实测 2026-10-01）可信度从高到低：
+  1. **FS 逐件 bbox 命名**：最便宜、最贴近设计值，能把 `8.25 / 67.75` 这类设计值逐一核对；
+  2. **STEP 实体数**：`42 → 58` 这类计数非常可靠；
+  3. **不要信"逐件尺寸"的后处理脚本，除非做过对照实验**：调用方的 `step_bodies.py` 把同一份
+     **已验证的 v10 STEP** 也报成 `218.20×187.20×70.40`，而 v10 的零件名是
+     `218.2x169.6x76`。
+- ⇒ **把工具跑在"已知良好"的输入上，是判断它可不可信的唯一对照实验**；这一步至少省掉调用方
+  一次误判。
+
+### 13.7 成本感受（供排期参考）
+
+- **一条「改 → 提交 → 等 → 回读」≈ 8 次调用 + ~4.5 分钟服务端重生成**（issue #16 实测
+  2026-10-01；58 件：每层 2 塔 × 每个抽屉 4 趟）。注意这里的"8 次"是每轮循环的调用数，与
+  §6 的"浏览器动作 8 次/分钟"上限不是同一件事。结论：**"少犯错"远比"写得快"重要**——每次
+  改动前先算清索引，改完先自检（括号平衡 / 行数 / 哈希）再提交。
+- **组合建议**（issue #16 实测 2026-10-01）：**诊断先行**（把关键量写进零件名一次性带回）→
+  只提交一次 → 用一次性读取定位全部问题。调用方本次三个真实 bug（唇部残留、舌根残留、map
+  缺键）都是靠一轮诊断同时定位的；对应做法见 §13.4 与 §13.6。

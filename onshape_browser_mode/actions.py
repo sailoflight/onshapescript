@@ -12,6 +12,7 @@ All functions take a Playwright sync `page` object obtained from
 from __future__ import annotations
 
 import collections
+import hashlib
 import re
 import time
 from datetime import datetime, timezone
@@ -402,18 +403,80 @@ FS_NOTICE_SNAPSHOT_JS = """
 """
 
 
-def read_featurescript_editor(page: Any) -> str | None:
-    """Return the full FeatureScript source, or None if no Ace editor is open."""
-    return page.evaluate(
+def sha256_text(text: str) -> str:
+    """SHA-256 of one exact string, the repo's source-identity convention."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+#: Resolve the ONE VISIBLE Ace editor rather than ``document.querySelector``.
+#: ``querySelector`` returns the first match in DOM order, and a document page can
+#: carry more than one ``.ace_editor`` node (e.g. a leftover from a Feature Studio
+#: tab that is no longer active). Writing through such a node is self-consistent --
+#: ``setValue`` then ``getValue`` returns what was written -- while the buffer the
+#: user sees is unchanged, and the operation still reports success (issue #17,
+#: measured by a caller 2026-10-01). Visibility and node count are plain DOM facts,
+#: not Onshape-specific selectors.
+_EDITOR_RESOLUTION_JS = """
+          const nodes = Array.from(document.querySelectorAll('.ace_editor'));
+          const isVisible = (el) => {
+            if (!el || el.isConnected === false) return false;
+            const rect = (typeof el.getBoundingClientRect === 'function')
+              ? el.getBoundingClientRect() : null;
+            return !!rect && rect.width > 0 && rect.height > 0;
+          };
+          const visible = nodes.filter(isVisible);
+"""
+
+
+def probe_featurescript_editor(page: Any) -> dict[str, Any]:
+    """Resolve the one visible Ace editor and report what could be proven about it.
+
+    Read-only. ``source`` is non-null only when EXACTLY ONE visible editor exists,
+    so a caller can tell "no editor is open" apart from "the node I would have
+    written to is not the one on screen".
+    """
+    raw = page.evaluate(
         """
         () => {
-          const el = document.querySelector('.ace_editor');
-          if (!el) return null;
+        %s
+          if (nodes.length === 0) {
+            return {editorCount: 0, visibleEditors: 0, source: null,
+                    reason: 'no .ace_editor on page'};
+          }
+          if (visible.length === 0) {
+            return {editorCount: nodes.length, visibleEditors: 0, source: null,
+                    reason: 'no VISIBLE .ace_editor on page'};
+          }
+          if (visible.length > 1) {
+            return {editorCount: nodes.length, visibleEditors: visible.length, source: null,
+                    reason: 'several visible .ace_editor nodes; the active element is ambiguous'};
+          }
+          const el = visible[0];
           const ed = (el.env && el.env.editor) || (window.ace && window.ace.edit(el));
-          return ed ? ed.getValue() : null;
+          if (!ed || typeof ed.getValue !== 'function') {
+            return {editorCount: nodes.length, visibleEditors: 1, source: null,
+                    reason: 'ace editor API unavailable on the visible node'};
+          }
+          return {editorCount: nodes.length, visibleEditors: 1, source: ed.getValue(),
+                  reason: null};
         }
         """
+        % _EDITOR_RESOLUTION_JS
     )
+    if not isinstance(raw, dict):
+        return {
+            "editorCount": None,
+            "visibleEditors": None,
+            "source": None,
+            "reason": "the editor probe returned a non-object answer",
+        }
+    return raw
+
+
+def read_featurescript_editor(page: Any) -> str | None:
+    """Return the full FeatureScript source, or None if no single visible Ace editor is open."""
+    source = probe_featurescript_editor(page).get("source")
+    return source if isinstance(source, str) else None
 
 
 def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
@@ -944,26 +1007,255 @@ def read_featurescript_symbols(page: Any) -> dict[str, Any]:
 
 
 def write_featurescript_editor(page: Any, text: str) -> dict[str, Any]:
-    """Replace the FeatureScript editor content in place.
+    """Replace the FeatureScript editor content in place, and PROVE the write landed.
 
     Uses the Ace API (not DOM textarea) so Onshape's change detection sees the
-    edit and enables the Commit button.
+    edit and enables the Commit button, then reads the value back from the SAME
+    editor object it wrote to. The write targets the one VISIBLE editor: a page
+    with no visible editor, or with several, is refused rather than answered with
+    a self-consistent ``ok: true`` (issue #17: writing through a detached Ace node
+    reported success while the visible buffer was unchanged).
     """
-    return page.evaluate(
+    result = page.evaluate(
         """
         (text) => {
-          const el = document.querySelector('.ace_editor');
-          if (!el) return {ok: false, error: 'no .ace_editor on page'};
+        %s
+          if (nodes.length === 0) {
+            return {ok: false, error: 'no .ace_editor on page', editorCount: 0,
+                    visibleEditors: 0};
+          }
+          if (visible.length === 0) {
+            return {ok: false, error: 'no VISIBLE .ace_editor on page',
+                    editorCount: nodes.length, visibleEditors: 0};
+          }
+          if (visible.length > 1) {
+            return {ok: false,
+                    error: 'several visible .ace_editor nodes; the active element is ambiguous',
+                    editorCount: nodes.length, visibleEditors: visible.length};
+          }
+          const el = visible[0];
           const ed = (el.env && el.env.editor) || (window.ace && window.ace.edit(el));
-          if (!ed) return {ok: false, error: 'ace editor API unavailable'};
+          if (!ed || typeof ed.setValue !== 'function') {
+            return {ok: false, error: 'ace editor API unavailable on the visible node',
+                    editorCount: nodes.length, visibleEditors: 1};
+          }
+          const before = (typeof ed.getValue === 'function') ? ed.getValue() : null;
           ed.setValue(text);
           ed.clearSelection();
           ed.moveCursorTo(0, 0);
-          return {ok: true, length: text.length, lineCount: text.split('\\n').length};
+          const after = (typeof ed.getValue === 'function') ? ed.getValue() : null;
+          return {ok: true, verified: after === text, length: text.length,
+                  lineCount: text.split('\\n').length,
+                  beforeLength: (typeof before === 'string') ? before.length : null,
+                  editorCount: nodes.length, visibleEditors: 1};
         }
-        """,
+        """
+        % _EDITOR_RESOLUTION_JS,
         text,
     )
+    # The hash is computed in Python from the bytes actually submitted, so a
+    # verified write hands the caller the identity it can compare later.
+    if isinstance(result, dict) and result.get("ok") and result.get("verified"):
+        result["sha256"] = sha256_text(text)
+    return result
+
+
+#: Bounds on one patch request. The payload is the thing issue #15 wanted to stop
+#: resending in full, so it is capped at a size a full script would never need.
+MAX_PATCH_EDITS = 200
+MAX_PATCH_LINES = 4000
+
+
+def _patch_lines(edit: dict[str, Any]) -> list[str] | None:
+    """The replacement text of one edit as a list of lines, or None if malformed."""
+    if "lines" in edit:
+        lines = edit.get("lines")
+        if not isinstance(lines, list) or not all(isinstance(line, str) for line in lines):
+            return None
+        return list(lines)
+    if "text" in edit:
+        text = edit.get("text")
+        if not isinstance(text, str):
+            return None
+        return text.split("\n")
+    return None
+
+
+def apply_featurescript_patch(source: str, patch: Any) -> dict[str, Any]:
+    """Apply a bounded, line-addressed patch to FeatureScript source (issue #15).
+
+    The browser leg must submit a whole buffer, so the caller's cost is the
+    PAYLOAD, not the call count. This is the missing middle granularity: a caller
+    names a line range, or an anchor line plus a placement, instead of resending
+    ~50k characters per iteration.
+
+    Addressed against the ORIGINAL source and applied from the highest line
+    downward, so one insertion cannot invalidate a later edit's indices -- the
+    two accidents issue #16 documents (an index shifted by an earlier splice, and
+    an anchor that matched a different same-named loop). Every ambiguity refuses
+    with evidence instead of guessing:
+
+    * an anchor must match EXACTLY one line (``matches``/``candidateLines`` say
+      what it hit);
+    * two edits may not touch the same line;
+    * a line range must be inside the source.
+
+    Returns ``{ok, source, preSha256, postSha256, lineCount, applied}`` on
+    success, or ``{ok: False, reason, ...evidence}`` when it refuses.
+    """
+    if not isinstance(source, str):
+        return {"ok": False, "reason": "patch needs the current source as a string"}
+    if not isinstance(patch, dict):
+        return {"ok": False, "reason": "patch must be an object with an `edits` list"}
+    edits = patch.get("edits")
+    if not isinstance(edits, list) or not edits:
+        return {"ok": False, "reason": "patch.edits must be a non-empty list"}
+    if len(edits) > MAX_PATCH_EDITS:
+        return {
+            "ok": False,
+            "reason": f"patch.edits exceeds MAX_PATCH_EDITS ({MAX_PATCH_EDITS})",
+            "editCount": len(edits),
+        }
+    lines = source.split("\n")
+    pre_sha256 = sha256_text(source)
+    # Every edit is resolved against the ORIGINAL line list first; nothing is
+    # applied until all of them are known to be unambiguous.
+    resolved: list[dict[str, Any]] = []
+    for index, edit in enumerate(edits):
+        if not isinstance(edit, dict):
+            return {"ok": False, "reason": f"edit {index} is not an object", "editIndex": index}
+        replacement = _patch_lines(edit)
+        if replacement is None:
+            return {
+                "ok": False,
+                "reason": f"edit {index} needs a `lines` list or `text` string",
+                "editIndex": index,
+            }
+        if len(replacement) > MAX_PATCH_LINES:
+            return {
+                "ok": False,
+                "reason": f"edit {index} exceeds MAX_PATCH_LINES ({MAX_PATCH_LINES})",
+                "editIndex": index,
+            }
+        if "anchor" in edit:
+            anchor = edit.get("anchor")
+            if not isinstance(anchor, str) or not anchor:
+                return {
+                    "ok": False,
+                    "reason": f"edit {index} has an empty `anchor`",
+                    "editIndex": index,
+                }
+            hits = [number for number, line in enumerate(lines) if anchor in line]
+            if len(hits) != 1:
+                return {
+                    "ok": False,
+                    "reason": (
+                        f"edit {index} anchor matches {len(hits)} line(s); it must match exactly one"
+                    ),
+                    "editIndex": index,
+                    "anchor": anchor,
+                    "matches": len(hits),
+                    "candidateLines": [number + 1 for number in hits[:5]],
+                }
+            position = hits[0]
+            placement = str(edit.get("placement", "replace")).lower()
+            if placement not in {"replace", "before", "after"}:
+                return {
+                    "ok": False,
+                    "reason": f"edit {index} placement must be replace/before/after",
+                    "editIndex": index,
+                }
+            if placement == "before":
+                start = end = position
+                lines_out = replacement
+                replaced = 0
+            elif placement == "after":
+                start = end = position + 1
+                lines_out = replacement
+                replaced = 0
+            else:
+                start, end = position, position + 1
+                lines_out = replacement
+                replaced = 1
+            resolved.append(
+                {
+                    "kind": "anchor",
+                    "editIndex": index,
+                    "anchor": anchor,
+                    "placement": placement,
+                    "anchorLine": position + 1,
+                    "start": start,
+                    "end": end,
+                    "lines": lines_out,
+                    "replaced": replaced,
+                }
+            )
+            continue
+        start = edit.get("start")
+        end = edit.get("end", start)
+        if not isinstance(start, int) or not isinstance(end, int) or isinstance(start, bool):
+            return {
+                "ok": False,
+                "reason": f"edit {index} needs integer `start` (and optional `end`) 1-based lines",
+                "editIndex": index,
+            }
+        if start < 1 or end < start or end > len(lines):
+            return {
+                "ok": False,
+                "reason": (
+                    f"edit {index} range {start}-{end} is outside 1-{len(lines)}"
+                ),
+                "editIndex": index,
+                "lineCount": len(lines),
+            }
+        resolved.append(
+            {
+                "kind": "line_range",
+                "editIndex": index,
+                "start": start - 1,
+                "end": end,
+                "lines": replacement,
+                "replaced": end - start + 1,
+            }
+        )
+    # Overlap check on the resolved half-open ranges.
+    ordered = sorted(resolved, key=lambda item: (item["start"], item["end"]))
+    for previous, current in zip(ordered, ordered[1:]):
+        if current["start"] < previous["end"]:
+            return {
+                "ok": False,
+                "reason": (
+                    "two edits touch the same line: "
+                    f"edits {previous['editIndex']} and {current['editIndex']}"
+                ),
+                "conflictingEdits": [previous["editIndex"], current["editIndex"]],
+            }
+    # Apply high-to-low so an earlier insertion cannot shift a later edit.
+    patched = list(lines)
+    for item in sorted(resolved, key=lambda entry: entry["start"], reverse=True):
+        patched[item["start"]:item["end"]] = item["lines"]
+    result_source = "\n".join(patched)
+    return {
+        "ok": True,
+        "source": result_source,
+        "preSha256": pre_sha256,
+        "postSha256": sha256_text(result_source),
+        "lineCount": len(patched),
+        "applied": [
+            {
+                "kind": item["kind"],
+                "editIndex": item["editIndex"],
+                # An anchor edit reports the line it anchored on; a range edit
+                # reports the 1-based range it replaced or inserted at.
+                "startLine": item.get("anchorLine") or (item["start"] + 1),
+                "endLine": item.get("anchorLine") or item["end"],
+                "insertedLines": len(item["lines"]),
+                "replacedLines": item["replaced"],
+                **({"placement": item["placement"]} if item["kind"] == "anchor" else {}),
+            }
+            for item in resolved
+        ],
+    }
 
 
 def commit_button_state(page: Any) -> dict[str, Any]:
@@ -1050,12 +1342,19 @@ def create_document(page: Any, name: str = "") -> dict[str, Any]:
 
 def create_document_tab(page: Any, tab_type: str = "Feature Studio") -> dict[str, Any]:
     """Create a new document tab (Feature Studio / Part Studio / Assembly /
-    Drawing) via the tabs menu.
+    Drawing / Variable Studio) via the tabs menu.
 
     The dropdown items are present but hidden until the menu opens; a plain
     Playwright click on a hidden item fails, so the item is clicked in page
     JavaScript. Adding a tab creates an Onshape document element (a cloud
     mutation) but spends zero REST API quota.
+
+    Issue #18: ``创建 Variable Studio`` is one of the recorded dropdown labels
+    (``onshape_docs/experience/browser-automation.md`` §8, measured live), so a
+    Variable Studio can be created through the same label mechanism as the other
+    kinds. Creating the element is ALL that is offered here: reading or writing
+    the variable rows themselves needs the table's own DOM, which the repo has
+    not recorded yet.
     """
     try:
         before_state = list_document_tabs(page)
@@ -1070,6 +1369,7 @@ def create_document_tab(page: Any, tab_type: str = "Feature Studio") -> dict[str
         "Part Studio": "创建 Part Studio",
         "Assembly": "创建装配体",
         "Drawing": "创建工程图",
+        "Variable Studio": "创建 Variable Studio",
     }
     needle = create_item_text.get(tab_type, "创建 " + tab_type)
 
@@ -1660,6 +1960,70 @@ def parse_feature_header_count(header_text: Any) -> int | None:
     return int(match.group(1)) if match else None
 
 
+#: Regeneration verdicts a Part Studio read can produce. A Part Studio's own rows
+#: speak ONLY about this element: a Feature Studio that fails to compile leaves the
+#: feature list showing the last successful regeneration, so ``no-error-observed``
+#: must never be read as "the document is up to date" (issue #14, reported by a
+#: caller 2026-10-01: a broken commit still produced a healthy-looking part list).
+REGEN_STATUS_UNKNOWN = "unknown"
+REGEN_STATUS_NO_ERROR = "no-error-observed"
+REGEN_STATUS_ERROR_UNSETTLED = "error-observed-unsettled"
+REGEN_STATUS_ERROR_CONFIRMED = "error-confirmed"
+
+_REGEN_STATUS_BASIS = {
+    REGEN_STATUS_UNKNOWN: (
+        "the document shell had not rendered, so this pass says nothing about regeneration"
+    ),
+    REGEN_STATUS_NO_ERROR: (
+        "no rendered row carried an error flag in this pass; that proves the LAST "
+        "successful regeneration, not that a FeatureScript commit in this document compiled"
+    ),
+    REGEN_STATUS_ERROR_UNSETTLED: (
+        "an error flag was seen in a single pass, which cannot separate a real error "
+        "from a read taken mid-regeneration"
+    ),
+    REGEN_STATUS_ERROR_CONFIRMED: (
+        "the same error signature survived a bounded re-read, so the flag is not a "
+        "mid-regeneration artifact"
+    ),
+}
+
+
+def _regen_status(read: Any) -> str:
+    """The Part-Studio-scoped regeneration verdict for one read.
+
+    Deliberately scoped to THIS element: it is computed from the rendered rows, so
+    it can never answer whether some other element (a Feature Studio) compiled.
+    """
+    if not isinstance(read, dict) or not read.get("ready"):
+        return REGEN_STATUS_UNKNOWN
+    return (
+        REGEN_STATUS_ERROR_UNSETTLED
+        if _errored_feature_rows(read)
+        else REGEN_STATUS_NO_ERROR
+    )
+
+
+def _freshness_evidence(read: Any) -> dict[str, Any]:
+    """Name what a Part Studio read proves, and the one thing it cannot prove.
+
+    Issue #14: the caller read a healthy list as "the model is current" while the
+    Feature Studio had failed to compile. The blind spot is structural, so it is
+    reported as a field rather than left to prose the caller may not have read.
+    """
+    ready = bool(isinstance(read, dict) and read.get("ready"))
+    return {
+        "scope": "part-studio-element-only",
+        "provesLastSuccessfulRegeneration": ready,
+        "mayPrecedeFailedCommitElsewhere": True,
+        # The compile verdict lives in the Feature Studio element, which is read
+        # with THAT tab active -- a Part Studio page has no Ace editor to read.
+        "compileVerdictTool": "browser_get_fs_compile_status",
+        "compileVerdictRequiresActiveFeatureStudio": True,
+        "readAt": read.get("hasErrorReadAt") if isinstance(read, dict) else None,
+    }
+
+
 def read_partstudio_features(page: Any) -> dict[str, Any]:
     """Read the Part Studio feature tree and part list (read-only, 0 quota).
 
@@ -1684,6 +2048,13 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     error from a read taken mid-regeneration; use
     :func:`read_partstudio_features_settled` when the error verdict is what the
     caller will act on.
+
+    ``maybeStale`` is about the ERROR FLAG only, so it answers ``false`` on the very
+    list issue #14 reported: a Feature Studio that failed to compile leaves this
+    element showing its last successful regeneration. ``regenStatus`` (with
+    ``regenStatusBasis``) therefore names THIS element's verdict and
+    ``freshness`` states the blind spot and the tool that closes it; neither is a
+    document-wide freshness claim.
     """
     raw = page.evaluate(
         """
@@ -1779,6 +2150,12 @@ def read_partstudio_features(page: Any) -> dict[str, Any]:
     # artifact (the measured false positive). Both are additive.
     raw["hasErrorReadAt"] = _utc_timestamp()
     raw["maybeStale"] = bool(_errored_feature_rows(raw))
+    # Issue #14: `maybeStale` is about the error flag, and a caller read `false` as
+    # "the model is fresh" while the Feature Studio had failed to compile. These
+    # additive keys say what this read is -- and is not -- evidence for.
+    raw["regenStatus"] = _regen_status(raw)
+    raw["regenStatusBasis"] = _REGEN_STATUS_BASIS[raw["regenStatus"]]
+    raw["freshness"] = _freshness_evidence(raw)
     return raw
 
 
@@ -1887,6 +2264,17 @@ def read_partstudio_features_settled(
     read["settleWaitedMs"] = round((time.monotonic() - started) * 1000)
     read["settleCondition"] = condition
     read["settleTimeoutMs"] = timeout_ms
+    # Issue #14: a converged flag is strong enough to name THIS element's own state
+    # (never the document's -- `freshness` still carries the blind spot).
+    if settled:
+        read["regenStatus"] = (
+            REGEN_STATUS_NO_ERROR if not errored else REGEN_STATUS_ERROR_CONFIRMED
+        )
+        read["regenStatusBasis"] = (
+            f"{_REGEN_STATUS_BASIS[read['regenStatus']]} "
+            f"(settled over {attempts} read(s): {condition})"
+        )
+    read["freshness"] = _freshness_evidence(read)
     return read
 
 

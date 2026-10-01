@@ -855,6 +855,367 @@ class BrowserDeployTest(unittest.TestCase):
         write.assert_called_once()
 
 
+    def test_deploy_refuses_when_the_open_buffer_is_not_the_expected_version(self) -> None:
+        """Issue #17: a write must be provably aimed at the version the caller read."""
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        before = "feature X {}\n// the version actually open"
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        return_value=before), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        side_effect=AssertionError("must not write a mismatched buffer")), \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        side_effect=AssertionError("must not commit a mismatched buffer")):
+            result = server._browser_deploy_featurescript(
+                {"script": "feature X {}", "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True, "expect_pre_sha256": "0" * 64})
+        self.assertFalse(result["deployed"])
+        self.assertEqual(result["reason"], "pre_sha256_mismatch")
+        self.assertEqual(result["expectedPreSha256"], "0" * 64)
+        self.assertEqual(result["preSha256"], actions.sha256_text(before))
+        self.assertEqual(result["beforeLength"], len(before))
+        self.assertIn("browser_read_featurescript", result["recovery"])
+
+    def test_deploy_reports_pre_and_post_sha256_and_the_write_binding_evidence(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        script = "feature X {}"
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        side_effect=[script, script]), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": True, "verified": True, "length": len(script),
+                                      "lineCount": 1, "editorCount": 1, "visibleEditors": 1}), \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        return_value={"clicked": True, "before": {"disabled": False},
+                                      "after": {"disabled": True}}), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value={"compiled": True, "annotationCount": 0,
+                                      "noticeCount": 0, "errors": []}), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-hash"}):
+            result = server._browser_deploy_featurescript(
+                {"script": script, "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True,
+                 "expect_pre_sha256": actions.sha256_text(script)})
+        self.assertTrue(result["deployed"])
+        self.assertEqual(result["preSha256"], actions.sha256_text(script))
+        self.assertEqual(result["postSha256"], actions.sha256_text(script))
+        self.assertTrue(result["writeVerified"])
+        self.assertEqual((result["editorCount"], result["visibleEditors"]), (1, 1))
+
+    def test_deploy_reports_a_refused_write_with_its_editor_evidence(self) -> None:
+        """Issue #17: a hidden/detached Ace node is a refusal, not a silent success."""
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        before = "feature X {}"
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        return_value=before), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": False, "error": "no VISIBLE .ace_editor on page",
+                                      "editorCount": 2, "visibleEditors": 0}), \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        side_effect=AssertionError("must not commit a write that did not land")):
+            result = server._browser_deploy_featurescript(
+                {"script": before, "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True})
+        self.assertFalse(result["deployed"])
+        self.assertEqual(result["reason"], "no VISIBLE .ace_editor on page")
+        self.assertEqual(result["preSha256"], actions.sha256_text(before))
+        self.assertEqual((result["editorCount"], result["visibleEditors"]), (2, 0))
+        self.assertIn("browser_activate_tab", result["recovery"])
+
+
+    def test_deploy_rejects_a_patch_without_a_pre_hash_before_any_browser(self) -> None:
+        """Issue #15: a patch is only safe against a version the caller has read."""
+        session = FakeSession(FakePage())
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session) as get_session:
+            with self.assertRaises(ValueError) as ctx:
+                server._browser_deploy_featurescript(
+                    {"patch": {"edits": [{"start": 1, "lines": ["x"]}]},
+                     "dry_run": False, "confirm_mutation": True})
+        self.assertIn("expect_pre_sha256", str(ctx.exception))
+        get_session.assert_not_called()
+
+    def test_deploy_refuses_script_and_patch_together(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            server._browser_deploy_featurescript(
+                {"script": "feature X {}", "patch": {"edits": []}, "dry_run": True})
+        self.assertIn("not both", str(ctx.exception))
+
+    def test_deploy_applies_a_patch_to_the_live_buffer_before_writing(self) -> None:
+        """Issue #15: only the changed lines travel; the write carries the patched source."""
+        session = FakeSession(FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/e1"))
+        guard = FakeGuard()
+        before = "FeatureScript 3044;\nvar a = 1;\nvar b = 2;\n"
+        script = "FeatureScript 3044;\nvar a = 1;\nvar b = 3;\n"
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        side_effect=[before, script]), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": True, "verified": True, "length": len(script),
+                                      "lineCount": 3, "editorCount": 1,
+                                      "visibleEditors": 1}) as write, \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        return_value={"clicked": True, "before": {"disabled": False},
+                                      "after": {"disabled": True}}), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value={"compiled": True, "annotationCount": 0,
+                                      "noticeCount": 0, "errors": []}), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-patch"}):
+            result = server._browser_deploy_featurescript(
+                {"patch": {"edits": [{"start": 3, "lines": ["var b = 3;"]}]},
+                 "expect_pre_sha256": actions.sha256_text(before),
+                 "element_id": "e1",
+                 "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True})
+        self.assertTrue(result["deployed"], result.get("reason"))
+        write.assert_called_once()
+        self.assertEqual(write.call_args[0][1], script, "the patched source is what gets written")
+        self.assertEqual(result["patchApplied"][0]["startLine"], 3)
+        self.assertEqual(result["preSha256"], actions.sha256_text(before))
+
+    def test_deploy_refuses_an_ambiguous_patch_and_never_writes(self) -> None:
+        session = FakeSession(FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/e1"))
+        guard = FakeGuard()
+        before = "same anchor\nsame anchor\n"
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        return_value=before), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        side_effect=AssertionError("an ambiguous patch must never be written")):
+            result = server._browser_deploy_featurescript(
+                {"patch": {"edits": [{"anchor": "same anchor", "lines": ["x"]}]},
+                 "expect_pre_sha256": actions.sha256_text(before),
+                 "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True})
+        self.assertFalse(result["deployed"])
+        self.assertIn("exactly one", result["reason"])
+        self.assertEqual(result["patch"]["matches"], 2)
+        self.assertEqual(result["preSha256"], actions.sha256_text(before))
+
+    def test_deploy_refuses_a_write_aimed_at_another_element(self) -> None:
+        session = FakeSession(FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/e2"))
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        return_value="feature X {}"), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        side_effect=AssertionError("a mis-targeted write must never happen")):
+            result = server._browser_deploy_featurescript(
+                {"script": "feature X {}", "element_id": "e1",
+                 "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True})
+        self.assertFalse(result["deployed"])
+        self.assertEqual(result["reason"], "active_element_mismatch")
+        self.assertEqual(result["activeElementId"], "e2")
+        self.assertEqual(result["expectedElementId"], "e1")
+        self.assertIn("browser_activate_tab", result["recovery"])
+
+    def test_deploy_terse_bounds_the_answer_without_dropping_the_verdict(self) -> None:
+        session = FakeSession(FakePage(url="https://cad.onshape.com/documents/d1/w/w1/e/e1"))
+        guard = FakeGuard()
+        script = "feature X {}"
+        errors = [{"text": f"error {index} " + "x" * 500, "line": index} for index in range(4)]
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_editor",
+                        side_effect=[script, script]), \
+             mock.patch("onshape_browser_mode.actions.write_featurescript_editor",
+                        return_value={"ok": True, "verified": True, "length": len(script),
+                                      "lineCount": 1, "editorCount": 1, "visibleEditors": 1}), \
+             mock.patch("onshape_browser_mode.actions.click_commit",
+                        return_value={"clicked": True, "before": {"disabled": False},
+                                      "after": {"disabled": True}}), \
+             mock.patch("onshape_browser_mode.actions.read_featurescript_compile_status",
+                        return_value={"compiled": True, "annotationCount": 0, "noticeCount": 9,
+                                      "errors": errors, "notices": [{"text": "n" * 500}] * 20}), \
+             mock.patch("onshape_browser_mode.diagnostics.save_featurescript_diagnostic",
+                        return_value={"captured": True, "captureId": "capture-terse"}):
+            result = server._browser_deploy_featurescript(
+                {"script": script, "verbosity": "terse",
+                 "dry_run": False, "confirm_mutation": True,
+                 "acknowledge_local_findings": True})
+        self.assertTrue(result["deployed"])
+        self.assertEqual(result["verbosity"], "terse")
+        self.assertNotIn("notices", result, "the unbounded array is what terse exists to drop")
+        self.assertEqual(result["errorCount"], 4)
+        self.assertEqual(len(result["errors"]), 3)
+        self.assertTrue(result["errorsTruncated"])
+        self.assertLessEqual(len(result["errors"][0]["text"]), 200)
+        self.assertEqual(result["noticeCount"], 9)
+        self.assertEqual(result["preSha256"], result["postSha256"])
+
+
+class FeaturescriptPatchTest(unittest.TestCase):
+    """Issue #15: the line-addressed patch primitive, and its refusals."""
+
+    SOURCE = "\n".join(f"line{number}" for number in range(1, 11))
+
+    def _apply(self, patch):
+        return actions.apply_featurescript_patch(self.SOURCE, patch)
+
+    def test_a_line_range_replaces_exactly_that_range(self) -> None:
+        result = self._apply({"edits": [{"start": 3, "end": 4, "lines": ["new3", "new4", "new5"]}]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"].splitlines()[1:6],
+                         ["line2", "new3", "new4", "new5", "line5"])
+        self.assertEqual(result["applied"][0]["startLine"], 3)
+        self.assertEqual(result["applied"][0]["endLine"], 4)
+        self.assertEqual(result["applied"][0]["replacedLines"], 2)
+
+    def test_an_anchor_can_replace_insert_before_or_insert_after(self) -> None:
+        replaced = actions.apply_featurescript_patch(
+            "a\nTARGET\nb", {"edits": [{"anchor": "TARGET", "lines": ["R"]}]})
+        self.assertEqual(replaced["source"], "a\nR\nb")
+        before = actions.apply_featurescript_patch(
+            "a\nTARGET\nb", {"edits": [{"anchor": "TARGET", "placement": "before", "lines": ["B"]}]})
+        self.assertEqual(before["source"], "a\nB\nTARGET\nb")
+        after = actions.apply_featurescript_patch(
+            "a\nTARGET\nb", {"edits": [{"anchor": "TARGET", "placement": "after", "lines": ["A"]}]})
+        self.assertEqual(after["source"], "a\nTARGET\nA\nb")
+
+    def test_an_ambiguous_anchor_refuses_with_the_lines_it_hit(self) -> None:
+        result = self._apply({"edits": [{"anchor": "line1", "lines": ["x"]}]})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["matches"], 2)          # line1 and line10
+        self.assertEqual(result["candidateLines"], [1, 10])
+        self.assertIn("exactly one", result["reason"])
+
+    def test_an_anchor_with_no_match_refuses(self) -> None:
+        result = self._apply({"edits": [{"anchor": "nothing here", "lines": ["x"]}]})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["matches"], 0)
+
+    def test_two_edits_on_one_line_refuse_instead_of_racing(self) -> None:
+        result = self._apply({"edits": [{"start": 1, "end": 5, "lines": ["x"]},
+                                        {"start": 5, "end": 6, "lines": ["y"]}]})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["conflictingEdits"], [0, 1])
+
+    def test_an_earlier_insert_cannot_shift_a_later_edit(self) -> None:
+        """The accident issue #16 documents: resolve against the ORIGINAL source."""
+        result = self._apply({"edits": [
+            {"anchor": "line9", "placement": "after", "lines": ["tail"]},
+            {"start": 1, "end": 1, "lines": ["head"]},
+        ]})
+        self.assertTrue(result["ok"])
+        lines = result["source"].splitlines()
+        self.assertEqual(lines[0], "head")
+        # `tail` lands directly after line9 as asked, even though `head` was
+        # inserted (and shifted every index) by the other edit.
+        self.assertEqual(lines[-3:], ["line9", "tail", "line10"])
+
+    def test_a_range_outside_the_source_refuses_with_the_line_count(self) -> None:
+        result = self._apply({"edits": [{"start": 1, "end": 99, "lines": ["x"]}]})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["lineCount"], 10)
+
+    def test_a_boolean_is_not_accepted_as_a_line_number(self) -> None:
+        result = self._apply({"edits": [{"start": True, "lines": ["x"]}]})
+        self.assertFalse(result["ok"])
+        self.assertIn("integer", result["reason"])
+
+    def test_the_hashes_bracket_the_result(self) -> None:
+        result = self._apply({"edits": [{"start": 1, "end": 1, "lines": ["head"]}]})
+        self.assertEqual(result["preSha256"], actions.sha256_text(self.SOURCE))
+        self.assertEqual(result["postSha256"], actions.sha256_text(result["source"]))
+
+    def test_malformed_patches_refuse_instead_of_guessing(self) -> None:
+        for patch in (None, [], {}, {"edits": []}, {"edits": "no"},
+                      {"edits": [{"lines": "not a list"}]},
+                      {"edits": [{"start": 1}]},
+                      {"edits": [{"anchor": "", "lines": ["x"]}]},
+                      {"edits": [{"anchor": "line1", "placement": "sideways", "lines": ["x"]}]},
+                      {"edits": [{"start": 1, "lines": ["x"]}] * 201}):
+            with self.subTest(patch=patch):
+                result = actions.apply_featurescript_patch(self.SOURCE, patch)
+                self.assertFalse(result["ok"])
+                self.assertTrue(result["reason"])
+
+
+class FeaturescriptEditorResolutionTest(unittest.TestCase):
+    """Issue #17: resolve the one VISIBLE Ace editor, and hash what was written."""
+
+    def test_the_sha256_helper_matches_the_standard_empty_digest(self) -> None:
+        self.assertEqual(
+            actions.sha256_text(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        )
+
+    def test_probe_reports_an_ambiguous_page_instead_of_picking_the_first_node(self) -> None:
+        page = FakePage(evaluate_result={
+            "editorCount": 3, "visibleEditors": 2, "source": None,
+            "reason": "several visible .ace_editor nodes; the active element is ambiguous"})
+        probe = actions.probe_featurescript_editor(page)
+        self.assertEqual((probe["editorCount"], probe["visibleEditors"]), (3, 2))
+        self.assertIsNone(probe["source"])
+        self.assertIsNone(
+            actions.read_featurescript_editor(page),
+            "an ambiguous page must not be read as a source",
+        )
+
+    def test_probe_refuses_a_page_whose_only_editor_is_hidden(self) -> None:
+        page = FakePage(evaluate_result={
+            "editorCount": 1, "visibleEditors": 0, "source": None,
+            "reason": "no VISIBLE .ace_editor on page"})
+        self.assertIsNone(actions.read_featurescript_editor(page))
+
+    def test_probe_returns_the_source_when_exactly_one_editor_is_visible(self) -> None:
+        page = FakePage(evaluate_result={
+            "editorCount": 1, "visibleEditors": 1, "source": "feature X {}", "reason": None})
+        self.assertEqual(actions.read_featurescript_editor(page), "feature X {}")
+
+    def test_probe_reports_a_non_object_answer_instead_of_guessing(self) -> None:
+        page = FakePage(evaluate_result=42)
+        probe = actions.probe_featurescript_editor(page)
+        self.assertIsNone(probe["source"])
+        self.assertIn("non-object", probe["reason"])
+
+    def test_write_returns_the_hash_only_when_the_read_back_matched(self) -> None:
+        text = "feature X {}"
+        matched = FakePage(evaluate_result={
+            "ok": True, "verified": True, "length": len(text), "lineCount": 1,
+            "editorCount": 1, "visibleEditors": 1})
+        self.assertEqual(actions.write_featurescript_editor(matched, text)["sha256"],
+                         actions.sha256_text(text))
+        mismatched = FakePage(evaluate_result={
+            "ok": True, "verified": False, "length": len(text), "lineCount": 1,
+            "editorCount": 1, "visibleEditors": 1})
+        self.assertNotIn("sha256", actions.write_featurescript_editor(mismatched, text))
+
+    def test_both_editor_probes_resolve_visibility_in_their_own_js(self) -> None:
+        """The refusal is only possible because the JS filters on plain DOM facts."""
+        write_page = FakePage(evaluate_result={
+            "ok": False, "error": "x", "editorCount": 0, "visibleEditors": 0})
+        actions.write_featurescript_editor(write_page, "feature X {}")
+        probe_page = FakePage(evaluate_result={})
+        actions.probe_featurescript_editor(probe_page)
+        for label, js in (("write", write_page.evaluate_calls[0][0]),
+                          ("probe", probe_page.evaluate_calls[0][0])):
+            with self.subTest(probe=label):
+                self.assertIn("querySelectorAll('.ace_editor')", js)
+                self.assertIn("getBoundingClientRect", js)
+                self.assertIn("isConnected", js)
+
+
 class BrowserInsertCustomFeatureTest(unittest.TestCase):
     def test_insert_requires_confirmation(self) -> None:
         session = FakeSession(FakePage())
@@ -955,6 +1316,38 @@ class BrowserCreateTabTest(unittest.TestCase):
         self.assertEqual(session.start_calls, 1)
         self.assertEqual(guard.pace_calls, 1)
 
+
+    def test_action_creates_a_variable_studio_with_the_recorded_label(self) -> None:
+        """Issue #18: `创建 Variable Studio` is a recorded dropdown label (docs §8)."""
+        page = mock.Mock()
+        page.url = "https://cad.onshape.com/documents/d1/w/w1/e/e1"
+        page.evaluate.side_effect = [
+            {"tabs": [{"name": "Part Studio 1", "active": True}]},
+            {"clicked": True, "text": "创建 Variable Studio"},
+            {"tabs": [
+                {"name": "Part Studio 1", "active": False},
+                {"name": "Variable Studio 1", "active": True},
+            ]},
+        ]
+        result = actions.create_document_tab(page, "Variable Studio")
+        self.assertTrue(result["triggered"])
+        self.assertTrue(result["created"], result.get("reason"))
+        self.assertEqual(result["newTabs"][0]["name"], "Variable Studio 1")
+        self.assertEqual(page.evaluate.call_args_list[1].args[1], "创建 Variable Studio")
+
+    def test_confirmed_create_tab_accepts_a_variable_studio(self) -> None:
+        session = FakeSession(FakePage())
+        guard = FakeGuard()
+        with mock.patch("onshape_browser_mode.session.get_session",
+                        return_value=session), \
+             mock.patch("onshape_browser_mode.guard.get_guard", return_value=guard), \
+             mock.patch("onshape_browser_mode.actions.create_document_tab",
+                        return_value={"created": True,
+                                      "tabType": "Variable Studio"}) as create_tab:
+            result = server._browser_create_tab(
+                {"tab_type": "Variable Studio", "confirm_mutation": True})
+        self.assertTrue(result["created"])
+        self.assertEqual(create_tab.call_args[0][1], "Variable Studio")
 
     def test_action_verifies_assembly_tab_appears(self) -> None:
         page = mock.Mock()

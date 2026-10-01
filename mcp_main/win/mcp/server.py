@@ -57,13 +57,17 @@ from onshape_rest_api_mode.operations import (
 def object_schema(
     properties: dict[str, Any] | None = None,
     required: list[str] | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    schema = {
         "type": "object",
         "properties": properties or {},
         "required": required or [],
         "additionalProperties": False,
     }
+    if extra:
+        schema.update(extra)
+    return schema
 
 
 def mutating_confirmation() -> dict[str, Any]:
@@ -1035,6 +1039,60 @@ def _first_feature_studio_tab(tabs: list[dict[str, Any]]) -> dict[str, Any] | No
     return None
 
 
+#: Issue #15: the caller asked for a bounded answer. `normal` returns exactly what
+#: this tool always returned (nothing is hidden); `terse` drops the unbounded
+#: arrays (notices, every error string, the full local check) and keeps the
+#: verdict, the hashes and the counts. Texts are truncated, counts are not.
+_TERSE_DEPLOY_TEXT_CHARS = 200
+_TERSE_DEPLOY_LIST = 3
+
+
+def _terse_deploy_result(result: dict[str, Any], patch_applied: Any) -> dict[str, Any]:
+    """Project one deploy result into a bounded answer (issue #15)."""
+    errors = result.get("errors") if isinstance(result.get("errors"), list) else []
+    bounded_errors = [
+        {
+            **({key: value for key, value in item.items() if key != "text"}
+               if isinstance(item, dict) else {}),
+            "text": str(item.get("text", ""))[:_TERSE_DEPLOY_TEXT_CHARS]
+            if isinstance(item, dict)
+            else str(item)[:_TERSE_DEPLOY_TEXT_CHARS],
+        }
+        for item in errors[:_TERSE_DEPLOY_LIST]
+    ]
+    check = result.get("localCheck") if isinstance(result.get("localCheck"), dict) else {}
+    capture = result.get("diagnosticCapture") if isinstance(result.get("diagnosticCapture"), dict) else {}
+    terse = {
+        key: result[key]
+        for key in (
+            "deployed", "dryRun", "reason", "recovery", "commitAccepted", "compiled",
+            "verified", "writeVerified", "preSha256", "postSha256", "beforeLength",
+            "afterLength", "noticeCount", "documentClean", "elementNoticeCount",
+            "elementErrorCount", "pageUrl",
+        )
+        if key in result
+    }
+    terse.update(
+        {
+            "verbosity": "terse",
+            "errorCount": len(errors),
+            "errors": bounded_errors,
+            "errorsTruncated": len(errors) > _TERSE_DEPLOY_LIST,
+            "localCheck": {
+                key: check[key]
+                for key in ("checked", "clear", "errorCount", "warningCount", "reason")
+                if key in check
+            },
+            "diagnosticCapture": {
+                key: capture[key] for key in ("captured", "captureId", "reason") if key in capture
+            },
+        }
+    )
+    if patch_applied is not None:
+        terse["patchApplied"] = patch_applied
+    return terse
+
+
 def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     """Deploy a FeatureScript script through the browser UI (0 Onshape API quota).
 
@@ -1046,10 +1104,33 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     Ace editor content, and clicks the FeatureScript Commit button — no REST API
     call is spent, and every real navigation/write/commit is shaped through the
     browser action guard's pacing gate.
+
+    Issue #15: ``patch`` replaces ``script`` for an edit that must not resend the
+    whole buffer. A patch is resolved against the LIVE buffer (so it needs the
+    browser), refuses on any ambiguous anchor or overlapping edit, and requires
+    ``expect_pre_sha256`` so the caller cannot patch a version it did not read.
+    ``verbosity="terse"`` bounds the answer; ``element_id`` refuses a write aimed
+    at whatever tab happens to be active.
     """
-    script = arguments.get("script", "")
-    if not isinstance(script, str) or not script.strip():
-        raise ValueError("Provide a non-empty `script` string")
+    script = arguments.get("script")
+    if script is not None and not isinstance(script, str):
+        raise ValueError("`script` must be a string")
+    patch = arguments.get("patch")
+    if patch is not None and script is not None:
+        raise ValueError("Provide either `script` or `patch`, not both")
+    if patch is not None and not isinstance(patch, dict):
+        raise ValueError("`patch` must be an object with an `edits` list")
+    script = script or ""
+    if patch is None and not script.strip():
+        raise ValueError("Provide a non-empty `script` string or a `patch`")
+    if patch is not None and not str(arguments.get("expect_pre_sha256") or "").strip():
+        raise ValueError(
+            "a `patch` requires `expect_pre_sha256` (read it with browser_read_featurescript) "
+            "so it cannot be applied to a buffer the caller did not read"
+        )
+    verbosity = str(arguments.get("verbosity") or "normal").lower()
+    if verbosity not in {"normal", "terse"}:
+        raise ValueError("`verbosity` must be 'normal' or 'terse'")
     document_name = arguments.get(
         "document_name", "Branch Cable Trophy Display - FeatureScript"
     )
@@ -1059,6 +1140,27 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
 
     # Pure local preview, returned before any browser import/session/action.
     if dry_run:
+        if patch is not None:
+            return {
+                "dryRun": True,
+                "deployed": False,
+                "documentName": document_name,
+                "patchEditCount": len(patch.get("edits") or [])
+                if isinstance(patch.get("edits"), list)
+                else None,
+                "localCheck": {
+                    "checked": False,
+                    "reason": (
+                        "a patch preview must resolve line numbers and anchors against the "
+                        "live buffer, which a pure local dry run does not touch"
+                    ),
+                },
+                "note": (
+                    "dry_run: no browser session was started, so the patch was not resolved. "
+                    "Set confirm_mutation=true with dry_run=false to resolve it against the "
+                    "live buffer and deploy."
+                ),
+            }
         preview_check = _local_check(script)
         return {
             "dryRun": True,
@@ -1082,15 +1184,18 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     # imports below, which a refused call must not even load.
     _confirm(arguments)
 
-    # Free and side-effect-free, so it runs before the browser is touched.
-    local_check = _local_check(script)
+    # Free and side-effect-free, so it runs before the browser is touched. A patch
+    # call can only run this after the patch is resolved (below).
+    local_check = _local_check(script) if patch is None else None
+    expect_pre_sha256 = arguments.get("expect_pre_sha256")
 
-    # A local finding is advisory, but it is not silent: the caller has to look
-    # once more and say so explicitly before the cloud write.
-    if fs_check.acknowledgement_missing(local_check, arguments):
+    def _local_gate(check: dict[str, Any]) -> dict[str, Any] | None:
+        """The once-only acknowledgement ask, or None when the caller may proceed."""
+        if not fs_check.acknowledgement_missing(check, arguments):
+            return None
         return fs_check.acknowledgement_request(
             tool="browser_deploy_featurescript",
-            local_check=local_check,
+            local_check=check,
             next_call={
                 "tool": "browser_deploy_featurescript",
                 "arguments": {
@@ -1100,6 +1205,13 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
                 },
             },
         )
+
+    # A local finding is advisory, but it is not silent: the caller has to look
+    # once more and say so explicitly before the cloud write.
+    if local_check is not None:
+        ask = _local_gate(local_check)
+        if ask is not None:
+            return ask
 
     from onshape_browser_mode import actions, diagnostics
     from onshape_browser_mode.guard import get_guard
@@ -1166,6 +1278,79 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
             "pageUrl": page.url,
         }
 
+    # Issue #17: the write below must be provably aimed at the buffer the caller
+    # read. `expect_pre_sha256` (from browser_read_featurescript) turns "I hope I
+    # am overwriting the version I saw" into a checked precondition.
+    pre_sha256 = actions.sha256_text(before)
+    expected_pre = arguments.get("expect_pre_sha256")
+    if expected_pre is not None and str(expected_pre) != pre_sha256:
+        return {
+            "deployed": False,
+            "dryRun": False,
+            "reason": "pre_sha256_mismatch",
+            "expectedPreSha256": str(expected_pre),
+            "preSha256": pre_sha256,
+            "beforeLength": len(before),
+            "recovery": (
+                "the open buffer is not the version you expected; re-read it with "
+                "browser_read_featurescript (its sha256 is this field) and retry"
+            ),
+            "localCheck": local_check,
+            "pageUrl": page.url,
+        }
+
+    # Issue #15: an explicit target. `browser_activate_tab` is the only selector of
+    # the active tab, and a write with the wrong tab active clobbers another
+    # element's buffer, so a caller that names the element gets a refusal instead.
+    expected_element = str(arguments.get("element_id") or "").strip()
+    if expected_element:
+        active_element = (actions.parse_document_url(page.url) or {}).get("elementId") or ""
+        if expected_element != active_element:
+            return {
+                "deployed": False,
+                "dryRun": False,
+                "reason": "active_element_mismatch",
+                "activeElementId": active_element,
+                "expectedElementId": expected_element,
+                "recovery": "call browser_activate_tab(element_id=...) for the element you mean",
+                "localCheck": local_check,
+                "pageUrl": page.url,
+            }
+
+    # Issue #15: resolve the patch against the live buffer, then run the same
+    # advisory local check the script path runs -- on the PATCHED source, which is
+    # what would actually be written.
+    patch_evidence: dict[str, Any] | None = None
+    if patch is not None:
+        patched = actions.apply_featurescript_patch(before, patch)
+        if not patched.get("ok"):
+            return {
+                "deployed": False,
+                "dryRun": False,
+                "reason": patched.get("reason", "patch refused"),
+                "patch": {key: value for key, value in patched.items() if key != "source"},
+                "preSha256": pre_sha256,
+                "beforeLength": len(before),
+                "recovery": (
+                    "the patch was applied to the live buffer and refused; re-read it with "
+                    "browser_read_featurescript, then address the edit unambiguously"
+                ),
+                "localCheck": local_check,
+                "pageUrl": page.url,
+            }
+        script = patched["source"]
+        patch_evidence = {
+            "applied": patched["applied"],
+            "lineCount": patched["lineCount"],
+            "preSha256": patched["preSha256"],
+            "postSha256": patched["postSha256"],
+            "editCount": len(patch.get("edits") or []),
+        }
+        local_check = _local_check(script)
+        ask = _local_gate(local_check)
+        if ask is not None:
+            return ask
+
     guard.pace()  # the editor write is the actual remote mutation
     written = actions.write_featurescript_editor(page, script)
     if not written.get("ok"):
@@ -1173,6 +1358,10 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
             "deployed": False,
             "dryRun": False,
             "reason": written.get("error", "could not write editor"),
+            "preSha256": pre_sha256,
+            "editorCount": written.get("editorCount"),
+            "visibleEditors": written.get("visibleEditors"),
+            "recovery": "call browser_activate_tab(Feature Studio) first",
             "localCheck": local_check,
             "pageUrl": page.url,
         }
@@ -1204,13 +1393,21 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
             "reason": f"{type(exc).__name__}: {exc}",
         }
 
-    return {
+    result: dict[str, Any] = {
         "deployed": committed and verified and compiled,
         "dryRun": False,
         "localCheck": local_check,
         "pageUrl": page.url,
         "beforeLength": len(before),
         "afterLength": written.get("length"),
+        # Issue #17: the exact bytes this transaction overwrote and produced, plus
+        # the write's own binding evidence, so a caller never has to hand-roll a
+        # sha256 sentinel around the call.
+        "preSha256": pre_sha256,
+        "postSha256": actions.sha256_text(verified_source if isinstance(verified_source, str) else script),
+        "writeVerified": bool(written.get("verified")),
+        "editorCount": written.get("editorCount"),
+        "visibleEditors": written.get("visibleEditors"),
         "commit": commit,
         "commitAccepted": committed,
         "verified": verified,
@@ -1229,6 +1426,14 @@ def _browser_deploy_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
         "staleErrorCount": compile_status.get("staleErrorCount", 0),
         "diagnosticCapture": diagnostic_capture,
     }
+    if patch_evidence is not None:
+        # Issue #15: the patch's own evidence travels with the deploy result, so a
+        # caller can see which lines were touched without a second read.
+        result["patch"] = patch_evidence
+        result["patchApplied"] = patch_evidence["applied"]
+    if verbosity == "terse":
+        return _terse_deploy_result(result, patch_evidence["applied"] if patch_evidence else None)
+    return result
 
 
 def _browser_reconnect(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1284,7 +1489,14 @@ def _browser_open_document(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_read_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Read the current FeatureScript editor source (read-only, 0 quota)."""
+    """Read the visible FeatureScript editor source and its sha256 (read-only, 0 quota).
+
+    Issue #17: the read resolves the one VISIBLE Ace editor instead of the first
+    ``.ace_editor`` in DOM order, reports that resolution, and returns the
+    ``sha256`` a caller can hand to ``browser_deploy_featurescript`` as
+    ``expect_pre_sha256``. ``expect_element_id`` refuses a read aimed at a
+    different element than the tab that is actually active.
+    """
     from onshape_browser_mode import actions
     from onshape_browser_mode.session import get_session
 
@@ -1292,20 +1504,40 @@ def _browser_read_featurescript(arguments: dict[str, Any]) -> dict[str, Any]:
     page = session.start()
     session._enforce_single_working_page(page)
     actions.reconnect_if_needed(page)
-    source = actions.read_featurescript_editor(page)
-    if source is None:
+    ids = actions.parse_document_url(page.url)
+    expected_element = str(arguments.get("expect_element_id") or "").strip()
+    if expected_element and expected_element != (ids.get("elementId") or ""):
         return {
             "read": False,
-            "reason": "FeatureScript editor not open on the current page; use browser_open_document first",
+            "reason": "active_element_mismatch",
+            "activeElementId": ids.get("elementId"),
+            "expectedElementId": expected_element,
+            "recovery": "call browser_activate_tab(element_id=...) for the element you mean",
             "pageUrl": page.url,
+            **ids,
+        }
+    probe = actions.probe_featurescript_editor(page)
+    source = probe.get("source")
+    if not isinstance(source, str):
+        return {
+            "read": False,
+            "reason": probe.get("reason")
+            or "FeatureScript editor not open on the current page; use browser_open_document first",
+            "editorCount": probe.get("editorCount"),
+            "visibleEditors": probe.get("visibleEditors"),
+            "pageUrl": page.url,
+            **ids,
         }
     return {
         "read": True,
         "source": source,
         "length": len(source),
         "lineCount": source.count("\n") + 1,
+        "sha256": actions.sha256_text(source),
+        "editorCount": probe.get("editorCount"),
+        "visibleEditors": probe.get("visibleEditors"),
         "pageUrl": page.url,
-        **actions.parse_document_url(page.url),
+        **ids,
     }
 
 
@@ -1374,12 +1606,13 @@ def _browser_create_document(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _browser_create_tab(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Create one immediately terminal Feature Studio, Part Studio, or Assembly tab."""
+    """Create one immediately terminal Feature Studio / Part Studio / Assembly /
+    Variable Studio tab (issue #18 added the Variable Studio label)."""
     tab_type = arguments.get("tab_type", "Feature Studio")
-    if tab_type not in ("Feature Studio", "Part Studio", "Assembly"):
+    if tab_type not in ("Feature Studio", "Part Studio", "Assembly", "Variable Studio"):
         raise ValueError(
-            "tab_type must be 'Feature Studio', 'Part Studio', or 'Assembly'; "
-            "use browser_create_drawing for a completed Drawing transaction"
+            "tab_type must be 'Feature Studio', 'Part Studio', 'Assembly', or "
+            "'Variable Studio'; use browser_create_drawing for a completed Drawing transaction"
         )
     _confirm(arguments)
 
@@ -2783,7 +3016,8 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Deploy a FeatureScript script through the browser UI, spending ZERO Onshape API quota. "
+            "Deploy FeatureScript source through the browser UI (exactly one of `script` or `patch` is "
+            "required), spending ZERO Onshape API quota. "
             "An actual deploy (dry_run=false, requires confirm_mutation=true) opens the target document "
             "if needed, writes the Ace editor content, clicks the FeatureScript Commit button, then reads "
             "the editor, Ace annotations, and FeatureScript notice pane back. It reports `deployed=true` only "
@@ -2799,12 +3033,63 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": object_schema({
             "script": {
                 "type": "string",
-                "description": "Full FeatureScript source to deploy.",
+                "description": "Full FeatureScript source to deploy. Mutually exclusive with `patch`.",
+            },
+            "patch": {
+                "type": "object",
+                "description": (
+                    "Bounded line-addressed edit instead of a full `script` (issue #15): "
+                    "{\"edits\": [{\"start\": 601, \"end\": 617, \"lines\": [\"…\"]}, "
+                    "{\"anchor\": \"gfDrawer(context, id + \", \"placement\": \"after\", "
+                    "\"lines\": [\"…\"]}]}. Edits are resolved against the live buffer and "
+                    "applied high-to-low; an anchor that does not match EXACTLY one line, or "
+                    "two edits touching the same line, refuse with the candidate lines as "
+                    "evidence. Requires `expect_pre_sha256`."
+                ),
+                "properties": {
+                    "edits": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "items": {"type": "object", "additionalProperties": True},
+                    },
+                },
+                "required": ["edits"],
+                "additionalProperties": False,
+            },
+            "element_id": {
+                "type": "string",
+                "description": (
+                    "Refuse unless this element is the active tab (compare against the page "
+                    "URL). Guards an edit against writing into whichever element happens to be "
+                    "on screen."
+                ),
+            },
+            "verbosity": {
+                "type": "string",
+                "enum": ["normal", "terse"],
+                "default": "normal",
+                "description": (
+                    "`normal` returns every field this tool has always returned; `terse` keeps "
+                    "the verdict, hashes and counts, bounds `errors` to 3 truncated texts and "
+                    "drops the unbounded `notices` array. `full` is not offered because "
+                    "`normal` already returns every field."
+                ),
             },
             "document_name": {
                 "type": "string",
                 "default": "Branch Cable Trophy Display - FeatureScript",
                 "description": "Documents-list name of the document to open when the editor is not already on screen.",
+            },
+            "expect_pre_sha256": {
+                "type": "string",
+                "description": (
+                    "Refuse before writing unless the open buffer's sha256 equals this value "
+                    "(read it with browser_read_featurescript). Turns 'overwrite the version I "
+                    "saw' into a checked precondition; the result carries preSha256/postSha256. "
+                    "The write itself targets the one VISIBLE Ace editor and is read back from "
+                    "that same editor, so a detached node cannot report a silent success."
+                ),
             },
             "confirm_mutation": mutating_confirmation(),
             "dry_run": {
@@ -2817,7 +3102,9 @@ TOOLS: list[dict[str, Any]] = [
                 ),
             },
             fs_check.ACKNOWLEDGEMENT_ARGUMENT: local_findings_acknowledgement(),
-        }, ["script"]),
+        }, [], extra={
+            "anyOf": [{"required": ["script"]}, {"required": ["patch"]}],
+        }),
         "annotations": {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True},
     },
     {
@@ -2865,11 +3152,23 @@ TOOLS: list[dict[str, Any]] = [
         },
         "description": (
             "Read the FeatureScript source currently open in the browser's Ace editor and return it together "
-            "with the document/workspace/element ids parsed from the page URL. Read-only, zero Onshape API "
-            "quota. If no FeatureScript editor is open it returns read=false and suggests "
-            "browser_open_document first."
+            "with the document/workspace/element ids parsed from the page URL, its `sha256`, and the editor "
+            "resolution (`editorCount`/`visibleEditors`). Read-only, zero Onshape API quota. The read requires "
+            "exactly ONE VISIBLE Ace editor: a page whose only `.ace_editor` node is hidden or detached is "
+            "answered with `read=false` plus the reason instead of that node's (possibly empty) text, because "
+            "writing through such a node silently misses the real buffer. Pass `expect_element_id` to refuse a "
+            "read whose active element is not the one you mean. If no FeatureScript editor is open it returns "
+            "read=false and suggests browser_open_document first."
         ),
-        "inputSchema": object_schema({}),
+        "inputSchema": object_schema({
+            "expect_element_id": {
+                "type": "string",
+                "description": (
+                    "Refuse unless the currently active element id (from the page URL) equals this value; "
+                    "guards against reading the buffer of an element you did not activate."
+                ),
+            },
+        }),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
     },
     {
@@ -2893,7 +3192,11 @@ TOOLS: list[dict[str, Any]] = [
             "that its FeatureScript compiled and was instantiated — this is the 0-quota compile+modeling "
             "verification. Read-only; never calls the Onshape REST API. headerCount is the whole-list count, and "
             "ready=false or rowsComplete!=true means the virtualised list is only a rendered window or the page is "
-            "still booting, so a missing row is not absence and the read must be repeated."
+            "still booting, so a missing row is not absence and the read must be repeated. The regeneration verdict "
+            "is scoped to THIS element: `regenStatus` (with `regenStatusBasis`) names this element's own state and "
+            "`freshness` states the blind spot — `no-error-observed` proves the LAST successful regeneration, not "
+            "that a FeatureScript commit compiled, because a studio that fails to compile leaves this list unchanged. "
+            "Ask `browser_get_fs_compile_status` with the Feature Studio tab active for the commit verdict."
         ),
         "inputSchema": object_schema({}),
         "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
@@ -2965,15 +3268,17 @@ TOOLS: list[dict[str, Any]] = [
             "cacheable": False,
         },
         "description": (
-            "Create a Feature Studio, Part Studio, or Assembly tab and verify that a new visible tab appears. "
-            "Zero Onshape API quota. Adding a tab creates a document element, so confirm_mutation=true is required. "
-            "Use browser_create_drawing for Drawing because that separate L4 transaction completes and verifies "
-            "the source/template dialog instead of leaving a pending UI state."
+            "Create a Feature Studio, Part Studio, Assembly, or Variable Studio tab and verify that a new "
+            "visible tab appears. Zero Onshape API quota. Adding a tab creates a document element, so "
+            "confirm_mutation=true is required. Use browser_create_drawing for Drawing because that separate "
+            "L4 transaction completes and verifies the source/template dialog instead of leaving a pending UI "
+            "state. A Variable Studio is created for its element only: reading or writing its variable rows "
+            "(`#name = value`) is not offered yet, and browser_delete_element removes the element again."
         ),
         "inputSchema": object_schema({
             "tab_type": {
                 "type": "string",
-                "enum": ["Feature Studio", "Part Studio", "Assembly"],
+                "enum": ["Feature Studio", "Part Studio", "Assembly", "Variable Studio"],
                 "default": "Feature Studio",
                 "description": "Which immediately creatable tab kind to create.",
             },
