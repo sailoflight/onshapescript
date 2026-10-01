@@ -29,6 +29,7 @@ from onshape_rest_api_mode.client import (
 # at onshape_docs/scripts/fs_local_check.py is only a command-line shim).
 from onshape_docs.query import fs_check
 from onshape_rest_api_mode import feature_list
+from onshape_rest_api_mode import variables as variables_module
 
 FEATURE_TYPE = "branchCableTrophyDisplay"
 FEATURE_NAME = "Branch cable trophy display"
@@ -289,6 +290,191 @@ def list_document_elements(
         "documentId": state["documentId"],
         "workspaceId": state["workspaceId"],
     }
+
+
+def resolve_variable_studio_id(
+    client: OnshapeClient,
+    element_id: str | None = None,
+) -> tuple[str, str, str, str]:
+    """Resolve the element to address as a Variable Studio, with no network walk.
+
+    Returns ``(documentId, workspaceId, elementId, source)`` where ``source`` is
+    ``"explicit"`` or ``"cache"``. An explicit ``element_id`` wins. Otherwise the
+    locally cached element table is searched for exactly one element whose
+    ``elementType`` is ``VARIABLESTUDIO`` (the spec's ``GBTElementType``); zero or
+    several candidates REFUSE and name them, because discovering the element with
+    a live ``GET /elements`` is the implicit lookup the quota policy forbids.
+    Populate that mirror explicitly with
+    ``onshape_list_document_elements(refresh=true)``.
+    """
+    state = client.state
+    did, wid = state.get("documentId"), state.get("workspaceId")
+    if not did or not wid:
+        raise RuntimeError(
+            "No documentId/workspaceId in onshape_rest_api_mode/config/onshape-state.json; "
+            "the variable table cannot be addressed without them."
+        )
+    if element_id:
+        return did, wid, element_id, "explicit"
+    candidates = [
+        item
+        for item in _elements_cache(client).values()
+        if str(item.get("elementType") or "").upper()
+        == variables_module.VARIABLE_STUDIO_ELEMENT_TYPE
+    ]
+    if len(candidates) == 1:
+        return did, wid, str(candidates[0]["id"]), "cache"
+    if not candidates:
+        raise RuntimeError(
+            "No Variable Studio element is known locally. Pass element_id explicitly, or "
+            "refresh the cached element table with onshape_list_document_elements(refresh=true). "
+            "This refuses on purpose: walking the document here would spend quota on a lookup "
+            "the caller can make explicitly."
+        )
+    names = [f"{item.get('name')!r}={item.get('id')}" for item in candidates]
+    raise RuntimeError(
+        f"{len(candidates)} Variable Studio elements are cached ({', '.join(sorted(names))}); "
+        "pass element_id to choose one."
+    )
+
+
+def get_variables(
+    element_id: str | None = None,
+    version_id: str | None = None,
+    include_values: bool = True,
+    client: OnshapeClient | None = None,
+) -> dict[str, Any]:
+    """Read an element's document variable table(s) — exactly one GET.
+
+    ``include_values=False`` omits the ``includeValuesAndReferencedVariables``
+    query (expressions without formatted values). Reading a version instead of a
+    workspace is allowed by the spec (``{wv}/{wvid}``), and a variable studio
+    that has no rows yet returns ``tableCount: 0``, which is a successful read of
+    "no variables", not an error.
+    """
+    if client is None:
+        client = OnshapeClient()
+    did, wid, eid, source = resolve_variable_studio_id(client, element_id)
+    path = variables_module.variables_path(did, wid, eid, version_id=version_id)
+    query = {"includeValuesAndReferencedVariables": True} if include_values else None
+    payload = client.request("GET", path, None, query)
+    return {
+        "source": "live",
+        "elementSource": source,
+        "documentId": did,
+        "workspaceId": None if version_id else wid,
+        "versionId": version_id,
+        "elementId": eid,
+        "includeValues": include_values,
+        "requestCount": 1,
+        **variables_module.summarize_tables(payload),
+    }
+
+
+def _readback_comparison(
+    assigned: list[dict[str, Any]], readback: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare what was assigned with what a follow-up read reports.
+
+    Reports the two failure modes separately (a row that never appeared, and a
+    row whose expression differs) so a caller reads the diff instead of trusting
+    a bare boolean.
+    """
+    seen: dict[str, dict[str, Any]] = {}
+    for table in readback.get("tables", []):
+        for row in table.get("variables", []):
+            if isinstance(row, dict) and row.get("name"):
+                seen[str(row["name"])] = row
+    missing = [row["name"] for row in assigned if row["name"] not in seen]
+    mismatched = [
+        {
+            "name": row["name"],
+            "expected": row["expression"],
+            "readBack": seen[row["name"]].get("expression"),
+        }
+        for row in assigned
+        if "expression" in row
+        and row["name"] in seen
+        and seen[row["name"]].get("expression") != row["expression"]
+    ]
+    return {
+        "verified": not missing and not mismatched,
+        "missing": missing,
+        "mismatched": mismatched,
+    }
+
+
+def set_variables(
+    variables: Any,
+    element_id: str | None = None,
+    client: OnshapeClient | None = None,
+    dry_run: bool = False,
+    verify_readback: bool = False,
+) -> dict[str, Any]:
+    """Assign variables to a Variable Studio — one POST, sent at most once.
+
+    The spec types the request body (``BTVariableParams[]``) but describes the
+    ``setVariables`` response only as a generic object, so a 2xx is NOT evidence
+    that the rows read back as written. ``verify_readback=True`` buys one extra
+    GET and returns ``verified`` plus the exact ``missing``/``mismatched`` diff.
+    It is off by default because "write then read" must be an explicit purchase
+    (see CLAUDE.md), not a habit.
+
+    A failed POST is never retried: a timeout does not mean the assignment did not
+    happen. ``dry_run=True`` returns the exact request(s) with zero network and
+    needs no credentials.
+    """
+    body = variables_module.validate_variables(variables)
+    if client is None:
+        client = OnshapeClient(require_credentials=not dry_run)
+    did, wid, eid, source = resolve_variable_studio_id(client, element_id)
+    path = variables_module.variables_path(did, wid, eid)
+    if dry_run:
+        plan = [
+            client.describe("POST", path, body)
+            | {"note": f"assign {len(body)} variable(s) to element {eid}"}
+        ]
+        if verify_readback:
+            plan.append(
+                client.describe(
+                    "GET",
+                    path,
+                    None,
+                    {"includeValuesAndReferencedVariables": True},
+                )
+                | {"note": "read the table back and diff it against the assigned rows"}
+            )
+        return _dry_run(
+            plan,
+            note=(
+                "The POST is sent at most once and is never retried; the response is "
+                "not a documented shape, so a 2xx alone does not prove the rows were "
+                "written as sent."
+            ),
+        )
+    payload = client.request("POST", path, body)
+    result: dict[str, Any] = {
+        "source": "live",
+        "elementSource": source,
+        "documentId": did,
+        "workspaceId": wid,
+        "elementId": eid,
+        "requestCount": 1,
+        "assigned": body,
+        "response": payload,
+        "responseDocumented": False,
+        "verifyWith": (
+            "The spec describes this response only as a generic object. Re-read with "
+            "verify_readback=true (1 extra call) or onshape_get_variables to confirm the "
+            "table before relying on it."
+        ),
+    }
+    if verify_readback:
+        readback = get_variables(element_id=eid, client=client)
+        result["readback"] = readback
+        result["requestCount"] = 2
+        result.update(_readback_comparison(body, readback))
+    return result
 
 
 def _feature_specs_summary(specs: dict[str, Any]) -> list[dict[str, Any]]:

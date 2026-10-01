@@ -24,6 +24,7 @@ Status: verified
 | Client/transport | `onshape_rest_api_mode/client.py` | Paths, credentials boundary, request transport, live enablement |
 | Budget policy | `onshape_rest_api_mode/budget.py` | `live_blocker`, budget guard, request-cost preflight |
 | Operations | `onshape_rest_api_mode/operations.py` | Read, evaluate, upload, instantiate, validate, render workflows |
+| Document variables | `onshape_rest_api_mode/variables.py` | Spec-derived `Variables` endpoints (getVariables/setVariables): path building, `BTVariableParams` validation, `BTVariableTableInfo` normalization (issue #19) |
 | STEP export | `onshape_rest_api_mode/step_export.py` | Bounded asynchronous AP242 export, resume, external-data download, persisted STEP manifest, module-owned staging |
 | Geometry package | `onshape_rest_api_mode/geometry.py` | Offline readiness observation and REST-owned non-slicer L6 package orchestration from module configuration |
 | Stable configuration | `onshape_rest_api_mode/config/onshape-state.json` | Target IDs and quota configuration |
@@ -42,6 +43,14 @@ Status: verified
   never repeats the export POST during resume.
 - Higher-level operations must not hide unbudgeted lookup chains, pagination, cleanup, or write-after-read confirmation.
 - Stable metadata uses explicit IDs, cached state, fixtures, or prior results rather than implicit discovery.
+- Document variables (`onshape_get_variables` / `onshape_set_variables`) are
+  addressed, never discovered: an explicit `element_id` wins, otherwise exactly
+  one `VARIABLESTUDIO` element from the cached element table is used, and zero or
+  several candidates refuse instead of walking the document. The read is one GET;
+  the write is one POST that is never retried, and its readback GET is opt-in
+  (`verify_readback`) because it is a real extra call. Shapes come from the
+  vendored OpenAPI, and the live run is still pending (T9 in
+  `onshape_docs/verification/pending-live-verification-2026-10-01.json`).
 - Local converter executable/version/argv ownership stays in
   `config/geometry-backend.json`; MCP arguments may select only a staged
   translation ID and cannot choose a process. That file is operator state: a

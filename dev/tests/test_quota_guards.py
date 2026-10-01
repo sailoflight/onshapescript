@@ -348,6 +348,8 @@ class McpCostMetadataTest(unittest.TestCase):
             "fs_check_version",
             "onshape_eval_featurescript",
             "onshape_list_document_elements",
+            "onshape_get_variables",
+            "onshape_set_variables",
             "onshape_get_feature_studio_status",
             "onshape_check_model",
             "onshape_render_preview",

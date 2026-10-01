@@ -283,8 +283,15 @@ that node's text, because writing through such a node silently misses the real
 buffer. The write follows the same rule — no visible editor, or several, is a
 refusal, never a self-consistent success — and `expect_element_id` refuses a read
 of an element the caller did not activate. `browser_create_tab` also creates a
-`Variable Studio` (a recorded dropdown label); creating that element is all that
-is offered, reading or writing its variable rows is not implemented, and
+`Variable Studio` (a recorded dropdown label); creating that element is all the
+browser leg offers for it — reading or writing its variable rows would need the
+variable table's DOM, which has never been recorded on a live page, so the
+browser leg does not guess one. The REST leg covers it instead:
+`onshape_get_variables` reads the table in one id-addressed GET, and
+`onshape_set_variables` assigns rows in one confirmation-gated POST (pass
+`verify_readback=true` to buy the extra GET that diffs the table against what was
+sent, because the API documents that response only as a generic object). Both
+need `LIVE_API_ENABLED`, and neither has been run against the real endpoint yet.
 `browser_delete_element` removes the element again.
 Every
 committed deployment attempt also writes a local diagnostic package containing

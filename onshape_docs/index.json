@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "a743edb649c5f0821639e25eea95641a5301cbff111e60b388c785a1c546cc41",
+   "sha256": "0d5c7b8a0ad8bcb06ec94fccaa615f413be5a1564a30294fbdabffd6b49cc9c7",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -793,7 +793,7 @@
       },
       {
        "type": "para",
-       "text": "Read-only observation should come first. browser_fs_read_notices opens and restores the active FeatureScript notice pane and returns normalized notice rows; browser_get_fs_compile_status combines those rows with Ace annotations, while browser_get_fs_symbols reads the Module-outline inventory. browser_fs_read_notices demotes stale (outOfDate) notices by default: notices carries current rows, staleNotices carries the raw out-of-date rows, and the result also carries staleNoticeCount, staleErrorCount, staleErrorCountBasis, currentNoticeCount, returnedNoticeCount, includeStale, and per-notice stale + bucket (stale/currentActiveTab/currentOtherElement). Pass includeStale=true to also return the raw stale rows inside notices. A stale notice's line number points at a different source version, so never read it as current state. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and combined compiler evidence verify with no blocking warning/error. The same transaction accepts a bounded patch instead of a full script ({\"edits\":[{\"start\":601,\"end\":617,\"lines\":[…]} ,{\"anchor\":\"…\",\"placement\":\"after\",\"lines\":[…]}]}), resolved against the LIVE buffer and applied high-to-low so an earlier insertion cannot shift a later edit; an anchor that does not match exactly one line, two edits touching one line, two edits inserting at one point (an insertion is addressed by a point, so a shared point would make the result depend on the order the edits happened to be listed in), an edit carrying both lines and text, or a range outside the source refuse with candidate lines as evidence, and a patch requires expect_pre_sha256 (from browser_read_featurescript). element_id refuses a write aimed at another element, and verbosity: \"terse\" bounds the answer (errors capped at three truncated texts, the unbounded notices array dropped, counts kept). The result carries preSha256, postSha256, and patchApplied. browser_read_featurescript returns the source's sha256 and resolves exactly one VISIBLE Ace editor (editorCount/visibleEditors): a page whose only editor is hidden or detached is answered with read=false plus the reason instead of that node's text, because writing through such a node silently misses the real buffer. The write follows the same rule — no visible editor, or several, is a refusal, never a self-consistent success — and expect_element_id refuses a read of an element the caller did not activate. browser_create_tab also creates a Variable Studio (a recorded dropdown label); creating that element is all that is offered, reading or writing its variable rows is not implemented, and browser_delete_element removes the element again. Every committed deployment attempt also writes a local diagnostic package containing the full source and compile result under onshape_browser_mode/outputs/fs_diagnostics/; the experimental, default-hidden browser_fs_capture_diagnostic creates the same package on demand. These local artifacts can contain proprietary source code and must be protected accordingly. browser_get_partstudio_features rows carry errorText (read from the row's data-bs-original-title for errored rows in the same pass), and the result carries hasErrorReadAt plus maybeStale, so read hasError together with when it was read. The result also carries a regeneration verdict scoped to THAT element — regenStatus (no-error-observed | error-observed-unsettled | error-confirmed | unknown) with regenStatusBasis — and freshness, which names the blind spot: a clean list proves the LAST successful regeneration, not that a FeatureScript commit compiled, because a studio that fails to compile leaves this list unchanged. maybeStale is about the error flag only (one pass cannot tell a real error from a mid-regeneration read), so maybeStale: false is not a freshness claim: ask browser_get_fs_compile_status with the Feature Studio tab active for the commit verdict. browser_deploy_featurescript activates the Feature Studio tab itself when the active tab is a Part Studio, and otherwise returns an explicit instruction to call browser_activate_tab first. browser_verify_feature_parameters backs parameter verification with a bounded convergence reader: a read taken while the row is still regenerating is NOT reported as a failure — it returns parametersApplied: null with retryVerify: true, maybeStale: true, hasErrorReadAt, and settleCondition (one of cleanFirstRead|clearedOnReRead|stableError|unstableTimeout, plus settleAttempts, settleWaitedMs, and settleTimeoutMs). The part summary keeps partItems as a list of strings and adds partCounts (counts by name, first-seen order), duplicateNames ([{name,count}]), duplicateNameCount, and partNameDetails ([{name,count,possibleDuplicateName[,note]}]). The duplicate marker is a NAME-based observation only and makes no geometry claim: per-part volume, a sliver-area threshold, and a connectivity report are not implemented and cannot be derived without a geometry or REST path. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses the default gateway exposure (see Dynamic tool display). FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The draft-analysis-based browser_print_orientation_check and its dependent browser_print_optimize_part were semantically invalid — draft analysis is not an FDM orientation engine — and were removed from the surface on 2026-09-19 rather than left as fail-closed names; do not call them and do not expect a browser print-analysis tool until a slicer-backed module is designed. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, and one drawing transaction: browser_draw_part_with_views with part_name for verified views, with dimensions to dimension the current Drawing frame, or with both."
+       "text": "Read-only observation should come first. browser_fs_read_notices opens and restores the active FeatureScript notice pane and returns normalized notice rows; browser_get_fs_compile_status combines those rows with Ace annotations, while browser_get_fs_symbols reads the Module-outline inventory. browser_fs_read_notices demotes stale (outOfDate) notices by default: notices carries current rows, staleNotices carries the raw out-of-date rows, and the result also carries staleNoticeCount, staleErrorCount, staleErrorCountBasis, currentNoticeCount, returnedNoticeCount, includeStale, and per-notice stale + bucket (stale/currentActiveTab/currentOtherElement). Pass includeStale=true to also return the raw stale rows inside notices. A stale notice's line number points at a different source version, so never read it as current state. FeatureScript deployment succeeds only when the Commit state transition, exact source readback, and combined compiler evidence verify with no blocking warning/error. The same transaction accepts a bounded patch instead of a full script ({\"edits\":[{\"start\":601,\"end\":617,\"lines\":[…]} ,{\"anchor\":\"…\",\"placement\":\"after\",\"lines\":[…]}]}), resolved against the LIVE buffer and applied high-to-low so an earlier insertion cannot shift a later edit; an anchor that does not match exactly one line, two edits touching one line, two edits inserting at one point (an insertion is addressed by a point, so a shared point would make the result depend on the order the edits happened to be listed in), an edit carrying both lines and text, or a range outside the source refuse with candidate lines as evidence, and a patch requires expect_pre_sha256 (from browser_read_featurescript). element_id refuses a write aimed at another element, and verbosity: \"terse\" bounds the answer (errors capped at three truncated texts, the unbounded notices array dropped, counts kept). The result carries preSha256, postSha256, and patchApplied. browser_read_featurescript returns the source's sha256 and resolves exactly one VISIBLE Ace editor (editorCount/visibleEditors): a page whose only editor is hidden or detached is answered with read=false plus the reason instead of that node's text, because writing through such a node silently misses the real buffer. The write follows the same rule — no visible editor, or several, is a refusal, never a self-consistent success — and expect_element_id refuses a read of an element the caller did not activate. browser_create_tab also creates a Variable Studio (a recorded dropdown label); creating that element is all the browser leg offers for it — reading or writing its variable rows would need the variable table's DOM, which has never been recorded on a live page, so the browser leg does not guess one. The REST leg covers it instead: onshape_get_variables reads the table in one id-addressed GET, and onshape_set_variables assigns rows in one confirmation-gated POST (pass verify_readback=true to buy the extra GET that diffs the table against what was sent, because the API documents that response only as a generic object). Both need LIVE_API_ENABLED, and neither has been run against the real endpoint yet. browser_delete_element removes the element again. Every committed deployment attempt also writes a local diagnostic package containing the full source and compile result under onshape_browser_mode/outputs/fs_diagnostics/; the experimental, default-hidden browser_fs_capture_diagnostic creates the same package on demand. These local artifacts can contain proprietary source code and must be protected accordingly. browser_get_partstudio_features rows carry errorText (read from the row's data-bs-original-title for errored rows in the same pass), and the result carries hasErrorReadAt plus maybeStale, so read hasError together with when it was read. The result also carries a regeneration verdict scoped to THAT element — regenStatus (no-error-observed | error-observed-unsettled | error-confirmed | unknown) with regenStatusBasis — and freshness, which names the blind spot: a clean list proves the LAST successful regeneration, not that a FeatureScript commit compiled, because a studio that fails to compile leaves this list unchanged. maybeStale is about the error flag only (one pass cannot tell a real error from a mid-regeneration read), so maybeStale: false is not a freshness claim: ask browser_get_fs_compile_status with the Feature Studio tab active for the commit verdict. browser_deploy_featurescript activates the Feature Studio tab itself when the active tab is a Part Studio, and otherwise returns an explicit instruction to call browser_activate_tab first. browser_verify_feature_parameters backs parameter verification with a bounded convergence reader: a read taken while the row is still regenerating is NOT reported as a failure — it returns parametersApplied: null with retryVerify: true, maybeStale: true, hasErrorReadAt, and settleCondition (one of cleanFirstRead|clearedOnReRead|stableError|unstableTimeout, plus settleAttempts, settleWaitedMs, and settleTimeoutMs). The part summary keeps partItems as a list of strings and adds partCounts (counts by name, first-seen order), duplicateNames ([{name,count}]), duplicateNameCount, and partNameDetails ([{name,count,possibleDuplicateName[,note]}]). The duplicate marker is a NAME-based observation only and makes no geometry claim: per-part volume, a sliver-area threshold, and a connectivity report are not implemented and cannot be derived without a geometry or REST path. The 22 transactions promoted from the planned registry are in the complete browser registry; ordinary tools/list uses the default gateway exposure (see Dynamic tool display). FS insertion writes require dry-run and confirmation; fold/navigation and app-shell observations are zero-REST UI operations. Drawing auto-view success requires exactly one new tab plus DOM or decoded-canvas view evidence. The draft-analysis-based browser_print_orientation_check and its dependent browser_print_optimize_part were semantically invalid — draft analysis is not an FDM orientation engine — and were removed from the surface on 2026-09-19 rather than left as fail-closed names; do not call them and do not expect a browser print-analysis tool until a slicer-backed module is designed. A real click, type, submit, create, delete, deploy, assemble, or drawing action can still mutate the cloud document and requires the tool's confirmation contract. Also inspect catalog sideEffects: screenshot/report artifacts, recorder state, persistent login profiles, and local caches can be written even when the Onshape operation itself is cloud-read-only. Prefer exact-ID browser_delete_element over the deprecated name wrapper, and one drawing transaction: browser_draw_part_with_views with part_name for verified views, with dimensions to dimension the current Drawing frame, or with both."
       }
      ]
     },
@@ -2498,7 +2498,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "db7bc5677e1e7b0d4d6be1a38e6c7afd134131f141222d7d94d749c35a66cec6",
+   "sha256": "52a4346b2841efd42856875b19967e53a38d911d9f67f1485f21625b787bb0fe",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -3231,7 +3231,7 @@
          "depth": 0
         },
         {
-         "text": "browser_create_tab 现在也接受 Variable Studio（§8 的录制标签）；只做\"建元素\"， 变量行的读写尚未实现。",
+         "text": "browser_create_tab 现在也接受 Variable Studio（§8 的录制标签）；只做\"建元素\"， 变量行的读写仍未实现——变量表的 DOM 从未真机录制过，本仓库不凭记忆写选择器 （T7，见 onshape_docs/verification/pending-live-verification-2026-10-01.json）。 这条能力暂由 REST 腿提供（onshape_get_variables / onshape_set_variables，各 1 次 API 调用，写入带确认与可选读回校验；尚未真机验证）。",
          "depth": 0
         }
        ]
@@ -12729,7 +12729,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "610cb900b4ed43abcd002511e3ddde74a091d575cb3e671aff98d5bf9001b550",
+   "sha256": "a101f3fd67ded6618da7ab6ddfcbe0cf69b68cc6cfe0d2852df13b46f507e766",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -12750,7 +12750,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 111",
+         "text": "Registered tools: 113",
          "depth": 0
         },
         {
@@ -12762,7 +12762,7 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=70, featurescript=11, other=3, project_docs=3, rest_operations=18, rest_reference=6",
+         "text": "Capability counts: browser=70, featurescript=11, other=3, project_docs=3, rest_operations=20, rest_reference=6",
          "depth": 0
         },
         {
@@ -13692,6 +13692,14 @@
          "Read the project's non-secret Onshape document/workspace/element configuration and report whether a credentials file is configured. This is a local operation: it does not read o..."
         ],
         [
+         "onshape_get_variables",
+         "rest_operations",
+         "-",
+         "-",
+         "network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/explicit_target",
+         "Read an element's document variable table(s) — the #name = value rows a Variable Studio publishes to the document, which is how several features share one editable parameter —..."
+        ],
+        [
          "onshape_instantiate_feature",
          "rest_operations",
          "-",
@@ -13722,6 +13730,14 @@
          "confirm_mutation",
          "network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state",
          "Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a..."
+        ],
+        [
+         "onshape_set_variables",
+         "rest_operations",
+         "-",
+         "-",
+         "network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target",
+         "Assign variables to a Variable Studio: one POST carrying an array of {name, type, expression, description} rows, which is how a shared document parameter is created or changed...."
         ],
         [
          "onshape_update_feature_list",

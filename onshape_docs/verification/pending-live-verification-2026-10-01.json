@@ -16,15 +16,26 @@
   "checks": [
     {
       "id": "T1",
-      "issues": ["#14", "#17", "#18"],
+      "issues": [
+        "#14",
+        "#17",
+        "#18"
+      ],
       "tool": "browser_discover_tools",
-      "arguments": {"query": "FeatureScript compile status error verdict", "semantic_levels": ["L3"]},
+      "arguments": {
+        "query": "FeatureScript compile status error verdict",
+        "semantic_levels": [
+          "L3"
+        ]
+      },
       "pass_criteria": "browser_get_fs_compile_status is returned for the ordinary query and browser_fs_read_notices appears once L3 is requested; same for 'delete element tab' (browser_delete_element) and 'read FeatureScript source sha256' (browser_read_featurescript).",
       "if_it_fails": "the deployed surface differs from the revision being read; treat the exposure gap as real and re-open the discoverability finding."
     },
     {
       "id": "T2",
-      "issues": ["#14"],
+      "issues": [
+        "#14"
+      ],
       "tool": "browser_get_partstudio_features",
       "arguments": {},
       "pass_criteria": "The result carries regenStatus/regenStatusBasis and freshness. With a deliberately broken Feature Studio commit in a throwaway document, the Part Studio read must NOT read as healthy freshness: freshness.mayPrecedeFailedCommitElsewhere is true and freshness.compileVerdictTool names browser_get_fs_compile_status; with the Feature Studio tab active that tool reports compiled:false plus the error text.",
@@ -32,15 +43,21 @@
     },
     {
       "id": "T3",
-      "issues": ["#14"],
+      "issues": [
+        "#14"
+      ],
       "tool": "browser_eval",
-      "arguments": {"expression": "1 + 1"},
+      "arguments": {
+        "expression": "1 + 1"
+      },
       "pass_criteria": "The call returns an isError tool result (confirm_mutation gate). The MCP child SURVIVES: a following browser_session(action='health') and mcp_tool_catalog both answer. This is expected to pass on the deployed revision too, because 08ae283 (2026-09-25, ancestor of the deployed 6ceacfb) already wraps handlers in try/except.",
       "if_it_fails": "the child died on a client input error; capture serve()/stdin-EOF evidence and reopen as a robustness defect."
     },
     {
       "id": "T4",
-      "issues": ["#17"],
+      "issues": [
+        "#17"
+      ],
       "tool": "browser_read_featurescript / browser_deploy_featurescript",
       "arguments": {},
       "pass_criteria": "With a Part Studio tab active (no Feature Studio editor on screen), browser_read_featurescript returns read=false with the editor-resolution reason (editorCount/visibleEditors) instead of an empty source, and browser_deploy_featurescript refuses with that reason plus editor evidence instead of reporting a successful write. On the Feature Studio tab, read returns sha256 and exactly one visible editor.",
@@ -48,40 +65,119 @@
     },
     {
       "id": "T5",
-      "issues": ["#15"],
+      "issues": [
+        "#15"
+      ],
       "tool": "browser_deploy_featurescript",
-      "arguments": {"patch": {"edits": [{"start": 2, "lines": ["var b = 2;"]}]}, "expect_pre_sha256": "<sha256 from browser_read_featurescript>"},
+      "arguments": {
+        "patch": {
+          "edits": [
+            {
+              "start": 2,
+              "lines": [
+                "var b = 2;"
+              ]
+            }
+          ]
+        },
+        "expect_pre_sha256": "<sha256 from browser_read_featurescript>"
+      },
       "pass_criteria": "The patched source is what gets written and committed; the result carries preSha256, postSha256 and patchApplied with the touched 1-based lines. An anchor that appears twice refuses with matches/candidateLines and writes nothing. Two edits sharing an insertion point refuse with conflictingEdits/insertionLine and write nothing, in both listing orders. A patch without expect_pre_sha256 is refused before the browser is touched. verbosity='terse' drops notices and keeps the counts.",
       "if_it_fails": "check whether the live Onshape editor normalises line endings before hashing (sha256 is over the exact string, so a CRLF difference would show up as a pre-hash mismatch -- that would be a finding, not a bug in the patch engine)."
     },
     {
       "id": "T6",
-      "issues": ["#18"],
+      "issues": [
+        "#18"
+      ],
       "tool": "browser_create_tab",
-      "arguments": {"tab_type": "Variable Studio", "confirm_mutation": true},
+      "arguments": {
+        "tab_type": "Variable Studio",
+        "confirm_mutation": true
+      },
       "pass_criteria": "On a throwaway document: triggered/created true, a new tab whose name is not one of the previous ones, and clickedItem containing '创建 Variable Studio'. browser_delete_element then removes that element and verifies the tab disappears.",
       "if_it_fails": "the recorded label (browser-automation.md section 8) has changed or the item needs the source/template dialog like a Drawing; capture the dropdown inventory the tool already returns and re-address it."
     },
     {
       "id": "T7",
-      "issues": ["#18"],
-      "tool": "(no tool yet -- recording probe)",
+      "issues": [
+        "#19"
+      ],
+      "tool": "browser_eval (the recording probe; no new tool is needed)",
       "arguments": {},
-      "pass_criteria": "With a Variable Studio tab active, record the variable table's DOM (row elements, the name/value cells, the add-row control) as a new section in onshape_docs/experience/browser-automation.md with the same measured-live discipline as section 8. ONLY THEN implement document-variable read/write.",
-      "if_it_fails": "n/a -- this is the deliberately un-implemented half of #18: writing selectors from memory is what the repository forbids."
+      "pass_criteria": "The recorded answer identifies, from the live DOM: the variable table container, one row element, the name cell, the value cell, and the add-row control — and states what typing a value does to the buffer/DOM (committed on blur/Enter, or only on an explicit commit). Recorded as a new section of onshape_docs/experience/browser-automation.md with its measurement date before any browser-leg variable code is written.",
+      "if_it_fails": "n/a -- this is the deliberately un-implemented half of #18: writing selectors from memory is what the repository forbids.",
+      "executable_probe": [
+        "1. On a throwaway document, create the element: browser_create_tab {tab_type: 'Variable Studio', confirm_mutation: true} (T6).",
+        "2. Activate it (browser_activate_tab) and, through the UI, add ONE row whose NAME is the sentinel `mcpProbeAlpha` with value `3 mm`. The sentinel is what makes the probe findable without knowing any selector in advance.",
+        "3. Run browser_eval with the expression below. It walks the DOM for the sentinel text and returns its ancestor chain (tag/id/class/role/aria-label/data-*), the sibling cells next to it, and every input/button in the nearest table-ish container — i.e. the name cell, the value cell, the row element and the add-row control, all discovered rather than guessed.",
+        "4. Record the answer as a new section of onshape_docs/experience/browser-automation.md with the same measured-live discipline as section 8 (labels, row structure, measurement date), then delete the throwaway element (browser_delete_element).",
+        "5. ONLY THEN design the browser-leg read/write. Until this is recorded the browser leg must keep refusing; the REST leg (T9) already covers the capability."
+      ],
+      "probe_expression": "(() => {\n  const needle = \"mcpProbeAlpha\";\n  const describe = (el, level) => ({\n    level, tag: el.tagName, id: el.id || null,\n    classes: [...el.classList].slice(0, 8),\n    role: el.getAttribute(\"role\"), ariaLabel: el.getAttribute(\"aria-label\"),\n    data: Object.fromEntries([...el.attributes].filter(a => a.name.startsWith(\"data-\"))\n      .slice(0, 8).map(a => [a.name, String(a.value).slice(0, 60)])),\n    text: (el.textContent || \"\").trim().slice(0, 60)\n  });\n  const chain = (el) => { const out = []; let node = el, level = 0;\n    while (node && level < 4) { out.push(describe(node, level)); node = node.parentElement; level += 1; }\n    return out; };\n  const hits = [...document.querySelectorAll(\"*\")]\n    .filter(el => el.children.length === 0 && (el.textContent || \"\").includes(needle));\n  const containers = new Set();\n  hits.forEach(h => { const c = h.closest(\"table, [role=grid], [class*=variable], [class*=table]\");\n    containers.add(c || document.body); });\n  const controls = new Set();\n  containers.forEach(c => c.querySelectorAll(\"input, textarea, [contenteditable=true], button\")\n    .forEach(n => controls.add(n)));\n  return {\n    needle, hitCount: hits.length,\n    hits: hits.slice(0, 4).map(el => ({ chain: chain(el),\n      siblings: [...(el.parentElement?.children || [])].slice(0, 8).map(s => describe(s, 0)) })),\n    controls: [...controls].slice(0, 12).map(n => describe(n, 0)),\n    containerHtml: [...containers].slice(0, 1).map(c => (c.outerHTML || \"\").slice(0, 4000))\n  };\n})()"
     },
     {
       "id": "T8",
-      "issues": ["#12", "#14", "#17"],
+      "issues": [
+        "#12",
+        "#14",
+        "#17"
+      ],
       "tool": "browser_get_fs_compile_status",
       "arguments": {},
       "pass_criteria": "With a Feature Studio tab active while a second, no-longer-active `.ace_editor` node is still in the DOM, annotationCount/errors describe the VISIBLE buffer: a deliberate error in the visible source is reported, and a clean visible source does not inherit the stale node's annotations (state `editorCount`/`visibleEditors` from the same call). With no visible editor at all (a Part Studio tab active), the call answers found:false with the resolution reason instead of the other node's annotations. Deploy acceptance reads these same fields, so this check guards `compiled` itself.",
       "if_it_fails": "the visibility rule (isConnected + non-zero bounding rect) does not separate the two nodes in the real DOM; re-derive it from that measurement before trusting any compile verdict."
+    },
+    {
+      "id": "T9",
+      "issues": [
+        "#19"
+      ],
+      "tool": "onshape_get_variables + onshape_set_variables (REST leg; live-gated, 1 call each)",
+      "arguments": {
+        "read": {
+          "element_id": "<Variable Studio element id>",
+          "include_values": true
+        },
+        "write": {
+          "element_id": "<same>",
+          "variables": [
+            {
+              "name": "plateThickness",
+              "type": "LENGTH",
+              "expression": "3 mm"
+            },
+            {
+              "name": "holeCount",
+              "type": "NUMBER",
+              "expression": "4"
+            }
+          ],
+          "confirm_mutation": true,
+          "verify_readback": true
+        },
+        "dry_run_first": {
+          "variables": [
+            {
+              "name": "plateThickness",
+              "type": "LENGTH",
+              "expression": "3 mm"
+            }
+          ],
+          "element_id": "<same>",
+          "confirm_mutation": true,
+          "dry_run": true
+        }
+      },
+      "pass_criteria": "On a throwaway document, with LIVE_API_ENABLED=1 and the annual budget checked first: (a) dry_run returns the exact POST and spends nothing; (b) the first read of an empty studio answers tableCount 0 / variableCount 0 rather than an error; (c) the write returns requestCount 1 (2 with verify_readback) and verified: true with empty missing/mismatched; (d) a follow-up read shows both rows with the expressions sent, a formatted `value` for each, and type LENGTH/NUMBER as sent; (e) changing one expression and writing again is caught by the readback diff (mismatched) if the endpoint silently ignores the change; (f) the local ledger moves by exactly the planned number of calls. Record the status code, the raw response shape (it is documented only as a generic object) and the ledger delta here.",
+      "if_it_fails": "The spec-derived body or response shape is wrong. Capture the real request/response as a fixture under dev/tests/fixtures/onshape/variables/ with secrets redacted, then fix onshape_rest_api_mode/variables.py (validation or normalization) and the tool schema — do not loosen the refusal behavior to make the check pass."
     }
   ],
   "how_to_run": [
     "Wait for the Windows host to be reachable again (bridge control status answers, a resident browser holds the MCP profile).",
     "Run the checks from a development MCP instance against a throwaway document; never reconfigure the deployed server from here (Operator action).",
+    "T7 now carries an executable probe (tool, steps, exact browser_eval expression): run it BEFORE writing any browser-leg variable code, and record the answer as a new browser-automation.md section.",
+    "T9 is the REST-leg acceptance for the same capability; it needs LIVE_API_ENABLED=1 and spends 1-2 calls, so check the annual budget first and record the ledger delta.",
     "Record each result in this file (status -> verified/failed, with the tool output) and update the issue comments.",
     "Any check that fails becomes the next code change; a check that passes closes its issue's remaining live item."
   ]

@@ -43,6 +43,7 @@ from onshape_rest_api_mode.operations import (
     eval_featurescript,
     FEATURE_LIST_ACTIONS,
     feature_studio_status,
+    get_variables,
     instantiate_feature,
     list_document_elements,
     load_parameter_set,
@@ -50,9 +51,11 @@ from onshape_rest_api_mode.operations import (
     public_state,
     render_preview,
     run_validation_pipeline,
+    set_variables,
     update_feature_list,
     upload_feature_studio,
 )
+from onshape_rest_api_mode.variables import VARIABLE_TYPES
 
 def object_schema(
     properties: dict[str, Any] | None = None,
@@ -349,6 +352,37 @@ def _list_document_elements(arguments: dict[str, Any]) -> dict[str, Any]:
     if refresh:
         _require_live(1, "list_document_elements")
     return list_document_elements(refresh=refresh)
+
+
+def _get_variables(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Read a document variable table. Exactly ONE read-only GET."""
+    _require_live(1, "get_variables")
+    return get_variables(
+        element_id=arguments.get("element_id"),
+        version_id=arguments.get("version_id"),
+        include_values=bool(arguments.get("include_values", True)),
+    )
+
+
+def _set_variables(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Assign document variables. Exactly ONE POST (never retried).
+
+    The quota estimate is not hand-written: the live path first builds the same
+    request plan the dry run returns (zero network) and passes its length to the
+    annual-quota guard, so the declared cost includes the readback GET when it
+    was asked for.
+    """
+    _confirm(arguments)
+    call = {
+        "variables": arguments.get("variables"),
+        "element_id": arguments.get("element_id"),
+        "verify_readback": bool(arguments.get("verify_readback", False)),
+    }
+    if arguments.get("dry_run"):
+        return set_variables(dry_run=True, **call)
+    plan = set_variables(dry_run=True, **call)
+    _require_live(plan["estimatedRequests"], "set_variables")
+    return set_variables(**call)
 
 
 def _upload(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -2414,6 +2448,98 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
     },
     {
+        "name": "onshape_get_variables",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": False, "cacheable": True},
+        "description": (
+            "Read an element's document variable table(s) — the `#name = value` rows a Variable Studio "
+            "publishes to the document, which is how several features share one editable parameter — "
+            "with exactly ONE read-only GET. The target is addressed, never discovered: pass element_id, "
+            "or a single VARIABLESTUDIO element in the locally cached element table is used (a live "
+            "element walk is refused on purpose to protect quota; refresh that mirror explicitly with "
+            "onshape_list_document_elements refresh=true). Returns tableCount, variableCount and "
+            "tables[].variables[] carrying name, type (LENGTH|ANGLE|NUMBER|ANY|UNKNOWN), expression, "
+            "value and description; a studio with no rows yet answers tableCount: 0, which is a "
+            "successful read of 'no variables', not an error. Pass version_id to read a version instead "
+            "of the workspace, or include_values=false to skip formatted values. This is the REST leg: "
+            "the browser leg cannot read this table yet because its DOM has never been recorded. "
+            "Requires LIVE_API_ENABLED and spends 1 API call."
+        ),
+        "inputSchema": object_schema({
+            "element_id": {
+                "type": "string",
+                "description": "Variable Studio element id. Omit to use the single VARIABLESTUDIO element known locally.",
+            },
+            "version_id": {
+                "type": "string",
+                "description": "Read this version instead of the workspace (the API addresses it as /v/<version>/).",
+            },
+            "include_values": {
+                "type": "boolean",
+                "default": True,
+                "description": "Send includeValuesAndReferencedVariables=true so each row carries its formatted value. Still 1 call.",
+            },
+        }),
+        "annotations": {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "onshape_set_variables",
+        "cost": {"network": "live", "estimated_requests": 1, "max_requests": 2, "mutating": True, "cacheable": False},
+        "description": (
+            "Assign variables to a Variable Studio: one POST carrying an array of {name, type, expression, "
+            "description} rows, which is how a shared document parameter is created or changed. The POST is "
+            "sent AT MOST ONCE and is never retried — a timeout does not mean the assignment did not happen. "
+            "name must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and type must be one of LENGTH|ANGLE|NUMBER|ANY|UNKNOWN; "
+            "a malformed row is refused before any request instead of being dropped. The target is addressed, "
+            "not discovered (pass element_id, or rely on the single VARIABLESTUDIO element known locally). "
+            "The API documents this response only as a generic object, so a 2xx alone does NOT prove the rows "
+            "read back as written: pass verify_readback=true to buy one extra GET that returns verified plus "
+            "the exact missing/mismatched diff (off by default because write-then-read must be an explicit "
+            "purchase). Pass dry_run=true to get the exact request with zero network. Requires "
+            "LIVE_API_ENABLED, confirm_mutation=true, and 1 API call (2 with verify_readback)."
+        ),
+        "inputSchema": object_schema({
+            "variables": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Rows to assign: {name, type, expression?, description?}. name and type are required.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["name", "type"],
+                    "properties": {
+                        "name": {"type": "string", "description": "Variable name, ^[a-zA-Z_][a-zA-Z0-9_]*$."},
+                        "type": {
+                            "type": "string",
+                            "enum": list(VARIABLE_TYPES),
+                            "description": "VariableType name (FeatureScript).",
+                        },
+                        "expression": {"type": "string", "description": "Definition/value expression, e.g. '25 mm' or '#other * 2'."},
+                        "description": {"type": "string", "description": "Human-readable description of the variable."},
+                    },
+                },
+            },
+            "element_id": {
+                "type": "string",
+                "description": "Variable Studio element id. Omit to use the single VARIABLESTUDIO element known locally.",
+            },
+            "verify_readback": {
+                "type": "boolean",
+                "default": False,
+                "description": "Spend one extra GET and diff the table against the assigned rows (verified/missing/mismatched).",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "Return the exact request(s) without sending anything.",
+            },
+            "confirm_mutation": {
+                "type": "boolean",
+                "description": "Must be true: this tool writes to the cloud document.",
+            },
+        }),
+        "annotations": {"readOnlyHint": False, "idempotentHint": False, "openWorldHint": True},
+    },
+    {
         "name": "onshape_get_feature_studio_status",
         "cost": {"network": "live", "estimated_requests": 2, "max_requests": 2, "mutating": False, "cacheable": False},
         "description": (
@@ -3643,6 +3769,8 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_get_parameter_set": _parameter_set,
     "onshape_build_parameter_payload": _parameter_payload,
     "onshape_list_document_elements": _list_document_elements,
+    "onshape_get_variables": _get_variables,
+    "onshape_set_variables": _set_variables,
     "onshape_get_feature_studio_status": lambda _: (
         _require_live(2, "get_feature_studio_status") or
         feature_studio_status()

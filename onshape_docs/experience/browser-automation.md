@@ -577,7 +577,10 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   **本元素上一次成功再生成**，不证明某个 Feature Studio 提交编译通过；`maybeStale`
   只谈错误标志，`false` 不等于"新鲜"。
 - `browser_create_tab` 现在也接受 `Variable Studio`（§8 的录制标签）；只做"建元素"，
-  变量行的读写尚未实现。
+  **变量行的读写仍未实现**——变量表的 DOM 从未真机录制过，本仓库不凭记忆写选择器
+  （T7，见 `onshape_docs/verification/pending-live-verification-2026-10-01.json`）。
+  这条能力暂由 REST 腿提供（`onshape_get_variables` / `onshape_set_variables`，各 1 次
+  API 调用，写入带确认与可选读回校验；尚未真机验证）。
 
 关键 JS（`actions.py`）：
 - 读全文：`ed.getValue()`

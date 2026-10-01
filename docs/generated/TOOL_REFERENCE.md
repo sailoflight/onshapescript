@@ -6,10 +6,10 @@
 
 ## Summary
 
-- Registered tools: **111**
+- Registered tools: **113**
 - Server: `onshape-mcp` `1.3.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=70, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=18, `rest_reference`=6
+- Capability counts: `browser`=70, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=20, `rest_reference`=6
 - Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
 
 ## Safety interpretation
@@ -144,10 +144,12 @@
 | `onshape_get_feature_studio_status` | `rest_operations` | - | - | network=live; api_max=2; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration_target_state | Read the configured Feature Studio metadata and compiled feature specifications. This uses authenticated read-only Onshape requests and does not upload source. |
 | `onshape_get_parameter_set` | `rest_operations` | - | `name` | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/none | Read one maintained local parameter set for the Branch Cable Trophy FeatureScript. This does not read credentials or contact Onshape. |
 | `onshape_get_project_state` | `rest_operations` | - | - | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration_target_state | Read the project's non-secret Onshape document/workspace/element configuration and report whether a credentials file is configured. This is a local operation: it does not read o... |
+| `onshape_get_variables` | `rest_operations` | - | - | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/explicit_target | Read an element's document variable table(s) — the `#name = value` rows a Variable Studio publishes to the document, which is how several features share one editable parameter —... |
 | `onshape_instantiate_feature` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target | Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit parameter set and optional known-parameter overrides. Repeated calls add additiona... |
 | `onshape_list_document_elements` | `rest_operations` | - | - | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration_target_state | List elements in the configured Onshape workspace (names, element types, IDs, microversions). Pass refresh=true to make one authenticated read-only GET /elements and repopulate... |
 | `onshape_render_preview` | `rest_operations` | - | `view` | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/explicit_target | Request one shaded PNG rendering of the existing configured Part Studio from Onshape. By default it returns the image as MCP image content without writing a file; set save=true... |
 | `onshape_run_validation_pipeline` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state | Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a... |
+| `onshape_set_variables` | `rest_operations` | - | - | network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target | Assign variables to a Variable Studio: one POST carrying an array of {name, type, expression, description} rows, which is how a shared document parameter is created or changed.... |
 | `onshape_update_feature_list` | `rest_operations` | - | `confirm_mutation`, `action` | network=live; api_max=1; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target | Change the Part Studio Feature List through the REST Feature API: suppress or unsuppress existing features, move the rollback bar, delete one feature, or replace one feature def... |
 | `onshape_upload_feature_studio` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=3; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration | Upload branchCableTrophyDisplay.fs to the configured Feature Studio and require the compiled branchCableTrophyDisplay specification. This overwrites cloud Feature Studio content... |
 

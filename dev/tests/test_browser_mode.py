@@ -2166,11 +2166,13 @@ class BrowserMetadataTest(unittest.TestCase):
         # 110 since browser_delete_feature was added on 2026-09-21 (the feature-row
         # delete no other tool performed, needed to undo a row a refused or
         # timed-out insert left behind); 111 since mcp_tool_invoke was added the
-        # same day, after a real client refused a hidden name with "unknown tool".
+        # same day, after a real client refused a hidden name with "unknown tool";
+        # 113 since onshape_get_variables/onshape_set_variables brought the document
+        # variable table to the REST leg on 2026-10-01 (issue #19).
 
         # This number is a tripwire: it must only move when a tool is deliberately
         # added or removed.
-        self.assertEqual(len(server.TOOLS), 111)
+        self.assertEqual(len(server.TOOLS), 113)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,15 @@ client refused a registered-but-unadvertised name with `unknown tool`, so "hidde
 known-name calls remain" held for the server and not for that client. Neither
 addition changed an earlier verdict.
 
+**Status 2026-10-01.** The registry is now 113 tools. `onshape_get_variables`
+(112) and `onshape_set_variables` (113) read and write the document variable
+table over the REST leg, which is what issue #19 asked for; the browser leg still
+cannot, because that table's DOM has never been recorded live (T7) and this
+repository does not write selectors from memory. Both are `Keep`: the capability
+is a bounded, id-addressed pair with a declared 1-call cost, and the write is
+gated like every other mutating tool. Neither entry is in the gateway list, so
+the default `tools/list` surface is unchanged.
+
 ## How to read a verdict
 
 | Verdict | Meaning |
@@ -68,12 +77,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 64 |
+| `Keep` | 66 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **111** |
+| **total** | **113** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -182,10 +191,12 @@ skips the hidden tools cannot decide whether they should still exist.
 | `onshape_get_feature_studio_status` | `Keep` | - | Feature Studio metadata and compiled spec list; the check that a deploy actually produced the expected spec. |
 | `onshape_get_parameter_set` | `Keep` | - | Reads a maintained parameter set so a human can review the exact inputs before an instantiate call. |
 | `onshape_get_project_state` | `Keep` | - | Cached document/workspace/element ids at zero cost; the policy's substitute for implicit document walking. |
+| `onshape_get_variables` | `Keep` | - | Reads the document variable table (issue #19) in one id-addressed GET, which is the only leg that can do it today; the shared-parameter mechanism a caller otherwise cannot reach at all. |
 | `onshape_instantiate_feature` | `Capability` | - | Hard-wired to one feature type and one maintained parameter set; its real value is "place this designed feature", which is a capability card, not an operation name. |
 | `onshape_list_document_elements` | `Keep` | - | Element table read, cached by default; the zero-cost path that keeps id discovery out of the request budget. |
 | `onshape_render_preview` | `Keep` | - | One shaded view as evidence a feature produced geometry rather than merely listing in the tree. |
 | `onshape_run_validation_pipeline` | `Capability` | - | An 8-13 call end-to-end job (upload, create studio, instantiate, verify, render). A model should invoke the capability, not orchestrate seven tools in the right order. |
+| `onshape_set_variables` | `Keep` | - | The write half of issue #19: one confirmation-gated POST for the document variable rows, with an optional readback GET because the spec does not type that response. |
 | `onshape_update_feature_list` | `Keep` | - | Generic Feature-List editor (suppress, unsuppress, delete, rollback, replace) with one request per call; the undo path for a bad deploy. |
 | `onshape_upload_feature_studio` | `Keep` | - | The deploy primitive: local check first, then GET/POST/GET with the microversion pinning that avoids silently instantiating an old definition. |
 
