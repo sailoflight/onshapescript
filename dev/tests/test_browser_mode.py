@@ -1110,6 +1110,45 @@ class FeaturescriptPatchTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["conflictingEdits"], [0, 1])
 
+    def test_an_ambiguous_insertion_point_refuses_instead_of_following_edit_order(self) -> None:
+        """Issue #15 review: an insertion and a replacement at one point.
+
+        Reproduced before the fix: this edit set produced ``a/B2/b`` when the
+        insertion was listed first (the replacement swallowed the inserted line)
+        and ``a/X/B2`` when it was listed second. The same request must not have
+        two answers that depend only on list order.
+        """
+        for edits in (
+            [{"anchor": "TARGET", "placement": "before", "lines": ["X"]},
+             {"anchor": "TARGET", "lines": ["B2"]}],
+            [{"anchor": "TARGET", "lines": ["B2"]},
+             {"anchor": "TARGET", "placement": "before", "lines": ["X"]}],
+        ):
+            with self.subTest(edits=edits):
+                result = actions.apply_featurescript_patch("a\nTARGET\nb", {"edits": edits})
+                self.assertFalse(result["ok"])
+                self.assertEqual(sorted(result["conflictingEdits"]), [0, 1])
+                self.assertIn("same point", result["reason"])
+
+    def test_two_insertions_at_one_point_refuse_instead_of_reordering(self) -> None:
+        """Reproduced before the fix: the two blocks came out in reverse order."""
+        result = self._apply({"edits": [
+            {"anchor": "line5", "placement": "before", "lines": ["first"]},
+            {"anchor": "line5", "placement": "before", "lines": ["second"]},
+        ]})
+        self.assertFalse(result["ok"])
+        self.assertEqual(sorted(result["conflictingEdits"]), [0, 1])
+        self.assertEqual(result["insertionLine"], 5)
+
+    def test_an_insertion_at_the_end_of_a_replaced_range_still_applies(self) -> None:
+        """The refusal above must not swallow the unambiguous adjacent case."""
+        result = self._apply({"edits": [
+            {"start": 3, "end": 4, "lines": ["new"]},
+            {"anchor": "line5", "placement": "before", "lines": ["ins"]},
+        ]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"].splitlines()[2:5], ["new", "ins", "line5"])
+
     def test_an_earlier_insert_cannot_shift_a_later_edit(self) -> None:
         """The accident issue #16 documents: resolve against the ORIGINAL source."""
         result = self._apply({"edits": [
@@ -1129,9 +1168,20 @@ class FeaturescriptPatchTest(unittest.TestCase):
         self.assertEqual(result["lineCount"], 10)
 
     def test_a_boolean_is_not_accepted_as_a_line_number(self) -> None:
-        result = self._apply({"edits": [{"start": True, "lines": ["x"]}]})
+        # `True` is an int in Python; both ends of the range must reject it.
+        for edit in ({"start": True, "lines": ["x"]},
+                     {"start": 1, "end": True, "lines": ["x"]}):
+            with self.subTest(edit=edit):
+                result = self._apply({"edits": [edit]})
+                self.assertFalse(result["ok"])
+                self.assertIn("integer", result["reason"])
+
+    def test_an_edit_may_not_carry_both_lines_and_text(self) -> None:
+        result = self._apply({"edits": [{"start": 1, "lines": ["from-lines"],
+                                        "text": "from-text"}]})
         self.assertFalse(result["ok"])
-        self.assertIn("integer", result["reason"])
+        self.assertEqual(result["editIndex"], 0)
+        self.assertIn("exactly one", result["reason"])
 
     def test_the_hashes_bracket_the_result(self) -> None:
         result = self._apply({"edits": [{"start": 1, "end": 1, "lines": ["head"]}]})
@@ -1214,6 +1264,36 @@ class FeaturescriptEditorResolutionTest(unittest.TestCase):
                 self.assertIn("querySelectorAll('.ace_editor')", js)
                 self.assertIn("getBoundingClientRect", js)
                 self.assertIn("isConnected", js)
+
+    def test_the_annotation_reader_also_targets_the_visible_editor(self) -> None:
+        """Review of #17: the compile verdict had the same first-node hazard.
+
+        Reproduced before the fix: this reader still ran
+        ``document.querySelector('.ace_editor')``, so on a page carrying a
+        leftover editor from another tab `annotationCount`/`errors` — and with
+        them `compiled` — described that buffer instead of the visible one.
+        """
+        page = FakePage(evaluate_result={"found": True, "annotationCount": 0, "errors": []})
+        actions._read_featurescript_ace_annotations(page)
+        js = page.evaluate_calls[0][0]
+        self.assertIn("querySelectorAll('.ace_editor')", js)
+        self.assertIn("isConnected", js)
+        self.assertNotIn("document.querySelector('.ace_editor')", js)
+
+    def test_compile_status_propagates_an_ambiguous_editor_refusal(self) -> None:
+        page = FakePage(evaluate_result={
+            "found": False,
+            "annotationCount": 0,
+            "errors": [],
+            "editorCount": 2,
+            "visibleEditors": 2,
+            "reason": "several visible .ace_editor nodes; the active element is ambiguous",
+        })
+        status = actions.read_featurescript_compile_status(page)
+        self.assertFalse(status["found"])
+        self.assertFalse(status["compiled"])
+        self.assertIn("ambiguous", status["reason"])
+        self.assertEqual(status["errors"], [])
 
 
 class BrowserInsertCustomFeatureTest(unittest.TestCase):

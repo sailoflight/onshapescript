@@ -267,7 +267,10 @@ transaction accepts a bounded `patch` instead of a full `script`
 (`{"edits":[{"start":601,"end":617,"lines":[…]} ,{"anchor":"…","placement":"after","lines":[…]}]}`),
 resolved against the LIVE buffer and applied high-to-low so an earlier insertion
 cannot shift a later edit; an anchor that does not match exactly one line, two
-edits touching one line, or a range outside the source refuse with candidate
+edits touching one line, two edits inserting at one point (an insertion is
+addressed by a point, so a shared point would make the result depend on the
+order the edits happened to be listed in), an edit carrying both `lines` and
+`text`, or a range outside the source refuse with candidate
 lines as evidence, and a `patch` requires `expect_pre_sha256` (from
 `browser_read_featurescript`). `element_id` refuses a write aimed at another
 element, and `verbosity: "terse"` bounds the answer (errors capped at three

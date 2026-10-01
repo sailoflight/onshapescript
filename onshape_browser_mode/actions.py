@@ -20,7 +20,6 @@ from typing import Any
 
 from onshape_browser_mode import diagnostics, interaction
 from onshape_browser_mode.selectors import (
-    ACE_EDITOR,
     CONTEXT_MENU_LAYER,
     CUSTOM_FEATURE_MENU_ITEM,
     CUSTOM_FEATURE_MENU_LABEL,
@@ -46,15 +45,6 @@ from onshape_browser_mode.selectors import (
     PS_WORKSPACE_CUSTOM_FEATURE_BTN,
     TIMEOUT_RECONNECT_LINK,
 )
-
-_ACE_GET_EDITOR_JS = """
-() => {
-  const el = document.querySelector('%s');
-  if (!el) return null;
-  const ed = (el.env && el.env.editor) || (window.ace && window.ace.edit(el));
-  return ed || null;
-}
-""" % ACE_EDITOR
 
 #: Bounded waits for the Part Studio custom-feature apply path. Each is at least
 #: as long as the fixed sleep it replaced, so a slow workbench cannot regress,
@@ -480,12 +470,20 @@ def read_featurescript_editor(page: Any) -> str | None:
 
 
 def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
-    """Read and normalize the active Ace session's annotations."""
+    """Read and normalize the ACTIVE Ace session's annotations.
+
+    Same hazard as issue #17: ``document.querySelector('.ace_editor')`` returns the
+    FIRST node in DOM order, and a document page can carry a leftover editor from a
+    tab that is no longer active. Annotations read from that node describe a
+    different buffer, so the compile verdict built from them would be
+    self-consistent and wrong. Resolve the one VISIBLE editor instead, and refuse
+    when there is none, or several, rather than answer with another node's state.
+    """
     return page.evaluate(
         """
         () => {
-          const el = document.querySelector('%s');
-          if (!el) {
+        %s
+          if (nodes.length === 0) {
             return {
               found: false,
               annotationCount: 0,
@@ -493,12 +491,35 @@ def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
               reason: 'FeatureScript editor not found',
             };
           }
+          if (visible.length === 0) {
+            return {
+              found: false,
+              annotationCount: 0,
+              errors: [],
+              editorCount: nodes.length,
+              visibleEditors: 0,
+              reason: 'no VISIBLE .ace_editor on page',
+            };
+          }
+          if (visible.length > 1) {
+            return {
+              found: false,
+              annotationCount: 0,
+              errors: [],
+              editorCount: nodes.length,
+              visibleEditors: visible.length,
+              reason: 'several visible .ace_editor nodes; the active element is ambiguous',
+            };
+          }
+          const el = visible[0];
           const ed = (el.env && el.env.editor) || (window.ace && window.ace.edit(el));
           if (!ed || !ed.session || typeof ed.session.getAnnotations !== 'function') {
             return {
               found: false,
               annotationCount: 0,
               errors: [],
+              editorCount: nodes.length,
+              visibleEditors: 1,
               reason: 'Ace annotation API unavailable',
             };
           }
@@ -506,6 +527,8 @@ def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
           return {
             found: true,
             annotationCount: annotations.length,
+            editorCount: nodes.length,
+            visibleEditors: 1,
             errors: annotations.map((item) => ({
               row: Number.isInteger(item.row) ? item.row : 0,
               col: Number.isInteger(item.column)
@@ -517,7 +540,7 @@ def _read_featurescript_ace_annotations(page: Any) -> dict[str, Any]:
             })),
           };
         }
-        """ % ACE_EDITOR
+        """ % _EDITOR_RESOLUTION_JS
     )
 
 
@@ -1098,6 +1121,9 @@ def apply_featurescript_patch(source: str, patch: Any) -> dict[str, Any]:
     * an anchor must match EXACTLY one line (``matches``/``candidateLines`` say
       what it hit);
     * two edits may not touch the same line;
+    * an insertion point (a ``before``/``after`` anchor, which touches no line)
+      may not be shared with another edit either, because the outcome would then
+      depend on the order the edits were listed in;
     * a line range must be inside the source.
 
     Returns ``{ok, source, preSha256, postSha256, lineCount, applied}`` on
@@ -1124,6 +1150,12 @@ def apply_featurescript_patch(source: str, patch: Any) -> dict[str, Any]:
     for index, edit in enumerate(edits):
         if not isinstance(edit, dict):
             return {"ok": False, "reason": f"edit {index} is not an object", "editIndex": index}
+        if "lines" in edit and "text" in edit:
+            return {
+                "ok": False,
+                "reason": f"edit {index} provides both `lines` and `text`; give exactly one",
+                "editIndex": index,
+            }
         replacement = _patch_lines(edit)
         if replacement is None:
             return {
@@ -1193,7 +1225,12 @@ def apply_featurescript_patch(source: str, patch: Any) -> dict[str, Any]:
             continue
         start = edit.get("start")
         end = edit.get("end", start)
-        if not isinstance(start, int) or not isinstance(end, int) or isinstance(start, bool):
+        if (
+            not isinstance(start, int)
+            or not isinstance(end, int)
+            or isinstance(start, bool)
+            or isinstance(end, bool)
+        ):
             return {
                 "ok": False,
                 "reason": f"edit {index} needs integer `start` (and optional `end`) 1-based lines",
@@ -1221,15 +1258,37 @@ def apply_featurescript_patch(source: str, patch: Any) -> dict[str, Any]:
     # Overlap check on the resolved half-open ranges.
     ordered = sorted(resolved, key=lambda item: (item["start"], item["end"]))
     for previous, current in zip(ordered, ordered[1:]):
-        if current["start"] < previous["end"]:
+        overlaps = current["start"] < previous["end"]
+        # A zero-width range inserts AT a point. Sharing that point with another
+        # edit -- a second insertion, or a replacement that begins there -- makes
+        # the buffer depend on the order the edits were listed in: applied one
+        # way the replacement swallows the inserted lines, applied the other the
+        # insertion survives. That is exactly the guess this function refuses.
+        shared_point = (
+            current["start"] == previous["start"]
+            and (current["start"] == current["end"] or previous["start"] == previous["end"])
+        )
+        if not (overlaps or shared_point):
+            continue
+        if shared_point and not overlaps:
             return {
                 "ok": False,
                 "reason": (
-                    "two edits touch the same line: "
-                    f"edits {previous['editIndex']} and {current['editIndex']}"
+                    "two edits insert at the same point, so which one lands first would "
+                    "depend on the order they were listed in; address them by distinct "
+                    f"anchors: edits {previous['editIndex']} and {current['editIndex']}"
                 ),
                 "conflictingEdits": [previous["editIndex"], current["editIndex"]],
+                "insertionLine": previous["start"] + 1,
             }
+        return {
+            "ok": False,
+            "reason": (
+                "two edits touch the same line: "
+                f"edits {previous['editIndex']} and {current['editIndex']}"
+            ),
+            "conflictingEdits": [previous["editIndex"], current["editIndex"]],
+        }
     # Apply high-to-low so an earlier insertion cannot shift a later edit.
     patched = list(lines)
     for item in sorted(resolved, key=lambda entry: entry["start"], reverse=True):
