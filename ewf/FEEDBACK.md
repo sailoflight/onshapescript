@@ -45,7 +45,7 @@
 | `FB-02` | `已登记`（`OQ-016`） | instance-local 待定项确实只能借 `^OQ-\d{3}$`；**顺带更正**：`note.text` 自述「4 条」而行里是 3 条。 |
 | `FB-03` | `已登记`（`OQ-011`） | 23 个 instance 属性里确无 `provenance` / `source` / `origin`，与 `OQ-011` 同一问题。 |
 | `FB-04` | `已登记`（**新 OQ-031**） | `artifact.identity` 是单 string（本机逐字复核：payload 只有 3 个键）；`OQ-023` 管「多处声明谁权威」，**接错地盘**。 |
-| `FB-05` | `已登记`（`OQ-020`） | `release` 5 键无 `supersedes`、`baseline` 有，属实；已在 `OQ-020` 的 affects 里补上 release 相关资产。 |
+| `FB-05` | `已登记`（`OQ-020`） | `release` 5 键无 `supersedes`、`baseline` 有，属实；并已在 `OQ-020` 的**证据**里补上这条实测（release 5 键无 `supersedes`、3 次重发）；affects 已覆盖 `schema/ewf-instance.schema.json`。 |
 | `FB-06` | `已登记`（**新 OQ-032**） | 「6 个 revision / 2 个 zip」属实；但「可得性没有落点」**被反例推翻**（`existence` 能表达），真正缺的是留存政策。 |
 | `FB-07` | `已登记`（`OQ-012`） | `externalRef.system` 无发布渠道取值属实；`OQ-012` 的 summary 与候选**已逐字覆盖**，不另建 OQ。 |
 | `FB-08` | `已登记`（**新 OQ-033**） | artifact 3 键、9 个 kind 无许可类、`regulatory-formality` 只是驱动因素名——逐条复核成立。 |
