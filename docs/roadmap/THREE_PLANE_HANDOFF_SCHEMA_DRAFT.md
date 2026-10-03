@@ -610,11 +610,14 @@ copy drifts".
 
 ## 7. What each plane still owes (as of v0.4)
 
-- **Onshape (this plane)**: import capability (the structural gap, now planned at
-  `onshape_rest_api_mode/step_import.py` and blocked on a multipart transport — see the interop
-  page §9), plus the three recording changes this draft implies — a `geometry` block in the browser
-  STEP manifest, the tessellation declaration with `absolute`/`declared`/`used`/`matches_declaration`,
-  and no byte-identity claim for STEP (`sha256_stable: false` plus the geometry identity rule).
+- **Onshape (this plane)**: import capability (the structural gap, delivered as
+  `onshape_browser_mode/step_import.py` — plan/dry-run offline, one live attempt gated on a human), plus
+  three recording changes. **Done**: the browser STEP manifest now carries a `declaration` block in this
+  vocabulary (`onshapescript.handoff/0.4-draft`) that states its own blindness — `kernel`/`measure`/`at`/
+  `parts` all null with `readsNothing` in words, a `heuristic` text `solidCount` with its method and
+  undercount risk, `tessellation.kind: not_produced_here`, and `sha256_stable: false` with the header
+  timestamp as the reason. **Owed**: the tessellation declaration with
+  `absolute`/`declared`/`used`/`matches_declaration` on the plane that actually tessellates.
 - **CadQ**: answered in message 123 — `step_intake` becoming an MCP tool is its lead's public-contract
   decision (registered as open item 11, not answered by the agent), the read side is settled at
   `cad_agent/core/step_intake.py:parts_of_step()` (`index / label / valid / solid / volume / area /

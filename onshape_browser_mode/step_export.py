@@ -11,6 +11,92 @@ from fdm_analysis.contracts import file_sha256
 from onshape_browser_mode import selectors
 from onshape_browser_mode.fdm_adapter import step_artifact_from_browser_export
 
+#: The cross-plane handoff declaration this leg publishes. Additive to the manifest: the existing keys keep
+#: their meaning, and the declaration carries its own schema id.
+HANDOFF_SCHEMA = "onshapescript.handoff/0.4-draft"
+
+#: This leg addresses a delivery by its bytes plus its declared unit. It is deliberately NOT the mesh-set
+#: signature rule: the browser leg has no CAD kernel, so it observes nothing about the geometry.
+STEP_IDENTITY_RULE_VERSION = "onshapescript.step-artifact-identity/1"
+
+#: Solid entity names this leg counts. A count is a text observation, graded `heuristic` and never
+#: `reliable`, because a solid may also be carried by a representation this scan does not name.
+STEP_SOLID_ENTITY_NAMES = ("MANIFOLD_SOLID_BREP(", "BREP_WITH_VOIDS(")
+
+
+def _solid_count(path: Path) -> dict[str, Any]:
+    """Count solid entity names in a STEP file's data section, and say what that count is not."""
+    counts = {name: 0 for name in STEP_SOLID_ENTITY_NAMES}
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                for name in STEP_SOLID_ENTITY_NAMES:
+                    if name in line:
+                        counts[name] += line.count(name)
+    except OSError as exc:
+        return {
+            "value": None,
+            "grade": "unknown",
+            "declared_by": "onshapescript",
+            "reason": f"the recorded artifact could not be re-read ({exc.__class__.__name__})",
+        }
+    return {
+        "value": sum(counts.values()),
+        "grade": "heuristic",
+        "declared_by": "onshapescript",
+        "method": "count of " + " and ".join(f"`{name}`" for name in STEP_SOLID_ENTITY_NAMES)
+                  + " entity names in the STEP data section",
+        "perName": counts,
+        "undercountRisk": "a solid may also be carried by a shape representation this scan does not name, "
+                          "so this is an observation of the text, not a measurement of the geometry",
+    }
+
+
+def handoff_declaration(payload: dict[str, Any], artifact_path: Path) -> dict[str, Any]:
+    """What this leg can honestly declare about a STEP delivery — including what it cannot see.
+
+    Written out rather than omitted, because an absent field reads as "fine" while a declared gap reads as
+    a gap (the absent-field rule). There is no CAD kernel in this leg, so there are no volume/area/bounds
+    readings here at all, and the block says so in as many words instead of leaving the consumer to guess
+    whether they were forgotten.
+    """
+    return {
+        "schema": HANDOFF_SCHEMA,
+        "producedBy": "onshapescript/browser-step-export",
+        "units": payload.get("units"),
+        "identity": {
+            "sha256": payload.get("sha256"),
+            "sha256_stable": False,
+            "sha256_stable_evidence": {
+                "reason": "an ISO-10303-21 header timestamp lands in the file, so two exports of identical "
+                          "geometry differ byte for byte",
+                "consequence": "the digest addresses THIS delivery, not the geometry behind it",
+            },
+            "identity_rule": {
+                "version": STEP_IDENTITY_RULE_VERSION,
+                "addresses": "the delivered bytes plus the declared unit",
+                "identityProof": False,
+                "note": "no kernel runs in the browser leg: this rule identifies a delivery and makes no "
+                        "claim about the geometry inside it",
+            },
+        },
+        "geometry": {
+            "kind": "step_text",
+            "kernel": None,
+            "measure": None,
+            "at": None,
+            "parts": None,
+            "readsNothing": "no CAD kernel runs in the browser leg, so this block publishes no volume, "
+                            "area or bounds reading; the consumer (or a measuring plane) produces those",
+            "solidCount": _solid_count(artifact_path),
+            "tessellation": {
+                "kind": "not_produced_here",
+                "reason": "the browser leg cannot tessellate; a tessellation declaration belongs to the "
+                          "plane that actually produces one",
+            },
+        },
+    }
+
 
 OUTPUT_ROOT = Path(__file__).resolve().parent / "outputs" / "step_exports"
 _ID = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -333,6 +419,7 @@ def register_downloaded_browser_step(
         "schemaVersion": 1,
         "artifactType": "canonical-step",
         "exportId": eid,
+        "declaration": handoff_declaration(payload, staging / file_name),
         "artifact": {
             **payload,
             "path": file_name,

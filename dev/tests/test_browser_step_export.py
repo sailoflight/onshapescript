@@ -386,6 +386,60 @@ class BrowserStepExportTest(unittest.TestCase):
             self.assertFalse((Path(tmp) / "export1").exists())
         self.assertEqual(page.locators[selectors.TAB_BAR_TAB].clicks, [])
 
+    def test_the_staged_manifest_declares_what_this_leg_cannot_see(self):
+        """The export leg now publishes the handoff declaration — including its own blindness.
+
+        The browser leg has no CAD kernel, so the honest manifest carries no volume/area/bounds reading at
+        all. Written out rather than omitted: an absent field reads as "fine", while a declared gap reads
+        as a gap (the absent-field rule this negotiation paid for four times).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staging = root / "export1"
+            staging.mkdir()
+            (staging / "model.step").write_text(
+                "ISO-10303-21;\n"
+                "#1=MANIFOLD_SOLID_BREP('solid',#2);\n"
+                "#3=BREP_WITH_VOIDS('voided',#4,#5);\n"
+                "END-ISO-10303-21;\n",
+                encoding="ascii",
+            )
+            register_downloaded_browser_step(
+                export_id="export1",
+                file_name="model.step",
+                page_url="https://cad.onshape.com/documents/doc1/w/workspace1/e/element1",
+                document_id="doc1",
+                workspace_id="workspace1",
+                element_id="element1",
+                output_root=root,
+            )
+            manifest = json.loads((staging / "step-manifest.json").read_text(encoding="utf-8"))
+
+        declaration = manifest["declaration"]
+        self.assertEqual(declaration["schema"], "onshapescript.handoff/0.4-draft")
+        self.assertEqual(declaration["units"], "mm")
+
+        identity = declaration["identity"]
+        self.assertEqual(identity["sha256"], manifest["artifact"]["sha256"])
+        self.assertIs(identity["sha256_stable"], False)
+        self.assertIn("header timestamp", identity["sha256_stable_evidence"]["reason"])
+        self.assertIs(identity["identity_rule"]["identityProof"], False)
+        self.assertEqual(identity["identity_rule"]["version"], "onshapescript.step-artifact-identity/1")
+
+        geometry = declaration["geometry"]
+        self.assertIsNone(geometry["kernel"])
+        self.assertIsNone(geometry["parts"])
+        self.assertIn("no volume", geometry["readsNothing"])
+        self.assertEqual(geometry["tessellation"]["kind"], "not_produced_here")
+        self.assertEqual(geometry["solidCount"]["value"], 2)
+        self.assertEqual(geometry["solidCount"]["grade"], "heuristic")
+        self.assertIn("not a measurement", geometry["solidCount"]["undercountRisk"])
+
+        # The manifest must not claim a reading this leg cannot produce.
+        flat = json.dumps(manifest)
+        for absent in ("volume_mm3", "bounds_mm", "area_mm2", "brepVolumeMm3"):
+            self.assertNotIn(absent, flat, absent)
+
     def test_registration_rejects_secret_bearing_page_url(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

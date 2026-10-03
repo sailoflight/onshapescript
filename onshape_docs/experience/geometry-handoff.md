@@ -5,6 +5,31 @@ Reusable, verified lessons from the three-plane handoff work (onshapescript / Ca
 first. The contract that came out of it is `docs/roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md`; the
 per-incident evidence is in `onshape_docs/verification/interop-*.md`.
 
+## What the browser export leg declares, and what it refuses to claim
+
+A staged browser STEP export (`output/<exportId>/step-manifest.json`) now carries a `declaration` block in
+the cross-plane handoff's vocabulary (`onshapescript.handoff/0.4-draft`). It is additive: `schemaVersion`,
+`artifactType`, `exportId` and `artifact` keep their meaning.
+
+| Key | What it says |
+|---|---|
+| `declaration.identity.sha256` | the digest of the delivered bytes |
+| `declaration.identity.sha256_stable: false` | with the reason: an ISO-10303-21 header timestamp lands in the file, so two exports of identical geometry differ byte for byte. The digest addresses **this delivery**, not the geometry |
+| `declaration.identity.identity_rule` | version `onshapescript.step-artifact-identity/1`, `identityProof: false`, and the note that no kernel runs in this leg |
+| `declaration.geometry.kernel` / `.measure` / `.at` / `.parts` | all `null` — this leg has no CAD kernel |
+| `declaration.geometry.readsNothing` | in words: the block publishes no volume, area or bounds reading; the consumer or a measuring plane produces those |
+| `declaration.geometry.solidCount` | a **text** count of `MANIFOLD_SOLID_BREP(`/`BREP_WITH_VOIDS(` entity names, graded `heuristic` (never `reliable`) with its method and its undercount risk named |
+| `declaration.geometry.tessellation` | `not_produced_here`, with the reason: a tessellation declaration belongs to the plane that produces one |
+
+Two lessons are baked in, both paid for in this negotiation. **A rule that only fires when a field is
+present is not a gate**, so this block is written out rather than omitted: an absent field reads as "fine"
+while a declared gap reads as a gap. And **a digest without its rule cannot be compared**, so the rule
+version travels beside the number instead of being assumed.
+
+The import leg's counterpart record (`import-manifest.json`) measures the local source with `path` **and**
+`sha256`, plus `sha256Stable: false` and the same note — so a landing can be traced to the exact bytes it
+came from, and nobody can mistake the digest for content identity.
+
 ## 1. "The bounding box" is not one measurement — and one library call changes which one you get
 
 Four readers, one piece, four answers (max gap **3.19e-2 mm**, on 70/70 pieces):
