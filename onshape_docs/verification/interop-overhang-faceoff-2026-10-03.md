@@ -93,6 +93,32 @@ are **withdrawn**.
    threshold → 0 reproduces it to 2.0e-8, so it is one policy read at two thresholds, not two numbers
    that can disagree.
 
+## Rule 16 reproduced on a second plane — BEFORE it was landed there (2026-10-03)
+
+The rule "a winding verdict on a broken edge graph is vacuous" was checked against a second implementation
+at the reviewer's own suggestion, and the reviewer asked for one thing explicitly: **do not write this up as
+"a second plane has landed the fix"**, because it has not. Its raw output on this repository's degenerate
+probe, from a real run with `--checks normals` (exit 0), is:
+
+```json
+"normals": {"grade": "reliable", "inconsistent_edge_pairs": 0,
+            "faces_with_zero_normal": 0, "consistent": true}
+```
+
+with, by the reviewer's own enumeration, the key set `['consistent', 'faces_with_zero_normal', 'grade',
+'inconsistent_edge_pairs']` — **no `applicable`, no `reason`, not even a `note`**. So a consumer that ran only
+`normals` on a mesh whose edge graph is open reads `reliable` + `consistent: true` with **nothing in the
+record saying the verdict is empty**. That is rule 16's failure mode reproduced on a second plane, and the
+same plane also self-reported that its own `applicable: false` block carries a general note but no
+per-reading reason, which is why "a skipped check names its reason" is recorded as a debt shared by all three
+planes rather than an achievement of this one.
+
+What this page therefore claims: **reproduction, before landing.** The paired comparison (same fixture, same
+command, raw output from both planes) waits for the reviewer's own change, and will be added here when it
+lands. A note on honesty of measurement worth keeping: the reviewer's first NaN probe reused one list object,
+where CPython's comparison takes an identity fast path, so it discarded that result instead of promoting it —
+the same discipline this repository applied by testing NaN explicitly rather than assuming it.
+
 ## Rules this face-off settled for the handoff draft
 
 - Compare **the same bytes** first: declarations govern trust, bytes govern comparability.

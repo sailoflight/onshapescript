@@ -12628,7 +12628,7 @@
    "page": "interop-handoff-verification",
    "category": "verification",
    "path": "onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md",
-   "sha256": "5a77f3d44fe9550274a04608df7f121a43ad8a92246a2ea358353036861a7460",
+   "sha256": "64e393fdc424e36afee50e84d8bf3b924e09c53c4d1827ba14e0d499b002ff8c",
    "title": "Cross-plane overhang face-off: two implementations, one rule",
    "sections": [
     {
@@ -12801,6 +12801,29 @@
          "depth": 0
         }
        ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "Rule 16 reproduced on a second plane — BEFORE it was landed there (2026-10-03)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The rule \"a winding verdict on a broken edge graph is vacuous\" was checked against a second implementation at the reviewer's own suggestion, and the reviewer asked for one thing explicitly: do not write this up as \"a second plane has landed the fix\", because it has not. Its raw output on this repository's degenerate probe, from a real run with --checks normals (exit 0), is:"
+      },
+      {
+       "type": "code",
+       "language": "json",
+       "text": "\"normals\": {\"grade\": \"reliable\", \"inconsistent_edge_pairs\": 0,\n            \"faces_with_zero_normal\": 0, \"consistent\": true}"
+      },
+      {
+       "type": "para",
+       "text": "with, by the reviewer's own enumeration, the key set ['consistent', 'faces_with_zero_normal', 'grade', 'inconsistent_edge_pairs'] — no applicable, no reason, not even a note. So a consumer that ran only normals on a mesh whose edge graph is open reads reliable + consistent: true with nothing in the record saying the verdict is empty. That is rule 16's failure mode reproduced on a second plane, and the same plane also self-reported that its own applicable: false block carries a general note but no per-reading reason, which is why \"a skipped check names its reason\" is recorded as a debt shared by all three planes rather than an achievement of this one."
+      },
+      {
+       "type": "para",
+       "text": "What this page therefore claims: reproduction, before landing. The paired comparison (same fixture, same command, raw output from both planes) waits for the reviewer's own change, and will be added here when it lands. A note on honesty of measurement worth keeping: the reviewer's first NaN probe reused one list object, where CPython's comparison takes an identity fast path, so it discarded that result instead of promoting it — the same discipline this repository applied by testing NaN explicitly rather than assuming it."
       }
      ]
     },
