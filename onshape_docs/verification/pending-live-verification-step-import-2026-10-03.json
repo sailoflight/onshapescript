@@ -241,5 +241,31 @@
       "reboot / shutdown: the login lives in browser memory only, so it costs another human login",
       "manually selecting sleep/hibernate"
     ]
+  },
+  "bridge_recovered_and_login_confirmed_2026-10-03": {
+    "bridge": {
+      "control_status": "ok:true; cadq/meshq/onshape/taobao all registered+running; onshape activeClients=2",
+      "node": "127.0.0.1:8768 LISTENING, pid 23744 = pythonw.exe C:\\MCP\\win-wsl-bridge\\start-windows-node.pyw serve --registry C:/Users/075526249/AppData/Local/WinWslMcpBridge/registry.sqlite3 --local-port 8768 --link-port 8770, SessionId 2; its parent is a second pythonw with the SAME command line (supervisor/watchdog shape)",
+      "children": "python.exe -B -m mcp_main.win.mcp, SessionId 2",
+      "note": "the launcher is no longer win-wsl-mcp-win.exe; it is now a .pyw supervisor pair"
+    },
+    "authoritative_login_confirmation": {
+      "call": "browser_session(action='health')",
+      "verdict": "ok",
+      "residentBrowser": "observed=true, endpoint http://127.0.0.1:9333, pageTargets=1, pageUrl=https://cad.onshape.com/documents/1ef2be8f3d45e6f996af24ab/w/bac7c0bf31912a956c44d15a/e/59f6cc99890dd2fea26d5471, onOnshapeApp=true, onSigninPage=false",
+      "tool_note": "its login survived this MCP child; action=login attaches to that browser and reuses the session without a human sign-in",
+      "quota": "0 REST calls, readOnly true",
+      "supersedes": "the earlier raw /json/list reading -- this is the product's own verdict, not the agent's inspection of a DevTools response"
+    },
+    "user_reported_root_cause_and_what_was_measured_about_the_fix": {
+      "reported": "the Windows node used to die whenever the display slept (screen off); reported fixed now -- recorded as USER-REPORTED, not as agent-measured",
+      "measured_about_the_fix": [
+        "powercfg /requests -> no DISPLAY / SYSTEM / AWAYMODE / EXECUTION / PERFBOOST / ACTIVELOCKSCREEN request is held, so the fix is NOT 'keep the display awake with a power request' (caveat: read with this token's rights; a cross-session request may not be visible)",
+        "scheduled task WinWslMcpBridgeWindowsNode: RestartCount=5, RestartInterval=PT1M, ExecutionTimeLimit=PT0S (unlimited), StartWhenAvailable=True, StopIfGoingOnBatteries=False -> a dead node self-heals",
+        "the task principal is Interactive with a logon trigger for REOLINK\\075526249, so the node now lives in the human's session (session 2) instead of session 0"
+      ],
+      "not_established": "which of those changes actually makes a display-sleep survivable; the honest test is to power off the console display, wait, and re-measure the node and the health probe. It was proposed and NOT run."
+    },
+    "survival_now_measured_not_claimed": "the resident Edge (pid 1480) lived through the node's death AND its restart with the login intact (health = ok afterwards). Until now, 'a bridge/node restart does not cost the human login' was a documented claim; on 2026-10-03 it is measured."
   }
 }
