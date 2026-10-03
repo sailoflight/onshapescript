@@ -129,3 +129,29 @@ consumer's gate". Measured on the real fixture: declaring/using 0.3 rad gives a 
 tolerance 2.5× (0.05 → 0.02 mm) changes nothing while 32× (0.05 → 0.0016 mm) does. So the angular
 component is the binding one here — and that sentence is only true **relative to the factor measured**,
 which is why a binding claim must ship with the measurement that decided it and never be hand-asserted.
+
+## 6. An unreadable candidate must not take the whole readiness report down
+
+`fdm_analysis/dependency_probe.py` discovers a CadQuery/OCP interpreter by scanning the **siblings of
+the repository root** for `.venv/bin/python` (and three other relative paths), then probing each
+candidate. Two measured facts make that scan fragile:
+
+* **`Path.is_file()` raises `PermissionError` when a path component is unreadable** — it does not
+  return `False` for that case (Python 3.12, measured). A root-owned `0700` entry beside the search
+  parent (a `snap-private-tmp`, `systemd-private-*` or `tmux-*` directory in `/tmp`) therefore made
+  stat fail and the exception escaped to the tool, so `onshape_geometry_status` answered with an error
+  envelope instead of "not configured".
+* The same scan runs on a **fresh install from the release artifact**, where the extraction root sits
+  under `/tmp` — exactly where such root-owned siblings live. The acceptance proxy
+  `dev/tests/test_release_artifact.py::test_the_artifact_runs_standalone_over_stdio` caught this:
+  on a fresh install the geometry readiness report was an error, while every unit test of the probe
+  passed (the unit tests inject a fake runner and never touch a real unreadable path).
+
+Fix and rule: `_is_file`/`_is_dir` swallow `OSError` and return `False`; a candidate that cannot be
+stat'ed is **skipped and reported** under `skippedUnreadable` (path, project name, reason), never
+dropped silently and never fatal. `iterdir()` on the search parent is guarded the same way.
+Regression tests: `test_an_unreadable_sibling_is_skipped_and_reported`,
+`test_a_readable_layout_reports_nothing_skipped` (both chmod-based, skipped as root).
+
+**Reusable lesson:** a discovery scan over directories you do not own must assume that *stat itself*
+can fail; "not readable" and "not present" are different answers, and the first one has to be reported.

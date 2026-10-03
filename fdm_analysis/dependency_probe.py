@@ -54,11 +54,38 @@ def _candidate_id(*parts: str) -> str:
     return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:20]
 
 
-def _python_candidates(search_parent: Path) -> list[tuple[str, Path, str]]:
+def _is_file(path: Path) -> bool:
+    """`Path.is_file()` **raises** on a permission error; a path we cannot even stat is not a candidate.
+
+    Measured 2026-10-04: a root-owned unreadable directory beside the extraction root (a snap-private
+    `/tmp` entry) made the whole geometry readiness report fail with `PermissionError`, because the
+    sibling scan stat'ed `<blocked>/.venv/bin/python`. A probe that cannot read one candidate must
+    still report everything it can read (and say what it skipped).
+    """
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
+def _is_dir(path: Path) -> bool:
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
+def _python_candidates(
+    search_parent: Path, skipped: list[dict[str, str]] | None = None
+) -> list[tuple[str, Path, str]]:
     candidates: list[tuple[str, Path, str]] = []
-    if search_parent.is_dir():
+    if _is_dir(search_parent):
+        try:
+            entries = list(search_parent.iterdir())
+        except OSError:
+            entries = []
         siblings = sorted(
-            (item for item in search_parent.iterdir() if item.is_dir()),
+            (item for item in entries if _is_dir(item)),
             key=lambda item: item.name.lower(),
         )[:_MAX_SIBLINGS]
         for sibling in siblings:
@@ -69,7 +96,17 @@ def _python_candidates(search_parent: Path) -> list[tuple[str, Path, str]]:
                 Path("venv/Scripts/python.exe"),
             ):
                 candidate = sibling / relative
-                if candidate.is_file():
+                try:
+                    is_file = candidate.is_file()
+                except OSError as exc:
+                    if skipped is not None:
+                        skipped.append({
+                            "path": str(candidate),
+                            "projectName": sibling.name,
+                            "reason": f"unreadable candidate: {exc.strerror or exc}",
+                        })
+                    continue
+                if is_file:
                     candidates.append(("sibling", candidate.absolute(), sibling.name))
     # Prefer the interpreter running this probe (the active venv) and only then
     # probe PATH fallbacks. A `python3`/`python` alias existing or not must never
@@ -87,7 +124,7 @@ def _python_candidates(search_parent: Path) -> list[tuple[str, Path, str]]:
             resolved = candidate.absolute()
         except OSError:
             continue
-        if resolved.is_file() and str(resolved) not in seen:
+        if _is_file(resolved) and str(resolved) not in seen:
             candidates.append(("global", resolved, resolved.name))
             seen.add(str(resolved))
     return candidates[:_MAX_PYTHON_CANDIDATES]
@@ -130,11 +167,13 @@ def discover_local_candidates(
     search_parent: Path,
     converter_cli: Path,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    skipped: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     if not converter_cli.is_file():
         raise ValueError("CadQuery converter CLI is missing")
     result: list[dict[str, Any]] = []
-    for scope, executable, project_name in _python_candidates(search_parent):
+    candidates = _python_candidates(search_parent, skipped)
+    for scope, executable, project_name in candidates:
         versions = probe_python(executable, runner=runner)
         if versions is None:
             continue
@@ -270,10 +309,12 @@ def discover_geometry_dependencies(
     platform_name: str | None = None,
 ) -> dict[str, Any]:
     root = repo_root.resolve()
+    skipped: list[dict[str, str]] = []
     local = discover_local_candidates(
         search_parent=root.parent,
         converter_cli=root / "fdm_analysis" / "conversion" / "cadquery_step_to_stl.py",
         runner=runner,
+        skipped=skipped,
     )
     candidates = list(local)
     if (platform_name or os.name) == "nt":
@@ -284,6 +325,7 @@ def discover_geometry_dependencies(
             "state": "reusable_candidates_found",
             "automaticInstall": False,
             "candidates": [_sanitized(candidate) for candidate in candidates],
+            "skippedUnreadable": skipped,
             "nextAction": {
                 "kind": "configure_existing",
                 "requiresUserConfirmation": True,
@@ -295,6 +337,7 @@ def discover_geometry_dependencies(
         "state": "not_found",
         "automaticInstall": False,
         "candidates": [],
+        "skippedUnreadable": skipped,
         "nextAction": {
             "kind": "ask_before_install",
             "requiresUserConfirmation": True,

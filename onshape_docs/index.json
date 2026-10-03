@@ -5347,7 +5347,7 @@
    "page": "geometry-handoff",
    "category": "experience",
    "path": "onshape_docs/experience/geometry-handoff.md",
-   "sha256": "35301a8170c8833acdc32b4d0f18de5430703e4c9ab509d7c77515512f567c82",
+   "sha256": "feb26f48e1d5dea9e2ea698a91106e2992c5178e6f9d818497b2bd2af43541cc",
    "title": "Geometry handoff between the CAD planes: what a measurement actually measures",
    "sections": [
     {
@@ -5578,6 +5578,37 @@
       {
        "type": "para",
        "text": "matches_declaration: true means \"the producer used what was declared\", not \"the result passes the consumer's gate\". Measured on the real fixture: declaring/using 0.3 rad gives a 0.103 % volume error (fails a 0.05 % gate; 12 of 70 pieces), 0.1 rad gives 0.012 % (passes), and tightening the linear tolerance 2.5× (0.05 → 0.02 mm) changes nothing while 32× (0.05 → 0.0016 mm) does. So the angular component is the binding one here — and that sentence is only true relative to the factor measured, which is why a binding claim must ship with the measurement that decided it and never be hand-asserted."
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "6. An unreadable candidate must not take the whole readiness report down",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "fdm_analysis/dependency_probe.py discovers a CadQuery/OCP interpreter by scanning the siblings of the repository root for .venv/bin/python (and three other relative paths), then probing each candidate. Two measured facts make that scan fragile:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "Path.is_file() raises PermissionError when a path component is unreadable — it does not return False for that case (Python 3.12, measured). A root-owned 0700 entry beside the search parent (a snap-private-tmp, systemd-private-* or tmux-* directory in /tmp) therefore made stat fail and the exception escaped to the tool, so onshape_geometry_status answered with an error envelope instead of \"not configured\".",
+         "depth": 0
+        },
+        {
+         "text": "The same scan runs on a fresh install from the release artifact, where the extraction root sits under /tmp — exactly where such root-owned siblings live. The acceptance proxy dev/tests/test_release_artifact.py::test_the_artifact_runs_standalone_over_stdio caught this: on a fresh install the geometry readiness report was an error, while every unit test of the probe passed (the unit tests inject a fake runner and never touch a real unreadable path).",
+         "depth": 0
+        }
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Fix and rule: _is_file/_is_dir swallow OSError and return False; a candidate that cannot be stat'ed is skipped and reported under skippedUnreadable (path, project name, reason), never dropped silently and never fatal. iterdir() on the search parent is guarded the same way. Regression tests: test_an_unreadable_sibling_is_skipped_and_reported, test_a_readable_layout_reports_nothing_skipped (both chmod-based, skipped as root)."
+      },
+      {
+       "type": "para",
+       "text": "Reusable lesson: a discovery scan over directories you do not own must assume that stat itself can fail; \"not readable\" and \"not present\" are different answers, and the first one has to be reported."
       }
      ]
     }

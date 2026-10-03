@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -162,6 +163,40 @@ class GeometryDependencyProbeTest(unittest.TestCase):
         self.assertEqual(configured["linearToleranceMm"], 0.05)
         self.assertEqual(configured["angularToleranceDegrees"], 5.0)
         self.assertEqual(configured["overhangFromVerticalDegrees"], 45.0)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can traverse anything")
+    def test_an_unreadable_sibling_is_skipped_and_reported(self):
+        """A candidate we cannot even stat must not take the whole readiness report down.
+
+        Measured 2026-10-04: a root-owned unreadable `/tmp` entry beside the extraction root made
+        `onshape_geometry_status` fail with `PermissionError` on a fresh install, because
+        `Path.is_file()` raises rather than returning False when a path component is unreadable.
+        The acceptance proxy for this is `test_release_artifact.test_the_artifact_runs_standalone_over_stdio`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, converter, python = self._layout(root)
+            blocked = root / "BlockedProject" / ".venv" / "bin"
+            blocked.mkdir(parents=True)
+            (blocked / "python").write_text("fixture", encoding="ascii")
+            os.chmod(root / "BlockedProject", 0o000)
+            try:
+                resolution = discover_geometry_dependencies(repo, runner=self._runner(python))
+            finally:
+                os.chmod(root / "BlockedProject", 0o755)
+            self.assertEqual(resolution["state"], "reusable_candidates_found")
+            self.assertEqual(resolution["candidates"][0]["projectName"], "CadQ")
+            skipped = resolution["skippedUnreadable"]
+            self.assertTrue(any(item["projectName"] == "BlockedProject" for item in skipped), skipped)
+            self.assertTrue(all("Permission denied" in item["reason"] for item in skipped), skipped)
+            self.assertNotIn("command", skipped[0])
+
+    def test_a_readable_layout_reports_nothing_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, converter, python = self._layout(root)
+            resolution = discover_geometry_dependencies(repo, runner=self._runner(python))
+            self.assertEqual(resolution["skippedUnreadable"], [])
 
     def test_probe_script_bootstraps_repo_when_executed_by_path(self):
         script = Path(__file__).resolve().parents[2] / "fdm_analysis" / "dependency_probe.py"
