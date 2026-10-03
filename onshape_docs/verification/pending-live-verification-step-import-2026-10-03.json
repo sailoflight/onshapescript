@@ -13,7 +13,7 @@
     "two new rows -> refused as ambiguous; a failed after-read -> element_read_failed, never a success",
     "a failed before-read refuses BEFORE any click, so landing is never judged against a state the caller did not observe",
     "into-part-studio without a matching expect_feature_name -> imported=None (a new row proves something was added, not that this file landed)",
-    "digest addressing (address by sha256, resolve by path): a declared digest that does not match the file refuses in the OFFLINE plan, before anything touches the page; a handoff that cannot name its bytes is refused by name; no declared digest is recorded as the path being the address — 23 tests in `dev/tests/test_browser_step_import.py`"
+    "digest addressing (address by sha256, resolve by path): a declared digest that does not match the file refuses in the OFFLINE plan, before anything touches the page; a handoff that cannot name its bytes is refused by name; no declared digest is recorded as the path being the address — 24 tests in `dev/tests/test_browser_step_import.py`, including an end-to-end trace driven through a fake page: plan → live result → `import-manifest.json`, so the addressing record is proven to reach the registered manifest rather than only the plan"
   ],
   "checks": [
     {
@@ -97,7 +97,7 @@
         "document_id": "<a real document>",
         "dry_run": true
       },
-      "pass_criteria": "the plan reports `source.addressedBy == \"sha256\"`, `matchesExpected == true` and the declared handoff fields; passing a digest of DIFFERENT bytes must refuse in the plan (offline, no click) with 'not the addressed artifact'; and after a real import the registered manifest's `source.sha256` must equal the digest that addressed it — i.e. the element that landed is traceable to the exact bytes that were asked for, not merely to a path",
+      "pass_criteria": "the plan reports `source.addressedBy == \"sha256\"`, `matchesExpected == true` and the declared handoff fields; passing a digest of DIFFERENT bytes must refuse in the plan (offline, no click) with 'not the addressed artifact'; the offline half of the trace (plan → live result → registered manifest) is already covered by `test_the_addressing_record_survives_a_live_import_into_the_registered_manifest`, so what the live run must still show is that the registered manifest's `source.sha256` — read from a real import — equal the digest that addressed it — i.e. the element that landed is traceable to the exact bytes that were asked for, not merely to a path",
       "why_it_needs_a_live_session": "only the offline half is provable here: the live half is whether the element that Onshape created still corresponds to those bytes after a real upload"
     }
   ],

@@ -455,6 +455,46 @@ class StepImportDigestAddressingTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "no usable sha256"):
                 source_facts(source, handoff=bogus)
 
+    def test_the_addressing_record_survives_a_live_import_into_the_registered_manifest(self):
+        """The trace has to reach the END of the chain, not just the plan.
+
+        The plan can name the digest correctly and the registered manifest still say nothing about it if the
+        live result drops the field or the registrar picks it up from somewhere else. This drives a real
+        (fake-page) import with a declared digest and then registers it, asserting the record at each hop:
+        plan -> live result -> `import-manifest.json`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = _source(root)
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            clock = FakeClock()
+            page = FakePage(
+                tab_reads=[
+                    [{"name": "Part Studio 1", "elementId": "eid1"}],
+                    [{"name": "Part Studio 1", "elementId": "eid1"}, {"name": "handoff", "elementId": "eid2"}],
+                ],
+            )
+            result = step_import.import_browser_step(
+                page, source_path=source, expect_sha256=digest,
+                pause=FakePause(clock), now=clock, timeout_ms=3000,
+            )
+            self.assertTrue(result["imported"], result.get("reason"))
+            self.assertEqual(result["source"]["addressedBy"], "sha256")
+            self.assertEqual(result["source"]["expectedSha256"], digest)
+            self.assertIs(result["source"]["matchesExpected"], True)
+
+            out = step_import.register_imported_browser_step(
+                import_id="imp-addressed", result=result, document_id="did1", workspace_id="wid1",
+                output_root=root / "out",
+            )
+            manifest = json.loads(Path(out["manifestPath"]).read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["source"]["sha256"], digest)
+        self.assertEqual(manifest["source"]["addressedBy"], "sha256")
+        self.assertEqual(manifest["source"]["expectedSha256"], digest)
+        self.assertIs(manifest["source"]["matchesExpected"], True)
+        self.assertEqual(manifest["artifactType"], "imported-browser-step")
+
     def test_a_malformed_expected_digest_is_refused_rather_than_ignored(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = self._source(Path(tmp))
