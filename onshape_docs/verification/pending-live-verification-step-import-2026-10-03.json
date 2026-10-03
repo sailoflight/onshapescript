@@ -179,6 +179,19 @@
       "why_it_is_still_not_the_password": "Sub Status 0xC0000064, `Package Name (NTLM only)` empty and Key Length 0 — the exchange never reached a password check.",
       "lesson": "two attempts, two username-side errors with the SAME sub-status: a forward slash (REOLINK/075526249) and a misspelled domain (REOLINLK). 0xC0000064 is therefore the discriminator to read before blaming the password; the UPN form (075526249@reolink.ad) removes the domain field and the typos it invites.",
       "evidence": "Security 4625 at 22:05:23, Workstation DESKTOP-VVOIEFT, Source 100.76.170.81, Logon Type 3, Logon Process NtLmSsp, Authentication Package NTLM"
+    },
+    "session_split_measured_2026-10-03": {
+      "finding": "the MCP chain runs in Windows session 0 while the human is in session 2, so a browser the server spawns has no window the human can type into",
+      "evidence": {
+        "bridge node": "win-wsl-mcp-win.exe serve --registry ... --local-port 8768 -> SessionId 0",
+        "onshape mcp children": "C:\\MCP\\onshapescript\\.venv\\Scripts\\python.exe -B -m mcp_main.win.mcp -> SessionId 0 (PIDs 28052, 45852)",
+        "agent's own interop": "(Get-Process -Id $PID).SessionId = 0 — so this agent cannot open a window in session 2 either",
+        "human session": "session 2 (QWINSTA: user 075526249, state Disc after the RDP client detached)",
+        "workaround that works": "the human launches the SAME profile's Edge inside session 2; the session-0 MCP server still attaches over 127.0.0.1:9333, because loopback TCP is machine-wide and not session-scoped",
+        "durable fix": "start the win-wsl bridge in the interactive session (scheduled task at logon, or from the desktop) instead of session 0 — the vision-toolkit bridge on this machine already runs that way and its Edge window does appear in session 2"
+      },
+      "profile_path_correction": "`user_data_dir = user_data/onshape_profile` resolves relative to the MODULE directory, so the real path is C:\\MCP\\onshapescript\\onshape_browser_mode\\user_data\\onshape_profile (directory exists, last written 2026-09-27, no Default/Cookies -> no persisted login, which matches the design: Onshape's auth cookies are session cookies)",
+      "how_the_rdp_session_was_observed": "LocalSessionManager/Operational event 25 at 22:07:12: '会话重新连接成功: 用户 REOLINK\\075526249 会话 ID: 2 源网络地址: 100.76.170.81' — the connection REATTACHED to the existing session 2 rather than creating a new one, so no new 4624 interactive logon appears (the logon is the earlier one)"
     }
   }
 }
