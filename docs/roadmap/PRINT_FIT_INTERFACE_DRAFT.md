@@ -9,6 +9,16 @@ thickness reading, the evidence grades) and every direction-derived reading carr
 `test_the_print_block_names_the_owner_of_the_gate_it_does_not_own`), and the regenerated 70-piece
 manifest keeps its byte records and its set signature (`7f427106…`) unchanged, which is the check
 that the new block did not move the identity it is supposed to sit beside.
+
+**The refusing half is implemented too:** `fdm_analysis/conversion/print_basis.py`
+`check_print_basis(manifest, *, build_direction=None)` enforces §4 rules 1–5 from the consumer side —
+a missing per-piece basis (checked even when every reading is null), a per-piece basis that
+contradicts the declaration-level one, a producer-stamped verdict or a foreign envelope owner, a
+thickness value under an `unknown` grade, a direction-derived reading on a non-applicable winding,
+and the reuse of readings at another build direction. Run against the real regenerated 70-piece
+manifest it accepts (`ok: true`, 0 refusals); asked about a caller printing in `[0, 1, 0]` it refuses
+with rule 5. **It returns readings and never a verdict**, because printability is the caller's
+comparison against an envelope the caller declares — 7 tests in `dev/tests/test_print_basis.py`.
 **Owner of this file:** onshapescript. **Companion of:** `THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` (the
 geometry handoff) — this one is about the step after it: who turns a geometry handoff into a printability
 statement, and where the declarations that decide it enter.
