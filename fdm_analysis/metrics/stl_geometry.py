@@ -160,6 +160,7 @@ class StlGeometryAnalyzer:
         edges: Counter[tuple[Point, Point]] = Counter()
         directed_edges: dict[tuple[Point, Point], list[tuple[int, int]]] = {}
         contact_area = 0.0
+        surface_area = 0.0
         contact_points: list[tuple[float, float]] = []
         overhang_area = 0.0
         overhang_triangles = 0
@@ -186,6 +187,7 @@ class StlGeometryAnalyzer:
                 faces_without_normal += 1
                 continue
             area = double_area / 2.0
+            surface_area += area
             normal_z = cross[2] / double_area
             if normal_z < normal_z_limit:
                 overhang_area += area
@@ -221,6 +223,10 @@ class StlGeometryAnalyzer:
             "watertight": watertight,
             "dimensionsMm": [round(value, 9) for value in dimensions],
             "bedContactAreaMm2": round(contact_area, 9),
+            # The denominator of every ratio. Published because "26.67 % of the surface is overhanging"
+            # is unreadable without it, and because the same policy read at another threshold
+            # (`bedContactAreaMm2`) is only comparable when the total is the same number.
+            "surfaceAreaMm2": round(surface_area, 9),
             "printHeightMm": round(dimensions[2], 9),
             "overhangAreaMm2": round(overhang_area, 9),
             # Counts are published next to the areas because a bare `faces` field is two different

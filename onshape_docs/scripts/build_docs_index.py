@@ -71,6 +71,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "delegation-lookup-cost-verification": "onshape_docs/verification/delegation-lookup-cost-2026-09-21.md",
         "live-verification": "onshape_docs/verification/live/README.md",
         "interop-handoff-verification": "onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md",
+        "interop-tessellation-verification": "onshape_docs/verification/interop-70piece-tessellation-2026-10-03.md",
     },
     "reference": {
         "quick-reference": "onshape_docs/reference/quick-reference.md",
