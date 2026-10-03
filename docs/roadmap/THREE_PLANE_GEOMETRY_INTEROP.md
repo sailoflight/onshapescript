@@ -265,6 +265,11 @@ the runner is artifact-agnostic, and that the peer's raw output is verdict-shape
   report is **refused by R9** — measured on the real artifact, not argued. The adapter counts the
   verdicts and does not copy them; the report carries readings, grades and the criterion text. Whether a
   producer's verdict should travel *with* its reading is now an open question for the three planes.
+- **Delivery evidence (receipt tool, not the send return value):** outgoing 289/295 → RoseStork (MeshQ) and
+  286/296 → AmberHarbor (agent-infra); each checked with `mail-delivery-receipt.sh` → *found (project_id=1)*,
+  recipients verified one by one as real registered identities (not shadows). Incoming this round: MeshQ 289
+  (the two grades answered, the interference sub-class split, the new admission sample, the `declared_by`/`used_by`
+  agreement), and 296 asks the coordinator one question only: whether a producer's verdict may travel with its reading.
 - **Independence, stated honestly:** `apg context --target . --task <this task>` routes this work as
   `development/verifier` with **authority granted: false**, and the governance itself says a second agent
   on the *same identity, worktree and permissions* can only offer a **peer challenge**, not formal IV&V.
