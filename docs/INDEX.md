@@ -39,6 +39,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Plan FS-mode or native-modeling browser tools | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md` | `roadmap/FS_HYBRID_COMPILER_INTEGRATION.md`, `roadmap/DYNAMIC_TOOL_DISCOVERY.md`, `roadmap/BROWSER_MODELING_GAPS.md` |
 | Plan app-generic (cross-studio) browser L2 semantics | `roadmap/BROWSER_GENERIC_L2_SEMANTICS.md` | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md`, `roadmap/DYNAMIC_TOOL_DISCOVERY.md` |
 | Find the deduped list of every planned browser tool | `roadmap/BROWSER_PLANNED_TOOLS.md` | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md`, `roadmap/BROWSER_GENERIC_L2_SEMANTICS.md`, `roadmap/BROWSER_MODELING_GAPS.md` |
+| Plan cross-plane geometry handoff (Onshape ↔ CadQ ↔ MeshQ) | `roadmap/THREE_PLANE_GEOMETRY_INTEROP.md` | The target module contract, then the other planes' own boundary documents |
 | Inspect the generated tool surface | `generated/TOOL_REFERENCE.md` | Authoritative schema and handler in `mcp_main` |
 | Decide what a tool is for, or whether it should still exist | `architecture/TOOL_SURFACE_AUDIT.md` | The tool's schema in `mcp_main`, then its semantics record |
 | Add or find a whole-feature capability (`custom.fillet`, `custom.extrude`) | `../onshape_docs/experience/browser-modeling.md` §13 | `onshape_browser_mode/capabilities.py`, then `test_capabilities` |
