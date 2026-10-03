@@ -133,6 +133,15 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
             },
         )
         self.assertTrue(result["outwardOriented"])
+        # The evidence vocabulary is MeshQ's, and the printability verdicts are declared VISUAL rather
+        # than quietly omitted: "who judges printability" is answered by which tier each item is in.
+        tiers = result["gradeTiers"]
+        self.assertIn("overhangAreaMm2", tiers["reliable"])
+        self.assertIn("volumeMm3", tiers["reliable"])
+        self.assertEqual(tiers["heuristic"], [])
+        self.assertTrue(any("slicer" in item for item in tiers["visual"]))
+        self.assertTrue(any(item.startswith("minWallMm") for item in tiers["unknown"]))
+        self.assertIn("MeshQ", tiers["vocabulary"])
 
     def test_a_broken_edge_graph_makes_the_winding_check_inapplicable(self):
         """`consistent: true` on an open mesh is vacuous and must not be read as a verified winding.

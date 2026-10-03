@@ -242,6 +242,34 @@ class StlGeometryAnalyzer:
             "overhangTriangleCount": overhang_triangles,
             "bedContactTriangleCount": contact_triangles,
             "facesWithoutNormal": faces_without_normal,
+            # The evidence vocabulary is MeshQ's (its `inspection.grade_tiers`, message 161), adopted
+            # verbatim so the same word means the same thing in both repositories:
+            #   reliable  = derived from the artifact's own bytes by a stated method (a threshold that is
+            #               declared does not make a reading heuristic -- MeshQ grades `overhang` reliable);
+            #   heuristic = depends on a policy choice this plane cannot settle from the artifact;
+            #   visual    = needs a reviewer, a slicer or a printer; this plane computes none of it;
+            #   unknown   = not computed here, and therefore DECLARED ABSENT rather than omitted.
+            # The last line is what answers "who judges printability": the geometry readings are reliable,
+            # and every printability VERDICT below is visual, because no slicer is installed on this host.
+            "gradeTiers": {
+                "reliable": [
+                    "triangleCount", "boundsMm", "volumeMm3", "surfaceAreaMm2", "printHeightMm",
+                    "bedContactAreaMm2", "bedContactTriangleCount",
+                    "overhangAreaMm2", "overhangTriangleCount", "orientation", "outwardOriented",
+                ],
+                "heuristic": [],
+                "visual": [
+                    "will a counted overhang warp, curl or delaminate (needs a slicer + a printer)",
+                    "how long the print takes and where the supports actually go (slicer output)",
+                    "is the wall thick enough for the load case (needs a thickness analyzer + the load case)",
+                    "is the part printable on a given machine (needs a declared envelope and a verdict the "
+                    "consumer owns)",
+                ],
+                "unknown": ["minWallMm (no thickness analyzer is installed on this host)"],
+                "vocabulary": "MeshQ inspection.grade_tiers (reliable/heuristic/visual/unknown)",
+                "gradeNote": ("reliable means derived from this artifact's bytes by the stated method, not "
+                              "that the reading is the truth about the physical part"),
+            },
             "orientation": {
                 # `consistent` is meaningful only on a closed edge graph: on an open or degenerate mesh
                 # every surviving shared edge can be used once in each direction while the graph is

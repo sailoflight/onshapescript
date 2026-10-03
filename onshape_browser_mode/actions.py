@@ -3380,6 +3380,8 @@ def wait_for_dialog_fields(
             },
             "timeoutMs": timeout_ms,
             "pollMs": poll_ms,
+            # No dialog read happened for this wait, so the count is 0 and `elapsedMs` is 0 too.
+            "reads": 0,
             "elapsedMs": 0,
             "after": dialog_values(page),
             "mismatched": unstated,
@@ -3387,7 +3389,13 @@ def wait_for_dialog_fields(
     started = time.monotonic()
     read: dict[str, Any] = {}
     mismatched: list[str] = []
+    # How many times the dialog was read is the DETERMINISTIC fact about this wait ("did the first read
+    # settle it, or did it take several?"). `elapsedMs` is a real-clock measurement and cannot answer
+    # that: a test asserting `elapsedMs == 0` flakes as soon as one read takes a millisecond, which is
+    # what happened under load before this counter existed.
+    reads = 0
     while True:
+        reads += 1
         read = dialog_values(page)
         mismatched = [
             key
@@ -3409,6 +3417,7 @@ def wait_for_dialog_fields(
         },
         "timeoutMs": timeout_ms,
         "pollMs": poll_ms,
+        "reads": reads,
         "elapsedMs": elapsed,
         "after": read,
         "mismatched": mismatched,

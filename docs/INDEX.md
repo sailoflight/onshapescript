@@ -41,6 +41,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Find the deduped list of every planned browser tool | `roadmap/BROWSER_PLANNED_TOOLS.md` | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md`, `roadmap/BROWSER_GENERIC_L2_SEMANTICS.md`, `roadmap/BROWSER_MODELING_GAPS.md` |
 | Plan cross-plane geometry handoff (Onshape ↔ CadQ ↔ MeshQ) | `roadmap/THREE_PLANE_GEOMETRY_INTEROP.md` | The target module contract, then the other planes' own boundary documents |
 | Review the cross-plane handoff artifact shape | `roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` | `roadmap/THREE_PLANE_GEOMETRY_INTEROP.md` §8, then `fdm_analysis/contracts.py` |
+| Plan the print-fit split and its injection points (who judges printability) | `roadmap/PRINT_FIT_INTERFACE_DRAFT.md` | `roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` §4/§5, then `fdm_analysis/contracts.py` (`SliceProfile`) and `fdm_analysis/metrics/stl_geometry.py` |
 | Inspect the generated tool surface | `generated/TOOL_REFERENCE.md` | Authoritative schema and handler in `mcp_main` |
 | Decide what a tool is for, or whether it should still exist | `architecture/TOOL_SURFACE_AUDIT.md` | The tool's schema in `mcp_main`, then its semantics record |
 | Add or find a whole-feature capability (`custom.fillet`, `custom.extrude`) | `../onshape_docs/experience/browser-modeling.md` §13 | `onshape_browser_mode/capabilities.py`, then `test_capabilities` |

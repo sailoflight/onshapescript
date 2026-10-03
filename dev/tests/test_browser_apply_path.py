@@ -669,7 +669,9 @@ class InsertCustomFeatureTest(unittest.TestCase):
         self.assertEqual(result["waits"]["expressionResolve"]["condition"],
                          "dialog_fields_readback")
         self.assertEqual(result["waits"]["expressionResolve"]["keys"], ["value"])
-        self.assertEqual(result["waits"]["expressionResolve"]["elapsedMs"], 0)
+        # `reads` is the deterministic fact; `elapsedMs` is a real clock and only gets bounded.
+        self.assertEqual(result["waits"]["expressionResolve"]["reads"], 1)
+        self.assertLess(result["waits"]["expressionResolve"]["elapsedMs"], 1000)
         self.assertEqual(page.timeouts, [])
 
     def test_a_resolving_expression_needs_a_stated_value_but_no_expect_row(self) -> None:
@@ -1719,6 +1721,8 @@ class DialogFieldResolveWaitTest(unittest.TestCase):
         wait = filled["expressionWait"]
         self.assertEqual(wait["condition"], "unstated_expression")
         self.assertEqual(wait["unstatedExpressionKeys"], ["value"])
+        # This path refuses WITHOUT reading the dialog, so both facts are literal zeros here.
+        self.assertEqual(wait["reads"], 0)
         self.assertEqual(wait["elapsedMs"], 0)
         self.assertEqual(page.timeouts, [], "it does not spend the expression budget")
 
@@ -1744,7 +1748,7 @@ class DialogFieldResolveWaitTest(unittest.TestCase):
         self.assertEqual(filled["expressionWait"]["resolvedValues"],
                          {"width": "36.30 mm"})
         self.assertEqual(filled["expressionWait"]["strictKeys"], ["width"])
-        self.assertEqual(filled["expressionWait"]["elapsedMs"], 0,
+        self.assertEqual(filled["expressionWait"]["reads"], 1,
                          "the wait's own read is the one that settled")
 
     def test_the_typed_expression_alone_never_confirms_a_stated_value(self):

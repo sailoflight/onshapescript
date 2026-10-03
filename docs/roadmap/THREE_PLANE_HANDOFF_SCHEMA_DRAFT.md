@@ -613,6 +613,73 @@ copy drifts".
   a verdict, and states it has **no** "printable" field at all: it computes geometry plus the truth of a
   *caller-declared* threshold, and never stamps a verdict onto anyone's artifact.
 
+## 9. Does this need a router between the planes? (and who owns the schema)
+
+**Position: no router process, and the reason is this repository's own measured precedent rather than a
+preference.** Two findings decide it, and both are already paid for.
+
+### 9.1 A hop must buy a capability, or it is deleted
+
+`browser_invoke_discovered` was demoted for exactly this, in this repository's own audit
+(`docs/architecture/TOOL_SURFACE_AUDIT.md`): *"any registered tool is callable by the exact name
+`mcp_tool_catalog` returns, so this envelope adds a hop and no capability"*. Its sibling
+`mcp_tool_invoke` was **kept**, because it does buy one (a real MCP client refused an unadvertised
+registered name with `unknown tool`, 2026-09-21). So the local rule is not "hops are bad": it is **a hop
+must add a capability that cannot be obtained at the endpoints**. A cross-plane router would have to answer
+the same question, and on today's evidence every candidate answer fails:
+
+* **Schema translation?** Both sides now publish the same field names with declared algorithms
+  (`boundsAlgorithm`, per-quantity quanta, `applicable`, `gradeTiers`). Where they disagreed, the fields
+  were fixed on both sides instead of a translator being added — and that is strictly cheaper, because a
+  translator is a second implementation of a rule that then has to be kept in step (the defect class the
+  audit names as the most expensive one).
+* **Identity resolution?** A consumer holding an artifact can verify it itself: per-piece digests, the
+  declared identity rule, and the exact value quanta. A router would be a third party asked to confirm
+  something the holder can measure.
+* **Whole-job orchestration?** That capability exists and is named: capability cards
+  (`mcp_main/win/mcp/tool_catalog.py` `capability_section`, the L6 "one job, not a tool chain" pattern)
+  invoke a job through one registered tool instead of routing between planes.
+
+### 9.2 A router would become a second owner of state that must have one owner
+
+The Onshape MCP runtime policy requires a single modifying agent while scoped document leases are
+unverified, and `mcp_tool_catalog` states plainly that its classifications "do not provide multi-call
+workflow isolation". A cross-plane router would sit between three planes' browser/profile/quota state and
+would have to own target selection, mutation, shared-state sync and cleanup for whichever leg it drives —
+i.e. it would become the owner of state this policy says must have exactly one. Rejected for that reason,
+not for latency.
+
+### 9.3 The boundary of the position (what would change my mind)
+
+A router becomes justified when at least one of these is true, and none is today:
+
+1. a workflow needs **cross-plane transactionality** — one abort must undo a step another plane already
+   took (today every leg is independently verifiable and independently abandonable);
+2. the planes must share a **quota or session ledger** that cannot be reconstructed from each plane's own
+   receipts (today each plane's ledger is local and read-only to the others);
+3. **more than one modifying plane** acts on the same target (today one plane modifies; the others read
+   the artifact or the bytes).
+
+Until one holds, the contract is: **exact artifact identity + declared field vocabulary + capability cards
+for whole jobs**, and no process in the middle.
+
+### 9.4 Schema ownership, field by field
+
+Ownership follows *who can measure it*, not who writes the document:
+
+| Field group | Owner | Why |
+|---|---|---|
+| unit, model coordinate system, exact B-Rep readings, per-solid identity | the producer (CadQ) | it is the only plane that holds the exact geometry |
+| `measure.kind`, kernel + kernel string convention, tolerance declaration/`used`/`matches_declaration` | the tessellating producer | it performed the tessellation and knows the call it made |
+| mesh-family geometry readings, winding (+`applicable`), `boundsAlgorithm`, `gradeTiers` | the measuring plane (onshapescript, MeshQ) | it computed them from the bytes, by a method it must name |
+| build direction, threshold, reference point | the measuring plane, declared per artifact | the readings are functions of them (MeshQ 151 §C) |
+| envelope, minimum wall, and any printability verdict | the consumer | machine state and acceptance are not geometry |
+| the schema **version string** | whoever changes a refusal rule, and it is a breaking-change signal | proven: `handoff_schema: onshapescript.handoff/0.3-draft` in a v0.4 implementation is exactly how MeshQ caught the drift, because that field is the gate a consumer uses to refuse an artifact it does not understand |
+
+The document itself may live in both repositories (MeshQ keeps its own manifest, this repository keeps
+this draft); what may not diverge silently is the **version string** and the **field-level ownership**
+above.
+
 ## 8. Evidence
 
 | Claim | Evidence |
@@ -628,6 +695,8 @@ copy drifts".
 | A bounding box is not one measurement | MeshQ 170 §3 (four families, max gap 3.19e-2 mm) plus this repository's measurement of `cq.exporters.export` mutating the cached box (`ymax 380.0000001000 → 380.0008703904`) |
 | A consistent winding over a broken edge graph is vacuously consistent | `/tmp/three-plane-drop/onshapescript-degenerate-piece-probe/manifest.json` (degenerate triangle → `watertight: false`, `nonManifoldEdges: 1`, `consistent: true`) and its sibling `onshapescript-flipped-piece-probe/` (a real flipped winding: `consistent: false`, area unchanged at 464.320189554 mm², volume and overhang `null` with `applicable: false`) |
 | Per-piece max beats the aggregate | The same 70-piece batch: aggregate 1.31e-7 vs per-piece maximum 3.39e-6 (26×), worst piece #20 |
+| A hop must buy a capability | `docs/architecture/TOOL_SURFACE_AUDIT.md`: `browser_invoke_discovered` (`Internal-only`, "adds a hop and no capability") vs `mcp_tool_invoke` (kept, because a real client refused an unadvertised name with `unknown tool` on 2026-09-21) |
+| A router would be a second owner of single-owner state | `mcp_tool_catalog` status text ("classification does not provide multi-call workflow isolation") + the Onshape MCP runtime policy's single-modifying-agent requirement while scoped document leases are unverified |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |
 | Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |
