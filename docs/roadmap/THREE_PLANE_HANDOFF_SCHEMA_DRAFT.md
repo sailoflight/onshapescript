@@ -568,6 +568,14 @@ producer wants to publish which tolerance binds, it must **publish the measureme
 Rule 5 ("asked to make a decision") is a rule for the **caller**, not a manifest check: the manifest
 cannot know what a consumer is about to do with it. Stated here so nobody implements a validator for a
 condition it cannot observe.
+17. A field that disagrees with the delivered artifact's own bytes → refuse the field, not the artifact.
+    **The bytes are the referee**, because they are the one thing every plane holds identically: measured
+    in the 70-piece join, two producers' STL files are byte-identical piece for piece, so a bounding-box
+    field that differs from those bytes cannot describe them (CadQ's `tessellation.bounds_mm` carries the
+    exact value `399.9` where its own bytes read `399.8999938964844` — a 1.2207e-05 mm gap on 67/70 pieces,
+    while this repository's mesh field matches the bytes on 70/70). A reader that trusts the field over the
+    bytes sees a geometry difference that does not exist, and the reverse ordering would have blamed the
+    artifact.
 
 ## 6. Naming and key-set conformance: closed in v0.4
 
@@ -612,6 +620,56 @@ copy drifts".
   `index` is display order and not identity, holds that a bounding-box overlap is a candidate and never
   a verdict, and states it has **no** "printable" field at all: it computes geometry plus the truth of a
   *caller-declared* threshold, and never stamps a verdict onto anyone's artifact.
+
+### A reading declares the state it was taken in, because an action changes it
+
+Four instances of one defect class, all measured, all in this negotiation:
+
+| Instance | What changed | What the reading should have said |
+|---|---|---|
+| CadQuery's STL export mutates the shape's cached box (`ymax 380.0000001000 → 380.0008703904` on piece #0) | a measurement taken *after* the export is in no other implementation's family | `boundsAlgorithm` + `boundsAfterTessellationMm` + `boundsMutatedByExport` |
+| this repository's self-comparison (both numbers read after the export) | it compared a family with itself and reported "no gap" | compare within a declared family, and report the method gap separately (`boundsMethodGapMm` vs `boundsCrossRunMm`) |
+| MeshQ's `inspect` deriving scratch inside the *input* directory | concurrent runs measured the wrong piece | derive into a run-owned directory |
+| an expression-resolve wait publishing only `elapsedMs` | a wall-clock reading cannot answer "did the first read settle it?" | publish `reads` (a count) and only bound the clock |
+
+So the rule is not about bounds or waits: **a reading states the action/state it is relative to**, and
+where an action can change it, the pre- and post-action values both travel (as this repository now does
+for the box). A number without its state is a number with a missing operand — the same defect as a
+direction-derived reading without its direction.
+
+### Identical bytes do NOT make every reading agree — so each reading names its algorithm
+
+The 70-piece join is the cleanest available experiment, because the inputs are provably identical: the
+two producers' STL files are byte-identical on **70/70** pieces, and both sides report the same exact
+B-Rep volume on **70/70** (bit-for-bit, delta `0.0`). Yet:
+
+* the **mesh volume** differs by up to **2.41e-6 relative** on those identical bytes (so it is not a
+  geometry difference; it is a difference of algorithm or accumulation, and the field must declare one);
+* the **mesh bounding box** differs by up to **1.2207e-05 mm** — and here the bytes decide which side is
+  wrong: this repository's field equals the bytes' vertex box on 70/70, CadQ's equals it on 54/70.
+
+The general form: *an identical artifact does not produce identical readings, so a reading is only
+comparable at a declared method.* Fields that come from the artifact's bytes are the ones a third party can
+check without a kernel; that is why the mesh family is the one that travels for identity.
+
+### Addressing, measured (index vs volume vs tuple vs digest)
+
+From the same join, on CadQ's 70 solids and this repository's 70 pieces:
+
+* **by index** — works, and must never be the identity: the two sides agree on 70/70 exact volumes and
+  70/70 STL digests, but an index is an ordering, and a re-export may reorder;
+* **by exact volume alone** — cannot address this part at all: **14 duplicate value groups cover 60 of the
+  70 pieces**, and the largest group has **8 members** (so volume alone is ambiguous for 86 % of the
+  pieces — exactly the assembly that motivated the identity rule);
+* **by the identity tuple** (`brepVolumeMm3` + mesh-family `bounds_mm`, quantized as declared) — the two
+  sides' multisets are **equal**, 70/70 both ways, with no piece left over on either side. This is the
+  selection address;
+* **by digest** — for transfer, and with the rule version first: a digest moved between this repository's
+  two generations (`ade4c12ab2b91fc5… → 7f4271064f1107bebb3aaaf4…`) with the geometry untouched, because
+  the canonical form changed, and MeshQ measured the same thing at CadQ (its set signature moved between
+  schema 0.1 and 0.2 while every STL byte stayed the same). Hence `identity_rule.version` (this repository
+  publishes `onshapescript.mesh-set-signature/1`) and a peer-side `signature_schema`; **a digest comparison
+  starts by comparing rules, never digests**.
 
 ## 9. Does this need a router between the planes? (and who owns the schema)
 
@@ -697,6 +755,10 @@ above.
 | Per-piece max beats the aggregate | The same 70-piece batch: aggregate 1.31e-7 vs per-piece maximum 3.39e-6 (26×), worst piece #20 |
 | A hop must buy a capability | `docs/architecture/TOOL_SURFACE_AUDIT.md`: `browser_invoke_discovered` (`Internal-only`, "adds a hop and no capability") vs `mcp_tool_invoke` (kept, because a real client refused an unadvertised name with `unknown tool` on 2026-09-21) |
 | A router would be a second owner of single-owner state | `mcp_tool_catalog` status text ("classification does not provide multi-call workflow isolation") + the Onshape MCP runtime policy's single-modifying-agent requirement while scoped document leases are unverified |
+| The bytes are the referee | 70-piece join: STL bytes identical 70/70; this repository's mesh box equals the bytes 70/70, CadQ's 54/70 (gap 1.2207e-05 mm, e.g. its `399.9` vs its own bytes' `399.8999938964844`) |
+| Identical bytes, non-identical readings | Same bytes: mesh volume differs up to 2.41e-6 relative; exact B-Rep volume agrees bit-for-bit 70/70 (delta 0.0) |
+| Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
+| A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |
 | Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |

@@ -277,6 +277,12 @@ class ManifestTest(unittest.TestCase):
         self.assertIn("chord", piece["boundsMethodGapNote"])
         self.assertEqual(manifest["declaration"]["geometry"]["identity_rule"]["bounds_family"],
                          "tessellation_vertices(artifact_bytes)")
+        # The digest carries the RULE that made it, because a rule change moves the digest while the
+        # geometry does not (MeshQ 168: a peer's signature moved between schema revisions with byte-identical
+        # geometry) -- so a comparison starts by comparing rules, never digests.
+        self.assertEqual(manifest["declaration"]["geometry"]["identity_rule"]["version"],
+                         "onshapescript.mesh-set-signature/1")
+        self.assertFalse(manifest["declaration"]["geometry"]["identity_rule"]["identityProof"])
         self.assertEqual(manifest["declaration"]["geometry"]["identity_rule"]["quanta"],
                          {"brepVolumeMm3": 1e-3, "bounds_mm": 1e-3})
         self.assertEqual(manifest["declaration"]["mesh"]["pieces"][0]["path"], "part-0000.stl")

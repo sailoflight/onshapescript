@@ -142,6 +142,11 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
         self.assertTrue(any("slicer" in item for item in tiers["visual"]))
         self.assertTrue(any(item.startswith("minWallMm") for item in tiers["unknown"]))
         self.assertIn("MeshQ", tiers["vocabulary"])
+        # `outwardOriented` is the signed volume's own sign, and it says so (MeshQ 176 §2b / CadQ 171):
+        # the name must not be read as an independent check that every face points outward.
+        self.assertEqual(result["outwardBasis"], "signed_volume_positive")
+        self.assertFalse(result["outwardIndependentOfVolume"])
+        self.assertIn("consistent", result["outwardBasisNote"])
 
     def test_a_broken_edge_graph_makes_the_winding_check_inapplicable(self):
         """`consistent: true` on an open mesh is vacuous and must not be read as a verified winding.
@@ -199,7 +204,14 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
         # volume, and why `outwardOriented` alone is not enough (it only sees a globally flipped mesh,
         # which this is not).
         self.assertEqual(result["volumeMm3"], 1000.0)
-        self.assertTrue(result["outwardOriented"])
+        # This assertion used to be `assertTrue`, i.e. the test pinned the WEAKNESS it had just described:
+        # a mesh with one inverted face is not globally outward, yet the field said `true` because it is
+        # the sign of the signed volume and the volume is blind to this defect here. CadQ 171 and MeshQ
+        # 176 §2b both named it: the value is the same computation as the volume, so it is not independent
+        # evidence of it. The field is now null whenever the winding is inconsistent, and the basis travels
+        # beside it, so "no global outward exists" is reported instead of a number the name over-claims.
+        self.assertIsNone(result["outwardOriented"])
+        self.assertEqual(result["outwardBasis"], "signed_volume_positive")
 
     def test_a_face_without_a_usable_normal_is_counted_not_dropped(self):
         triangles = list(CUBE_TRIANGLES) + [((0, 0, 0), (1, 0, 0), (2, 0, 0))]

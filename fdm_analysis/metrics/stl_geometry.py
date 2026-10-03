@@ -293,7 +293,21 @@ class StlGeometryAnalyzer:
             "centerOfMassStable": stable,
             "centerOfMassMm": [round(value, 9) for value in center] if center else None,
             "volumeMm3": round(abs(signed_volume), 9),
-            "outwardOriented": (signed_volume > 0) if (watertight and abs(signed_volume) > tolerance ** 3) else None,
+            # MeshQ 176 §2b and CadQ 171 on my own field: `outwardOriented` does NOT check "every face
+            # points away from the solid" -- it checks `signed_volume > 0`, which is the SAME computation
+            # as the volume and therefore not independent evidence of it. Two consequences, both taken:
+            #   * the gate is now `orientation.consistent` (not merely `watertight`): a closed mesh with an
+            #     inconsistent winding has no meaningful global "outward" at all;
+            #   * the basis is published beside it, so a consumer cannot mistake the name for a check the
+            #     number did not perform. Renaming the published key would silently break consumers of the
+            #     0.4-draft shape, so the name stays and the scope travels with it.
+            "outwardOriented": (signed_volume > 0) if (watertight and inconsistent_pairs == 0
+                                                       and abs(signed_volume) > tolerance ** 3) else None,
+            "outwardBasis": "signed_volume_positive",
+            "outwardBasisNote": ("computed from the signed volume, so it is the same measurement as "
+                                 "volumeMm3 rather than independent evidence of it; null unless the mesh is "
+                                 "closed AND the winding is consistent"),
+            "outwardIndependentOfVolume": False,
             "triangleCount": len(triangles),
             "wallThicknessMm": None,
             "orientationMatrix": list(matrix),

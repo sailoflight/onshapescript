@@ -290,6 +290,18 @@ def plan_step_tessellation(
         "overhangFromVerticalDegrees": overhang_from_vertical_degrees,
         "reproducibilityCheck": bool(reproducibility_check),
         "identityRule": {
+            # A DIGEST MUST NAME THE RULE THAT PRODUCED IT. MeshQ 168 measured a peer's set signature
+            # moving between two schema revisions while the geometry AND every delivered STL byte-set were
+            # unchanged (the canonical form changed), so "same digest" is only meaningful at the same rule
+            # version -- and the comparison has to start here, not at the digest. A rule change moves the
+            # digest, which is why this repository's own set signature has two generations (ade4c12a... ->
+            # 7f427106...) with geometry that never moved.
+            "version": "onshapescript.mesh-set-signature/1",
+            # Machine-readable, not just prose: a consumer must not treat this digest as proof of identity.
+            "identityProof": False,
+            "note": ("a candidate filter, not an identity: equal digests do not prove equal geometry and "
+                     "unequal digests do not prove it differs; the verdict belongs to the declared "
+                     "equivalence tolerance, per quantity"),
             "sort_by": ["brepVolumeMm3", "bounds_mm"],
             # Per-quantity quanta, because one tolerance cannot govern two quantities: the exact volume
             # agrees to ~1e-9 between implementations while `bounds_mm` disagreed by 3.19e-2 mm between
@@ -600,6 +612,8 @@ def tessellate_step(
                 "solid_count": len(records),
                 "parts": records,
                 "identity_rule": {
+                    "version": plan["identityRule"]["version"],
+                    "identityProof": plan["identityRule"]["identityProof"],
                     "sort_by": plan["identityRule"]["sort_by"],
                     "quanta": plan["identityRule"]["quanta"],
                     "compare": plan["identityRule"]["compare"],
