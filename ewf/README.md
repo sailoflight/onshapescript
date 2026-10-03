@@ -311,6 +311,28 @@ $ sha256sum -c SHA256SUMS | grep -c ": 成功"
 399
 ```
 
+### 命令 7 —— 写路径证据：在副本上跑 `--write`（2026-10-03）
+
+`--check` 只证明"生成器与已提交产物一致"，不证明"生成器能写出产物"。下面这次在
+**独立 worktree 副本**上真跑 `--write`（主检出未被写、`git status` 事后仍为空）：
+
+```console
+$ cd /home/lijq/code/onshapescript && git worktree add --detach /tmp/ewf-write-<ts> HEAD
+$ cd /tmp/ewf-write-<ts> && python3 dev/tools/build_ewf_instance.py --write
+wrote /tmp/ewf-write-<ts>/ewf/instance.yaml (1021 行；源归档 onshapescript-mcp-1.3.0-6ceacfb.zip sha256 d112de9c63dd…)
+exit=0
+$ git diff --stat
+（空，0 行）
+$ git status --short
+（空，0 行）
+$ sha256sum /tmp/ewf-write-<ts>/ewf/instance.yaml /home/lijq/code/onshapescript/ewf/instance.yaml
+f5148a5da253c9f5c5cfc0b130e7db3159520e88a5528535ad7e41a92a7e67e6  /tmp/ewf-write-<ts>/ewf/instance.yaml
+f5148a5da253c9f5c5cfc0b130e7db3159520e88a5528535ad7e41a92a7e67e6  /home/lijq/code/onshapescript/ewf/instance.yaml
+```
+
+即：**退出码 0、diff 为空、产物与提交版本逐字节相同**（副本 HEAD `11c36c2` 与主检出同期同提交）。
+副本里两条验收命令同样 PASS、退出码 0（官方不提漂移，消费者打印那条漂移说明）。
+
 ## 10. 项目本地的待定项（无编号）
 
 这些是**本项目自己的决定**，不是规范缺口，因此不给 `OQ-` 编号（`OQ-` 是 EWF 的全局命名空间，
@@ -332,7 +354,7 @@ $ sha256sum -c SHA256SUMS | grep -c ": 成功"
 4. **是否跟随 spec `0.6.1`**。本实例在 `0.6.1` 的 schema 下通过校验，但它的每条读数与每个建模
    决定都是在 `0.6.0` 上做的；`0.6.1` 的条款变化没有被本项目逐条核对过。声明
    `spec_version: 0.6.1` 等于声称核对过，所以在核对之前保留 `0.6.0`——消费者工具把它记成
-   "版本漂移"，只记录、不影响判定。
+   "版本漂移"，只记录、不影响判定。**2026-10-03 起本条提升为正式决策记录，含重新考虑条件，见第 14 节。**
 
 ## 11. 回灌清单（叙述版）
 
@@ -375,3 +397,41 @@ $ sha256sum -c SHA256SUMS | grep -c ": 成功"
   `/home/lijq/code/ewf/trials/onshape-release-ingress/`。
 - 本仓发布规格：`docs/operations/RELEASE.md`；发布工具：`dev/tools/consumer_release_spec.py`、
   `dev/tools/build_release.py`。
+
+## 14. 决策记录：`spec_version` 不跟随 schema（含重新考虑的条件）
+
+**决策：不跟随。** 生成器第 62 行的常量是版本住的唯一位置
+（`SPEC_VERSION = "0.6.0"`）；全仓**没有**任何代码读 schema 的 `x-ewf-spec-version`。要前进必须
+有人改常量、重跑 `--write`，并在**同一次提交**里跑完两条验收命令。
+
+> **更正（2026-10-03）**：当天答复 EWF 侧提问时说过"没有为它记过任何策略"——**这句不准确**。
+> 理由其实早已记过（第 10 节待定项第 4 条 + 第 9 节的时点说明）；当时真正缺的是**决策记录与
+> 重新考虑条件**，也就是本节补上的东西。原话与更正都留在 `FEEDBACK.md` 的交换记录里。
+
+**为什么不跟随（可复算的事实，不是偏好）**
+
+1. 这个字段是**声明**，不是镜像：它说的是"本实例的每条读数与每个建模决定是照哪一版规范做的"，
+   而不是"EWF 现在发到哪一版"。自动写成 schema 的当前值，等于**在没核对的情况下声称核对过**。
+2. 今天**没有唯一且稳定的机器可读版本源**：2026-10-02 实测到混合版本窗口（8 个 schema 文件里
+   4 个 `0.6.1` / 4 个 `0.6.0`），窗口内消费者工具直接以
+   `RuntimeError: 无法从 EWF schema 读出唯一 spec_version` 拒绝运行（证据见第 9 节时点说明与
+   `FEEDBACK.md` 的 `onshapescript-FB-13`）。把产物接到一个在某段时间里有**两个答案**的源上，
+   会把"不唯一"引进本实例。
+3. 版本前进的**真实动作是内容再核对**（两条验收命令 + 逐条处置新条款），不是改一个字符串；
+   `--write` 只会重渲染同样的读数。
+4. 漂移**可见且有界**：官方校验器完全沉默；消费者工具 PASS 并打印"版本漂移，只记录、不影响
+   本次判定"。两个实现都不把它当失败——EWF 侧 2026-10-03 也按"**口径是选择、不是缺陷**"记。
+5. `--check` 只是**自洽**检查（生成器 ↔ 已提交产物），它**不会**发现与 schema 的漂移。写在这里
+   免得以后被当成 bug（EWF 侧 2026-10-03 专门问过这一点）。
+
+**什么时候重新考虑**（满足任一条 → 先再核对，再在同一次提交里 bump 常量）
+
+1. EWF 把"实例 `spec_version` 必须等于 schema 族的 `x-ewf-spec-version`"写成 MUST；
+2. 任一实现开始因漂移判**失败**，而不是只记一条说明；
+3. 本项目主动做一轮"对着新版规范再核对"（两条验收命令 + 逐条处置新条款发现）；
+4. 出现"漂移导致消费者误处理"的实际案例，而不只是记一条说明；
+5. schema 侧给出**唯一且稳定**的版本查询入口（单文件真源或显式打印命令），使现读不再有第 2 条
+   那种双答案窗口——那之后可以考虑改成现读（仍要有人确认"读数未变"才 bump）。
+
+**今天的状态**：schema 8 个文件全 `0.6.1`、本实例声明 `0.6.0`，两条验收命令 PASS、退出码 0；
+本决策**不改变任何产物内容**（写路径证据见第 9 节命令 7）。
