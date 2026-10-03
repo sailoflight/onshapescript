@@ -98,6 +98,36 @@ payload construction, dry-run, mocks, fixtures, and quota-ledger inspection do
 not contact Onshape. An explicitly requested reference-update tool may fetch
 public zero-quota sources; read its exact schema and description before calling.
 
+### Interference checking
+
+Part counts, error-feature counts, a stable STEP sha256 and green FeatureScript
+assertions can all be true while two bodies overlap, so nothing but the volume of
+their boolean intersection disproves a clash. Two tools cover it, and both are
+read-only:
+
+- `onshape_interference_check` measures that volume offline. It runs the
+  already-configured geometry backend with a different script, so it needs a
+  `.step`/`.stp` file that is already on the machine (for example one written by
+  `browser_export_step`), and it spends no REST quota and writes nothing — the
+  report arrives on stdout. `mode='boolean'` decides; `mode='aabb'` only lists
+  bounding-box candidates, because overlapping boxes are often a designed
+  interlock.
+- `browser_interference_check` drives Onshape's own Interference Detection on an
+  assembly tab at zero REST quota and reads the result list back. Its DOM
+  selectors have not yet been verified against a live assembly, so treat a live
+  run as a probe: a selector that no longer matches reports what the page
+  actually showed (active tab, candidate menu and toolbar texts, every click
+  attempt) instead of guessing.
+
+Both tools share one verdict vocabulary, and the vocabulary is the point:
+`clean` requires a completed check that found nothing; `interference` names at
+least one overlapping pair with its volume; `candidates_only` is all bounding-box
+mode may ever say; `indeterminate` means the check did not complete (a missing
+panel, a detect that never finished, a timeout, a count that disagrees with the
+rows read, a tolerance that could not be applied) and `unavailable` means the
+check could not be assembled at all. Neither of the last two is a clean model —
+never read `indeterminate` as "no interference found".
+
 ### Concurrency and workflow isolation
 
 One backend, one browser/profile owner, and serialized `tools/call` requests do

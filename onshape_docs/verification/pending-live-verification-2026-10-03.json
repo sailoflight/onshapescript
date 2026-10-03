@@ -1,0 +1,75 @@
+{
+  "probe": "Pending live verification for issue #20: the browser leg of the interference check (`browser_interference_check`) landed on 2026-10-03 with 50 offline tests, but no live assembly was ever opened. Its DOM layer is one SELECTORS table whose nine new entries are marked UNVERIFIED, and the already-known anchors (`button.analysis-button`, `.analysisControlPopup` containing the 干涉检测 item) were recorded from a Part Studio scan, so the ASSEMBLY path is unproven as well. Nothing here is a finding against the code: it is the list of facts a live session must supply before the selectors can be trusted.",
+  "status": "pending-live-verification",
+  "session": "2026-10-03 (offline implementation); the live run below is NOT yet done",
+  "environment_when_implemented": {
+    "repo": "/home/lijq/code/onshapescript, master b734f7d",
+    "host": "the Windows host was reachable and the MCP bridge was serving generation 11, but no resident browser was holding the profile, so no page could be read",
+    "live_api_enabled": "never set; the browser leg spends zero Onshape REST quota by construction"
+  },
+  "already_verified_offline": [
+    "50 offline tests in dev/tests/test_browser_interference.py pass against a stub page: the four verdicts, the two never-fake-clean invariants (panel missing; 0 rows with no completion proof), zero-volume-touch inclusion/exclusion, part_names filtering, bounded waits that terminate without an advancing clock, and selector-miss diagnostics that carry the active tab name",
+    "the module imports without playwright and starts no browser: `import onshape_browser_mode.interference` leaves 'playwright' out of sys.modules",
+    "the registry contract: read-only (no confirm_mutation), zero estimated/max API requests, L4 default exposure, and the tool-surface audit row"
+  ],
+  "checks": [
+    {
+      "id": "T1",
+      "issues": ["#20"],
+      "tool": "browser_interference_check",
+      "arguments": {"tab_name": "<a real assembly tab>", "dry_run": false},
+      "pass_criteria": "On a page whose active tab IS an assembly, a live call reaches the panel: `panel_available` is true and evidence.observation names the active tab and its element type. On a Part Studio tab the same call must answer `unavailable` (not an assembly) -- that negative is part of the check.",
+      "if_it_fails": "the entry point is not where the code looks. Report the real route (analysis popup item / assembly toolbar item / instance context-menu item) and the element's tag+class+text; the fix is a selector constant, not a design change."
+    },
+    {
+      "id": "T2",
+      "issues": ["#20"],
+      "tool": "browser_interference_check",
+      "arguments": {"tab_name": "<an assembly with no interference>"},
+      "pass_criteria": "The empty state is OBSERVABLE. Record exactly what the panel shows with zero interferences: a count summary, an explicit sentence, a 0 badge, or a visible running-to-finished transition. A live call must then answer `clean` with evidence naming which of the three proofs was seen.",
+      "if_it_fails": "if the empty panel says nothing at all (no count, no statement, no observable progress), `clean` is unreachable by design and the proof conditions must be re-derived from what the real panel does -- NOT loosened until a bare 0-row read counts as clean. That distinction is the whole point of this tool, so it is a design conversation, not a quick patch."
+    },
+    {
+      "id": "T3",
+      "issues": ["#20"],
+      "tool": "browser_interference_check",
+      "arguments": {"tab_name": "<an assembly with a KNOWN clash>", "tolerance_mm": 0.05, "include_zero_volume": false},
+      "pass_criteria": "The result carries `interference` with at least one pair, and each pair carries the two instance display names, the raw row text, and the intersection volume with its unit as the panel prints it (mm³ or mm^3 or 立方毫米). The tolerance that was set must be read back and reported; a tolerance that could not be applied or read back must NOT produce a verdict at all.",
+      "if_it_fails": "the row parser or the name separator is wrong. Report one full raw row line verbatim, the separator, whether names carry an index or a leading quantity, and whether a zero-volume touch is marked by text or only by a 0 value. The fix is in the parsing layer, which is why the raw text is part of every pair."
+    },
+    {
+      "id": "T4",
+      "issues": ["#20"],
+      "tool": "browser_interference_check",
+      "arguments": {"tab_name": "<the T3 assembly>", "part_names": ["<one instance from a reported pair>"]},
+      "pass_criteria": "The filter keeps exactly the pairs that involve that instance and the counts agree with the unfiltered run; a filter naming only instances that appear in no pair returns `indeterminate/part_filter_excluded_all` rather than `clean`.",
+      "if_it_fails": "the name matching is too strict or too loose relative to what the panel displays; the fix is a normalization rule, and the observed names from T3 are the input to it."
+    },
+    {
+      "id": "T5",
+      "issues": ["#20"],
+      "tool": "browser_interference_check",
+      "arguments": {"tab_name": "<the T3 assembly>"},
+      "pass_criteria": "After a live run, the document was NOT made dirty: the tab shows no unsaved-change marker and no save prompt appears. The panel must be closed or restored afterwards.",
+      "if_it_fails": "the read is not as read-only as claimed; treat it as a correctness defect before any release notes describe it as a read."
+    }
+  ],
+  "selector_checklist": [
+    {"id": "S1", "question": "Where is the Interference Detection entry really? `button.analysis-button` -> `.analysisControlPopup` item, an assembly toolbar item, or an instance context-menu item (like fix_instances uses)?"},
+    {"id": "S2", "question": "The panel root's tag/class, and whether its own text really contains 干涉 / Interference / clash / collision (the root is keyword-anchored)."},
+    {"id": "S3", "question": "The tolerance input's label/placeholder/aria/title, whether it carries a data-parameter-id, its unit and its default value."},
+    {"id": "S4", "question": "The exact detect-button text, whether it is disabled while running, and any spinner / progress element class or 计算中/Calculating wording."},
+    {"id": "S5", "question": "One verbatim result row: separator between the two entity names, their order, any index, and the volume unit string."},
+    {"id": "S6", "question": "The empty state (see T2) -- the single most important unknown."},
+    {"id": "S7", "question": "The close control, whether Escape closes the panel, and whether closing raises a save prompt."},
+    {"id": "S8", "question": "The assembly tab's real data-element-type / data-type value (the code currently needs four independent signals, including a name containing 装配/Assembly)."},
+    {"id": "S9", "question": "A full `evidence` object from one real read, so the nine UNVERIFIED selectors converge and their provenance can be written down."}
+  ],
+  "how_to_run": [
+    "Wait for the Windows host to be reachable AND for a resident browser holding the MCP profile with an assembly document open (a human signs in; the browser is never started by the agent).",
+    "Run the checks from a development MCP instance, or from the deployed one after a refresh; never edit the deployed source in place.",
+    "Do T1 first (entry point), then T2 (empty state), then T3/T4 (parsing and filtering), then T5 (read-only proof). Each answer is either a selector edit or a documented confirmation.",
+    "Record the result in this file (status -> verified/failed with the tool output) and update issue #20.",
+    "A failing check becomes the next code change; the geometry leg's live acceptance is separate and is recorded in the 1.5.0 release evidence, because it needs no browser."
+  ]
+}
