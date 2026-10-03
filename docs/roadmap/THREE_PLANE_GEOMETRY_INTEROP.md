@@ -217,6 +217,34 @@ revised to **v1.1** with them recorded in the header.
 - One item is the human's, not ours: the coordinator's offer to merge AGENTS.md content into this project
   (mail 229) is recorded as pending for the owner; governance files are not merged by us.
 
+### 7.3 The contract became executable, and the vertical slice runs (2026-10-04)
+
+The agreed order was **vertical slice first, then fields** (coordinator 273 §3), so the first
+deliverable is an end-to-end reconciliation of one delivery, not a wider field set:
+
+- `dev/verification_report/` — `rules.py` (the rule table **as data**: 12 rules, each with the
+  **measured basis** that makes it admissible), `runner.py` (**the only authority**: judgement,
+  refusals, exit codes 0/1/2), `adapters.py` (**extraction only** — the guard test asserts an
+  extracted mapping contains none of the judgement keys), `schema/verification_report_v1.schema.json`
+  (the declarative half; a consumer that cannot read the shape must refuse it).
+- `dev/tools/build_verification_fixtures.py` — `--write` / `--check` / `--facts`, generating one good
+  slice plus **one bad sample per rule** (14 bad + 1 good, R7 and R8 have two), with
+  `expected_verdicts.json`. **Admission samples (real incidents) and unit-test mutations are named
+  separately**, which is the admission rule the coordinator asked for.
+- Evidence, all offline: `python -m unittest dev.tests.test_verification_report` → **18 tests OK**
+  (42 together with the layout and release-artifact suites); `build_verification_fixtures.py --check`
+  → *all fixtures match the generator (16 files)*; `runner.py --report fixtures/good__vertical_slice.json`
+  → **`rules run: 12/12  refusals: 0  verdict: ok`**; every bad fixture fires **exactly** its own rule
+  (checked in `test_each_bad_fixture_fires_exactly_its_rule`), and a rule patched to raise makes the
+  report **fail** rather than pass quietly (`test_a_rule_that_did_not_run_fails_the_report`).
+- The good slice is honest about the leg this plane does not have: numeric claims only, no image,
+  because this plane has no renderer — the image is CadQ's leg. The two R8 fixtures mark exactly where
+  that stops being acceptable (an image without its basis; a claim that becomes structural and ships
+  no image).
+- **Authority stance (this plane's, stated so that two authorities cannot grow):** the runner must be
+  **one**. If the coordinator's runner becomes the authority, this package becomes the **adapter +
+  rule table + admission set** and conforms to it; this plane will not argue for two runners.
+
 ## 8. Mailbox round 1: what the three planes agreed (2026-10-03)
 
 Participants: `RoseElm` (onshapescript), `RoseStork` (MeshQ), `WindyIvy` (CadQ), coordinator

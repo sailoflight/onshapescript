@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "geometry-verification/verification-report@1",
+  "title": "Three-plane verification report (v1)",
+  "description": "The declarative half of the contract. The normative half is dev/verification_report/runner.py: refusal semantics (a contradiction, an unevaluated criterion, a bare verdict) cannot be expressed here, and the runner is the only authority. A consumer that cannot read this shape must refuse it, not coerce it.",
+  "type": "object",
+  "required": [
+    "schema",
+    "producer",
+    "artifact",
+    "claims",
+    "complete",
+    "tolerances",
+    "vintage",
+    "cost"
+  ],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"const": "geometry-verification/verification-report"},
+        "version": {"const": 1}
+      }
+    },
+    "producer": {
+      "type": "object",
+      "required": ["plane", "revision"],
+      "properties": {
+        "plane": {"type": "string", "minLength": 1},
+        "tool": {"type": "string"},
+        "revision": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["sha256", "units"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "units": {"type": "string", "minLength": 1},
+        "sha256_stable": {"type": "boolean"},
+        "sha256_stable_evidence": {
+          "type": "object",
+          "required": ["reason", "consequence"],
+          "properties": {
+            "reason": {"type": "string", "minLength": 1},
+            "consequence": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "quantity", "layers", "grade", "readings"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "quantity": {"type": "string", "minLength": 1},
+          "layers": {"type": "array", "items": {"enum": ["geometry", "topology", "morphology"]}},
+          "grade": {"enum": ["reliable", "heuristic", "visual", "unknown"]},
+          "readings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "unit", "family", "algorithm", "achieved"],
+              "properties": {
+                "value": {"type": "number"},
+                "unit": {"type": "string", "minLength": 1},
+                "family": {"type": "string", "minLength": 1},
+                "algorithm": {"type": "string", "minLength": 1},
+                "achieved": {
+                  "type": "object",
+                  "required": ["absolute", "relative", "basis"],
+                  "properties": {
+                    "absolute": {"type": "number"},
+                    "relative": {"type": "number"},
+                    "basis": {"type": "string", "minLength": 1}
+                  }
+                }
+              }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind"],
+              "properties": {
+                "kind": {"enum": ["image", "table", "stdout"]},
+                "path": {"type": "string"},
+                "grade": {"enum": ["reliable", "heuristic", "visual", "unknown"]},
+                "basis": {
+                  "type": "object",
+                  "required": ["views", "fit", "source_sha256", "recipe_version", "parts_drawn"],
+                  "properties": {
+                    "views": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "fit": {"type": "string", "minLength": 1},
+                    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "recipe_version": {"type": "string", "minLength": 1},
+                    "parts_drawn": {"type": "string", "minLength": 1}
+                  }
+                },
+                "cannot_show": {"type": "string"}
+              }
+            }
+          },
+          "negative_control": {
+            "type": "object",
+            "required": ["fixture", "must_reject", "observed"],
+            "properties": {
+              "fixture": {"type": "string"},
+              "must_reject": {"type": "boolean"},
+              "observed": {"type": "string"}
+            }
+          },
+          "not_evaluated": {"type": "array", "items": {"type": "object"}}
+        }
+      }
+    },
+    "complete": {"type": "boolean"},
+    "not_evaluated": {"type": "array", "items": {"type": "object", "required": ["key", "why"]}},
+    "tolerances": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["absolute", "declared_by", "used_by"],
+        "properties": {
+          "absolute": {"type": "number"},
+          "declared_by": {"type": "string", "minLength": 1},
+          "used_by": {"type": "string", "minLength": 1},
+          "used": {"type": "number"},
+          "matches_declaration": {"type": "boolean"}
+        }
+      }
+    },
+    "vintage": {
+      "type": "object",
+      "required": ["date", "readers", "witness", "re_derive_when"],
+      "properties": {
+        "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "readers": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "witness": {"type": "string", "minLength": 1},
+        "re_derive_when": {"type": "string", "minLength": 1}
+      }
+    },
+    "cost": {
+      "type": "object",
+      "required": ["network"],
+      "properties": {
+        "network": {"enum": ["offline", "browser", "live"]},
+        "estimated_requests": {"type": "integer", "minimum": 0},
+        "mutating": {"type": "boolean"}
+      }
+    },
+    "independence": {
+      "type": "object",
+      "required": ["level"],
+      "properties": {
+        "level": {"enum": ["different_kernel", "different_implementation_same_kernel", "same_code"]},
+        "of": {"type": "string"}
+      }
+    },
+    "csv_projection": {
+      "type": "object",
+      "required": ["path", "checked_against", "result"],
+      "properties": {
+        "path": {"type": "string"},
+        "checked_against": {"type": "string", "minLength": 1},
+        "result": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "additionalProperties": true
+}

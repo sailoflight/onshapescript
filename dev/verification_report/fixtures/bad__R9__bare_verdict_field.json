@@ -1,0 +1,141 @@
+{
+  "artifact": {
+    "path": "/tmp/three-plane-drop/onshapescript-70piece-tessellation/manifest.json",
+    "sha256": "7f4271064f1107bebb3aaaf40944b2690285b4aed8c6a7c55ceee54728608292",
+    "sha256_stable": false,
+    "sha256_stable_evidence": {
+      "consequence": "the digest addresses this delivery for this run; it is not a citable identity of the geometry",
+      "reason": "the STEP leg rewrites its header (timestamps) on every write, so the bytes move while the geometry does not"
+    },
+    "stable": true,
+    "units": "mm"
+  },
+  "claims": [
+    {
+      "grade": "reliable",
+      "id": "c1",
+      "layers": [
+        "geometry"
+      ],
+      "negative_control": {
+        "fixture": "bad__R6__reading_without_achieved.json",
+        "must_reject": true,
+        "observed": "rejected"
+      },
+      "not_evaluated": [],
+      "quantity": "brep.volume_mm3",
+      "readings": [
+        {
+          "achieved": {
+            "absolute": 1e-09,
+            "basis": "three-plane recomputation of the same 70 STL byte sets: relative deviation 9.8e-13 here, 4.99e-07 CadQ, 3.39e-06 MeshQ",
+            "relative": 0.0
+          },
+          "algorithm": "closed-solid volume from the B-Rep faces; exact arithmetic on the recorded parameters",
+          "family": "brep_solid_volume(exact)",
+          "unit": "mm^3",
+          "value": 4500.0
+        }
+      ]
+    },
+    {
+      "boundsAlgorithm": "tessellation_vertices(artifact_bytes)",
+      "grade": "reliable",
+      "id": "c2",
+      "layers": [
+        "geometry"
+      ],
+      "negative_control": {
+        "fixture": "bad__R7__two_names_disagree.json",
+        "must_reject": true,
+        "observed": "rejected"
+      },
+      "not_evaluated": [],
+      "quantity": "bounds_mm",
+      "readings": [
+        {
+          "achieved": {
+            "absolute": 1e-12,
+            "basis": "exact in binary floating point; the box is read off the same bytes the digest covers",
+            "relative": 0.0
+          },
+          "algorithm": "vertex extrema of the artifact bytes (the bytes are the referee)",
+          "family": "tessellation_vertices(artifact_bytes)",
+          "unit": "mm",
+          "value": 40.0
+        }
+      ]
+    },
+    {
+      "grade": "unknown",
+      "id": "c3",
+      "layers": [
+        "geometry"
+      ],
+      "not_evaluated": [
+        {
+          "key": "c3.minWallMm",
+          "why": "this plane does not compute a minimum wall thickness (grade unknown)"
+        }
+      ],
+      "quantity": "minWallMm",
+      "readings": []
+    }
+  ],
+  "complete": true,
+  "cost": {
+    "estimated_requests": 0,
+    "mutating": false,
+    "network": "offline"
+  },
+  "csv_projection": {
+    "checked_against": "report",
+    "path": "pieces.csv",
+    "result": "match"
+  },
+  "independence": {
+    "level": "different_implementation_same_kernel",
+    "of": "the 70-piece tessellation set, recomputed independently by the three planes"
+  },
+  "not_evaluated": [
+    {
+      "key": "c3.minWallMm",
+      "why": "not computed by this plane; MeshQ grades it unknown for the same reason"
+    }
+  ],
+  "producer": {
+    "plane": "onshapescript",
+    "revision": "75b8e4e",
+    "tool": "dev/tools/check_handoff.py"
+  },
+  "schema": {
+    "id": "geometry-verification/verification-report",
+    "version": 1
+  },
+  "tolerances": {
+    "bounds_mm": {
+      "absolute": 1e-09,
+      "declared_by": "sender",
+      "matches_declaration": true,
+      "used": 1e-09,
+      "used_by": "consumer"
+    },
+    "volume_mm3": {
+      "absolute": 0.001,
+      "declared_by": "receiver",
+      "matches_declaration": true,
+      "used": 0.001,
+      "used_by": "consumer"
+    }
+  },
+  "vintage": {
+    "date": "2026-10-04",
+    "re_derive_when": "any producer changes its tessellation family or its chord height",
+    "readers": [
+      "onshapescript",
+      "cadq",
+      "meshq"
+    ],
+    "witness": "MeshQ 179"
+  }
+}

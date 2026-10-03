@@ -1,0 +1,17 @@
+{
+  "bad__R10__incomplete_looks_green.json": "R10",
+  "bad__R11__same_code_as_evidence.json": "R11",
+  "bad__R12__projection_unchecked.json": "R12",
+  "bad__R1__unknown_schema_version.json": "R1",
+  "bad__R2__no_revision.json": "R2",
+  "bad__R3__unstable_digest_without_reason.json": "R3",
+  "bad__R4__no_units.json": "R4",
+  "bad__R5__tolerance_without_owner.json": "R5",
+  "bad__R6__reading_without_achieved.json": "R6",
+  "bad__R7__family_undeclared.json": "R7",
+  "bad__R7__two_names_disagree.json": "R7",
+  "bad__R8__image_without_basis.json": "R8",
+  "bad__R8__structural_claim_without_image.json": "R8",
+  "bad__R9__bare_verdict_field.json": "R9",
+  "good__vertical_slice.json": null
+}
