@@ -7,7 +7,7 @@
 ## Summary
 
 - Registered tools: **115**
-- Server: `onshape-mcp` `1.4.0`
+- Server: `onshape-mcp` `1.5.0`
 - MCP protocol: `2025-06-18`
 - Capability counts: `browser`=71, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=21, `rest_reference`=6
 - Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
