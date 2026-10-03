@@ -136,6 +136,43 @@ ASM_INSERT_ROW = ".select-item-dialog-item.parent-item.os-selectable-item"
 DIALOG_ACCEPT = ".ns-dialog-button-ok.button-ok"
 ASM_INSERT_ACCEPT = DIALOG_ACCEPT
 
+# Interference detection (issue #20 browser leg). ONLY the analysis entry button
+# and its popup are live-verified: `button.analysis-button` + the popup item list
+# containing "干涉检测…" were measured 2026-08-25 in a PART STUDIO
+# (dev/button-map/scan-app-shell.json) -- so the entry LABEL is real, the assembly
+# path and the panel's own DOM are not proven. Every ASM_INTERFERENCE_* constant
+# below is therefore UNVERIFIED: candidates pending an on-machine scan under the
+# interference-detection ticket, and `onshape_browser_mode/interference.py` reports
+# the page facts it saw when any of them misses.
+ANALYSIS_BUTTON = "button.analysis-button"
+ANALYSIS_POPUP_ITEM = (
+    ".analysisControlPopup .os-menu-item, .analysisControlPopup li, "
+    ".analysisControlPopup [role='menuitem'], .analysisControlPopup a"
+)
+ASM_TOOLBAR_ITEM = (
+    ".os-assembly-toolbar .tool, .assembly-toolbar .tool, "
+    ".os-toolbar-content .tool, .toolbar-item, .tool"
+)
+ASM_INTERFERENCE_PANEL = (
+    ".analysisControlPopup, #interference-view, .interference-view, "
+    ".interference-detection-panel, .os-dialog, .xenon-dialog, "
+    "[role=dialog], .modal"
+)
+ASM_INTERFERENCE_INPUT = "input"
+ASM_INTERFERENCE_BUTTON = "button, [role=button]"
+ASM_INTERFERENCE_ROW = (
+    ".interference-row, .os-list-item, tr, .ns-assembly-interference-row, "
+    ".interference-detection-row"
+)
+ASM_INTERFERENCE_CLOSE = (
+    ".osx-close, .close-button, .button-cancel, "
+    "[aria-label*='关闭'], [title*='关闭'], .ns-dialog-button-cancel"
+)
+ASM_PROGRESS = (
+    ".os-progress, .spinner, .loading, [class*='spinner'], "
+    "[class*='progress'], [class*='loading']"
+)
+
 # Cross-origin Drawing editor
 DRAWING_FRAME_URL_PREFIX = "production-drawing-"
 DRAWING_IFRAME = 'iframe[src*="production-drawing-"]'
