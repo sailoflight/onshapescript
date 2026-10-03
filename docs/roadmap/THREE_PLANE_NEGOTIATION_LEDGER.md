@@ -71,7 +71,7 @@ meant to prevent.
 
 | Quantity | Value | How |
 |---|---|---|
-| Offline test suite | **1397 tests, OK** | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest discover -s dev/tests` |
+| Offline test suite | **1415 tests, OK** | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest discover -s dev/tests` |
 | Documentation verification | **17/17 checks passed** | `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python onshape_docs/verification/verify_docs.py` |
 | Registered tools | **116** | `len(mcp_main.win.mcp.server.TOOLS)` |
 | Real Onshape REST calls this negotiation | **0** | `LIVE_API_ENABLED` never set; every leg above runs offline or through the browser |
@@ -82,7 +82,7 @@ meant to prevent.
 
 | Open item | Who owes it | State |
 |---|---|---|
-| Import leg live verification I1–I6 | a human with a signed-in browser | tool + ledger ready; `I6` is offline-provable first; **the only remaining structural gap on this plane** |
+| Import leg live verification I1–I6 | a human with a signed-in browser | tool + ledger ready (`registered_tool`) **plus a one-command operator path** (`dev/tools/step_import_live_check.py`: local half needs no browser; live half takes `--confirm-browser` + target ids, uses the resident session so no sign-in is spent, and prints a paste-back block with `unproven` kept distinct from `pass`); `I6`'s offline half is closed; **the only remaining structural gap on this plane** |
 | MeshQ's printing-precision alignment + `applicable` reason | MeshQ | "our item 17", awaiting its owner's word; it declined to fake a receipt |
 | Rule 16 paired output (post-landing) | MeshQ | reproduction recorded; the paired comparison waits for its change |
 | `run` mapping its own rule verdicts into the exit code / MCP outcome | MeshQ | found and root-caused by MeshQ (its item 18); this plane recorded the general rule (practice 16) and will record its raw output as a second-plane reproduction **when it lands** |

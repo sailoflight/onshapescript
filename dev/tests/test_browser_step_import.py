@@ -503,6 +503,20 @@ class StepImportDigestAddressingTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "expect_sha256"):
                         source_facts(source, expect_sha256=bad)
 
+    def test_an_empty_handoff_argument_means_no_handoff_rather_than_a_path(self):
+        """`""` is how every caller spells "none"; it must not resolve to `Path("")` == the current directory.
+
+        Measured while wiring the operator tool: passing `handoff=""` produced "handoff manifest is not a
+        readable file: ." — a confusing statement about the working directory instead of the true one.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._source(Path(tmp))
+            for empty in ("", "   ", None):
+                with self.subTest(handoff=repr(empty)):
+                    plan = plan_browser_step_import(source_path=source, handoff_manifest=empty)
+                    self.assertEqual(plan["source"]["addressedBy"], "path")
+                    self.assertIsNone(plan["source"]["handoff"])
+
     def test_no_declared_digest_means_the_path_is_the_address_and_that_is_recorded(self):
         with tempfile.TemporaryDirectory() as tmp:
             facts = source_facts(self._source(Path(tmp)))

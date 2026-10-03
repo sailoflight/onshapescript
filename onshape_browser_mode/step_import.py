@@ -81,7 +81,10 @@ def _declared_sha256(handoff: str | Path | dict[str, Any] | None) -> dict[str, A
     (``artifact.sha256``). Anything else is refused by name rather than guessed, because a digest
     taken from the wrong place would silently re-address the import to different bytes.
     """
-    if handoff is None:
+    if handoff is None or (isinstance(handoff, str) and not handoff.strip()):
+        # `""` is how every caller in this repo spells "no handoff"; treating it as a path would resolve to
+        # `Path("")` == the current directory and produce a confusing FileNotFoundError for `.` instead of
+        # the true statement "nothing was declared here".
         return {"declaredSha256": "", "handoffPath": "", "handoffSchema": "", "handoffUnits": "",
                 "handoffIdentityRule": ""}
     path_text = ""

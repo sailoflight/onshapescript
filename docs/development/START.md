@@ -34,6 +34,7 @@ probes, fixtures, and capture material; its directory map is `LAB.md`.
 | FeatureScript local guard | `python onshape_docs/scripts/fs_local_check.py <path>` | zero API calls |
 | Tool reference | `python onshape_docs/scripts/build_tool_reference.py --check` | derived schema check |
 | DSH companion | `python mcp_main/dsh/build_runtime_prompt_companion.py --check` | generated policy adapter |
+| Step-import live check (operator) | `python dev/tools/step_import_live_check.py --source <file.step>` | local plan + digest addressing by default; `--confirm-browser` needs `--document-id`/`--workspace-id`, uses the resident session, **exit 0 pass / 1 failure / 2 could not run** |
 | Handoff consumption check | `python dev/tools/check_handoff.py <manifest.json> [--readings r.json]` | runs the print-basis and identity guards over a peer's manifest; **exit 0 pass / 1 refusal / 2 unreadable** — the closing half for guards that return dictionaries (practice 16) |
 | Release spec check | `python dev/tools/consumer_release_spec.py --check` | whitelist/denylist invariants |
 | Release artifact | `python dev/tools/build_release.py --out <dir outside the checkout>` | reproducible unsigned zip; writes only outside the checkout |

@@ -128,6 +128,7 @@
     }
   ],
   "how_to_run": [
+    "Fastest path (one command, prints a paste-back block): `python dev/tools/step_import_live_check.py --source <file.step> [--expect-sha256 <hex> | --handoff <manifest.json>]` is the local half and needs no browser; add `--confirm-browser --document-id <did> --workspace-id <wid> [--register <import-id>]` for the live half. It labels everything it could not observe as `unproven` and never creates a document.",
     "Reuse the existing signed-in browser profile; do not release the session (it costs a human sign-in).",
     "Prefer the registered tool `browser_import_step` (L4, zero REST quota) over calling the module directly: dry_run is the default, and a real import needs dry_run=false AND confirm_mutation=true.",
     "Run I1 with a real local file on a throwaway document, then I2, I3 on the same document, then I4 on a Part Studio, then I5.",
@@ -143,5 +144,10 @@
     "how_to_call": "Call the registered tool instead of the module when a browser is already signed in: `browser_import_step` with {source_path, mode, dry_run=false, confirm_mutation=true} and optionally {target_tab, expect_feature_name, register_as, timeout_ms}. A dry run (the default) is local: it reads the local file, reports the dialog configuration, the landing-proof rule, the unverified selectors and the refusal rules, and touches no page.",
     "what_stays_unverified": "The four dialog constants (import entry label, dialog, file input, submit) and the live behaviour of checks I1-I5. The verdict is taken from a before/after row read, so an unverified entry point answers imported=false rather than reporting a success it did not observe.",
     "zero_rest_quota": true
+  },
+  "operator_tool": {
+    "path": "dev/tools/step_import_live_check.py",
+    "why": "so the human half is one command: no browser by default, resident session for the live half, and a paste-back block that keeps `unproven` distinct from `pass`",
+    "tests": "dev/tests/test_step_import_live_check.py (8): the default run is local and names the unverified selectors; a wrong digest refuses; a real import without a target refuses before the session starts; a missing source is its own exit code; and the report labels missing observations `unproven` rather than `pass`"
   }
 }
