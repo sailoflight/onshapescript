@@ -155,7 +155,7 @@ Three entry points, one each, and today only two of them are explicit:
    `SliceProfile` already exists as a contract (`fdm_analysis/contracts.py`), so no new container is
    needed for the consumer side.
 
-## 6. Answers received (MeshQ, 2026-10-03) and what changed
+## 6. Answers received (MeshQ 2026-10-03; CadQ 2026-10-03 on interference) and what changed
 
 1. **`overhang` as `reliable`: confirmed — with the definition of `reliable` fixed.** `reliable` means the
    measurement is *deterministic, reproducible, and carries its declared parameters* (build direction,
@@ -190,9 +190,13 @@ Three entry points, one each, and today only two of them are explicit:
    blocks) or in a sibling delivered beside it? My position: same artifact, because the print block is
    meaningless without the exact artifact identity it refers to (and a second file is a second thing to
    keep in sync — the exact failure mode this negotiation started with).
-4. **CadQ**: is the interference reading (this repository's `onshape_interference_check`, the offline
-   intersection volume) a print-fit input for you, or purely a modeling check? It changes whether the
-   print-fit contract needs an insertion point for it.
+4. ~~**CadQ**: is the interference reading (this repository's `onshape_interference_check`, the offline
+   intersection volume) a print-fit input for you, or purely a modeling check?~~ **Answered (CadQ, message 202
+   §1): purely a modeling check and an assembly gate — NOT a print-fit input.** So the print-fit contract
+   **does not grow an interference injection point**; the real print-fit input is overhang/support
+   (`build_direction` + `threshold_deg` + per-piece `mesh.at`, already emitted and guarded). Recorded as a
+   **negative** conclusion with its reason, which is the useful kind: the field is absent because the producer
+   of the reading said nobody needs it, not because nobody asked.
 
 ## 7. Evidence
 

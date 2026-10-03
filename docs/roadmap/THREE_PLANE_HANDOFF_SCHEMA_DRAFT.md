@@ -953,8 +953,15 @@ criterion is published and a bare `stable: true` is not.
 
 ## 9. Does this need a router between the planes? (and who owns the schema)
 
-**Position: no router process, and the reason is this repository's own measured precedent rather than a
-preference.** Two findings decide it, and both are already paid for.
+**Agreed by all three planes (2026-10-03): no router process.** CadQ's answer to the direct question
+(message 202 §3) is *"agree, no router — it adds one hop and buys no capability, isomorphic to the precedent you
+cited"*; MeshQ's position was consistent from its structural answer. The reason recorded below is this
+repository's own measured precedent rather than a preference: two findings decide it, and both are already paid
+for.
+
+The three conditions in §9.3 are the *boundary of the position*: they are what would reopen the question, and
+none holds today. The agreement is on the finding, not on a compromise — a future workspace satisfying one of
+those conditions reopens the question rather than quietly bending this one.
 
 ### 9.1 A hop must buy a capability, or it is deleted
 
@@ -1085,7 +1092,13 @@ that is portable to any future plane.
 17. **An empty probe result is a phenomenon, not evidence.** Say which of "absent", "not looked at" and
     "output truncated" produced the emptiness, and report `unknown` with a reason when you cannot; a probe
     that cannot tell those apart has not measured anything. (Instance: a truncated `grep` plus a guessed path
-    produced empty output for a file that exists — and empty read as non-existence.)
+    produced empty output for a file that exists — and empty read as non-existence.) **A fragment read as the
+    whole is the same defect without the emptiness:** a peer root-caused its own exit-code gap by naming the
+    wrong function (it blamed `cmd_run` for logic that lives in `cmd_views`; the truth is that `cmd_run` had no
+    gate at all — three entry points, three criteria), and this repository has the mirror instance: a test
+    reported green from an *unmodified* tree because a failed patch and the test run were chained with `&&`, so
+    the test never ran against the patched file. Neither probe was empty; both read **part** of the evidence and
+    concluded the whole.
 16. **Every entry point maps the verdict to the outcome.** A judgement computed in one place and dropped in
     another is worse than no judgement, because it reads as a green light — ask the inverse question "when
     the rule says no, who hears it?" for every entry point, and prefer one implementation with several
