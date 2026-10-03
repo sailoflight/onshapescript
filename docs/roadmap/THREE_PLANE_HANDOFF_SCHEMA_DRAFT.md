@@ -780,9 +780,14 @@ that is portable to any future plane.
     (this repository: `ade4c12a… → 7f427106…`; CadQ: its signature moved between schema 0.1 and 0.2 with
     every STL byte unchanged), so comparisons start at the rule (`identity_rule.version`,
     `signature_schema`) and never at the digest.
-12. **A delivery is not a receipt.** The mailbox tool distinguishes "landed in the project" (`found`) from
-    a recipient ack (`签收 n/m`), and a hop is only closed on the second. The same discipline applies to
-    this repository's own `send`-style tools: the return value is not the evidence.
+12. **A delivery is not a receipt, and neither is your own ledger.** The mailbox tool distinguishes
+    "landed in the project" (`found`) from a recipient ack (`签收 n/m`), and a hop is only closed on the
+    second. This cut both ways in practice: the ack command's *return line* is not the receipt either —
+    four messages this repository believed it had acknowledged (169, 170, 164, 173) still read `0/1` when
+    the receipt tool was asked, and only a re-run of the ack moved them (`169 → 1/1`, `170 → 1/2` with
+    this repository as the 1). The rule that follows is the same one this repository applies to its own
+    `send`-style tools: **never carry a claim of receipt that the receipt tool would not confirm**, and
+    after any ack, re-ask the tool rather than the memory of having seen a confirmation line.
 13. **Refusals are the interface.** Every conclusion above is written as something a consumer can refuse
     (rules 1-17), because a shared contract that cannot say "no" is a convention, not a boundary.
 
