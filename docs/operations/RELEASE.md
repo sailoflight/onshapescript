@@ -10,7 +10,7 @@ machine-checkable form of the whitelist/denylist below is
 `dev/tools/consumer_release_spec.py`; the checks are in
 `dev/tests/test_consumer_release.py`.
 
-The MCP server version is `1.3.0` (`mcp_main/win/mcp/identity.py`). The `3.0.7`
+The MCP server version is `1.4.0` (`mcp_main/win/mcp/identity.py`). The `3.0.7`
 release and its `sha256:50852ae9…` digest belong to the **development**
 governance package (`AGENTS.md`), not to this artifact; the artifact carries no
 governance package and requires no `apg` CLI.
@@ -125,7 +125,7 @@ output directory is not "cleanup".
 
 ## Versioning and integrity
 
-- A release is named for the MCP server version (`1.3.0` today) plus a release
+- A release is named for the MCP server version (`1.4.0` today) plus a release
   revision; it never borrows the governance `3.0.7` version.
 - The artifact ships `release-manifest.json`: one entry per file with its
   workspace-relative POSIX path, byte size, and SHA-256.
@@ -190,7 +190,7 @@ denylisted mutable state listed above before changing anything.
 
 Publishing is the one step that writes outside this machine. The builder never
 uploads anything; **this procedure is the upload**, and it runs only on explicit
-user/owner approval (done 2026-09-26 for `v1.3.0`).
+user/owner approval (done 2026-09-26 for `v1.3.0` and 2026-10-03 for `v1.4.0`).
 
 1. Establish the environment and identity: the GitHub account, the exact
    repository, and the revision the artifact was built from. `gh auth status` must
@@ -244,7 +244,7 @@ from the artifact precisely so extracting can never overwrite it.
 
 1. Record the recovery point (the Operator runbook procedure) and stop the server.
 2. Extract the new release into a **new** directory, for example
-   `C:\MCP\onshapescript-1.3.0-<revision>`; verify it as in install steps 2-4.
+   `C:\MCP\onshapescript-1.4.0-<revision>`; verify it as in install steps 2-4.
 3. Carry the preserved state forward by copying the `excludedPaths` that exist in
    the old install into the same relative locations in the new one: the browser
    profile, `browser-state.json`, `browser.local.toml`, the REST credential and
