@@ -158,5 +158,19 @@
     ],
     "therefore": "the Windows copy must be refreshed before I1-I6 can be attempted (Operator action, in-place code-only refresh per docs/operations/RELEASE.md), with the human present to authorize it",
     "login_cost_correction": "a refresh does NOT necessarily cost a sign-in: RELEASE.md's measured 2026-09-26 note records a detached resident browser surviving the refresh and two server restarts with the same PID and DevTools browser GUID, provided residency is on (it is the default; the deployed browser.local.toml has resident=true, port 9333)"
+  },
+  "getting_a_human_into_the_windows_session_measured_2026-10-03": {
+    "why": "the resident browser is spawned by the MCP server and inherits its Windows session, so a human who must type a password has to be in that session; the only step this repository cannot do for itself",
+    "rdp_target": "100.68.193.12 (Tailscale) or 192.168.130.71 (LAN); 3389 is listening and NLA is required",
+    "account": "REOLINK\\075526249 (domain REOLINK on host RL001-A03-0717; NOT a Microsoft account — the SID is S-1-5-21-..., so no email form works). The account is a member of the local Administrators group, so RDP permission is not the problem.",
+    "failure_measured": {
+      "symptom": "the client reports bad credentials; three attempts at 22:01:37 / 22:01:55 / 22:02:06",
+      "client": "DESKTOP-VVOIEFT at 100.76.170.81 (Tailscale), NTLM, logon type 3",
+      "security_4625": "Status 0xC000006D, Sub Status **0xC0000064** (STATUS_NO_SUCH_USER — the user name does not exist), Account Name received as `REOLINK/075526249` with Account Domain `.`",
+      "conclusion": "the password was never tested. The client sent the account with a FORWARD slash, so the server looked for a local user literally named REOLINK/075526249. Use a backslash (REOLINK\\075526249), or put domain REOLINK and user 075526249 in separate fields, or the UPN form 075526249@reolink.ad.",
+      "not_the_cause": "network/TCP (the connection was accepted and NTLM ran), NLA/CredSSP (it negotiated), the DC (nltest /sc_verify = NERR_Success), clock (server is +8 ms from the DC), RDP policy (fDenyTSConnections=0)"
+    },
+    "lockout_watch": "0xC0000064 is pre-authentication, so these attempts should not count as password failures; if a later 4625 reports Sub Status 0xC0000234 (account locked out), stop retrying and wait.",
+    "after_login": "disconnect the RDP window rather than signing out: sign-out ends the session and kills the detached resident browser with it, and Onshape's login is a session cookie held only in that process's memory."
   }
 }
