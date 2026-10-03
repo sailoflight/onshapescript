@@ -210,13 +210,21 @@ Participants: `RoseElm` (onshapescript), `RoseStork` (MeshQ), `WindyIvy` (CadQ),
 | This plane's configured angular tolerance default is **5.0°**, not MeshQ's declared 0.3 rad (≈17.19°) | "receiver declares, producer acknowledges" is not a formality here: the converter takes `--angular-tolerance-degrees` |
 | This plane's L6 `report.json` already computes `watertight / bedContactAreaMm2 / printHeightMm / overhangAreaMm2 (@45°, downward-face-area)` with `wallThicknessMm: null` | the two planes both compute an "overhang area" under the same 45° threshold — ownership must be stated, or two planes will publish two numbers with one name |
 
-### 8.3 What this plane owes, once the human agrees
+### 8.3 What this plane owed here — all three landed, one in a better form than planned
 
-1. Add a `geometry` block to the browser STEP manifest (reusing the existing AABB reading: solid count +
-   per-solid bbox + volume + `measureKind: brep_exact`).
-2. Add `absolute / declared_by / used_by / used` to the tessellation declaration and state the 0.05 mm /
-   5.0° defaults explicitly.
-3. Stop implying byte identity for STEP: `sha256_stable: false` plus the geometry signature.
+1. **`geometry` block in the browser STEP manifest — landed, but NOT with a browser-side bbox.**
+   `onshape_browser_mode/step_export.py` publishes `geometry{solidCount, readsNothing, tessellation:
+   not_produced_here}`: the solid count plus an explicit "**no CAD kernel runs in the browser leg, so this
+   block publishes no volume, area or bounds reading**". The plan asked for per-solid bbox + volume +
+   `measureKind: brep_exact`; the delivered form refuses to publish a reading it cannot take, and that
+   turned out to agree with the rest of this negotiation — a second, weaker measuring family is exactly
+   what produced the four-implementation `bounds_mm` mess (§10 of the shape draft).
+2. **Tolerance pair — landed.** `fdm_analysis/conversion/step_tessellation.py` publishes
+   `absolute / declared_by / used_by / used` with `matches_declaration` computed by the producer (and the
+   refusal when the used pair does not match the declared one).
+3. **No implied byte identity for STEP — landed.** The manifest carries `sha256_stable: false` with
+   `sha256_stable_evidence{reason, consequence}` ("the digest addresses THIS delivery, not the geometry
+   behind it").
 
 ### 8.4 CadQ's stated position (from its report, message 113)
 
