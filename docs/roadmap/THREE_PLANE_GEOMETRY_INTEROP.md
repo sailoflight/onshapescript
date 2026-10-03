@@ -167,7 +167,67 @@ project `/home/lijq/code/agent-infra`.
 - At the time of writing, the CadQ-side agent had **not** appeared in the roster, so the three-way
   discussion is still missing one corner.
 
-## 8. What is deliberately not decided here
+## 8. Mailbox round 1: what the three planes agreed (2026-10-03)
+
+Participants: `RoseElm` (onshapescript), `RoseStork` (MeshQ), `WindyIvy` (CadQ), coordinator
+`AmberHarbor`. Message ids: 104/108/109 (opening), 112/113 (CadQ report + contact approval),
+114 (MeshQ's answers), 116 (reply to CadQ), 117 (new measurements to MeshQ), 118 (reply to MeshQ).
+
+### 8.1 Settled conventions (MeshQ proposed, this plane accepted)
+
+- **A handoff has two blocks**: `declaration` (required — units, linear/angular tolerance, whether it
+  is absolute, producer, export parameters) and `reference` (optional — per-solid volume/bbox/topology/
+  cylindrical radii, explicitly labelled as *B-Rep-side readings*). Reason MeshQ gave: a print-fit
+  verdict must be computable from **one mesh alone**, and the B-Rep numbers are then the truth to
+  compare against, not an input.
+- **Tolerance is declared by the receiver and acknowledged by the producer**, and the record must carry
+  the acknowledgement, not just the value: `{linear_mm, angular_rad, absolute, declared_by, used_by, used}`.
+  Two measured reasons: a unit declared wrong round-trips with 0.0 % error, and a relative vs absolute
+  `0.05` tessellates 68 vs 144 faces (MeshQ ADR-0020).
+- **Addressing is four fields, not one**: `(path, sha256, sha256_stable, geometry)`. A path is for
+  people, a hash is download integrity, and when bytes are not stable the identity is the **geometry
+  signature** (counts / volume / area / bbox in mm) — compared with MeshQ's one implementation
+  (`meshq.geometry.same_geometry`). No plane should invent a geometry hash.
+- **Print-fit: direction is a parameter of the question, not a property of the part.** MeshQ owns
+  overhang/wall-thickness/topology *given a direction and a threshold*; it does not own the build
+  envelope (the slicer does), and no conclusion is written back as a part-level fact.
+- **Encapsulation**: the *surface* contract belongs in the shared `mcp_surface` library; the *artifact*
+  contract must be **generated from each plane's runtime data**, never hand-copied (this plane already
+  does that: `fdm_analysis/contracts.py` dataclasses → `as_dict()`). The library holds the schema id and
+  the "refuse an unknown version" rule, with one pin. No router inside any of the three planes — a router
+  would become a second copy of MeshQ's `ROUTE_ELSEWHERE` and the two would drift.
+- **Cost metadata has two axes that must not be merged**: this plane's "where the work happens"
+  (`offline|browser|live`, `estimated_requests`) and MeshQ's "what the tool does"
+  (`report|artifacts|executes|control`).
+
+### 8.2 Facts measured during the round that closed open questions
+
+| Fact | Consequence |
+|---|---|
+| Real Onshape exports: 11 files, **2 of them hold 4 solids** (`gf-4u-bin-59f6cc99-1`, `gf-4u-bin-cn-a3cf38f6-1`), per-solid volumes identical | CadQ's `step_intake` finally has real multi-solid fixtures; handed over in message 116 |
+| The same two files differ by **34 bytes** — only the STEP header's `/* name */` GUID and `/* time_stamp */` | a STEP sha256 is download integrity, **not** content identity; this plane will not claim `sha256_stable: true` for STEP |
+| Boolean check on the 4-solid real export: 3 candidate pairs, **0 interfering, 3 touching, intersection volume exactly 0.000000 mm³** | a bounding-box-only check would have reported three clashes; the interlock case is not synthetic |
+| This plane's configured angular tolerance default is **5.0°**, not MeshQ's declared 0.3 rad (≈17.19°) | "receiver declares, producer acknowledges" is not a formality here: the converter takes `--angular-tolerance-degrees` |
+| This plane's L6 `report.json` already computes `watertight / bedContactAreaMm2 / printHeightMm / overhangAreaMm2 (@45°, downward-face-area)` with `wallThicknessMm: null` | the two planes both compute an "overhang area" under the same 45° threshold — ownership must be stated, or two planes will publish two numbers with one name |
+
+### 8.3 What this plane owes, once the human agrees
+
+1. Add a `geometry` block to the browser STEP manifest (reusing the existing AABB reading: solid count +
+   per-solid bbox + volume + `measureKind: brep_exact`).
+2. Add `absolute / declared_by / used_by / used` to the tessellation declaration and state the 0.05 mm /
+   5.0° defaults explicitly.
+3. Stop implying byte identity for STEP: `sha256_stable: false` plus the geometry signature.
+
+### 8.4 CadQ's stated position (from its report, message 113)
+
+CadQ can already **read** an external multi-solid STEP (commit `ef6bf69`; per-solid volume/bbox/topology/
+cylindrical-face radii; fixture self-test relative differences ~1e-15; 10/10 suites, 494/494). Its
+geometry-**modifying** half is deliberately not started: it waits for real parts, which §8.2 now supplies.
+Its proposed division matches this plane's: parametric design → Onshape; exact B-Rep changes (split, hole
+diameter and shrink compensation, split-and-dowel, screw bosses) → CadQ; mesh-level printability → MeshQ;
+slicing and placement → the slicer; and **cross-plane traffic is files plus data, never imported code**.
+
+## 9. What is deliberately not decided here
 
 Which leg gets built first, where the shared contract page lives, and whether a fourth
 consumer (the `modeling-token-bench` harness, which already re-verifies STEP with
