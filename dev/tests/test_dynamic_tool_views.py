@@ -379,7 +379,7 @@ class CollapseExpandToolViewTest(unittest.TestCase):
                 server.TOOLS, profile="default", semantic_levels=None
             )],
         )
-        self.assertEqual(len(semantic["tools"]), 81)
+        self.assertEqual(len(semantic["tools"]), 82)
 
         dynamic = self.dynamic_connection()
         cold = self.listed(dynamic)
@@ -421,7 +421,7 @@ class CollapseExpandToolViewTest(unittest.TestCase):
         self.assertEqual(outgoing[1]["method"], "notifications/tools/list_changed")
 
     def test_each_expanded_view_selects_its_display_set(self):
-        expected = {"static": 115, "semantic": 81, "gateway": 25, "profile": 41}
+        expected = {"static": 116, "semantic": 82, "gateway": 25, "profile": 42}
         # The startup profile is `browser`, so `expanded_view=profile` is
         # distinguishable from the fixed `semantic` (= `default`) set.
         connection = self.dynamic_connection(profile="browser")

@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **115**
+- Registered tools: **116**
 - Server: `onshape-mcp` `1.5.3`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=71, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=21, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
+- Capability counts: `browser`=72, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=21, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=29, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
 
 ## Safety interpretation
 
@@ -66,6 +66,7 @@
 | `browser_get_page_tabs` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | List the document tabs currently on screen (e.g. 'Part Studio 1', 'Assembly 1', Feature Studio tabs), marking which one is active. |
 | `browser_get_partstudio_features` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read the Part Studio feature tree and part list currently on screen. Read-only; never calls the Onshape REST API. headerCount is the whole-list count, and ready=false or rowsCom... |
 | `browser_group_instances` | `browser` | `L4 onshape_transaction` | `instance_names`, `instance_selector` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Multi-select named Assembly instances and invoke the 分组 toolbar action. |
+| `browser_import_step` | `browser` | `L4 onshape_transaction` | `source_path` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Import one local STEP file into the current document through Onshape's own Import dialog, spending ZERO Onshape API quota. The verdict is computed from a before/after read of a... |
 | `browser_insert_assembly_instances` | `browser` | `L4 onshape_transaction` | `instance_names`, `instance_selector` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Insert named Part Studio or Assembly sources through the Assembly insert dialog. |
 | `browser_insert_custom_feature` | `browser` | `L4 onshape_transaction` | `confirm_mutation` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. It counts the element's USER feature rows before the click and... |
 | `browser_inspect` | `browser` | `L1 browser_primitive` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read-only inventory of the visible interactive elements on the current Onshape browser page: links, buttons, inputs, menus, tabs, and anything with an aria-label / data-testid.... |

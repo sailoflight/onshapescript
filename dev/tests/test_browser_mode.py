@@ -2175,7 +2175,7 @@ class BrowserMetadataTest(unittest.TestCase):
 
         # This number is a tripwire: it must only move when a tool is deliberately
         # added or removed.
-        self.assertEqual(len(server.TOOLS), 115)
+        self.assertEqual(len(server.TOOLS), 116)
 
 
 if __name__ == "__main__":

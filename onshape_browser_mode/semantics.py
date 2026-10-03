@@ -174,6 +174,9 @@ _classify(
         "browser_delete_element",
         "browser_delete_feature",
         "browser_export_step",
+        # The import counterpart: it creates a document element (or a Part Studio feature),
+        # so it is the same transaction level as the export it feeds. Zero REST quota.
+        "browser_import_step",
     ),
     "L4",
 )

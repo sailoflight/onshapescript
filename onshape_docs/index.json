@@ -13205,7 +13205,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "907493ed22cc2ddd2aa7a05c4439b4a9b1ab3a1aec9a97918e7d7dd02eadcddd",
+   "sha256": "5909e572d9677ba3ef074edad0f1d69d51755650982dc79590c786fc7f0b37d3",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -13226,7 +13226,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 115",
+         "text": "Registered tools: 116",
          "depth": 0
         },
         {
@@ -13238,11 +13238,11 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=71, featurescript=11, other=3, project_docs=3, rest_operations=21, rest_reference=6",
+         "text": "Capability counts: browser=72, featurescript=11, other=3, project_docs=3, rest_operations=21, rest_reference=6",
          "depth": 0
         },
         {
-         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=28, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
+         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=29, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
          "depth": 0
         }
        ]
@@ -13626,6 +13626,14 @@
          "instance_names, instance_selector",
          "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
          "Multi-select named Assembly instances and invoke the 分组 toolbar action."
+        ],
+        [
+         "browser_import_step",
+         "browser",
+         "L4 onshape_transaction",
+         "source_path",
+         "network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile",
+         "Import one local STEP file into the current document through Onshape's own Import dialog, spending ZERO Onshape API quota. The verdict is computed from a before/after read of a..."
         ],
         [
          "browser_insert_assembly_instances",

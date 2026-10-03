@@ -111,9 +111,18 @@
   ],
   "how_to_run": [
     "Reuse the existing signed-in browser profile; do not release the session (it costs a human sign-in).",
+    "Prefer the registered tool `browser_import_step` (L4, zero REST quota) over calling the module directly: dry_run is the default, and a real import needs dry_run=false AND confirm_mutation=true.",
     "Run I1 with a real local file on a throwaway document, then I2, I3 on the same document, then I4 on a Part Studio, then I5.",
     "Record for each check: the raw result JSON, the page URL, and the tab/feature row text observed.",
     "Do not answer a check from memory or from the button-map scan: the whole point is that these facts are not yet observed.",
     "After answering, move the confirmed constants into `onshape_browser_mode/selectors.py` with a dated comment and change this file's `status` from `pending-live-verification` to `verified` plus the session date."
-  ]
+  ],
+  "registered_tool": {
+    "name": "browser_import_step",
+    "registered": "2026-10-03",
+    "level": "L4 onshape_transaction",
+    "how_to_call": "Call the registered tool instead of the module when a browser is already signed in: `browser_import_step` with {source_path, mode, dry_run=false, confirm_mutation=true} and optionally {target_tab, expect_feature_name, register_as, timeout_ms}. A dry run (the default) is local: it reads the local file, reports the dialog configuration, the landing-proof rule, the unverified selectors and the refusal rules, and touches no page.",
+    "what_stays_unverified": "The four dialog constants (import entry label, dialog, file input, submit) and the live behaviour of checks I1-I5. The verdict is taken from a before/after row read, so an unverified entry point answers imported=false rather than reporting a success it did not observe.",
+    "zero_rest_quota": true
+  }
 }

@@ -1462,6 +1462,49 @@ def browser_export_step(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+
+def browser_import_step(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Import one local STEP file through the document's Import dialog (zero REST quota).
+
+    The verdict comes from a before/after read of a live-observed row list, never from the dialog's
+    own UI, so the four UNVERIFIED dialog selectors cannot produce a false success. The pending
+    live-verification ledger is named in the result; `dry_run` is purely local.
+    """
+    source_path = arguments.get("source_path")
+    if not isinstance(source_path, str) or not source_path.strip():
+        raise ValueError("source_path is required")
+    mode = arguments.get("mode", "new-tab")
+    if mode not in {"new-tab", "into-part-studio"}:
+        raise ValueError("mode must be 'new-tab' or 'into-part-studio'")
+    from onshape_browser_mode.step_import import (
+        import_browser_step,
+        plan_browser_step_import,
+        register_imported_browser_step,
+    )
+
+    shared = {
+        "source_path": source_path,
+        "mode": mode,
+        "target_tab": arguments.get("target_tab", ""),
+        "document_id": arguments.get("document_id", ""),
+        "workspace_id": arguments.get("workspace_id", ""),
+        "expect_feature_name": arguments.get("expect_feature_name", ""),
+        "timeout_ms": arguments.get("timeout_ms", 120_000),
+    }
+    if arguments.get("dry_run"):
+        return plan_browser_step_import(**shared)
+    _confirm(arguments)
+    page, _ = _page()
+    result = import_browser_step(page, **shared)
+    if result.get("imported") and arguments.get("register_as"):
+        result["registered"] = register_imported_browser_step(
+            import_id=arguments["register_as"],
+            result=result,
+            document_id=arguments["document_id"],
+            workspace_id=arguments["workspace_id"],
+        )
+    return result
+
 def browser_discover_tools(arguments: dict[str, Any]) -> dict[str, Any]:
     query = arguments.get("query", "")
     levels = arguments.get("semantic_levels")
@@ -1617,6 +1660,7 @@ _DIMENSION_PROPERTIES = {"tool_selector": {"type": "string", "default": ""}, "ge
 BROWSER_TOOLS = [
     _tool("browser_discover_tools", "Search the optional six-level browser catalog, plus whole-feature capability cards when the query names a CAD feature. A matching card also carries the exact deploy call that uses it, because a capability is an argument to browser_deploy_and_apply_featurescript rather than a gateway invocation. Ordinary queries omit L1/L3 and semantically invalid tools; explicitly pass semantic_levels=['L1'] or ['L3'] to reveal their exact schemas. Classification guides discovery only and grants no execution authority.", {"query": {"type": "string", "default": ""}, "semantic_levels": {"type": "array", "items": {"type": "string", "enum": ["L1", "L2", "L3", "L4", "L5", "L6"]}, "uniqueItems": True, "maxItems": 6}, "limit": {"type": "integer", "minimum": 1, "maximum": 12, "default": 8}, "include_schema": {"type": "boolean", "default": True}}, mutating=False, seconds=1, network="offline"),
     _tool("browser_invoke_discovered", "Deprecated compatibility wrapper: call the registered tool by the exact name that mcp_tool_catalog returns. It invokes one browser tool from the discovery catalog; nested tool schemas, dry-run, mutation confirmation, pacing, and acceptance checks remain authoritative and this gateway grants no permission and bypasses no handler gate. The hop is preserved for existing callers only.", {"name": {"type": "string"}, "arguments": {"type": "object", "additionalProperties": True}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["name", "arguments"]),
+    _tool("browser_import_step", "Import one local STEP file into the current document through Onshape's own Import dialog, spending ZERO Onshape API quota. The verdict is computed from a before/after read of a live-observed row list (the tab bar for mode='new-tab', the Part Studio user-feature rows otherwise), NOT from the dialog: the dialog's own success UI is not evidence, and its four selector constants are UNVERIFIED candidates recorded in `onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json`, so an unverified entry point cannot produce a false success. A finished translation is not an imported element: an unchanged row list answers imported=false with reason=no_new_element and translationCompleted=unknown (a running translation is not a failed import); two new rows are refused as ambiguous; a failed after-read is never a success; and a failed BEFORE-read refuses before anything is clicked. mode='into-part-studio' answers imported=null unless expect_feature_name matches the new row, because a new feature row proves something was added, not that this file landed. dry_run is purely local and writes nothing; a real import requires confirm_mutation=true. This leg exists because the REST route refuses in JSON-only transport (the import body is multipart/form-data with a binary file part).", {"source_path": {"type": "string", "description": "Absolute local path of a .step or .stp file to import."}, "mode": {"type": "string", "enum": ["new-tab", "into-part-studio"], "default": "new-tab"}, "target_tab": {"type": "string", "default": ""}, "document_id": {"type": "string", "default": ""}, "workspace_id": {"type": "string", "default": ""}, "expect_feature_name": {"type": "string", "default": ""}, "register_as": {"type": "string", "default": ""}, "timeout_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "default": 120000}, "dry_run": {"type": "boolean", "default": True, "description": "Plan-only and writes nothing: reads the local source, reports the dialog configuration, the landing-proof rule, the unverified selectors and the refusal rules. Default true, so a real import needs dry_run=false AND confirm_mutation=true."}, "confirm_mutation": {"type": "boolean", "description": "Required true for a real cloud-mutating browser action. Importing adds an element or a feature to the document."}}, mutating=True, seconds=180, required=["source_path"]),
     _tool("browser_export_step", "Export one explicit Part Studio tab through the live-observed Onshape export dialog to an AP242 millimeter STEP download, exclude hidden entities, require a single non-ZIP STEP result, and persist a browser-owned step-manifest with SHA/provenance. Zero REST quota. Actual UI/download execution requires confirm_mutation=true; dry_run is local. A failure is not necessarily an absence: the export may restart the browser, and a complete STEP can already be sitting in staging even when the call reports failure, so a failed result carries `stagedArtifacts` (what landed on disk) and `recovery` (what to do next) — inspect those before retrying. Pass overwrite=true on a retry to reuse a staging directory that a failed export left partial; without it a retry refuses rather than overwrite the leftovers. An existing staging directory is reused only when the manifest proves it came from the SAME document/workspace/element; a different target is refused (or replaced with overwrite=true), never answered with another document's STEP.", {"source_tab": {"type": "string"}, "export_id": {"type": "string"}, "document_id": {"type": "string"}, "workspace_id": {"type": "string"}, "element_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 30000, "maximum": 300000, "default": 120000}, "overwrite": {"type": "boolean", "default": False, "description": "Allow a retry to reuse a staging directory that a failed export left partial, instead of refusing on the existing destination. A complete STEP may already be staged even when the previous call reported failure; inspect its `stagedArtifacts` first."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=180, required=["source_tab", "export_id", "document_id", "workspace_id", "element_id"]),
     _tool("browser_geometry_status", "Deprecated compatibility wrapper: use onshape_geometry_status, which reports every configured backend in one answer. Kept so an existing caller keeps working; it delegates and returns the same report.", {}, mutating=False, seconds=90, network="offline"),
     _tool("browser_configure_geometry_backend", "Deprecated compatibility wrapper: use onshape_configure_geometry_backend with backend='browser'. Kept so an existing caller cannot silently start configuring the other mode. The candidate is re-discovered before writing, so callers cannot supply an executable or argv. dry_run previews the selection; actual local configuration requires confirm_mutation=true.", {"candidate_id": {"type": "string"}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=90, required=["candidate_id"], network="offline"),
@@ -1685,6 +1729,7 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_discover_tools": browser_discover_tools,
     "browser_invoke_discovered": browser_invoke_discovered,
     "browser_export_step": browser_export_step,
+    "browser_import_step": browser_import_step,
     "browser_geometry_status": browser_geometry_status,
     "browser_configure_geometry_backend": browser_configure_geometry_backend,
     "browser_build_geometry_package": browser_build_geometry_package,

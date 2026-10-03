@@ -77,12 +77,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 68 |
+| `Keep` | 69 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **115** |
+| **total** | **116** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -111,6 +111,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_edit_feature_parameters` | `Keep` | - | Edits scalar parameters of an existing custom feature; the cheapest way to explore a design space without redeploying source. |
 | `browser_element_context_menu` | `Internal-only` | - | Opens an element-tab context menu for the next command; the command, not the menu, is the useful unit. |
 | `browser_eval` | `Internal-only` | - | Arbitrary JavaScript in the page. Reachable at an explicit level for diagnosis, but never a default choice: it would bypass every typed wrapper. |
+| `browser_import_step` | `Keep` | - | The missing counterpart of the export: the only way a consumer gets a local STEP file into Onshape at zero REST quota, because the REST import body is multipart with a binary part and a JSON-only transport refuses it. Its verdict comes from a before/after row read, never from the dialog, so its four unverified selectors cannot manufacture a success. |
 | `browser_export_step` | `Keep` | - | Deliverable export through the UI at zero REST quota, with explicit tab targeting. |
 | `browser_activate_tab` | `Keep` | - | Makes one existing tab active and waits for its content, which every read tool and `browser_edit_feature_parameters` depend on because they act on whatever tab is active; no other tool could select one. |
 | `browser_verify_feature_parameters` | `Keep` | - | Second stage of the parameter edit: confirms regeneration and persisted values after the apply stage returns. An accept that changes a parameter commits while the accepted panel can stay open past any transport budget (measured live: still present 95 s after the accept, where a no-op accept closed in 4-5 ms), so panel removal is not a verdict and the stage recovers with one bounded reload. |
