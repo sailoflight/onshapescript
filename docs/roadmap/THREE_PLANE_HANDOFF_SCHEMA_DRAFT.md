@@ -1122,6 +1122,16 @@ that is portable to any future plane.
     criterion cannot express — so either use a criterion that can express the question, or declare what it
     cannot see. (Instance: a face-to-face interference check cannot see a part mounted inside another; switching
     to solid intersection found 16 pairs in the same assembly.)
+21. **A mutable default shared across a batch is a cross-piece channel, not "scratch space".** If one scratch
+    object (or one scratch directory) is reused for every piece, a reading can be **of another piece** and still
+    look perfect. MeshQ measured exactly this on its own `inspect`: 70 pieces with six-way concurrency produced
+    **45 of 70 rows wrong** while the process exited **0**, because the `file` / `sha256` it published came from
+    the **request** rather than from the thing it measured. The rule to carry: derive each piece's scratch path
+    from that piece's own identity, publish the identity you **actually measured** next to the reading, and make
+    a declared-vs-measured identity mismatch an error rather than a warning. **Attribution:** measured on MeshQ's
+    plane (its own report); this repository implements no such batch inspect and has **not reproduced** it —
+    recorded as a peer practice with an explicit "not reproducible here" note, so it is cited as a lesson and
+    never as this plane's own measurement.
 17. **An empty probe result is a phenomenon, not evidence.** Say which of "absent", "not looked at" and
     "output truncated" produced the emptiness, and report `unknown` with a reason when you cannot; a probe
     that cannot tell those apart has not measured anything. (Instance: a truncated `grep` plus a guessed path
@@ -1206,7 +1216,7 @@ absent so the suite stays offline-clean.
 | A tolerance has a vintage; a value has a kind | MeshQ 185 §1 / 187 §2–3: `equivalence_tolerance_vintage` (reader set + date + witness + re-derivation condition, required by `check_identity_against`); rule 2 requires a *literally* true verdict (`applicable: 0` and `"false"` passed the previous version), and the direction/threshold validators check the RAW JSON value before converting — `["0","0","1"]`, `[0,0,True]`, `[0,0,inf]`, `[0,0,NaN]` are all refused, pinned by `test_a_truthy_substitute_does_not_pass_for_a_winding_verdict` and `test_the_raw_value_is_validated_before_it_is_converted` |
 | The identity rule needs a consumer-side checker | `fdm_analysis/conversion/identity_check.py` + `dev/tests/test_identity_check.py` (8 tests, one against the real 70-piece handoff): units first, tolerance from the manifest with its basis required, rule before digest, per-piece maximum with worst piece, bounds only inside the declared family |
 | An absent field must be as loud as a false one | Ten adversarial variants against the print-basis guard: six blocked, four passed silently (deleted `orientation`, `applicable: null`, a silent `unknown`, two null reference points) — all four refused after rule 18, pinned by `test_the_field_is_absent_paths_are_as_loud_as_the_false_ones` and `test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured` |
-| A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as a practice, not hidden; this repository's withdrawn ramp result is superseded in place |
+| A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as **practice 21**, not hidden; this repository's withdrawn ramp result is superseded in place |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |
 | Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |
