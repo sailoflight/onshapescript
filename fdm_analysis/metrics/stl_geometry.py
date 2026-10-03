@@ -158,27 +158,41 @@ class StlGeometryAnalyzer:
         tolerance = scale * 1e-7
 
         edges: Counter[tuple[Point, Point]] = Counter()
+        directed_edges: dict[tuple[Point, Point], list[tuple[int, int]]] = {}
         contact_area = 0.0
         contact_points: list[tuple[float, float]] = []
         overhang_area = 0.0
+        overhang_triangles = 0
+        contact_triangles = 0
+        faces_without_normal = 0
         signed_volume = 0.0
         center_weight = [0.0, 0.0, 0.0]
         normal_z_limit = -math.sin(math.radians(self.overhang_from_vertical_degrees))
 
-        for a, b, c in triangles:
+        for index, (a, b, c) in enumerate(triangles):
             rounded = [tuple(round(value, 9) for value in point) for point in (a, b, c)]
             for start, end in ((rounded[0], rounded[1]), (rounded[1], rounded[2]), (rounded[2], rounded[0])):
-                edges[tuple(sorted((start, end)))] += 1
+                key = tuple(sorted((start, end)))
+                edges[key] += 1
+                # +1 when the traversal runs low -> high in sorted order, -1 the other way. A
+                # consistently oriented closed mesh meets each shared edge once per direction; two
+                # traversals in the SAME direction mean one of the two faces is wound inward.
+                directed_edges.setdefault(key, []).append((index, 1 if start <= end else -1))
             cross = _cross(_sub(b, a), _sub(c, a))
             double_area = math.sqrt(_dot(cross, cross))
             if double_area <= tolerance * tolerance:
+                # Counted, never silently dropped: a face with no usable normal cannot be judged, and
+                # "not measured" must not read as "self-supporting".
+                faces_without_normal += 1
                 continue
             area = double_area / 2.0
             normal_z = cross[2] / double_area
             if normal_z < normal_z_limit:
                 overhang_area += area
+                overhang_triangles += 1
             if all(abs(point[2] - mins[2]) <= tolerance for point in (a, b, c)):
                 contact_area += area
+                contact_triangles += 1
                 contact_points.extend((a[:2], b[:2], c[:2]))
             tetra_volume = _dot(a, _cross(b, c)) / 6.0
             signed_volume += tetra_volume
@@ -186,6 +200,16 @@ class StlGeometryAnalyzer:
                 center_weight[axis] += tetra_volume * (a[axis] + b[axis] + c[axis]) / 4.0
 
         watertight = bool(edges) and all(count == 2 for count in edges.values())
+        non_manifold_edges = sum(1 for count in edges.values() if count > 2)
+        inconsistent_pairs = 0
+        inconsistent_faces: set[int] = set()
+        for usages in directed_edges.values():
+            if len(usages) != 2:
+                continue
+            (first_index, first_direction), (second_index, second_direction) = usages
+            if first_direction == second_direction:
+                inconsistent_pairs += 1
+                inconsistent_faces.update((first_index, second_index))
         center = None
         stable = None
         if abs(signed_volume) > tolerance ** 3:
@@ -199,9 +223,25 @@ class StlGeometryAnalyzer:
             "bedContactAreaMm2": round(contact_area, 9),
             "printHeightMm": round(dimensions[2], 9),
             "overhangAreaMm2": round(overhang_area, 9),
+            # Counts are published next to the areas because a bare `faces` field is two different
+            # units across implementations: this analyzer counts triangles, a mesh kernel may count
+            # merged planar or quad faces of the same mesh (measured: one cube face is 2 here and 1
+            # there, one sphere band is 960 here and 512 there, with the area agreeing to 1e-9).
+            "overhangTriangleCount": overhang_triangles,
+            "bedContactTriangleCount": contact_triangles,
+            "facesWithoutNormal": faces_without_normal,
+            "orientation": {
+                "consistent": inconsistent_pairs == 0,
+                "inconsistentEdgePairs": inconsistent_pairs,
+                # Locatable, not just counted: a bare count cannot be acted on.
+                "inconsistentFaceIndices": sorted(inconsistent_faces),
+                "nonManifoldEdges": non_manifold_edges,
+                "checkedEdges": len(edges),
+            },
             "centerOfMassStable": stable,
             "centerOfMassMm": [round(value, 9) for value in center] if center else None,
             "volumeMm3": round(abs(signed_volume), 9),
+            "outwardOriented": (signed_volume > 0) if (watertight and abs(signed_volume) > tolerance ** 3) else None,
             "triangleCount": len(triangles),
             "wallThicknessMm": None,
             "orientationMatrix": list(matrix),

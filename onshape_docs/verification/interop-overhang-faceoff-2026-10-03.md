@@ -28,37 +28,56 @@ shared mistake:
 ## Boundary probes (my ask, their answer to it)
 
 Their two probes contain no face in the 44.9°–45.1° band, so they **cannot** decide which side of 45°
-the boundary sits on: 44.9, 45.0 and 45.1 give identical results on both. I built probes that can:
-a right-triangular prism with `H = W·tan(θ)` fixes one sloped face at exactly θ
-(`/tmp/three-plane-drop/onshapescript-overhang-boundary/`, outside every repository, with `probe.json`
-and `measured-onshapescript.json`).
+the boundary sits on: 44.9, 45.0 and 45.1 give identical results on both. I built probes that can, in
+two families, both with a closed form (`/tmp/three-plane-drop/onshapescript-overhang-boundary/`,
+outside every repository, with `probe.json` and `measured-onshapescript.json`):
 
-| Probe | My `overhangAreaMm2` at 45.0 | Closed form | Meaning |
+| Probe | My `overhangAreaMm2` at 45.0 | Closed form | Orientation |
 |---|---|---|---|
-| `wedge_tilt_44.95.stl` | **965.192416792** | base 400 + slope 565.192416792 | a face at 44.95 is counted |
-| `wedge_tilt_45.05.stl` | **400.000000000** | base only | a face at 45.05 is not |
-| `plate_theta_45.00.stl` | **440.0** | 400 + 40 | **float noise decides at exactly 45.0** — both faces entered |
-| `plate_theta_45.05.stl` | **40.0** | side face at 44.95 only | the counted set switches sides across 45 |
+| `overhang_wedge_tilt_44.95.stl` | **565.192416792** | slope `L·√(W²+H²)` = 565.192417, sole overhang face | consistent, outward |
+| `overhang_wedge_tilt_45.05.stl` | **0.0** | the same face at 45.05 is excluded | consistent, outward |
+| `plate_theta_44.95.stl` | **400.0** | the tilted plate's underside | consistent, outward |
+| `plate_theta_45.00.stl` | **440.0** | 400 + 40 — **float noise decides** | consistent, outward |
+| `plate_theta_45.05.stl` | **40.0** | the plate's edge face at 44.95, underside excluded | consistent, outward |
 
-So the boundary is **strict `<`** on both sides, deterministically testable with 44.95/45.05, and
-exactly-45.0 must never be used as a boundary test.
+MeshQ read the same five pieces: 965.192443848 / 400.000000000 / 400.0 / **0.000000000** / 40.000003815
+on the first set, agreeing to 2.8e-8…9.5e-8 — **except at exactly 45.000**, where their
+`worst_tilt_deg = 45.000001` put both faces outside the rule (0.0) while my computed `normal_z` put both
+inside it (440.0). Two correct implementations, opposite answers, because the decision rests on computed
+floats. Contract consequences: boundary pieces must not put a face normal exactly on the threshold (use
+44.95 / 45.05), and the manifest must say the decision is a float comparison — a **convention**, not an
+error to be reconciled.
+
+### Retraction: my first wedge probes were wrong, and their check caught it
+
+The first version of the wedge was a **ramp** (an upward-facing slope): the outward normal of its slope
+points up (tilt ≈ 135°), so the piece has **no overhang face at all** and the correct reading is 400.0
+from the base. I had wound that one face inward while "fixing" a reading, which made the analyzer see a
+downward face and report **965.192416792** — an artifact of an inverted face, not geometry.
+
+MeshQ's `normals` reported `inconsistent_edge_pairs: 4, consistent: false` for both pieces and caught it;
+this analyzer had no orientation check at all, so it did not. The pieces are now in
+`retracted-planar-ramps/` with `WHY-RETRACTED.md`, replaced by the `overhang_wedge_*` pair above, which
+the new check reports as consistent and outward. The 965.19 figures in my earlier mailbox message (144)
+are **withdrawn**.
 
 ## Findings that only the face-off could produce
 
 1. **`faces` is two different units.** Their `faces` counts merged planar faces, mine counts triangles:
    cube 1 vs 2, sphere 512 vs 960 (512 = 64 pole triangles + 7 rows × 64 quads; 960 = 64 + 7×64×2).
-   Same area to 1e-9 and a 1.875× count difference. The field must be
-   `counted_triangles` / `counted_planar_faces`, never a bare `faces`.
-2. **Watertight ≠ outward-wound.** My first wedge had one inward-wound sloped face. This analyzer
-   reported `watertight: true` and silently dropped that face (400.0 instead of 965.192416792).
-   Three gaps in `fdm_analysis/metrics/stl_geometry.py`, found from the outside:
-   - no orientation-consistency check (a consistently oriented closed mesh traverses every shared
-     edge once in each direction; that test catches the inverted face exactly),
-   - no `facesWithoutNormal` count (MeshQ publishes one; this analyzer's answer is "not measured",
-     which is not the same as 0),
-   - no counted-element count, only the summed area.
-   MeshQ's rule — trust a face normal only after checking the winding — is the correct discipline and
-   this analyzer does not yet meet it.
+   Same area to 1e-9 and a 1.875× count difference. MeshQ adds the sharper point: their `faces` is a
+   *mesh polygon*, so it depends on whether the mesh was **built** (cube = 6 quads) or **imported**
+   (the same cube as STL = 12 triangles). The fix is therefore two fields **plus** a declaration of how
+   the mesh is represented: `overhangTriangleCount` / `bedContactTriangleCount` are now published here
+   next to the areas, and the manifest carries the representation.
+2. **Watertight ≠ outward-wound — found, then fixed here.** `fdm_analysis/metrics/stl_geometry.py` now
+   publishes `orientation{consistent, inconsistentEdgePairs, inconsistentFaceIndices, nonManifoldEdges,
+   checkedEdges}`, `facesWithoutNormal` and `overhangTriangleCount`/`bedContactTriangleCount`, and
+   `outwardOriented` (which is `null` when an open mesh cannot be judged, because "not measured" is not
+   "outward"). It reports my own retracted wedges as `4` pairs over faces `[0,1,2,5,6,7]` — i.e. it is
+   **locatable**, which is exactly what MeshQ's `normals` cannot yet do (it publishes a count only, and
+   they registered that as their own visibility gap). `test_stl_geometry.py` pins all of it, including
+   that the volume is blind to a single inverted face lying in the `z = 0` plane.
 3. **`bed_contact_area` is not a second printability number.** The same `downward-face-area` policy at
    threshold → 0 reproduces it to 2.0e-8, so it is one policy read at two thresholds, not two numbers
    that can disagree.

@@ -99,6 +99,87 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "between 0 and 90"):
             StlGeometryAnalyzer(overhang_from_vertical_degrees=90)
 
+    def test_counts_are_published_next_to_the_areas(self):
+        """A bare `faces` field is two units across implementations; publish both readings."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cube.stl"
+            write_ascii_stl(path)
+            result = StlGeometryAnalyzer().analyze(
+                self._mesh(path),
+                orientation_matrix=(1, 0, 0, 0, 1, 0, 0, 0, 1),
+            )
+        # The 10 mm cube's bottom face is 2 triangles here and 1 planar face in a mesh kernel.
+        self.assertEqual(result["bedContactTriangleCount"], 2)
+        self.assertEqual(result["overhangTriangleCount"], 2)
+        self.assertEqual(result["triangleCount"], 12)
+        self.assertEqual(result["facesWithoutNormal"], 0)
+        self.assertEqual(
+            result["orientation"],
+            {
+                "consistent": True,
+                "inconsistentEdgePairs": 0,
+                "inconsistentFaceIndices": [],
+                "nonManifoldEdges": 0,
+                "checkedEdges": 18,
+            },
+        )
+        self.assertTrue(result["outwardOriented"])
+
+    def test_orientation_check_locates_an_inverted_face(self):
+        """Watertight and outward are not the same as consistently wound.
+
+        Measured live on a cross-plane face-off: an analyzer without this check read an
+        inward-wound sloped face as an overhang and returned 965.19 mm2 where the geometry
+        has no overhang face at all. The check must name the faces, because a bare count
+        cannot be acted on.
+        """
+        triangles = list(CUBE_TRIANGLES)
+        triangles[0] = (triangles[0][0], triangles[0][2], triangles[0][1])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "inverted.stl"
+            write_ascii_stl(path, triangles)
+            result = StlGeometryAnalyzer().analyze(
+                self._mesh(path),
+                orientation_matrix=(1, 0, 0, 0, 1, 0, 0, 0, 1),
+            )
+        self.assertTrue(result["watertight"], "a consistently wound mesh becomes an inconsistent one, not an open one")
+        self.assertFalse(result["orientation"]["consistent"])
+        self.assertEqual(result["orientation"]["inconsistentEdgePairs"], 3)
+        self.assertEqual(result["orientation"]["inconsistentFaceIndices"], [0, 1, 7, 9])
+        # ... and the volume is blind to it: that face lies in the z=0 plane, so its tetrahedron
+        # with the origin is degenerate. This is why an orientation check must exist next to a
+        # volume, and why `outwardOriented` alone is not enough (it only sees a globally flipped
+        # mesh, which this is not).
+        self.assertEqual(result["volumeMm3"], 1000.0)
+        self.assertTrue(result["outwardOriented"])
+
+    def test_a_face_without_a_usable_normal_is_counted_not_dropped(self):
+        triangles = list(CUBE_TRIANGLES) + [((0, 0, 0), (1, 0, 0), (2, 0, 0))]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "degenerate.stl"
+            write_ascii_stl(path, triangles)
+            result = StlGeometryAnalyzer().analyze(
+                self._mesh(path, count=len(triangles)),
+                orientation_matrix=(1, 0, 0, 0, 1, 0, 0, 0, 1),
+            )
+        # "not measured" must not read as "self-supporting": the face is reported, not skipped.
+        self.assertEqual(result["facesWithoutNormal"], 1)
+        self.assertEqual(result["overhangTriangleCount"], 2)
+        self.assertFalse(result["watertight"])
+
+    def test_outward_orientation_is_null_when_it_cannot_be_judged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "triangle.stl"
+            write_ascii_stl(path, [CUBE_TRIANGLES[0]])
+            result = StlGeometryAnalyzer().analyze(
+                self._mesh(path, count=1),
+                orientation_matrix=(1, 0, 0, 0, 1, 0, 0, 0, 1),
+            )
+        self.assertFalse(result["watertight"])
+        self.assertIsNone(result["outwardOriented"], "an open mesh cannot be called outward-oriented")
+        self.assertEqual(result["orientation"]["checkedEdges"], 3)
+        self.assertEqual(result["bedContactTriangleCount"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
