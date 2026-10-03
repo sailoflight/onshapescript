@@ -36,6 +36,11 @@ SCHEMA_VERSION = 1
 #: A digest that does not survive a re-write must say so and say what that costs.
 UNSTABLE_DIGEST = "sha256_stable_evidence"
 
+#: The canonical form of an explicit absence, measured on MeshQ's real artifact (mail 290):
+#: the `value` key is always present, and a `null` value must carry its own reason. A missing
+#: field and a declared absence must never look alike.
+NULL_REASON_KEY = "null_reason"
+
 RULES: list[dict] = [
     {
         "id": "R1",

@@ -32,8 +32,7 @@
           },
           "algorithm": "closed-solid volume from the B-Rep faces; exact arithmetic on the recorded parameters",
           "family": "brep_solid_volume(exact)",
-          "unit": "mm^3",
-          "value": 4500.0
+          "unit": "mm^3"
         }
       ]
     },
@@ -116,6 +115,7 @@
   ],
   "producer": {
     "plane": "onshapescript",
+    "revision": "75b8e4e",
     "tool": "dev/tools/check_handoff.py"
   },
   "schema": {

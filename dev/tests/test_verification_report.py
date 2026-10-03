@@ -158,7 +158,7 @@ class CsvProjection(unittest.TestCase):
                     self.assertIsNone(re.search(r"^\d{16,}$", cell), "Excel would lose precision")
         rows = runner.read_projection_csv(text)
         expected = [
-            str(reading["value"])
+            "（无）" if reading.get("value") is None else str(reading["value"])
             for claim in GOOD_REPORT["claims"]
             for reading in claim["readings"]
         ]

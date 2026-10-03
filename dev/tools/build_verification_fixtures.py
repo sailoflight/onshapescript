@@ -118,9 +118,26 @@ def _good_report() -> dict[str, Any]:
                 "quantity": "minWallMm",
                 "layers": ["geometry"],
                 "grade": "unknown",
-                "readings": [],
+                # The canonical form of an explicit absence (measured on MeshQ's real artifact,
+                # mail 290): the key is present, the value is null, and the null carries its reason.
+                # "Nobody computed it" must never look like "somebody looked and it was fine".
+                "readings": [
+                    {
+                        "value": None,
+                        "unit": "mm",
+                        "family": "minWallMm(ray_sampling)",
+                        "algorithm": "ray sampling with a sample cap: the percentile of the rays actually cast, not a true lower bound",
+                        "null_reason": "this plane does not compute a minimum wall thickness; MeshQ grades the same quantity "
+                        "unknown for the same reason, and unknown is the answer rather than 'not measured yet'",
+                    }
+                ],
                 "not_evaluated": [
-                    {"key": "c3.minWallMm", "why": "this plane does not compute a minimum wall thickness (grade unknown)"}
+                    {"key": "c3.minWallMm", "why": "this plane does not compute a minimum wall thickness (grade unknown)"},
+                    {
+                        "key": "form.rendered_view",
+                        "why": "this plane has no renderer: the form layer is a reasoned absence (no reviewer looked at it), "
+                        "not a pass -- MeshQ's rule is that an image can falsify structure but cannot establish dimensions",
+                    },
                 ],
             },
         ],
@@ -186,6 +203,15 @@ def _m_r6(report: dict) -> None:
     del report["claims"][0]["readings"][0]["achieved"]
 
 
+def _m_r6_null(report: dict) -> None:
+    reading = report["claims"][2]["readings"][0]
+    del reading["null_reason"]
+
+
+def _m_r6_no_value_key(report: dict) -> None:
+    del report["claims"][0]["readings"][0]["value"]
+
+
 def _m_r7_disagree(report: dict) -> None:
     report["claims"][1]["bounds_family"] = "bbox_of_step_brep_header"
 
@@ -237,6 +263,8 @@ MUTATIONS: list[tuple[str, str, Callable[[dict], None]]] = [
     ("R4", "no_units", _m_r4),
     ("R5", "tolerance_without_owner", _m_r5),
     ("R6", "reading_without_achieved", _m_r6),
+    ("R6", "null_without_reason", _m_r6_null),
+    ("R6", "reading_without_value_key", _m_r6_no_value_key),
     ("R7", "two_names_disagree", _m_r7_disagree),
     ("R7", "family_undeclared", _m_r7_undeclared),
     ("R8", "image_without_basis", _m_r8_basis),

@@ -86,7 +86,6 @@
         {
           "algorithm": "ray sampling with a sample cap: the percentile of the rays actually cast, not a true lower bound",
           "family": "minWallMm(ray_sampling)",
-          "null_reason": "this plane does not compute a minimum wall thickness; MeshQ grades the same quantity unknown for the same reason, and unknown is the answer rather than 'not measured yet'",
           "unit": "mm",
           "value": null
         }
@@ -116,6 +115,7 @@
   ],
   "producer": {
     "plane": "onshapescript",
+    "revision": "75b8e4e",
     "tool": "dev/tools/check_handoff.py"
   },
   "schema": {

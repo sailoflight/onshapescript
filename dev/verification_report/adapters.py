@@ -105,7 +105,11 @@ def extract_meshq_result(result_path: str | pathlib.Path, job_path: str | pathli
                 },
                 "bbox_size_mm": bbox.get("size_mm"),
                 "bbox_grade": bbox.get("grade"),
-                "component_count": components.get("count"),
+                # MeshQ's own warning (mail 290): this counts *shells*, not parts -- a through-hole
+                # part's two shells are "outer wall + inner cavity", so naming it component_count
+                # would read as "two parts" and mislead a consumer.
+                "shell_count": components.get("count"),
+                "shell_count_semantics": "shells, not parts (a cavity adds a shell, not a part)",
                 "shell_self_consistency": {
                     "topologically_closed": volume.get("topologically_closed"),
                     "shell_closed": volume.get("shell_closed"),

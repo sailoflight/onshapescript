@@ -71,10 +71,22 @@
         {
           "key": "c3.minWallMm",
           "why": "this plane does not compute a minimum wall thickness (grade unknown)"
+        },
+        {
+          "key": "form.rendered_view",
+          "why": "this plane has no renderer: the form layer is a reasoned absence (no reviewer looked at it), not a pass -- MeshQ's rule is that an image can falsify structure but cannot establish dimensions"
         }
       ],
       "quantity": "minWallMm",
-      "readings": []
+      "readings": [
+        {
+          "algorithm": "ray sampling with a sample cap: the percentile of the rays actually cast, not a true lower bound",
+          "family": "minWallMm(ray_sampling)",
+          "null_reason": "this plane does not compute a minimum wall thickness; MeshQ grades the same quantity unknown for the same reason, and unknown is the answer rather than 'not measured yet'",
+          "unit": "mm",
+          "value": null
+        }
+      ]
     }
   ],
   "complete": true,

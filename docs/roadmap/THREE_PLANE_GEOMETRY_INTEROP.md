@@ -270,6 +270,37 @@ the runner is artifact-agnostic, and that the peer's raw output is verdict-shape
   recipients verified one by one as real registered identities (not shadows). Incoming this round: MeshQ 289
   (the two grades answered, the interference sub-class split, the new admission sample, the `declared_by`/`used_by`
   agreement), and 296 asks the coordinator one question only: whether a producer's verdict may travel with its reading.
+### 7.5 The cross-read ran **both ways**, and the report turned out to be write-only (2026-10-04)
+
+The coordinator withdrew its promised runner (mail 292: a third copy is exactly the fork it had warned
+about) and instead proposed the one experiment nobody had run: *one plane's runner reading the other
+plane's artifact*. This plane ran **both directions**; the full field-by-field list is
+`dev/verification_report/CROSS_WALK.md` (every number measured, exit codes taken without a pipe).
+
+- **Forward (ours reading theirs):** already green — 12/12 rules, 0 refusals, projection machine-checked.
+- **Backward (theirs reading ours):** **fails**, exit 2, `has no \`inspection\` object -- not a MeshQ record`,
+  no output written. The peer's behaviour is *correct* (exit 2 for unreadable input, no half-written
+  artifact); what is broken is the interface: their extractor keys off its own producer's envelope, so
+  **the report shape we agreed on is currently write-only — nobody consumes it** (defect D1).
+- **A correction to the proposal itself:** `evidence_units.py --check` takes **no record** (it is a static
+  drift check of the field map), so the proposed command measures nothing about our artifact; the real
+  cross-read is passing the record as a positional argument. One more measurement lesson: `exit=$?` after a
+  pipe reports the *pipe tail*, not the tool — this round mis-reported an exit code that way once and re-measured.
+- **Defects this plane fixed on its own side** (D3/D11 and two consequences): `value` is always present and a
+  `null` must carry `null_reason` and **must not** declare `achieved`; the report-level `not_evaluated`
+  remains the roll-up of the same idea at another granularity; the form/image layer is now a **reasoned
+  absence** rather than a missing field; an empty CSV cell is `（无）` and the projection carries a
+  `null_reason` column; the MeshQ component count is renamed `shell_count` (it counts shells, not parts).
+- **Answer to the question "is `rulesNotRunning` the same thing as `null_reason`?" — no.** Same principle,
+  three different absences that must **not** be merged into one column: a missing *reading* (per-unit
+  `null_reason`), a missing *criterion* (report-level `not_evaluated`), and a checker that *did not run*
+  (`rulesNotRunning`). Merging them is precisely the mistake all three planes have made before.
+- Still open, needs both sides: D1 (the report must be a declared record type an extractor can recognise
+  from `schema`), D2 (`family`/`algorithm` have no home in the peer's unit shape), D4 (provenance/cost block
+  has no counterpart).
+- **Delivery evidence:** 289/295 → RoseStork, 286/296 → AmberHarbor, all confirmed with the receipt tool
+  (*found*, project_id=1) and each recipient checked as a real identity rather than a shadow.
+
 - **Independence, stated honestly:** `apg context --target . --task <this task>` routes this work as
   `development/verifier` with **authority granted: false**, and the governance itself says a second agent
   on the *same identity, worktree and permissions* can only offer a **peer challenge**, not formal IV&V.

@@ -161,6 +161,30 @@ def _r6_readings(report: dict, fail) -> None:
             if not isinstance(reading, dict):
                 fail("R6", where, "reading is not an object", "publish value + family + algorithm + achieved")
                 continue
+            if "value" not in reading:
+                fail(
+                    "R6",
+                    f"{where}.value",
+                    "reading has no value key at all",
+                    "always publish the value key; a declared absence is `value: null` plus a reason, a missing field is neither",
+                )
+            if reading.get("value") is None:
+                # The canonical form of an explicit absence (measured on MeshQ's real artifact).
+                if not reading.get(R.NULL_REASON_KEY):
+                    fail(
+                        "R6",
+                        f"{where}.{R.NULL_REASON_KEY}",
+                        "reading is a null value with no reason",
+                        "a null reading must say why it is null; otherwise a consumer cannot tell it from a missing field",
+                    )
+                if reading.get("achieved"):
+                    fail(
+                        "R6",
+                        f"{where}.achieved",
+                        "a null reading declares the precision it achieved",
+                        "nothing was measured, so no precision may be declared (drop achieved, keep the reason)",
+                    )
+                continue
             for key in ("family", "algorithm"):
                 if not reading.get(key):
                     fail("R6", f"{where}.{key}", f"reading has no {key}", "same word, different method => incomparable numbers")
@@ -336,8 +360,13 @@ def check_report(report: dict) -> dict:
 # ------------------------------------------------------- the CSV projection (Excel-safe)
 
 
+#: An empty cell is never left blank in a delivered CSV (the owner's standing rule): a blank
+#: cell is indistinguishable from a lost column, and "(无)" says "declared absent" instead.
+EMPTY_CELL = "（无）"
+
+
 def _cell(value: Any) -> str:
-    text = "" if value is None else str(value)
+    text = EMPTY_CELL if value is None or value == "" else str(value)
     if text.startswith(_EXCEL_GUARD) or _DATE_SHAPED.fullmatch(text) or _LONG_NUMBER.fullmatch(text):
         return f"'{text}"
     return text
@@ -347,7 +376,9 @@ def project_csv(report: dict) -> str:
     """Project the per-reading table as Excel-safe CSV (the JSON stays the source)."""
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow(["claim_id", "quantity", "value", "unit", "family", "algorithm"])
+    # `null_reason` travels in the projection too: a "(无)" cell without its reason in the same
+    # row is exactly the reasoned absence lost on the way to the spreadsheet.
+    writer.writerow(["claim_id", "quantity", "value", "unit", "family", "algorithm", "null_reason"])
     for claim in _claim_list(report):
         for reading in claim.get("readings") or []:
             if not isinstance(reading, dict):
@@ -360,6 +391,7 @@ def project_csv(report: dict) -> str:
                     _cell(reading.get("unit")),
                     _cell(reading.get("family")),
                     _cell(reading.get("algorithm")),
+                    _cell(reading.get(R.NULL_REASON_KEY)),
                 ]
             )
     return "\ufeff" + buffer.getvalue()

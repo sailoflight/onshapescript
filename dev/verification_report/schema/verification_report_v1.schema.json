@@ -17,35 +17,75 @@
   "properties": {
     "schema": {
       "type": "object",
-      "required": ["id", "version"],
+      "required": [
+        "id",
+        "version"
+      ],
       "properties": {
-        "id": {"const": "geometry-verification/verification-report"},
-        "version": {"const": 1}
+        "id": {
+          "const": "geometry-verification/verification-report"
+        },
+        "version": {
+          "const": 1
+        }
       }
     },
     "producer": {
       "type": "object",
-      "required": ["plane", "revision"],
+      "required": [
+        "plane",
+        "revision"
+      ],
       "properties": {
-        "plane": {"type": "string", "minLength": 1},
-        "tool": {"type": "string"},
-        "revision": {"type": "string", "minLength": 1}
+        "plane": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "artifact": {
       "type": "object",
-      "required": ["sha256", "units"],
+      "required": [
+        "sha256",
+        "units"
+      ],
       "properties": {
-        "path": {"type": "string"},
-        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "units": {"type": "string", "minLength": 1},
-        "sha256_stable": {"type": "boolean"},
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "units": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256_stable": {
+          "type": "boolean"
+        },
         "sha256_stable_evidence": {
           "type": "object",
-          "required": ["reason", "consequence"],
+          "required": [
+            "reason",
+            "consequence"
+          ],
           "properties": {
-            "reason": {"type": "string", "minLength": 1},
-            "consequence": {"type": "string", "minLength": 1}
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "consequence": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
@@ -54,121 +94,322 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "quantity", "layers", "grade", "readings"],
+        "required": [
+          "id",
+          "quantity",
+          "layers",
+          "grade",
+          "readings"
+        ],
         "properties": {
-          "id": {"type": "string", "minLength": 1},
-          "quantity": {"type": "string", "minLength": 1},
-          "layers": {"type": "array", "items": {"enum": ["geometry", "topology", "morphology"]}},
-          "grade": {"enum": ["reliable", "heuristic", "visual", "unknown"]},
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "string",
+            "minLength": 1
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "geometry",
+                "topology",
+                "morphology"
+              ]
+            }
+          },
+          "grade": {
+            "enum": [
+              "reliable",
+              "heuristic",
+              "visual",
+              "unknown"
+            ]
+          },
           "readings": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["value", "unit", "family", "algorithm", "achieved"],
+              "required": [
+                "value",
+                "unit"
+              ],
               "properties": {
-                "value": {"type": "number"},
-                "unit": {"type": "string", "minLength": 1},
-                "family": {"type": "string", "minLength": 1},
-                "algorithm": {"type": "string", "minLength": 1},
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "family": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "algorithm": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "achieved": {
                   "type": "object",
-                  "required": ["absolute", "relative", "basis"],
+                  "required": [
+                    "absolute",
+                    "relative",
+                    "basis"
+                  ],
                   "properties": {
-                    "absolute": {"type": "number"},
-                    "relative": {"type": "number"},
-                    "basis": {"type": "string", "minLength": 1}
+                    "absolute": {
+                      "type": "number"
+                    },
+                    "relative": {
+                      "type": "number"
+                    },
+                    "basis": {
+                      "type": "string",
+                      "minLength": 1
+                    }
                   }
+                },
+                "null_reason": {
+                  "type": "string",
+                  "minLength": 1
                 }
-              }
+              },
+              "description": "value is always present. A number needs family+algorithm+achieved (the runner enforces this); a null needs null_reason and must NOT declare achieved -- nothing was measured, so no precision may be claimed."
             }
           },
           "evidence": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["kind"],
+              "required": [
+                "kind"
+              ],
               "properties": {
-                "kind": {"enum": ["image", "table", "stdout"]},
-                "path": {"type": "string"},
-                "grade": {"enum": ["reliable", "heuristic", "visual", "unknown"]},
+                "kind": {
+                  "enum": [
+                    "image",
+                    "table",
+                    "stdout"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "grade": {
+                  "enum": [
+                    "reliable",
+                    "heuristic",
+                    "visual",
+                    "unknown"
+                  ]
+                },
                 "basis": {
                   "type": "object",
-                  "required": ["views", "fit", "source_sha256", "recipe_version", "parts_drawn"],
+                  "required": [
+                    "views",
+                    "fit",
+                    "source_sha256",
+                    "recipe_version",
+                    "parts_drawn"
+                  ],
                   "properties": {
-                    "views": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                    "fit": {"type": "string", "minLength": 1},
-                    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                    "recipe_version": {"type": "string", "minLength": 1},
-                    "parts_drawn": {"type": "string", "minLength": 1}
+                    "views": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "fit": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "recipe_version": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parts_drawn": {
+                      "type": "string",
+                      "minLength": 1
+                    }
                   }
                 },
-                "cannot_show": {"type": "string"}
+                "cannot_show": {
+                  "type": "string"
+                }
               }
             }
           },
           "negative_control": {
             "type": "object",
-            "required": ["fixture", "must_reject", "observed"],
+            "required": [
+              "fixture",
+              "must_reject",
+              "observed"
+            ],
             "properties": {
-              "fixture": {"type": "string"},
-              "must_reject": {"type": "boolean"},
-              "observed": {"type": "string"}
+              "fixture": {
+                "type": "string"
+              },
+              "must_reject": {
+                "type": "boolean"
+              },
+              "observed": {
+                "type": "string"
+              }
             }
           },
-          "not_evaluated": {"type": "array", "items": {"type": "object"}}
+          "not_evaluated": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
         }
       }
     },
-    "complete": {"type": "boolean"},
-    "not_evaluated": {"type": "array", "items": {"type": "object", "required": ["key", "why"]}},
+    "complete": {
+      "type": "boolean"
+    },
+    "not_evaluated": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "why"
+        ]
+      }
+    },
     "tolerances": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["absolute", "declared_by", "used_by"],
+        "required": [
+          "absolute",
+          "declared_by",
+          "used_by"
+        ],
         "properties": {
-          "absolute": {"type": "number"},
-          "declared_by": {"type": "string", "minLength": 1},
-          "used_by": {"type": "string", "minLength": 1},
-          "used": {"type": "number"},
-          "matches_declaration": {"type": "boolean"}
+          "absolute": {
+            "type": "number"
+          },
+          "declared_by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "used_by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "used": {
+            "type": "number"
+          },
+          "matches_declaration": {
+            "type": "boolean"
+          }
         }
       }
     },
     "vintage": {
       "type": "object",
-      "required": ["date", "readers", "witness", "re_derive_when"],
+      "required": [
+        "date",
+        "readers",
+        "witness",
+        "re_derive_when"
+      ],
       "properties": {
-        "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
-        "readers": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-        "witness": {"type": "string", "minLength": 1},
-        "re_derive_when": {"type": "string", "minLength": 1}
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "readers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "witness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "re_derive_when": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "cost": {
       "type": "object",
-      "required": ["network"],
+      "required": [
+        "network"
+      ],
       "properties": {
-        "network": {"enum": ["offline", "browser", "live"]},
-        "estimated_requests": {"type": "integer", "minimum": 0},
-        "mutating": {"type": "boolean"}
+        "network": {
+          "enum": [
+            "offline",
+            "browser",
+            "live"
+          ]
+        },
+        "estimated_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mutating": {
+          "type": "boolean"
+        }
       }
     },
     "independence": {
       "type": "object",
-      "required": ["level"],
+      "required": [
+        "level"
+      ],
       "properties": {
-        "level": {"enum": ["different_kernel", "different_implementation_same_kernel", "same_code"]},
-        "of": {"type": "string"}
+        "level": {
+          "enum": [
+            "different_kernel",
+            "different_implementation_same_kernel",
+            "same_code"
+          ]
+        },
+        "of": {
+          "type": "string"
+        }
       }
     },
     "csv_projection": {
       "type": "object",
-      "required": ["path", "checked_against", "result"],
+      "required": [
+        "path",
+        "checked_against",
+        "result"
+      ],
       "properties": {
-        "path": {"type": "string"},
-        "checked_against": {"type": "string", "minLength": 1},
-        "result": {"type": "string", "minLength": 1}
+        "path": {
+          "type": "string"
+        },
+        "checked_against": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   },
