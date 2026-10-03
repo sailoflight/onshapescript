@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import json
 import sys
+import hashlib
 import tempfile
 import unittest
+from typing import Any
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +23,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from onshape_browser_mode import selectors, step_import  # noqa: E402
+from onshape_browser_mode.step_import import (  # noqa: E402
+    plan_browser_step_import,
+    source_facts,
+)
 
 
 class FakeClock:
@@ -365,6 +371,105 @@ class RegisterTest(unittest.TestCase):
                     import_id="imp1", result=result, document_id="did1", workspace_id="wid1",
                     output_root=Path(tmp),
                 )
+
+
+
+class StepImportDigestAddressingTest(unittest.TestCase):
+    """Address by digest, resolve by path (the boundary question ① asked, on the consuming side).
+
+    A path alone cannot say WHICH delivery is being imported: re-exporting identical geometry produces
+    different bytes (an ISO-10303-21 header timestamp lands in the file), which is exactly why the handoff
+    carries a digest at all. So a declared digest is checked before anything touches the page.
+    """
+
+    def _source(self, root: Path, text: str = "ISO-10303-21;\n#1=MANIFOLD_SOLID_BREP('s',#2);\n") -> Path:
+        path = root / "model.step"
+        path.write_text(text, encoding="ascii")
+        return path
+
+    def _handoff(self, digest: str, **overrides: Any) -> dict:
+        handoff = {
+            "declaration": {
+                "schema": "onshapescript.handoff/0.4-draft",
+                "units": "mm",
+                "identity": {"sha256": digest, "sha256_stable": False,
+                             "identity_rule": {"version": "onshapescript.step-artifact-identity/1"}},
+            },
+            "artifact": {"sha256": digest},
+        }
+        handoff["declaration"]["identity"].update(overrides)
+        return handoff
+
+    def test_a_declared_digest_that_matches_is_recorded_as_the_addressing_method(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._source(Path(tmp))
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            facts = source_facts(source, expect_sha256=digest)
+        self.assertEqual(facts["addressedBy"], "sha256")
+        self.assertEqual(facts["expectedSha256"], digest)
+        self.assertIs(facts["matchesExpected"], True)
+
+    def test_a_file_that_is_not_the_addressed_bytes_is_refused_before_the_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._source(Path(tmp))
+            with self.assertRaisesRegex(ValueError, "not the addressed artifact"):
+                source_facts(source, expect_sha256="0" * 64)
+        # and the refusal happens in the OFFLINE plan, so nothing is clicked
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._source(Path(tmp))
+            with self.assertRaisesRegex(ValueError, "Address by digest, resolve by path"):
+                plan_browser_step_import(source_path=source, expect_sha256="0" * 64)
+
+    def test_a_handoff_manifest_addresses_the_import(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self._source(root)
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            manifest = root / "step-manifest.json"
+            manifest.write_text(json.dumps(self._handoff(digest)), encoding="utf-8")
+
+            plan = plan_browser_step_import(source_path=source, handoff_manifest=manifest)
+            self.assertEqual(plan["source"]["addressedBy"], "sha256")
+            self.assertEqual(plan["source"]["handoff"]["handoffSchema"], "onshapescript.handoff/0.4-draft")
+            self.assertEqual(plan["source"]["handoff"]["handoffUnits"], "mm")
+            self.assertEqual(plan["source"]["handoff"]["handoffIdentityRule"],
+                             "onshapescript.step-artifact-identity/1")
+
+            # a handoff that addresses different bytes refuses the import
+            stale = root / "stale.json"
+            stale.write_text(json.dumps(self._handoff("a" * 64)), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not the addressed artifact"):
+                plan_browser_step_import(source_path=source, handoff_manifest=stale)
+
+    def test_a_handoff_that_cannot_name_its_bytes_is_refused_by_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = self._source(root)
+            nameless = root / "nameless.json"
+            nameless.write_text(json.dumps({"declaration": {"schema": "x", "units": "mm"}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "cannot name its bytes"):
+                source_facts(source, handoff=nameless)
+            bogus = root / "bogus.json"
+            bogus.write_text(json.dumps({"declaration": {"identity": {"sha256": "not-a-digest"}}}),
+                             encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "no usable sha256"):
+                source_facts(source, handoff=bogus)
+
+    def test_a_malformed_expected_digest_is_refused_rather_than_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = self._source(Path(tmp))
+            for bad in ("ABC", "0" * 63, "Z" * 64, "  " + "0" * 64):
+                with self.subTest(digest=bad):
+                    with self.assertRaisesRegex(ValueError, "expect_sha256"):
+                        source_facts(source, expect_sha256=bad)
+
+    def test_no_declared_digest_means_the_path_is_the_address_and_that_is_recorded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            facts = source_facts(self._source(Path(tmp)))
+        self.assertEqual(facts["addressedBy"], "path")
+        self.assertIsNone(facts["expectedSha256"])
+        self.assertIsNone(facts["matchesExpected"])
+        self.assertIsNone(facts["handoff"])
 
 
 if __name__ == "__main__":

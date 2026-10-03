@@ -690,6 +690,25 @@ From the same join, on CadQ's 70 solids and this repository's 70 pieces:
   publishes `onshapescript.mesh-set-signature/1`) and a peer-side `signature_schema`; **a digest comparison
   starts by comparing rules, never digests**.
 
+### Addressing is now implemented on both legs (digest is the address, path resolves it)
+
+`### Addressing, measured` earlier settled *what* identifies a piece. The transfer itself needed the same
+decision one level up, and it now exists in code on both sides:
+
+* **producer** (browser export): `declaration.identity.sha256` with `sha256_stable: false` and the reason,
+  plus `identity_rule.version` — the digest addresses *this delivery* and the rule says under what canonical
+  form;
+* **consumer** (browser import): a declared digest (`expect_sha256`, or `handoff_manifest` reading
+  `declaration.identity.sha256` / `artifact.sha256`) must match the file at the path, or the import is
+  **refused in the offline plan, before anything touches the page**; a handoff that cannot name its bytes is
+  refused by name rather than downgraded to a path lookup; and with no digest declared the record says
+  `addressedBy: "path"` instead of implying an address it never checked.
+
+The rule generalises the one that has already been paid for twice in this negotiation: **a path is a
+resolution, a digest is an address, and a mismatch is a refusal rather than a coincidence** — the same shape
+as "a reading declares the state it was taken in" (the state here is *which bytes*), and as "a tolerance has
+a vintage" (the reader set is *when* it was derived).
+
 ### The absent-field half of every rule, and why the fixtures hid it
 
 A rule set can be entirely correct field-by-field and still fail open, because "what to do when the field
@@ -969,6 +988,7 @@ absent so the suite stays offline-clean.
 | Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
+| Addressing needs both halves, in code | Producer: `declaration.identity.sha256` + `sha256_stable: false` + `identity_rule.version` in the staged browser STEP manifest. Consumer: `expect_sha256`/`handoff_manifest` in `onshape_browser_mode/step_import.py`, mismatch refused offline before any click, handoff without a digest refused by name, `addressedBy: "path"` recorded when nothing was declared (23 tests) |
 | A tolerance has a vintage; a value has a kind | MeshQ 185 §1 / 187 §2–3: `equivalence_tolerance_vintage` (reader set + date + witness + re-derivation condition, required by `check_identity_against`); rule 2 requires a *literally* true verdict (`applicable: 0` and `"false"` passed the previous version), and the direction/threshold validators check the RAW JSON value before converting — `["0","0","1"]`, `[0,0,True]`, `[0,0,inf]`, `[0,0,NaN]` are all refused, pinned by `test_a_truthy_substitute_does_not_pass_for_a_winding_verdict` and `test_the_raw_value_is_validated_before_it_is_converted` |
 | The identity rule needs a consumer-side checker | `fdm_analysis/conversion/identity_check.py` + `dev/tests/test_identity_check.py` (8 tests, one against the real 70-piece handoff): units first, tolerance from the manifest with its basis required, rule before digest, per-piece maximum with worst piece, bounds only inside the declared family |
 | An absent field must be as loud as a false one | Ten adversarial variants against the print-basis guard: six blocked, four passed silently (deleted `orientation`, `applicable: null`, a silent `unknown`, two null reference points) — all four refused after rule 18, pinned by `test_the_field_is_absent_paths_are_as_loud_as_the_false_ones` and `test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured` |

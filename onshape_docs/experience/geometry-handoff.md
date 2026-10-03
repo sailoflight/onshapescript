@@ -30,6 +30,28 @@ The import leg's counterpart record (`import-manifest.json`) measures the local 
 `sha256`, plus `sha256Stable: false` and the same note — so a landing can be traced to the exact bytes it
 came from, and nobody can mistake the digest for content identity.
 
+### Address by digest, resolve by path (the import leg refuses a stale delivery)
+
+A path cannot say *which* delivery is being imported: re-exporting identical geometry produces different
+bytes, because an ISO-10303-21 header timestamp lands in the file. So the import plan accepts a declared
+digest — directly (`expect_sha256`) or through a handoff manifest (`handoff_manifest`, reading
+`declaration.identity.sha256` or `artifact.sha256`):
+
+* the file at the path must hash to the declared digest, or the import is **refused in the offline plan,
+  before anything touches the page** ("the file at this path is not the addressed artifact: sha256 … !=
+  declared …");
+* a handoff that **cannot name its bytes** is refused by name ("a handoff that cannot name its bytes cannot
+  address an import"), so a missing digest is never silently downgraded to a path lookup;
+* with no declared digest the record says so instead of implying one: `addressedBy: "path"`,
+  `expectedSha256: null`, `matchesExpected: null`;
+* when a handoff is given, the record echoes what it was addressed *by* — its `schema`, `units` and
+  `identity_rule.version` — so the trace says which rule identified the delivery, not just the number.
+
+This is the consuming half of the boundary question "path or sha256?": **the digest is the address, the path
+is how you resolve it, and a mismatch is a refusal rather than a coincidence.** The live ledger carries it as
+check `I6` (offline-provable first, with the live half being whether the element Onshape created still
+corresponds to those bytes).
+
 ## 1. "The bounding box" is not one measurement — and one library call changes which one you get
 
 Four readers, one piece, four answers (max gap **3.19e-2 mm**, on 70/70 pieces):

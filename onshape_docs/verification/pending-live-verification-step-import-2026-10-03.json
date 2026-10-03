@@ -12,7 +12,8 @@
     "only one new proof row -> imported=True; an unchanged row list -> imported=False with translationCompleted=unknown (a running translation is not a failed import)",
     "two new rows -> refused as ambiguous; a failed after-read -> element_read_failed, never a success",
     "a failed before-read refuses BEFORE any click, so landing is never judged against a state the caller did not observe",
-    "into-part-studio without a matching expect_feature_name -> imported=None (a new row proves something was added, not that this file landed)"
+    "into-part-studio without a matching expect_feature_name -> imported=None (a new row proves something was added, not that this file landed)",
+    "digest addressing (address by sha256, resolve by path): a declared digest that does not match the file refuses in the OFFLINE plan, before anything touches the page; a handoff that cannot name its bytes is refused by name; no declared digest is recorded as the path being the address — 23 tests in `dev/tests/test_browser_step_import.py`"
   ],
   "checks": [
     {
@@ -81,6 +82,23 @@
       },
       "pass_criteria": "on a document that already contains a tab named like the imported file, the verdict must still name the NEW element id and never match by name alone; and a second import of the same file must not be reported as `no_new_element` when it in fact created a second tab.",
       "if_it_fails": "the row identity rule needs the element id, not the name; report the tab row's data attribute"
+    },
+    {
+      "id": "I6",
+      "issues": [
+        "three-plane interop / import capability",
+        "address by digest, resolve by path"
+      ],
+      "tool": "browser step import with `expect_sha256` or `handoff_manifest`",
+      "arguments": {
+        "source_path": "<a real local .step file>",
+        "expect_sha256": "<that file's sha256>",
+        "mode": "new-tab",
+        "document_id": "<a real document>",
+        "dry_run": true
+      },
+      "pass_criteria": "the plan reports `source.addressedBy == \"sha256\"`, `matchesExpected == true` and the declared handoff fields; passing a digest of DIFFERENT bytes must refuse in the plan (offline, no click) with 'not the addressed artifact'; and after a real import the registered manifest's `source.sha256` must equal the digest that addressed it — i.e. the element that landed is traceable to the exact bytes that were asked for, not merely to a path",
+      "why_it_needs_a_live_session": "only the offline half is provable here: the live half is whether the element that Onshape created still corresponds to those bytes after a real upload"
     }
   ],
   "selector_checklist": [
@@ -115,7 +133,8 @@
     "Run I1 with a real local file on a throwaway document, then I2, I3 on the same document, then I4 on a Part Studio, then I5.",
     "Record for each check: the raw result JSON, the page URL, and the tab/feature row text observed.",
     "Do not answer a check from memory or from the button-map scan: the whole point is that these facts are not yet observed.",
-    "After answering, move the confirmed constants into `onshape_browser_mode/selectors.py` with a dated comment and change this file's `status` from `pending-live-verification` to `verified` plus the session date."
+    "After answering, move the confirmed constants into `onshape_browser_mode/selectors.py` with a dated comment and change this file's `status` from `pending-live-verification` to `verified` plus the session date.",
+    "I6 is offline-provable and must be run FIRST (dry_run=True only): pass the real file's digest, and then a digest of different bytes, and confirm the second refuses without touching the page."
   ],
   "registered_tool": {
     "name": "browser_import_step",

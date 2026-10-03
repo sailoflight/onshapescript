@@ -70,32 +70,110 @@ def _identifier(value: str, label: str) -> str:
     return value
 
 
-def source_facts(path: str | Path) -> dict[str, Any]:
-    """Measure the local source file. Read-only; no network, no browser."""
+_DIGEST = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _declared_sha256(handoff: str | Path | dict[str, Any] | None) -> dict[str, Any]:
+    """Read the digest a handoff addresses, from the handoff itself.
+
+    Accepts either path of the two real shapes: the cross-plane declaration
+    (``declaration.identity.sha256``) or the staged browser export manifest's own field
+    (``artifact.sha256``). Anything else is refused by name rather than guessed, because a digest
+    taken from the wrong place would silently re-address the import to different bytes.
+    """
+    if handoff is None:
+        return {"declaredSha256": "", "handoffPath": "", "handoffSchema": "", "handoffUnits": "",
+                "handoffIdentityRule": ""}
+    path_text = ""
+    if isinstance(handoff, (str, Path)):
+        resolved = Path(handoff)
+        if not resolved.is_file():
+            raise FileNotFoundError(f"handoff manifest is not a readable file: {resolved}")
+        path_text = str(resolved)
+        payload = json.loads(resolved.read_text(encoding="utf-8"))
+    elif isinstance(handoff, dict):
+        payload = handoff
+    else:
+        raise ValueError("handoff_manifest must be a manifest path or a manifest mapping")
+    if not isinstance(payload, dict):
+        raise ValueError("handoff manifest must be a JSON object")
+
+    declaration = payload.get("declaration") if isinstance(payload.get("declaration"), dict) else {}
+    identity = declaration.get("identity") if isinstance(declaration.get("identity"), dict) else {}
+    artifact = payload.get("artifact") if isinstance(payload.get("artifact"), dict) else {}
+    declared = identity.get("sha256") or artifact.get("sha256") or payload.get("sha256") or ""
+    declared = str(declared)
+    if not _DIGEST.fullmatch(declared):
+        raise ValueError(
+            "the handoff declares no usable sha256: look for declaration.identity.sha256 or "
+            "artifact.sha256 — a handoff that cannot name its bytes cannot address an import"
+        )
+    rule = identity.get("identity_rule") if isinstance(identity.get("identity_rule"), dict) else {}
+    return {
+        "declaredSha256": declared,
+        "handoffPath": path_text,
+        "handoffSchema": str(declaration.get("schema") or payload.get("schema") or ""),
+        "handoffUnits": str(declaration.get("units") or payload.get("units") or ""),
+        "handoffIdentityRule": str(rule.get("version") or ""),
+    }
+
+
+def source_facts(
+    path: str | Path,
+    *,
+    expect_sha256: str = "",
+    handoff: str | Path | dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Measure the local source file, and check it against a handoff's addressed bytes.
+
+    Read-only; no network, no browser. **Address by digest, resolve by path**: when a digest is declared
+    (directly or through a handoff manifest), the file at this path must hash to it, otherwise the import
+    is refused *before anything touches the page*. That refusal is the whole point -- re-exporting the same
+    geometry produces different bytes (an ISO-10303-21 header timestamp lands in the file), so a path alone
+    cannot say which delivery is being imported, and an unchecked path is how the wrong bytes get in.
+    """
     resolved = Path(path)
     if not resolved.is_file():
         raise FileNotFoundError(f"import source is not a readable file: {resolved}")
     suffix = resolved.suffix.lower()
     if suffix not in _FORMAT_BY_SUFFIX:
         raise ValueError("import source must be a .step or .stp file (IGES is out of scope for this leg)")
+    if expect_sha256 and not _DIGEST.fullmatch(str(expect_sha256)):
+        raise ValueError("expect_sha256 must be a lowercase 64-character hex digest")
+    addressed = _declared_sha256(handoff)
+    declared = str(expect_sha256) or addressed["declaredSha256"]
     payload = resolved.read_bytes()
+    actual = hashlib.sha256(payload).hexdigest()
+    matches = None if not declared else actual == declared
+    if matches is False:
+        raise ValueError(
+            "the file at this path is not the addressed artifact: "
+            f"sha256 {actual} != declared {declared}. Address by digest, resolve by path: re-export the "
+            "handoff's delivery or pass the digest of the bytes you actually mean to import"
+        )
     return {
         "path": str(resolved),
         "fileName": resolved.name,
         "formatName": _FORMAT_BY_SUFFIX[suffix],
         "mediaType": _MEDIA_TYPE,
         "byteCount": len(payload),
-        "sha256": hashlib.sha256(payload).hexdigest(),
+        "sha256": actual,
         # Same rule as the REST planner and the cross-plane manifest: a STEP byte digest is download
         # integrity, not content identity (two real exports of one geometry differ by 34 header bytes).
         "sha256Stable": False,
         "sha256Note": "STEP carries a GUID and a timestamp in its header; this digest is not content identity",
+        "addressedBy": "sha256" if declared else "path",
+        "expectedSha256": declared or None,
+        "matchesExpected": matches,
+        "handoff": {key: value for key, value in addressed.items() if value} or None,
     }
 
 
 def plan_browser_step_import(
     *,
     source_path: str | Path,
+    expect_sha256: str = "",
+    handoff_manifest: str | Path | dict[str, Any] | None = None,
     mode: str = "new-tab",
     target_tab: str = "",
     document_id: str = "",
@@ -112,7 +190,7 @@ def plan_browser_step_import(
         raise ValueError("target_tab must be a string")
     if mode == "into-part-studio" and not target_tab.strip():
         raise ValueError("into-part-studio requires target_tab")
-    facts = source_facts(source_path)
+    facts = source_facts(source_path, expect_sha256=expect_sha256, handoff=handoff_manifest)
     for value, label in ((document_id, "document_id"), (workspace_id, "workspace_id")):
         if value:
             _identifier(value, label)
@@ -337,6 +415,8 @@ def import_browser_step(
     page: Any,
     *,
     source_path: str | Path,
+    expect_sha256: str = "",
+    handoff_manifest: str | Path | dict[str, Any] | None = None,
     mode: str = "new-tab",
     target_tab: str = "",
     document_id: str = "",
@@ -351,6 +431,8 @@ def import_browser_step(
 
     plan = plan_browser_step_import(
         source_path=source_path,
+        expect_sha256=expect_sha256,
+        handoff_manifest=handoff_manifest,
         mode=mode,
         target_tab=target_tab,
         document_id=document_id,
