@@ -73,11 +73,27 @@ class CheckHandoffToolTest(unittest.TestCase):
             )
 
     def test_a_clean_handoff_exits_zero_and_says_what_it_did_not_check(self):
-        result = self._run(minimal_handoff())
+        result = self._run(minimal_handoff(), "--build-direction", "0,0,1")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("verdict      : PASS", result.stdout)
         self.assertIn("no consumer readings supplied", result.stdout)
         self.assertIn("not_provided", result.stdout)
+        self.assertIn("complete", result.stdout)
+
+    def test_a_rule_that_did_not_run_is_not_a_pass(self):
+        """MeshQ 198 §4's shape, closed here: an unevaluated rule cannot refuse, so it must fail loudly."""
+        result = self._run(minimal_handoff())
+        self.assertEqual(result.returncode, 1, "an incomplete check may not exit 0")
+        self.assertIn("INCOMPLETE (rule 5 did not run)", result.stdout)
+        self.assertIn("[print] NOT RUN rule 5", result.stdout)
+        self.assertIn("close it:", result.stdout)
+        self.assertIn("FAIL", result.stdout)
+        self.assertNotIn("verdict      : PASS", result.stdout)
+
+    def test_declaring_the_partial_check_is_the_only_way_it_reads_as_a_pass(self):
+        result = self._run(minimal_handoff(), "--declaration-only")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("PASS (PARTIAL, accepted by --declaration-only)", result.stdout)
 
     def test_a_print_refusal_closes_the_exit_code(self):
         handoff = minimal_handoff()
@@ -107,14 +123,16 @@ class CheckHandoffToolTest(unittest.TestCase):
             readings_path.write_text(json.dumps(readings), encoding="utf-8")
             manifest_path = Path(tmp) / "handoff.json"
             manifest_path.write_text(json.dumps(minimal_handoff()), encoding="utf-8")
-            ok = subprocess.run([sys.executable, str(TOOL), str(manifest_path), "--readings", str(readings_path)],
+            ok = subprocess.run([sys.executable, str(TOOL), str(manifest_path), "--readings", str(readings_path),
+                                 "--build-direction", "0,0,1"],
                                 capture_output=True, text=True, env=ENV, cwd=str(ROOT), timeout=120)
             self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
             self.assertIn("quantities_within_declared_tolerance", ok.stdout)
 
             readings["pieces"][0]["brepVolumeMm3"] = 10.0 * 1.01
             readings_path.write_text(json.dumps(readings), encoding="utf-8")
-            bad = subprocess.run([sys.executable, str(TOOL), str(manifest_path), "--readings", str(readings_path)],
+            bad = subprocess.run([sys.executable, str(TOOL), str(manifest_path), "--readings", str(readings_path),
+                                  "--build-direction", "0,0,1"],
                                  capture_output=True, text=True, env=ENV, cwd=str(ROOT), timeout=120)
             self.assertEqual(bad.returncode, 1)
             self.assertIn("outside", bad.stdout)
@@ -131,8 +149,8 @@ class CheckHandoffToolTest(unittest.TestCase):
 
     @unittest.skipUnless(REAL.exists(), "the real 70-piece handoff is not in the drop directory")
     def test_the_real_handoff_passes_and_a_tampered_copy_does_not(self):
-        clean = subprocess.run([sys.executable, str(TOOL), str(REAL)], capture_output=True, text=True,
-                               env=ENV, cwd=str(ROOT), timeout=120)
+        clean = subprocess.run([sys.executable, str(TOOL), str(REAL), "--build-direction", "0,0,1"],
+                               capture_output=True, text=True, env=ENV, cwd=str(ROOT), timeout=120)
         self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
         self.assertIn("70", clean.stdout + clean.stderr)
 
@@ -143,8 +161,8 @@ class CheckHandoffToolTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "tampered.json"
             path.write_text(json.dumps(tampered), encoding="utf-8")
-            bad = subprocess.run([sys.executable, str(TOOL), str(path)], capture_output=True, text=True,
-                                 env=ENV, cwd=str(ROOT), timeout=120)
+            bad = subprocess.run([sys.executable, str(TOOL), str(path), "--build-direction", "0,0,1"],
+                                 capture_output=True, text=True, env=ENV, cwd=str(ROOT), timeout=120)
         self.assertEqual(bad.returncode, 1)
         self.assertIn("rule 2", bad.stdout)
 

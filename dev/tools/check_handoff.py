@@ -21,8 +21,10 @@ What it runs (each one is an existing guard, not a second implementation):
     ``not_provided`` rather than inventing agreement, which is the same honesty the manifest itself is
     required to show.
 
-Exit codes: ``0`` everything checked passed; ``1`` at least one refusal (each printed with its rule, its
-location and the required fix); ``2`` the input could not be read (missing/invalid file, bad JSON).
+Exit codes: ``0`` everything checked passed **and** every rule ran; ``1`` at least one refusal, **or a rule
+that did not run** (an unevaluated check is not a pass — pass ``--build-direction`` to run the direction rule,
+or ``--declaration-only`` to say out loud that a partial check is what you want); ``2`` the input could not be
+read (missing/invalid file, bad JSON).
 
 Usage::
 
@@ -81,6 +83,9 @@ def main(argv: list[str]) -> int:
                         help="the canonical-form version the consumer's own digest was computed under")
     parser.add_argument("--readings", default="",
                         help="JSON file of consumer readings: {\"set\": {...}, \"pieces\": [{...}]}")
+    parser.add_argument("--declaration-only", action="store_true",
+                        help="accept a check that could not run every rule (the direction rule needs "
+                             "--build-direction); the verdict then says PARTIAL rather than PASS")
     args = parser.parse_args(argv)
 
     try:
@@ -119,11 +124,21 @@ def main(argv: list[str]) -> int:
 
     # --- the print-fit contract, from the consumer's side
     basis = check_print_basis(manifest, build_direction=direction)
+    scope = ("complete" if basis.get("complete") else
+             "INCOMPLETE (rule " + ", ".join(str(r["rule"]) for r in basis.get("rulesNotRun") or []) + " did not run)")
     print(f"\nprint basis  : {'ok' if basis['ok'] else 'REFUSED'} "
-          f"({len(basis['refusals'])} refusal(s))")
+          f"({len(basis['refusals'])} refusal(s), rules {basis.get('rulesRun')}, {scope})")
     if basis["refusals"]:
         failures += 1
         _print_refusals("print", basis["refusals"])
+    for skipped in basis.get("rulesNotRun") or []:
+        # An unevaluated rule must be as loud as a refused one: `ok: true` next to a rule that never ran is
+        # the "looks like all-green" shape this tool exists to prevent.
+        print(f"  [print] NOT RUN rule {skipped['rule']}: {skipped['what']}")
+        print(f"      why     : {skipped['why']}")
+        print(f"      close it: {skipped['how_to_close']}")
+        if not args.declaration_only:
+            failures += 1
 
     # --- identity, only over readings the consumer actually took
     readings_pieces = readings.get("pieces") if isinstance(readings.get("pieces"), list) else None
@@ -152,9 +167,13 @@ def main(argv: list[str]) -> int:
     if not readings_set and not readings_pieces:
         print("      (no consumer readings supplied: identity reports `not_provided` rather than agreement)")
 
-    print(f"\nverdict      : {'PASS' if failures == 0 else 'FAIL'} "
-          f"({'no refusal' if failures == 0 else f'{failures} guard(s) refused'})")
-    return 0 if failures == 0 else 1
+    if failures == 0:
+        partial = bool((basis.get("rulesNotRun") or [])) and args.declaration_only
+        label = "PASS (PARTIAL, accepted by --declaration-only)" if partial else "PASS"
+        print(f"\nverdict      : {label} (no refusal)")
+        return 0
+    print(f"\nverdict      : FAIL ({failures} item(s): a refusal or a rule that did not run)")
+    return 1
 
 
 if __name__ == "__main__":

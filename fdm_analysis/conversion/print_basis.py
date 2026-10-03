@@ -90,21 +90,34 @@ def check_print_basis(
     build_direction: list[float] | None = None,
     require_at: bool = True,
 ) -> dict[str, Any]:
-    """Check a handoff manifest's print basis. Returns ``{"ok": bool, "refusals": [...], "basis": {...}}``.
+    """Check a handoff manifest's print basis.
+
+    Returns ``{"ok": bool, "complete": bool, "rulesRun": [...], "rulesNotRun": [...], "refusals": [...],
+    "basis": {...}}``.
 
     ``build_direction`` is the direction the CALLER intends to print in. When it is given and differs from
     the artifact's declared one, the readings are stale for that purpose and the guard refuses them rather
     than letting them be reused (rule 5).
+
+    **``ok`` alone is not the verdict; ``complete and ok`` is.** A rule that never ran cannot refuse, so a
+    partial run would otherwise look exactly like a full pass -- and a reader treats `ok: true` as a green
+    light. When the caller does not declare the direction it intends to print in, rule 5 does not run, so
+    ``rulesNotRun`` names it with the reason and the way to close it, and ``complete`` is false. This is the
+    same family as "an absent field must be as loud as a false one", one level up: **an unevaluated check
+    must not look green.**
     """
     declaration = manifest.get("declaration") or {}
     block = declaration.get("print") or {}
     parts = ((declaration.get("geometry") or {}).get("parts")) or []
     refusals: list[dict[str, str]] = []
+    rules_run: set[int] = set()
+    rules_not_run: list[dict[str, Any]] = []
 
     if not block:
         refusals.append(_refusal(
             1, "declaration.print", "the manifest declares no print basis at all",
             "publish build_direction, threshold_deg and reference_point with the readings"))
+    rules_run.add(1)  # the declaration-level basis is examined on every call
     raw_direction = block.get("build_direction")
     declared_direction = _direction(raw_direction)
     declared_threshold = _finite_number(block.get("threshold_deg"))
@@ -144,6 +157,7 @@ def check_print_basis(
             "a null one is an incomplete basis rather than a neutral default"))
 
     # --- rule 3: the gate this plane does not own
+    rules_run.add(3)
     envelope = block.get("envelope") or {}
     owner = envelope.get("declared_by")
     if owner not in (None, "consumer"):
@@ -159,6 +173,7 @@ def check_print_basis(
 
     # --- rule 1 + rule 2, per piece
     if require_at:
+        rules_run.add(2)
         for piece in parts:
             mesh = piece.get("mesh") or {}
             index = piece.get("index")
@@ -231,6 +246,7 @@ def check_print_basis(
                         "the rule gets inverted by a type"))
 
     # --- rule 4: a thickness reading without an analyzer
+    rules_run.add(4)
     min_wall = block.get("min_wall") or {}
     if min_wall and min_wall.get("grade") == "unknown" and not str(min_wall.get("reason") or "").strip():
         refusals.append(_refusal(
@@ -244,7 +260,17 @@ def check_print_basis(
             "declare the reading absent with a reason, or ship the analyzer that produced it"))
 
     # --- rule 5: a caller printing in another direction cannot reuse these readings
-    if build_direction is not None:
+    if build_direction is None:
+        rules_not_run.append({
+            "rule": 5,
+            "what": "the caller's own build direction was not compared with the artifact's",
+            "why": "this gate cannot know the direction the caller intends to print in, and a reading taken "
+                   "at another direction must not be reused silently",
+            "how_to_close": "call with build_direction=[x, y, z] (the direction you actually intend), or "
+                            "accept a declaration-only check explicitly",
+        })
+    else:
+        rules_run.add(5)
         wanted = [float(v) for v in build_direction]
         if wanted != declared_direction:
             refusals.append(_refusal(
@@ -253,15 +279,23 @@ def check_print_basis(
                 "re-take the direction-derived readings at the caller's build direction; they are "
                 "functions of it and must not be reused across a re-orientation"))
 
+    complete = not rules_not_run
     return {
         "ok": not refusals,
+        # Named so a caller cannot read `ok` as more than it is: a rule that did not run could not refuse.
+        "complete": complete,
+        "rulesRun": sorted(rules_run),
+        "rulesNotRun": rules_not_run,
         "refusals": refusals,
         "basis": {"build_direction": declared_direction, "threshold_deg": declared_threshold,
                   "reference_point": block.get("reference_point"),
                   "envelope_declared_by": owner},
         "readings": {field: mesh_field(parts, field) for field in DIRECTION_DERIVED},
         "note": ("this guard returns readings, never a verdict: printability is the caller's comparison "
-                 "against an envelope the caller declares"),
+                 "against an envelope the caller declares"
+                 + ("" if complete else
+                    "; INCOMPLETE: rule(s) " + ", ".join(str(r["rule"]) for r in rules_not_run)
+                    + " did not run, so `ok` is not a pass")),
     }
 
 

@@ -774,6 +774,38 @@ byte-identical geometry and still disagree by `2.4e-06` in volume and `3.4e-06` 
 bytes" does not imply "identical readings" — and a plane that publishes a reading without its algorithm is
 publishing a number nobody can adjudicate.
 
+### An unevaluated check must not look green
+
+A peer measured this on its own tool (its item 20): `inspect <part> --checks overhang --expect-volume 1` — an
+expectation declared for a check that was not requested — exits **0**, and the human-facing summary prints
+`"verdicts": {"part-0000": {"_failed": []}}`, while the record's own `_summary` says
+`{"checks": 0, …, "inert_rules": ["expected_volume_mm3"]}`. Its root cause is that the summariser copies each
+object's `{name: pass}` and `_failed` and **never copies `inert_rules` or `check_errors`**. As it put it: **an
+expectation that was never evaluated is not even a hole — it looks like all-green.** (Recorded here as a
+*reproduction*, not a landing: it has not changed its code.)
+
+The same shape existed one level down in this repository, found by asking the peer's question of our own guard:
+`check_print_basis(manifest)` without a caller build direction **cannot run rule 5**, cannot refuse anything
+through it, and so returned `ok: true` with the same note as a full run — and this repository's own consumer
+tool printed `PASS` on top of it. An unevaluated rule and a passed rule were indistinguishable in the output.
+
+The rule:
+
+* **a check reports what it ran and what it did not run**, and the not-run part carries the reason and the way
+  to close it — `ok` is never the verdict, `complete and ok` is;
+* a consumer-facing verdict may not print a bare pass when part of the check did not run: it prints
+  `INCOMPLETE`, names the rule, and fails, unless the caller **says out loud** that a partial check is what it
+  wants (`--declaration-only`, whose verdict reads `PASS (PARTIAL, …)`);
+* the failure mode has a name worth keeping: **an expectation that was never evaluated is not a hole, it is a
+  green light** — the third member of the family whose other two are "an absent field must be as loud as a
+  false one" and "a judgement must reach the machine-facing outcome".
+
+Landed here in `fdm_analysis/conversion/print_basis.py` (`complete` / `rulesRun` / `rulesNotRun`, and the note
+now says `INCOMPLETE … so \`ok\` is not a pass`) and in `dev/tools/check_handoff.py` (exit 1 for an incomplete
+run with the rule, the reason and the way to close it; `--build-direction` closes it, `--declaration-only`
+accepts it explicitly). Tests: `test_a_rule_that_did_not_run_is_named_and_ok_is_not_a_pass`,
+`test_a_rule_that_did_not_run_is_not_a_pass`, and `test_declaring_the_partial_check_is_the_only_way_it_reads_as_a_pass`.
+
 ### "I am not a gate" must be written in your own output
 
 The plane that found the empty-probe rule added this boundary to the same family: a warning-level checker
@@ -1027,6 +1059,12 @@ that is portable to any future plane.
     this repository as the 1). The rule that follows is the same one this repository applies to its own
     `send`-style tools: **never carry a claim of receipt that the receipt tool would not confirm**, and
     after any ack, re-ask the tool rather than the memory of having seen a confirmation line.
+19. **An unevaluated check must not look green.** Report what ran and what did not, with the reason and the
+    way to close it; `ok` is not the verdict, `complete and ok` is; a consumer-facing pass may never be printed
+    for a partial run unless the caller says out loud that a partial run is what it wants. (Instance: a guard
+    silently skipped the one rule that needed a caller-supplied direction, and the tool printed PASS on top of
+    it — while a peer found the same shape in its own summariser, where an unrequested expectation printed as a
+    green summary.)
 18. **A check that does not block must say so in its own output** — in the payload and in the printed text,
     along with what its exit code means. A boundary kept only in documentation is a boundary the reader never
     sees, and a warning-level check nobody warned about becomes a defect through a sentence it never said.
@@ -1099,6 +1137,7 @@ absent so the suite stays offline-clean.
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
 | Addressing needs both halves, in code | Producer: `declaration.identity.sha256` + `sha256_stable: false` + `identity_rule.version` in the staged browser STEP manifest. Consumer: `expect_sha256`/`handoff_manifest` in `onshape_browser_mode/step_import.py`, mismatch refused offline before any click, handoff without a digest refused by name, `addressedBy: "path"` recorded when nothing was declared (23 tests) |
+| Unevaluated checks must not look green (round 4) | Peer reproduction recorded (its item 20: `--checks overhang --expect-volume 1` exits 0 with `_failed: []` while `_summary.inert_rules` names the expectation); **landed here**: `check_print_basis` returns `complete`/`rulesRun`/`rulesNotRun` with the reason and the way to close each skipped rule, and `dev/tools/check_handoff.py` exits 1 for an incomplete run unless `--declaration-only` is passed, whose verdict reads `PASS (PARTIAL, …)` |
 | "I am not a gate" is written in the output | MeshQ 194 §3 (its boundary rule): this repository's local FeatureScript check printed `structural errors MUST be fixed before upload` — advice phrased as a directive — while its payload already carried `advisory: True`; the summary now states the boundary and what exit 1 means, and `dev/tests/test_static_guards.py::test_the_cli_says_in_its_own_output_that_it_is_not_a_gate` asserts the three phrases plus the absence of the old wording |
 | An empty probe is a phenomenon, not evidence | MeshQ 192 §2: one `grep` truncated by `head` against a **guessed** path returned empty for a file that exists, and empty read as "does not exist"; the family's three internal instances are recorded with the measurement behind each (virtualised feature list publishing `headerCount`/`ready`/`rowsComplete`; the import leg's `before_read_failed` refusing instead of judging against an empty row list; `_solid_count` reporting `unknown` + reason rather than 0) |
 | Failures must close — one judgement, every entry point | MeshQ 189 §3 measurement (`run` exit 0 while `inspection.verdicts` says `pass: false`; `inspect` exit 1 for the same shape) recorded with its root cause read from the source; this repository's self-audit finds the duplicate-judgement shape (docs index digest in `verify_docs.py` and `test_docs_index_digests.py`) but **one implementation with two callers**, proven by both failing together on one stale digest |

@@ -176,6 +176,29 @@ class PrintBasisGuardTest(unittest.TestCase):
         block["build_direction"] = [0, 0, 1]
         self.assertTrue(check_print_basis(manifest(block=block))["ok"])
 
+    def test_a_rule_that_did_not_run_is_named_and_ok_is_not_a_pass(self):
+        """MeshQ 198 §4 (its item 20, measured on its own plane) is the same shape as this one.
+
+        Its summary copied only `{name: pass}` and dropped `inert_rules`, so an expectation that was **never
+        evaluated** looked like all-green. Here: without a caller direction, rule 5 cannot run — so `ok: true`
+        must not be readable as "the print basis was checked", and the result has to name what did not run and
+        how to close it.
+        """
+        partial = check_print_basis(manifest())
+        self.assertTrue(partial["ok"], "no refusal was raised, because no rule that ran had anything to refuse")
+        self.assertFalse(partial["complete"], "but the check is NOT complete, and that is the point")
+        self.assertNotIn(5, partial["rulesRun"])
+        self.assertEqual([item["rule"] for item in partial["rulesNotRun"]], [5])
+        self.assertIn("build_direction", partial["rulesNotRun"][0]["how_to_close"])
+        self.assertIn("INCOMPLETE", partial["note"])
+        self.assertIn("not a pass", partial["note"])
+
+        complete = check_print_basis(manifest(), build_direction=[0.0, 0.0, 1.0])
+        self.assertTrue(complete["complete"])
+        self.assertEqual(complete["rulesNotRun"], [])
+        self.assertEqual(complete["rulesRun"], [1, 2, 3, 4, 5])
+        self.assertNotIn("INCOMPLETE", complete["note"])
+
     def test_a_threshold_outside_its_only_meaningful_range_is_refused(self):
         """MeshQ 189 §3: `0`, `181`, `1e9` and `-45` all passed the first version of this guard.
 
