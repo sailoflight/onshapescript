@@ -193,5 +193,16 @@
       "profile_path_correction": "`user_data_dir = user_data/onshape_profile` resolves relative to the MODULE directory, so the real path is C:\\MCP\\onshapescript\\onshape_browser_mode\\user_data\\onshape_profile (directory exists, last written 2026-09-27, no Default/Cookies -> no persisted login, which matches the design: Onshape's auth cookies are session cookies)",
       "how_the_rdp_session_was_observed": "LocalSessionManager/Operational event 25 at 22:07:12: '会话重新连接成功: 用户 REOLINK\\075526249 会话 ID: 2 源网络地址: 100.76.170.81' — the connection REATTACHED to the existing session 2 rather than creating a new one, so no new 4624 interactive logon appears (the logon is the earlier one)"
     }
+  },
+  "window_visibility_unblocked_2026-10-03": {
+    "what_changed": "the bridge owner moved the Windows-side bridge into the interactive session; measured after the fix, every process the bridge hosts reports SessionId 2",
+    "evidence": [
+      "win-wsl-mcp-win.exe -> SessionId 2 (was 0)",
+      "the MCP children (python.exe -B -m mcp_main.win.mcp) -> SessionId 2 (was 0)",
+      "browser_session action=login spawned the resident Edge: pid 1480, --user-data-dir=C:\\MCP\\onshapescript\\onshape_browser_mode\\user_data\\onshape_profile, **SessionId 2** (so its window is in the human's session)",
+      "netstat: 127.0.0.1:9333 LISTENING (pid 1480) with an ESTABLISHED attachment, and GET http://127.0.0.1:9333/json/version -> Edg/154.0.4258.48 -- the cross-session CDP attach works, confirming that loopback TCP is not session-scoped",
+      "the agent's own Windows-interop commands remain in SessionId 0, so the agent still cannot open a window in session 2 by itself"
+    ],
+    "result": "browser_session action=login returned sessionStatus=awaiting_login / needsHumanLogin=true: the sign-in page is open in a window the human can see. The tool's own advisory applies while the human types -- the sign-in page reloads itself, which discards typed input, so the correct next step after the human reports completion is browser_session(action='health'), never page reads."
   }
 }
