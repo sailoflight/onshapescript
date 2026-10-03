@@ -35,7 +35,7 @@
 ### 2026-10-02 · EWF 侧对 15 行的判定：全部落定（`待处理` → 0 条）
 
 **判定方式**：EWF 侧对每一行都做过一次**就地复现**（不是照抄本文的数字），产物与全部原始输出在
-`/home/lijq/code/ewf-fb-triage/`（`bash run_all.sh` 一键复算；`REPORT.md` 逐条给了命令、退出码与逐字反例）。
+`/home/lijq/code/ewf-tools/verification/bundles/fb-triage/`（`bash run_all.sh` 一键复算；`REPORT.md` 逐条给了命令、退出码与逐字反例）。
 复现的义务按 `docs/project-onboarding.md` §3 兑现：**先复现，再登记**。下表是结论，
 下面三段是**必须写清的四件事**（三处更正 + 一处明确拒绝）。
 
