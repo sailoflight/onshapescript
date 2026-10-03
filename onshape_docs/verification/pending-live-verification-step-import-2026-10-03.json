@@ -1,0 +1,119 @@
+{
+  "probe": "Pending live verification for the browser-leg STEP import (`onshape_browser_mode/step_import.py`). The module landed with 17 offline tests and no live run: the Import dialog has never been opened by this code, so its four selector constants are candidates, not observations. Nothing here is a finding against the code -- it is the list of facts a live session must supply before the entry point can be trusted. The VERDICT half does not depend on them: the landing proof reads the tab bar (`.os-tab-bar-tab`) and the Part Studio user-feature rows (`.os-list-item.ns-user-feature`), both live-observed, so an unverified entry point cannot manufacture a success.",
+  "status": "pending-live-verification",
+  "session": "2026-10-03 (offline implementation); the live run below is NOT yet done",
+  "environment_when_implemented": {
+    "repo": "onshapescript, see the commit that added this file",
+    "route": "browser (0 Onshape API quota); no REST call is made by this leg",
+    "note": "the REST leg of the same capability exists as a planner and refuses a live import with `multipart_transport_unavailable`, because the import body is multipart/form-data while the REST client sends JSON only"
+  },
+  "already_verified_offline": [
+    "17 tests in `dev/tests/test_browser_step_import.py`: plan shape (source digest, 0 estimated requests, mutating), the unverified/reserved selector split, source-fact measurement, argument refusals, and every verdict path",
+    "only one new proof row -> imported=True; an unchanged row list -> imported=False with translationCompleted=unknown (a running translation is not a failed import)",
+    "two new rows -> refused as ambiguous; a failed after-read -> element_read_failed, never a success",
+    "a failed before-read refuses BEFORE any click, so landing is never judged against a state the caller did not observe",
+    "into-part-studio without a matching expect_feature_name -> imported=None (a new row proves something was added, not that this file landed)"
+  ],
+  "checks": [
+    {
+      "id": "I1",
+      "issues": [
+        "three-plane interop / import capability"
+      ],
+      "tool": "browser step import (call `step_import.import_browser_step` or the equivalent registered tool)",
+      "arguments": {
+        "source_path": "<a real local .step file>",
+        "mode": "new-tab",
+        "document_id": "<a real document>"
+      },
+      "pass_criteria": "the Import entry is found by its visible label and the dialog opens; if the labels are wrong the call must answer `import_entry_missing` and the result's `pageFacts.tabNames` must list the real tabs. Report the real entry route (document tab context menu / '+ ' menu / toolbar item) with its tag, class and text.",
+      "if_it_fails": "the fix is a selector or label constant in `onshape_browser_mode/step_import.py` (IMPORT_ENTRY_LABELS), not a design change"
+    },
+    {
+      "id": "I2",
+      "issues": [
+        "three-plane interop / import capability"
+      ],
+      "tool": "browser step import",
+      "arguments": {
+        "source_path": "<a real local .step file>",
+        "mode": "new-tab"
+      },
+      "pass_criteria": "`fileAttach.selector` is the selector that actually accepted the file. A hidden `input[type=file]` is expected (the visible drop zone is not the input); if attachment fails the result is `file_input_missing` with the page facts, and the real input element must be reported.",
+      "if_it_fails": "update `selectors.IMPORT_FILE_INPUT`, and say whether the dialog uses a drag-and-drop target with no input element at all"
+    },
+    {
+      "id": "I3",
+      "issues": [
+        "three-plane interop / import capability"
+      ],
+      "tool": "browser step import",
+      "arguments": {
+        "source_path": "<a real local .step file>",
+        "mode": "new-tab"
+      },
+      "pass_criteria": "the submit click is followed by exactly one new tab row; the question this check answers is whether `selectors.IMPORT_SUBMIT` is the real commit button or whether the dialog commits on file selection (`submit.submitted=false` with `imported=true` is a PASS and must be recorded that way, because then the dialog has no separate commit step).",
+      "if_it_fails": "record which control commits, and whether a translation-progress element exists (`selectors.ASM_PROGRESS` was borrowed from the assembly leg and is UNVERIFIED here)"
+    },
+    {
+      "id": "I4",
+      "issues": [
+        "three-plane interop / import capability"
+      ],
+      "tool": "browser step import",
+      "arguments": {
+        "mode": "into-part-studio",
+        "target_tab": "<a real Part Studio>",
+        "expect_feature_name": "<the row text the import produces>"
+      },
+      "pass_criteria": "exactly one new user-feature row appears and its text contains `expect_feature_name`; the observed row text is the fact this check exists for, because the import feature's display name is not predictable.",
+      "if_it_fails": "record the real row text; if the import does NOT add a feature row (e.g. it creates a new part only), change the proof for this mode rather than loosening the verdict"
+    },
+    {
+      "id": "I5",
+      "issues": [
+        "three-plane interop / import capability"
+      ],
+      "tool": "browser step import",
+      "arguments": {
+        "source_path": "<a real local .step file>",
+        "timeout_ms": 120000
+      },
+      "pass_criteria": "on a document that already contains a tab named like the imported file, the verdict must still name the NEW element id and never match by name alone; and a second import of the same file must not be reported as `no_new_element` when it in fact created a second tab.",
+      "if_it_fails": "the row identity rule needs the element id, not the name; report the tab row's data attribute"
+    }
+  ],
+  "selector_checklist": [
+    {
+      "id": "S1",
+      "question": "Where is the Import entry really? A document tab context menu, the '+' menu, a toolbar item, or the file menu? `IMPORT_ENTRY_LABELS = ('导入', 'Import')` is tried by visible text only."
+    },
+    {
+      "id": "S2",
+      "question": "Is there a separate import dialog at all, or does choosing the file import immediately? `selectors.IMPORT_DIALOG` is a four-way candidate list, unverified."
+    },
+    {
+      "id": "S3",
+      "question": "Which element receives the file? A hidden `input[type=file]` (`selectors.IMPORT_FILE_INPUT`) or a drag-and-drop zone with no input?"
+    },
+    {
+      "id": "S4",
+      "question": "Which control commits the import (`selectors.IMPORT_SUBMIT`)? Is there a units/format selector that must be set to STEP AP242 / Millimeter?"
+    },
+    {
+      "id": "S5",
+      "question": "Where did the imported geometry go: a new tab, a new Part Studio feature row, or a new part in the part list? This decides the landing proof for `into-part-studio`."
+    },
+    {
+      "id": "S6",
+      "question": "What does a FAILED translation look like (a toast, a notice pane, a row that never appears)? The current code reports `translationCompleted=unknown` and must not be taught to claim more than that."
+    }
+  ],
+  "how_to_run": [
+    "Reuse the existing signed-in browser profile; do not release the session (it costs a human sign-in).",
+    "Run I1 with a real local file on a throwaway document, then I2, I3 on the same document, then I4 on a Part Studio, then I5.",
+    "Record for each check: the raw result JSON, the page URL, and the tab/feature row text observed.",
+    "Do not answer a check from memory or from the button-map scan: the whole point is that these facts are not yet observed.",
+    "After answering, move the confirmed constants into `onshape_browser_mode/selectors.py` with a dated comment and change this file's `status` from `pending-live-verification` to `verified` plus the session date."
+  ]
+}

@@ -173,6 +173,17 @@ ASM_PROGRESS = (
     "[class*='progress'], [class*='loading']"
 )
 
+# STEP import (browser leg, zero quota). The Import ENTRY is reached by its visible label
+# (selectors.IMPORT_ENTRY_LABELS in step_import.py), because no class of that menu item was ever
+# measured; the four constants below are therefore UNVERIFIED candidates. The landing proof does NOT
+# depend on them -- it reads TAB_BAR_TAB / PS_USER_FEATURE, which are live-observed -- so an unverified
+# entry point cannot produce a false success. Ledger:
+# onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json.
+IMPORT_DIALOG = ".modal.import-dialog, .import-dialog, .xenon-dialog, [role=dialog]"
+IMPORT_FILE_INPUT = "input[type=file]"
+IMPORT_SUBMIT = ".modal button.btn-primary[type='submit'], .xenon-dialog button.btn-primary"
+IMPORT_CANCEL = ".modal button.button-cancel, .xenon-dialog button.button-cancel"
+
 # Cross-origin Drawing editor
 DRAWING_FRAME_URL_PREFIX = "production-drawing-"
 DRAWING_IFRAME = 'iframe[src*="production-drawing-"]'
