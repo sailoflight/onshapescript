@@ -227,7 +227,40 @@ Its proposed division matches this plane's: parametric design → Onshape; exact
 diameter and shrink compensation, split-and-dowel, screw bosses) → CadQ; mesh-level printability → MeshQ;
 slicing and placement → the slicer; and **cross-plane traffic is files plus data, never imported code**.
 
-## 9. What is deliberately not decided here
+## 9. Import leg: what the lookup found (2026-10-03)
+
+The gap in §2 was "Onshape has no import". A lookup-first pass over the vendored OpenAPI (no
+network) replaced the guess with a request:
+
+- The operation is `createTranslation`: `POST /api/v16/translations/d/{did}/w/{wid}`, request schema
+  `BTBTranslationRequestParams`, and its own summary is *"Import or upload a CAD file into Onshape,
+  and translate the data into parts or assemblies."*
+- **The body is `multipart/form-data` with a binary `file` part**, while
+  `onshape_rest_api_mode.client` sends JSON only. So the live leg is **refused** with
+  `multipart_transport_unavailable` rather than attempted, and the refusal names both ways to close it:
+  add a bounded multipart transport to the client, or do the import through the browser leg (0 REST
+  quota, unverified selectors).
+- **The Onshape import body is where the receiver's declarations already live**: `unit`,
+  `yAxisIsUp`, `storeInDocument`, `flattenAssemblies`, `onePartPerDoc`, `allowFaultyParts`,
+  `joinAdjacentSurfaces`, `locationElementId`/`locationPosition`. That is direct evidence for §6:
+  the handoff `declaration` block is not an invented vocabulary, it maps onto the parameters the
+  receiving plane actually has to set. Two of the peers' open questions land here too — the unit is a
+  receiver declaration (Onshape asks for it explicitly), and multi-solid handling is a receiver policy
+  (`onePartPerDoc`, `flattenAssemblies`).
+- **Landing is not the translation state.** `requestState: DONE` says the translation finished, not
+  that a usable part studio landed, so the plan's third request compares the element list before and
+  after. That mirrors the verdict-honesty rule of the interference leg: "did not run" must not be able
+  to read as "clean", and "translated" must not be able to read as "imported".
+- The planner is implemented at `onshape_rest_api_mode/step_import.py` with 22 offline gates
+  (`dev/tests/test_rest_step_import.py`), including a cross-check that every field it sends — and
+  every field it declares unsent — exists in the vendored schema, and that the INTERNAL list matches
+  the schema's own visibility block.
+- **The tool is deliberately not registered yet.** A planner-only `onshape_import_step` would
+  advertise an import that cannot run, and the registry counts are contract-pinned. Registration
+  waits for the transport decision above (or for the browser leg), whichever the planes and the human
+  settle.
+
+## 10. What is deliberately not decided here
 
 Which leg gets built first, where the shared contract page lives, and whether a fourth
 consumer (the `modeling-token-bench` harness, which already re-verifies STEP with
