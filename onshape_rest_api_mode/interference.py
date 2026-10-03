@@ -685,7 +685,10 @@ def run_interference_check(
             "reportSchema": payload.get("schema"),
             "reportToleranceMm": payload.get("tolerance_mm"),
             "reportMode": payload.get("mode"),
-            "stdoutTail": stdout_tail,
+            # The parsed payload above IS the success evidence, so the report text
+            # is deliberately not repeated here: it would roughly double every
+            # successful answer for a caller that already has the numbers. A failed
+            # run keeps both tails, because there the text is the reason.
             "stderrTail": stderr_tail,
         },
         "failures": failures,

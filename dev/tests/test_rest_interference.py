@@ -315,6 +315,10 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(result["report"], "stdout")
         self.assertNotIn("reportPath", result)
         self.assertGreater(result["reportBytes"], 0)
+        # The parsed payload is the success evidence; the report text is not
+        # repeated (a failed run is the case that keeps both tails).
+        self.assertNotIn("stdoutTail", result["evidence"])
+        self.assertEqual(result["evidence"]["stderrTail"], "")
 
     def test_a_positive_finding_wins(self) -> None:
         result = self._run(_FakeRunner(_report(interfering=3)))
