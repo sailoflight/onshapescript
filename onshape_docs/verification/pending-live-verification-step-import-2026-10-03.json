@@ -171,6 +171,14 @@
       "not_the_cause": "network/TCP (the connection was accepted and NTLM ran), NLA/CredSSP (it negotiated), the DC (nltest /sc_verify = NERR_Success), clock (server is +8 ms from the DC), RDP policy (fDenyTSConnections=0)"
     },
     "lockout_watch": "0xC0000064 is pre-authentication, so these attempts should not count as password failures; if a later 4625 reports Sub Status 0xC0000234 (account locked out), stop retrying and wait.",
-    "after_login": "disconnect the RDP window rather than signing out: sign-out ends the session and kills the detached resident browser with it, and Onshape's login is a session cookie held only in that process's memory."
+    "after_login": "disconnect the RDP window rather than signing out: sign-out ends the session and kills the detached resident browser with it, and Onshape's login is a session cookie held only in that process's memory.",
+    "second_attempt_measured_22_05_23": {
+      "what_arrived": "Account Name `075526249`, Account Domain `REOLINLK`",
+      "correct_domain": "REOLINK (NetBIOS) / reolink.ad (DNS); `whoami` is `reolink\\075526249`",
+      "verdict": "a typo in the domain field (REOLINLK for REOLINK). The server looked the name up in a domain string it does not know, fell back to the local SAM, and there is no local account 075526249 (`net user 075526249` -> \"The user name could not be found\"), so it answered 0xC0000064 again.",
+      "why_it_is_still_not_the_password": "Sub Status 0xC0000064, `Package Name (NTLM only)` empty and Key Length 0 — the exchange never reached a password check.",
+      "lesson": "two attempts, two username-side errors with the SAME sub-status: a forward slash (REOLINK/075526249) and a misspelled domain (REOLINLK). 0xC0000064 is therefore the discriminator to read before blaming the password; the UPN form (075526249@reolink.ad) removes the domain field and the typos it invites.",
+      "evidence": "Security 4625 at 22:05:23, Workstation DESKTOP-VVOIEFT, Source 100.76.170.81, Logon Type 3, Logon Process NtLmSsp, Authentication Package NTLM"
+    }
   }
 }
