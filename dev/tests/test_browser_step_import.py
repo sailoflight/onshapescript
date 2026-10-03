@@ -93,6 +93,8 @@ class FakePage:
         self.file_input_attachable = file_input_attachable
         self.raise_on_read_after = raise_on_read_after
         self.active_tab_name = active_tab_name
+        self.tab_reads_served = 0
+        self.feature_reads_served = 0
         self.evaluate_calls = 0
         self.clicks: list[str] = []
         self.waits: list[dict] = []
@@ -130,10 +132,16 @@ class FakePage:
         index = self.evaluate_calls - 1
         if self.raise_on_read_after is not None and index >= self.raise_on_read_after:
             raise RuntimeError("page read failed")
+        # Each probe family has its own scripted sequence: mode into-part-studio reads the tab bar AND the
+        # feature rows, and interleaving them must not shift either list.
         if "os-tab-bar-tab" in script:
             reads = self.tab_reads
+            index = self.tab_reads_served
+            self.tab_reads_served += 1
         else:
             reads = self.feature_reads
+            index = self.feature_reads_served
+            self.feature_reads_served += 1
         if not reads:
             return []
         if index < len(reads):
@@ -435,6 +443,38 @@ class ImportTest(unittest.TestCase):
         result = self._run(page, mode="into-part-studio", target_tab="Part Studio 1", document_id="did1")
         self.assertEqual(result["reason"], "active_tab_unknown")
         self.assertIn("never switches tabs", result["detail"])
+
+    def test_a_new_element_instead_of_a_feature_row_is_reported_as_such(self):
+        # MEASURED 2026-10-03: this UI's import dialog lands a translation as its OWN element, so the
+        # feature-row probe alone reads that outcome as "nothing happened".
+        element = {"name": "model (4)", "elementId": "4d4d4d4d4d4d4d4d4d4d4d4d", "group": False}
+        page = FakePage(
+            tab_reads=[[{"name": "model", "elementId": "c29f29f7528d07d5b290421c", "group": False}],
+                       [{"name": "model", "elementId": "c29f29f7528d07d5b290421c", "group": False}, element]],
+            feature_reads=[["Import 1"], ["Import 1"]],
+            active_tab_name="model",
+        )
+        result = self._run(page, mode="into-part-studio", target_tab="model", document_id="did1",
+                           expect_feature_name="Import")
+        self.assertFalse(result["imported"])
+        self.assertEqual(result["reason"], "landed_as_new_element")
+        self.assertEqual(result["newElement"]["name"], "model (4)")
+        self.assertEqual(result["newRows"], [])
+        self.assertIn("did not do what it promised", result["detail"])
+
+    def test_two_new_elements_in_the_tab_bar_are_refused_as_ambiguous(self):
+        first = {"name": "model (4)", "elementId": "4d4d4d4d4d4d4d4d4d4d4d4d", "group": False}
+        second = {"name": "model (5)", "elementId": "5e5e5e5e5e5e5e5e5e5e5e5e", "group": False}
+        page = FakePage(
+            tab_reads=[[{"name": "model", "elementId": "c29f29f7528d07d5b290421c", "group": False}],
+                       [{"name": "model", "elementId": "c29f29f7528d07d5b290421c", "group": False},
+                        first, second]],
+            feature_reads=[["Import 1"], ["Import 1"]],
+            active_tab_name="model",
+        )
+        result = self._run(page, mode="into-part-studio", target_tab="model", document_id="did1")
+        self.assertEqual(result["reason"], "ambiguous_new_elements")
+        self.assertEqual(len(result["newTabRows"]), 2)
 
     def test_the_poll_is_bounded_by_the_injected_clock(self):
         clock = FakeClock()

@@ -243,9 +243,14 @@ def plan_browser_step_import(
         proof = {
             "mode": "into-part-studio",
             "reads": "the Part Studio user-feature rows (`.os-list-item.ns-user-feature`, live-observed) of the "
-                     "ACTIVE tab; this leg never switches tabs, so target_tab must already be active",
+                     "ACTIVE tab, plus the tab bar as a second probe; this leg never switches tabs, so "
+                     "target_tab must already be active",
             "rule": ("exactly one new user-feature row must appear AND its text must contain "
-                     "expect_feature_name, otherwise the answer is imported=null (landing unproven)"),
+                     "expect_feature_name, otherwise the answer is imported=null (landing unproven). A new "
+                     "document element in the tab bar with no new feature row answers "
+                     "imported=false / landed_as_new_element: the geometry landed, but not where this mode "
+                     "promised (measured 2026-10-03 -- this UI's dialog lands the translation as its own "
+                     "element)"),
             "importedTrueRequires": "one new row whose text contains expect_feature_name",
         }
 
@@ -452,30 +457,45 @@ def _poll_for_change(
     pause: Any,
     now: Any,
     require_element: bool = False,
+    also: Any = None,
 ) -> dict[str, Any]:
     """Bounded wait for the proof list to change. Terminates on the injected clock.
 
     With ``require_element`` (mode new-tab) an internal bookkeeping row appearing alone does NOT end
     the wait: the translated element is what the proof needs, so the loop keeps polling until it
     appears or the budget runs out.
+
+    ``also`` is an optional ``(rows, script)`` second probe. It exists because an import can land
+    somewhere the first probe does not watch: mode into-part-studio watches the active tab's feature
+    rows, but the dialog can create a NEW document element instead (measured 2026-10-03), and without
+    the second probe that outcome would read as "nothing happened".
     """
     deadline = now() + (timeout_ms / 1000.0)
     reads = 0
     last = before
+    last_also = None
+    also_before, also_script = also if also else (None, None)
     while now() < deadline:
         pause(interval_ms)
         last = _read_rows(page, script)
         reads += 1
+        if also_script:
+            last_also = _read_rows(page, also_script)
         if not last["ok"]:
             continue
-        if len(last["rows"]) == len(before["rows"]):
+        changed = len(last["rows"]) != len(before["rows"])
+        also_changed = bool(
+            also_script and last_also and last_also["ok"]
+            and len(last_also["rows"]) != len(also_before["rows"])
+        )
+        if not changed and not also_changed:
             continue
-        if require_element and not any(
+        if require_element and changed and not any(
             _is_document_element(row) for row in _new_rows(before["rows"], last["rows"])
-        ):
+        ) and not also_changed:
             continue
-        return {"changed": True, "reads": reads, "after": last}
-    return {"changed": False, "reads": reads, "after": last}
+        return {"changed": True, "reads": reads, "after": last, "alsoAfter": last_also}
+    return {"changed": False, "reads": reads, "after": last, "alsoAfter": last_also}
 
 
 def _new_rows(before: list[Any], after: list[Any]) -> list[Any]:
@@ -514,13 +534,54 @@ def _split_new_rows(new: list[Any]) -> tuple[list[Any], list[Any]]:
     return elements, internal
 
 
-def _verdict(mode: str, before: dict[str, Any], polled: dict[str, Any], expect_feature_name: str) -> dict[str, Any]:
+def _verdict(
+    mode: str,
+    before: dict[str, Any],
+    polled: dict[str, Any],
+    expect_feature_name: str,
+    tabs_before: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not polled["after"]["ok"]:
         return {"imported": False, "reason": "element_read_failed", "detail": polled["after"]["error"],
                 "translationCompleted": "unknown"}
     new = _new_rows(before["rows"], polled["after"]["rows"])
-    elements, internal = _split_new_rows(new) if mode == "new-tab" else (new, [])
+    tab_new: list[Any] = []
+    tab_elements: list[Any] = []
+    tab_internal: list[Any] = []
+    if mode == "new-tab":
+        elements, internal = _split_new_rows(new)
+    else:
+        elements, internal = new, []
+        tab_after = (polled.get("alsoAfter") or {}).get("rows")
+        if tabs_before and tab_after is not None:
+            tab_new = _new_rows(tabs_before["rows"], tab_after)
+            tab_elements, tab_internal = _split_new_rows(tab_new)
     if not new:
+        if mode == "into-part-studio" and tab_elements:
+            # MEASURED 2026-10-03: this UI's import dialog creates a NEW document element; it did not add
+            # a feature row to the active Part Studio. Reporting "nothing happened" here would be a blind
+            # spot, and reporting a plain success would hide that the promised destination was not used.
+            if len(tab_elements) > 1:
+                return {"imported": False, "reason": "ambiguous_new_elements",
+                        "detail": "the import added no feature row, and more than one document element "
+                                  "appeared in the tab bar; refusing to guess",
+                        "translationCompleted": "unknown", "newRows": [], "newTabRows": tab_elements,
+                        "internalRows": tab_internal}
+            row = tab_elements[0]
+            return {"imported": False, "reason": "landed_as_new_element", "newElement": row,
+                    "detail": ("the import added no feature row to the active Part Studio, but a new "
+                               f"document element {row.get('name') if isinstance(row, dict) else row!r} "
+                               "appeared: this UI's import dialog lands the translation as its own element, "
+                               "so mode=into-part-studio did not do what it promised -- the geometry did "
+                               "land, as a new element"),
+                    "translationCompleted": "assumed", "newRows": [], "newTabRows": tab_elements,
+                    "internalRows": tab_internal}
+        if mode == "into-part-studio" and tab_internal:
+            return {"imported": False, "reason": "element_not_yet_visible",
+                    "detail": ("the import was accepted -- Onshape's internal CAD-import bookkeeping row "
+                               "appeared -- but neither a feature row nor a translated element is visible "
+                               "yet; a slow translation is not a failed import"),
+                    "translationCompleted": "unknown", "newRows": [], "internalRows": tab_internal}
         return {"imported": False, "reason": "no_new_element",
                 "detail": ("the proof list did not change within the budget; the translation may still be "
                            "running, which is not the same as a failed import"),
@@ -661,13 +722,19 @@ def import_browser_step(
         return result
 
     result["submit"] = _click_submit(page)
+    # Second probe: this mode's promise is an insertion into the active tab, and the dialog can instead
+    # create its own element, which the feature-row probe alone cannot see.
+    tabs_before = _read_rows(page, _TAB_ROWS_JS) if mode == "into-part-studio" else None
     polled = _poll_for_change(
         page, script, before, timeout_ms=timeout_ms, interval_ms=500, pause=pause, now=now,
         require_element=(mode == "new-tab"),
+        also=(tabs_before, _TAB_ROWS_JS) if tabs_before else None,
     )
     result["polls"] = {"reads": polled["reads"], "changed": polled["changed"]}
     result["after"] = polled["after"]
-    verdict = _verdict(mode, before, polled, expect_feature_name)
+    if tabs_before is not None and polled.get("alsoAfter"):
+        result["afterTabs"] = polled["alsoAfter"]
+    verdict = _verdict(mode, before, polled, expect_feature_name, tabs_before=tabs_before)
     result.update(verdict)
     return result
 
