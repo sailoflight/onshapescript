@@ -77,12 +77,12 @@ skips the hidden tools cannot decide whether they should still exist.
 
 | Verdict | Tools |
 |---|---|
-| `Keep` | 66 |
+| `Keep` | 68 |
 | `Capability` | 11 |
 | `Merge` | 0 |
 | `Internal-only` | 36 |
 | `Remove` | 0 |
-| **total** | **113** |
+| **total** | **115** |
 
 | Tool | Verdict | Merge target | Reason |
 |---|---|---|---|
@@ -155,6 +155,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `browser_view_orientation` | `Keep` | - | Reads or sets the standard view; makes screenshots and geometry reads comparable over time. |
 | `browser_wait` | `Internal-only` | - | Composition primitive for synchronization; ordinary tools now wait on conditions internally rather than exposing waits as steps. |
 | `browser_wall_thickness_report` | `Keep` | - | Sampled measurement report for a named body; a concrete verification step for print-oriented jobs. |
+| `browser_interference_check` | `Keep` | - | Drives Onshape's own Interference Detection on an assembly at zero REST quota, and its verdict vocabulary keeps a panel that was never found, a detect that never finished or a count that disagrees with the rows from reading as a clean assembly. |
 | `browser_watch` | `Keep` | - | Turns a human-operated session into recorded steps, which is how new workflows get learned instead of guessed. |
 | `docs_list` | `Keep` | - | Page inventory for the project's own documentation; the root of the docs lookup order. |
 | `docs_search` | `Keep` | - | Keyword entry point across guide, experience and verification pages. |
@@ -188,6 +189,7 @@ skips the hidden tools cannot decide whether they should still exist.
 | `onshape_eval_featurescript` | `Keep` | - | The only way to test FeatureScript semantics on the real evaluator, and it costs exactly one call. |
 | `onshape_export_step` | `Keep` | - | Canonical downstream deliverable, with an explicit bounded poll budget instead of open-ended polling. |
 | `onshape_geometry_status` | `Keep` | - | Read-only readiness report; tells the caller whether a geometry backend exists before anything is promised. |
+| `onshape_interference_check` | `Keep` | - | Read-only, offline measurement of the boolean-intersection volume: the one primitive that disproves a clash when part counts, error features, STEP digests and FeatureScript assertions are all green, and its verdict vocabulary stops a check that never ran from reading as a clean model. |
 | `onshape_get_feature_studio_status` | `Keep` | - | Feature Studio metadata and compiled spec list; the check that a deploy actually produced the expected spec. |
 | `onshape_get_parameter_set` | `Keep` | - | Reads a maintained parameter set so a human can review the exact inputs before an instantiate call. |
 | `onshape_get_project_state` | `Keep` | - | Cached document/workspace/element ids at zero cost; the policy's substitute for implicit document walking. |

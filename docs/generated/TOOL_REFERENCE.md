@@ -6,11 +6,11 @@
 
 ## Summary
 
-- Registered tools: **113**
+- Registered tools: **115**
 - Server: `onshape-mcp` `1.4.0`
 - MCP protocol: `2025-06-18`
-- Capability counts: `browser`=70, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=20, `rest_reference`=6
-- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=27, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
+- Capability counts: `browser`=71, `featurescript`=11, `other`=3, `project_docs`=3, `rest_operations`=21, `rest_reference`=6
+- Browser semantic counts: `L1`=8, `L2`=6, `L3`=13, `L4`=28, `L5`=8, `L6`=1, `boundary_observation`=1, `boundary_operation`=2, `project_control`=1, `unclassified`=3
 
 ## Safety interpretation
 
@@ -69,6 +69,7 @@
 | `browser_insert_assembly_instances` | `browser` | `L4 onshape_transaction` | `instance_names`, `instance_selector` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Insert named Part Studio or Assembly sources through the Assembly insert dialog. |
 | `browser_insert_custom_feature` | `browser` | `L4 onshape_transaction` | `confirm_mutation` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Insert a custom FeatureScript feature into a Part Studio through the browser UI, spending ZERO Onshape API quota. It counts the element's USER feature rows before the click and... |
 | `browser_inspect` | `browser` | `L1 browser_primitive` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read-only inventory of the visible interactive elements on the current Onshape browser page: links, buttons, inputs, menus, tabs, and anything with an aria-label / data-testid.... |
+| `browser_interference_check` | `browser` | `L4 onshape_transaction` | - | network=browser; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=exclusive_workflow/browser_profile | Run Onshape's own Interference Detection on an assembly tab and read the result list back. Zero REST quota and strictly read-only: it opens the analysis panel, presses the detec... |
 | `browser_invoke_discovered` | `browser` | `L2 browser_transaction` | `name`, `arguments` | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Deprecated compatibility wrapper: call the registered tool by the exact name that mcp_tool_catalog returns. |
 | `browser_notifications_status` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile | Read the notification badge count and optionally open and read the notification drawer. |
 | `browser_open_doc_menu` | `browser` | `L3 onshape_interaction` | - | network=browser; api_max=0; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/browser_profile | Open the document-name menu, return its item inventory, and optionally trigger one exact command. |
@@ -146,6 +147,7 @@
 | `onshape_get_project_state` | `rest_operations` | - | - | network=offline; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/registration_target_state | Read the project's non-secret Onshape document/workspace/element configuration and report whether a credentials file is configured. This is a local operation: it does not read o... |
 | `onshape_get_variables` | `rest_operations` | - | - | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=shared_read/explicit_target | Read an element's document variable table(s) — the `#name = value` rows a Variable Studio publishes to the document, which is how several features share one editable parameter —... |
 | `onshape_instantiate_feature` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target | Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit parameter set and optional known-parameter overrides. Repeated calls add additiona... |
+| `onshape_interference_check` | `rest_operations` | - | `step_path` | network=offline; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=shared_read/none | Report whether the solids of one STEP file actually overlap, by measuring the volume of their boolean intersection through the already-configured geometry backend. `verdict` is... |
 | `onshape_list_document_elements` | `rest_operations` | - | - | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/registration_target_state | List elements in the configured Onshape workspace (names, element types, IDs, microversions). Pass refresh=true to make one authenticated read-only GET /elements and repopulate... |
 | `onshape_render_preview` | `rest_operations` | - | `view` | network=live; api_max=1; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/explicit_target | Request one shaded PNG rendering of the existing configured Part Studio from Onshape. By default it returns the image as MCP image content without writing a file; set save=true... |
 | `onshape_run_validation_pipeline` | `rest_operations` | - | `confirm_mutation` | network=live; api_max=13; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/registration_target_state | Run the complete remote validation pipeline: upload FeatureScript, create a new Part Studio, save that ID to local project state, instantiate the feature, validate invariants, a... |

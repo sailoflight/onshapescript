@@ -1145,7 +1145,7 @@ class HandlerCompositionTest(unittest.TestCase):
 class PlannedMetadataTest(unittest.TestCase):
     def test_registry_and_cost_contract(self):
         by_name = {tool["name"]: tool for tool in server.TOOLS}
-        self.assertEqual(len(by_name), 113)
+        self.assertEqual(len(by_name), 115)
         before = len(server.TOOLS)
         browser_tools.install(server.TOOLS, server.HANDLERS)
         self.assertEqual(len(server.TOOLS), before)
@@ -1169,6 +1169,10 @@ class PlannedMetadataTest(unittest.TestCase):
                 "browser_wall_thickness_report", "browser_wait",
                 "browser_capture_screenshot", "browser_discover_tools",
                 "browser_geometry_status",
+                # Interference Detection opens a panel, presses detect, reads the
+                # rows and closes it again: a read of the assembly, never a model
+                # change, so it stays read-only instead of behind a mutation gate.
+                "browser_interference_check",
                 # Selecting an existing tab, confirming an accepted edit, and reading a
                 # feature's current values are UI gestures that write nothing: they must
                 # stay read-only so a caller can select a target, verify a result and

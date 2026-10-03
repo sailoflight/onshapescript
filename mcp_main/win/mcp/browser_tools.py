@@ -671,6 +671,45 @@ def browser_wall_thickness_report(arguments: dict[str, Any]) -> dict[str, Any]:
     return wall_thickness_report(page, body_name=body_name.strip(), minimum_allowed_mm=float(minimum), samples=samples)
 
 
+def browser_interference_check(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Run the zero-quota Interference Detection read on the current assembly.
+
+    ``dry_run`` is local in the same sense every other browser tool means it: it
+    plans without starting a session, so the prerequisites it reports are unknown
+    rather than optimistic.
+    """
+    tab_name = arguments.get("tab_name", "")
+    element_id = arguments.get("element_id", "")
+    if not isinstance(tab_name, str) or not isinstance(element_id, str):
+        raise ValueError("tab_name and element_id must be strings")
+    raw_parts = arguments.get("part_names")
+    part_names = _strings(raw_parts, "part_names") if raw_parts else None
+    tolerance = arguments.get("tolerance_mm")
+    if tolerance is not None and (isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not tolerance > 0):
+        raise ValueError("tolerance_mm must be a positive number")
+    include_zero_volume = bool(arguments.get("include_zero_volume", False))
+
+    from onshape_browser_mode import interference
+
+    if arguments.get("dry_run"):
+        return interference.plan_interference_check(
+            tab_name=tab_name,
+            element_id=element_id,
+            part_names=part_names,
+            tolerance_mm=tolerance,
+            include_zero_volume=include_zero_volume,
+        )
+    page, _ = _page()
+    return interference.browser_interference_check(
+        page,
+        tab_name=tab_name,
+        element_id=element_id,
+        part_names=part_names,
+        tolerance_mm=tolerance,
+        include_zero_volume=include_zero_volume,
+    )
+
+
 def browser_apply_blend(arguments: dict[str, Any]) -> dict[str, Any]:
     operation = arguments.get("operation", "fillet")
     targets = _strings(arguments.get("targets"), "targets")
@@ -1603,6 +1642,20 @@ BROWSER_TOOLS = [
     _tool("browser_duplicate_element", "Duplicate an id-addressed document element through its exact context-menu command and verify exactly one new tab id.", {"element_id": {"type": "string"}, "new_name": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=30, required=["element_id"]),
     _tool("browser_notifications_status", "Read the notification badge count and optionally open and read the notification drawer.", {"open_drawer": {"type": "boolean", "default": False}}, mutating=False, seconds=10),
     _tool("browser_share_document", "Open the document share dialog and return its visible text without changing permissions.", {}, mutating=False, seconds=10),
+    _tool(
+        "browser_interference_check",
+        "Run Onshape's own Interference Detection on an assembly tab and read the result list back. Zero REST quota and strictly read-only: it opens the analysis panel, presses the detect control, reads the rows and closes the panel -- no mate, constraint, fix, group or save, so the document is never made dirty. `verdict` is deliberately explicit. `clean` requires the panel to exist AND a completed run with a completion proof (a stated count, an explicit empty statement, or an observed running-to-finished transition) AND zero pairs after filtering; a 0-row read with no proof is `indeterminate`, never clean, and so are a missing panel (`panel_unavailable`), a detect that never finished, a timeout, a count that disagrees with the rows read, a tolerance that could not be applied or read back, and a part filter that excluded every row. `unavailable` means the current tab is not an assembly. `failures`/`failureClass`/`reason` carry why, and `evidence` carries what the page actually showed (active tab, candidate menu and toolbar texts, containers, every click attempt) so a selector that no longer matches reports itself instead of guessing. `part_names` narrows the check to the pairs involving those instances; `include_zero_volume` decides whether a zero-volume touch counts as an interference (default false) and the excluded ones are reported. The DOM selectors are not yet verified against a live assembly; a live session is what converges them.",
+        {
+            "tab_name": {"type": "string", "default": "", "description": "Assembly tab to activate first. Empty means the current tab must already be the assembly."},
+            "element_id": {"type": "string", "default": "", "description": "Tab data-id to activate instead of a name, preferred when browser_get_page_tabs supplies one."},
+            "part_names": {"type": "array", "items": {"type": "string"}, "description": "Keep only the interference rows whose two instance names include one of these. Omit to read every row."},
+            "tolerance_mm": {"type": "number", "exclusiveMinimum": 0, "description": "Tolerance to set in the panel before detecting. Omit to use whatever the panel already holds, which is reported in the evidence. A tolerance that cannot be applied or read back refuses to conclude."},
+            "include_zero_volume": {"type": "boolean", "default": False, "description": "Count a zero-volume touch as an interference. Default false; the excluded pairs are listed rather than dropped."},
+            "dry_run": _DRY,
+        },
+        mutating=False,
+        seconds=60,
+    ),
     _tool("browser_view_orientation", "Read the current view-cube visual state or set a standard camera orientation and verify the cube state changes.", {"orientation": {"type": "string", "enum": ["current", "front", "back", "top", "bottom", "left", "right", "isometric"], "default": "current"}}, mutating=False, seconds=10),
     _tool("browser_drawing_insert_views", "Deprecated compatibility wrapper: use browser_draw_part_with_views with part_name and no dimensions. Kept so an existing caller keeps working; it creates a drawing from an exact Part Studio part row, selects a semantic view layout, requires drawing-view geometry evidence, and returns that view evidence.", {"part_name": {"type": "string"}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=60, required=["part_name"]),
     _tool("browser_draw_part_with_views", "The one Drawing transaction: create verified drawing views from an exact part row, add dimensions to the current Drawing frame, or both in one verified job (give part_name, dimensions, or both; supplying neither is a refusal). Every requested stage must produce acceptance evidence or the transaction fails. Absorbs the former browser_drawing_insert_views and browser_add_drawing_dimension.", {"part_name": {"type": "string", "default": ""}, "view_layout": {"type": "string", "enum": ["four", "single", "iso"], "default": "four"}, "part_studio_tab": {"type": "string", "default": ""}, "template": {"type": "string", "default": ""}, "dimensions": {"type": "array", "items": {"type": "object", "properties": _DIMENSION_PROPERTIES, "additionalProperties": False}, "default": [], "description": "Dimensions to add to the current Drawing frame; one entry per dimension gesture."}, "dry_run": _DRY, "confirm_mutation": _CONFIRM}, mutating=True, seconds=120),
@@ -1657,6 +1710,7 @@ BROWSER_HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "browser_duplicate_element": browser_duplicate_element,
     "browser_notifications_status": browser_notifications_status,
     "browser_share_document": browser_share_document,
+    "browser_interference_check": browser_interference_check,
     "browser_view_orientation": browser_view_orientation,
     "browser_drawing_insert_views": browser_drawing_insert_views,
     "browser_draw_part_with_views": browser_draw_part_with_views,

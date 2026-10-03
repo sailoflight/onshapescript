@@ -56,13 +56,22 @@ from fdm_analysis.conversion.command import subprocess_platform_kwargs
 
 CONFIG_PATH = Path(__file__).resolve().parent / "config" / "geometry-backend.json"
 REPO_ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_ROOT = Path(__file__).resolve().parent / "outputs" / "interference"
 CONVERTER_NAME = "cadquery_interference.py"
 
 MODES = ("aabb", "boolean")
 DEFAULT_MAX_PAIRS = 4_000
 MAX_PAIRS_CAP = 20_000
 STEP_SUFFIXES = (".step", ".stp")
+
+#: The converter prints its report to stdout for this output token, so a check
+#: leaves nothing on disk and the tool stays genuinely read-only. A caller that
+#: wants the report kept can run the converter itself with a real path.
+OUTPUT_TOKEN = "-"
+
+#: A report for a large assembly can carry thousands of candidate pairs. The
+#: verdict never depends on this list (it comes from `counts`), so the returned
+#: pairs are bounded and the omitted count is reported instead.
+_MAX_REPORTED_PAIRS = 200
 
 _ALLOWED_FIELDS = (
     "input",
@@ -253,21 +262,6 @@ def _command(template: list[str], *, values: dict[str, str]) -> list[str]:
     return command
 
 
-def _report_path(step: Path, *, step_sha256: str, mode: str, tolerance: float, parts: list[str], max_pairs: int) -> Path:
-    fingerprint = hashlib.sha256(
-        json.dumps(
-            {
-                "sha256": step_sha256,
-                "mode": mode,
-                "tolerance_mm": tolerance,
-                "parts": sorted(parts),
-                "max_pairs": max_pairs,
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()[:16]
-    return OUTPUT_ROOT / f"{step.stem}-{fingerprint}.json"
-
 
 def plan_interference_check(
     *,
@@ -316,15 +310,6 @@ def plan_interference_check(
             f"the configured converter directory has no {CONVERTER_NAME}: {template['converter']}"
         )
 
-    report = _report_path(
-        step,
-        step_sha256=_file_sha256(step) if step.is_file() else "",
-        mode=resolved_mode,
-        tolerance=resolved_tolerance,
-        parts=names,
-        max_pairs=cap,
-    )
-
     command: list[str] | None = None
     if config.get("enabled") and template["template"] is not None:
         # Building the argv is also the validation step: an unsupported
@@ -336,7 +321,7 @@ def plan_interference_check(
                 template["template"],
                 values={
                     "input": str(step),
-                    "output": str(report),
+                    "output": OUTPUT_TOKEN,
                     "mode": resolved_mode,
                     "linear_tolerance_mm": str(resolved_tolerance),
                     "angular_tolerance_degrees": str(config["angularToleranceDegrees"]),
@@ -359,7 +344,7 @@ def plan_interference_check(
         "max_pairs": cap,
         "stepPath": str(step),
         "stepSha256": _file_sha256(step) if step.is_file() else None,
-        "reportPath": str(report),
+        "report": "stdout",
         "command": command,
         "backend": backend,
         "network": "offline",
@@ -402,7 +387,7 @@ def run_interference_check(
         "stepSha256": plan["stepSha256"],
         "backend": plan["backend"],
         "command": plan["command"],
-        "reportPath": None,
+        "report": "stdout",
         "network": "offline",
         "estimatedRequests": 0,
     }
@@ -420,11 +405,6 @@ def run_interference_check(
             "failures": plan["failures"],
             "nextAction": plan["nextAction"],
         }
-
-    report = Path(plan["reportPath"])
-    report.parent.mkdir(parents=True, exist_ok=True)
-    if report.exists():
-        report.unlink()
 
     try:
         process = runner(
@@ -474,7 +454,6 @@ def run_interference_check(
     if process.returncode != 0:
         return {
             **base,
-            "reportPath": str(report) if report.exists() else None,
             "verdict": "indeterminate",
             "failureClass": "converter_failed",
             "parts": [],
@@ -488,7 +467,8 @@ def run_interference_check(
             "nextAction": {"kind": "fix_backend", "hint": _ENABLE_HINT},
         }
 
-    if not report.is_file():
+    body = process.stdout or ""
+    if not body.strip():
         return {
             **base,
             "verdict": "indeterminate",
@@ -500,19 +480,18 @@ def run_interference_check(
             "exitCode": process.returncode,
             "reportSha256": None,
             "evidence": {"stderrTail": stderr_tail},
-            "failures": ["the interference converter exited 0 but wrote no report"],
+            "failures": ["the interference converter exited 0 but printed no report"],
             "nextAction": {"kind": "fix_backend", "hint": _ENABLE_HINT},
         }
 
     try:
-        payload = json.loads(report.read_text(encoding="utf-8"))
+        payload = json.loads(body)
         counts = payload["counts"]
         pairs = payload["pairs"]
         parts = payload["parts"]
     except (json.JSONDecodeError, KeyError, TypeError) as error:
         return {
             **base,
-            "reportPath": str(report),
             "verdict": "indeterminate",
             "failureClass": "report_unreadable",
             "parts": [],
@@ -548,13 +527,14 @@ def run_interference_check(
         "verdict": verdict,
         "failureClass": "pairs_truncated" if failures else None,
         "parts": parts,
-        "pairs": pairs,
+        "pairs": pairs[:_MAX_REPORTED_PAIRS],
+        "pairsOmitted": max(0, len(pairs) - _MAX_REPORTED_PAIRS),
         "counts": counts,
         "checkedPairs": int(counts.get("checked_pairs", 0)),
         "candidates": int(counts.get("candidate_pairs", 0)),
         "exitCode": process.returncode,
-        "reportPath": str(report),
-        "reportSha256": _file_sha256(report),
+        "reportSha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        "reportBytes": len(body.encode("utf-8")),
         "evidence": {
             "converter": plan["backend"]["converter"],
             "templateSource": plan["backend"]["templateSource"],

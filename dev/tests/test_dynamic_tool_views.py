@@ -237,7 +237,7 @@ class CollapseExpandToolViewTest(unittest.TestCase):
     """The ordinary default is `gateway`, this project's declared starting page.
 
     `mcp_surface` dev4 lets a project declare `SurfacePolicy.default_exposure`;
-    the library fallback stays `semantic`, but Onshape's registry (113 names)
+    the library fallback stays `semantic`, but Onshape's registry (115 names)
     has a curated 22-representative set worth starting from. `gateway` is a
     FIXED, always-expanded view, so the default still emits nothing and needs no
     client `notifications/tools/list_changed` support -- only `dynamic` does, and
@@ -379,7 +379,7 @@ class CollapseExpandToolViewTest(unittest.TestCase):
                 server.TOOLS, profile="default", semantic_levels=None
             )],
         )
-        self.assertEqual(len(semantic["tools"]), 79)
+        self.assertEqual(len(semantic["tools"]), 81)
 
         dynamic = self.dynamic_connection()
         cold = self.listed(dynamic)
@@ -421,7 +421,7 @@ class CollapseExpandToolViewTest(unittest.TestCase):
         self.assertEqual(outgoing[1]["method"], "notifications/tools/list_changed")
 
     def test_each_expanded_view_selects_its_display_set(self):
-        expected = {"static": 113, "semantic": 79, "gateway": 25, "profile": 40}
+        expected = {"static": 115, "semantic": 81, "gateway": 25, "profile": 41}
         # The startup profile is `browser`, so `expanded_view=profile` is
         # distinguishable from the fixed `semantic` (= `default`) set.
         connection = self.dynamic_connection(profile="browser")

@@ -165,6 +165,7 @@ _classify(
         "browser_duplicate_element",
         "browser_view_orientation",
         "browser_wall_thickness_report",
+        "browser_interference_check",
         "browser_apply_blend",
         "browser_insert_assembly_instances",
         "browser_fix_instances",

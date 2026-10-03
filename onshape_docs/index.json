@@ -12729,7 +12729,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "2dc6429532380b5fb33e728f9a5c375bf2c94296b14b99f8507cb66155959147",
+   "sha256": "72e769a05503e23ac8a09dfa849007c4aa8b13764f82878b4e1a9f42139b80c5",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -12750,7 +12750,7 @@
        "type": "list",
        "items": [
         {
-         "text": "Registered tools: 113",
+         "text": "Registered tools: 115",
          "depth": 0
         },
         {
@@ -12762,11 +12762,11 @@
          "depth": 0
         },
         {
-         "text": "Capability counts: browser=70, featurescript=11, other=3, project_docs=3, rest_operations=20, rest_reference=6",
+         "text": "Capability counts: browser=71, featurescript=11, other=3, project_docs=3, rest_operations=21, rest_reference=6",
          "depth": 0
         },
         {
-         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=27, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
+         "text": "Browser semantic counts: L1=8, L2=6, L3=13, L4=28, L5=8, L6=1, boundary_observation=1, boundary_operation=2, project_control=1, unclassified=3",
          "depth": 0
         }
        ]
@@ -13174,6 +13174,14 @@
          "-",
          "network=browser; api_max=0; mutating=no; dry_run=no; confirm=no; concurrency=exclusive_workflow/browser_profile",
          "Read-only inventory of the visible interactive elements on the current Onshape browser page: links, buttons, inputs, menus, tabs, and anything with an aria-label / data-testid...."
+        ],
+        [
+         "browser_interference_check",
+         "browser",
+         "L4 onshape_transaction",
+         "-",
+         "network=browser; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=exclusive_workflow/browser_profile",
+         "Run Onshape's own Interference Detection on an assembly tab and read the result list back. Zero REST quota and strictly read-only: it opens the analysis panel, presses the detec..."
         ],
         [
          "browser_invoke_discovered",
@@ -13706,6 +13714,14 @@
          "confirm_mutation",
          "network=live; api_max=2; mutating=yes; dry_run=yes; confirm=yes; concurrency=exclusive_workflow/explicit_target",
          "Add the Branch Cable Trophy custom feature to a target Part Studio using a maintained explicit parameter set and optional known-parameter overrides. Repeated calls add additiona..."
+        ],
+        [
+         "onshape_interference_check",
+         "rest_operations",
+         "-",
+         "step_path",
+         "network=offline; api_max=0; mutating=no; dry_run=yes; confirm=no; concurrency=shared_read/none",
+         "Report whether the solids of one STEP file actually overlap, by measuring the volume of their boolean intersection through the already-configured geometry backend. verdict is..."
         ],
         [
          "onshape_list_document_elements",

@@ -540,6 +540,29 @@ def _build_geometry_package(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _interference_check(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Report solid interference for one STEP file through the geometry backend.
+
+    Read-only and offline: the report is read from the converter's stdout, so the
+    call writes nothing at all and spends zero Onshape REST quota.
+    """
+    from onshape_rest_api_mode.interference import (
+        plan_interference_check,
+        run_interference_check,
+    )
+
+    request: dict[str, Any] = {
+        "step_path": arguments.get("step_path"),
+        "mode": arguments.get("mode"),
+        "tolerance_mm": arguments.get("tolerance_mm"),
+        "part_names": arguments.get("part_names"),
+        "max_pairs": arguments.get("max_pairs"),
+    }
+    if arguments.get("dry_run"):
+        return plan_interference_check(**request)
+    return run_interference_check(**request)
+
+
 def _instantiate(arguments: dict[str, Any]) -> dict[str, Any]:
     _confirm(arguments)
     overrides = arguments.get("overrides")
@@ -2695,6 +2718,34 @@ TOOLS: list[dict[str, Any]] = [
         "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
     },
     {
+        "name": "onshape_interference_check",
+        "cost": {"network": "offline", "estimated_requests": 0, "max_requests": 0, "mutating": False, "cacheable": False},
+        "description": (
+            "Report whether the solids of one STEP file actually overlap, by measuring the volume of their "
+            "boolean intersection through the already-configured geometry backend. Part counts, error-feature "
+            "counts, a stable STEP sha256 and green FeatureScript assertions can all be true while two bodies "
+            "interfere, so this is the check that disproves a clash rather than inferring one. Read-only and "
+            "offline: the converter's report is read from stdout, so NOTHING is written and no REST quota is "
+            "spent. `verdict` is deliberately explicit -- `clean` requires boolean mode with a completed report "
+            "and zero interfering pairs; `interference` names at least one overlapping pair with its volume; "
+            "`candidates_only` is all bounding-box mode (mode='aabb') may ever say, because overlapping boxes "
+            "can be a designed interlock; `indeterminate` means the check did not complete (missing STEP, "
+            "converter failure, timeout, unreadable report, or a truncated candidate list with no finding) and "
+            "`unavailable` means no command could be assembled -- neither is ever a clean model. `failures` and "
+            "`nextAction` carry the reason. `part_names` restricts the check to a subset, which is what makes a "
+            "large assembly affordable; `max_pairs` bounds the boolean evaluations. Zero Onshape REST calls."
+        ),
+        "inputSchema": object_schema({
+            "step_path": {"type": "string", "description": "Absolute path of a .step/.stp file already on this machine, for example one written by browser_export_step."},
+            "mode": {"type": "string", "enum": ["aabb", "boolean"], "default": "boolean", "description": "boolean measures the intersection volume and can decide; aabb reports candidate pairs from bounding boxes only and can never claim clean."},
+            "tolerance_mm": {"type": "number", "exclusiveMinimum": 0, "description": "Linear tolerance in mm. Its cube is the contact floor: an intersection at or below it counts as touching, not interfering. Defaults to the configured geometry linear tolerance."},
+            "part_names": {"type": "array", "items": {"type": "string"}, "description": "Restrict the check to these part names, labels or 1-based indexes (at least two). Omit to check every solid."},
+            "max_pairs": {"type": "integer", "minimum": 1, "maximum": 20000, "description": "Bound on candidate pairs that get a boolean evaluation. A truncated list is reported and, with no finding in it, forces `indeterminate`."},
+            "dry_run": {"type": "boolean", "default": False},
+        }, ["step_path"]),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    {
         "name": "onshape_create_validation_part_studio",
         "cost": {"network": "live", "estimated_requests": 1, "max_requests": 1, "mutating": True, "cacheable": False},
         "description": (
@@ -3788,6 +3839,7 @@ HANDLERS: dict[str, ToolHandler] = {
     "onshape_geometry_status": _geometry_status,
     "onshape_configure_geometry_backend": _configure_geometry_backend,
     "onshape_build_geometry_package": _build_geometry_package,
+    "onshape_interference_check": _interference_check,
     "onshape_create_validation_part_studio": _create_part_studio,
     "onshape_instantiate_feature": _instantiate,
     "onshape_update_feature_list": _update_feature_list,

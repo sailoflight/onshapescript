@@ -157,7 +157,7 @@ class PlanTest(unittest.TestCase):
 
 
 class _FakeRunner:
-    """Records the argv it was handed and writes the report the plan expects."""
+    """Records the argv it was handed and answers on stdout, like the converter."""
 
     def __init__(self, payload: object | None = None, *, returncode: int = 0, write_report: bool = True, stderr: str = ""):
         self.payload = payload
@@ -168,12 +168,10 @@ class _FakeRunner:
 
     def __call__(self, command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         self.commands.append(list(command))
+        stdout = ""
         if self.write_report:
-            output = Path(command[command.index("--output") + 1])
-            output.parent.mkdir(parents=True, exist_ok=True)
-            body = self.payload if isinstance(self.payload, str) else json.dumps(self.payload)
-            output.write_text(body, encoding="utf-8")
-        return subprocess.CompletedProcess(command, self.returncode, "", self.stderr)
+            stdout = self.payload if isinstance(self.payload, str) else json.dumps(self.payload)
+        return subprocess.CompletedProcess(command, self.returncode, stdout, self.stderr)
 
 
 def _report(*, interfering: int, truncated: bool = False) -> dict[str, object]:
@@ -217,7 +215,11 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(result["verdict"], "clean")
         self.assertEqual(result["failures"], [])
         self.assertEqual(result["checkedPairs"], 1)
-        self.assertTrue(Path(result["reportPath"]).is_file())
+        # A check is genuinely read-only: the report arrives on stdout and the
+        # result carries no output path to keep.
+        self.assertEqual(result["report"], "stdout")
+        self.assertNotIn("reportPath", result)
+        self.assertGreater(result["reportBytes"], 0)
 
     def test_a_positive_finding_wins(self) -> None:
         result = self._run(_FakeRunner(_report(interfering=3)))
@@ -278,15 +280,20 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(result["verdict"], "indeterminate")
         self.assertEqual(result["failureClass"], "converter_timeout")
 
-    def test_the_report_path_is_content_addressed_and_reused(self) -> None:
+    def test_the_report_digest_tracks_the_report_content(self) -> None:
         first = self._run(_FakeRunner(_report(interfering=1)))
-        second = self._run(_FakeRunner(_report(interfering=3)))
-        self.assertEqual(first["reportPath"], second["reportPath"])
-        self.assertNotEqual(first["reportSha256"], second["reportSha256"])
+        repeat = self._run(_FakeRunner(_report(interfering=1)))
+        other = self._run(_FakeRunner(_report(interfering=3)))
+        self.assertEqual(first["reportSha256"], repeat["reportSha256"])
+        self.assertNotEqual(first["reportSha256"], other["reportSha256"])
 
 
 class ConverterTest(unittest.TestCase):
     """The converter must be inspectable without CadQuery present."""
+
+    def test_stdout_output_token_is_supported(self) -> None:
+        source = CONVERTER.read_text(encoding="utf-8")
+        self.assertIn('args.output.strip() == "-"', source)
 
     def test_module_imports_without_cadquery(self) -> None:
         source = CONVERTER.read_text(encoding="utf-8")
@@ -415,6 +422,32 @@ class LiveCadQuery(unittest.TestCase):
         self.assertEqual(pair["intersection_volume_mm3"], 0.0)
         self.assertTrue(pair["zero_volume_contact"])
 
+    def test_the_converter_prints_its_report_and_leaves_no_file(self) -> None:
+        workdir = Path(tempfile.mkdtemp(prefix="interference-stdout-"))
+        self.addCleanup(shutil.rmtree, workdir, ignore_errors=True)
+        process = subprocess.run(
+            [
+                CADQUERY_PYTHON,
+                str(CONVERTER),
+                "--input",
+                str(self.temp / "overlap.step"),
+                "--output",
+                "-",
+                "--mode",
+                "boolean",
+                "--linear-tolerance-mm",
+                "0.05",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600,
+            cwd=workdir,
+        )
+        self.assertEqual(process.returncode, 0, process.stderr[-500:])
+        payload = json.loads(process.stdout)
+        self.assertEqual(payload["counts"]["interfering"], 1)
+        self.assertEqual(list(workdir.iterdir()), [])
+
     def test_aabb_mode_reports_the_same_candidate_without_deciding(self) -> None:
         result = interference.run_interference_check(
             step_path=str(self.temp / "interlock.step"), config_path=self._config(), mode="aabb"
@@ -422,6 +455,7 @@ class LiveCadQuery(unittest.TestCase):
         self.assertEqual(result["verdict"], "candidates_only")
         self.assertEqual(result["counts"]["candidate_pairs"], 1)
         self.assertIsNone(result["pairs"][0]["intersection_volume_mm3"])
+        self.assertNotIn("reportPath", result)
 
     def test_the_part_filter_restricts_the_pairs(self) -> None:
         result = interference.run_interference_check(

@@ -278,7 +278,11 @@ def main() -> int:
 
     try:
         input_path = host_path(args.input)
-        output_path = host_path(args.output)
+        # "--output -" prints the report to stdout instead of writing a file. The
+        # reading side uses that form so a pure check leaves nothing on disk; a
+        # caller that wants the report kept passes a real path.
+        to_stdout = args.output.strip() == "-"
+        output_path = None if to_stdout else host_path(args.output)
         if not math.isfinite(args.linear_tolerance_mm) or args.linear_tolerance_mm <= 0:
             raise ValueError("linear tolerance must be a positive finite number")
         report = build_report(
@@ -296,11 +300,12 @@ def main() -> int:
         print(f"cadquery_interference: {type(error).__name__}: {error}", file=sys.stderr)
         return 2
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=False) + "\n",
-        encoding="utf-8",
-    )
+    payload = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
+    if output_path is None:
+        sys.stdout.write(payload)
+    else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(payload, encoding="utf-8")
     return 0
 
 

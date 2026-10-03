@@ -2168,11 +2168,14 @@ class BrowserMetadataTest(unittest.TestCase):
         # timed-out insert left behind); 111 since mcp_tool_invoke was added the
         # same day, after a real client refused a hidden name with "unknown tool";
         # 113 since onshape_get_variables/onshape_set_variables brought the document
-        # variable table to the REST leg on 2026-10-01 (issue #19).
+        # variable table to the REST leg on 2026-10-01 (issue #19); 115 since the two
+        # interference tools landed on 2026-10-03 -- onshape_interference_check (the
+        # offline intersection volume) and browser_interference_check (Onshape's own
+        # Interference Detection at zero REST quota).
 
         # This number is a tripwire: it must only move when a tool is deliberately
         # added or removed.
-        self.assertEqual(len(server.TOOLS), 113)
+        self.assertEqual(len(server.TOOLS), 115)
 
 
 if __name__ == "__main__":
