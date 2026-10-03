@@ -267,5 +267,63 @@
       "not_established": "which of those changes actually makes a display-sleep survivable; the honest test is to power off the console display, wait, and re-measure the node and the health probe. It was proposed and NOT run."
     },
     "survival_now_measured_not_claimed": "the resident Edge (pid 1480) lived through the node's death AND its restart with the login intact (health = ok afterwards). Until now, 'a bridge/node restart does not cost the human login' was a documented claim; on 2026-10-03 it is measured."
+  },
+  "deployment_refresh_2026-10-03": {
+    "why_it_was_needed": "the deployed copy was onshapescript-mcp-1.5.3-f1f9a45 (406 files) and did not contain onshape_browser_mode/step_import.py, so browser_import_step was not registered (registryCount 115 of 116)",
+    "artifact_built": "dev/tools/build_release.py --out (outside the checkout) --version 1.5.3 -> onshapescript-mcp-1.5.3-53a1663.zip, 2,976,370 bytes; the zip verifies against its .sha256 sidecar and all 412 manifest entries hash-match after extraction",
+    "procedure": "docs/operations/RELEASE.md §In-place code-only refresh, steps 1-6",
+    "planned_set_reviewed": "18 files were written, of which 6 were new: fdm_analysis/conversion/{identity_check,print_basis,step_tessellation}.py, onshape_browser_mode/step_import.py, onshape_rest_api_mode/step_import.py, onshape_docs/experience/geometry-handoff.md; 12 changed: RELEASE-NOTES.md, SHA256SUMS, release-manifest.json, docs/generated/TOOL_REFERENCE.md, fdm_analysis/metrics/stl_geometry.py, mcp_main/win/mcp/browser_tools.py, onshape_browser_mode/{actions,selectors,semantics,step_export}.py, onshape_docs/index.json, onshape_docs/query/fs_check.py. Every path is inside a whitelisted code tree; no denylisted path is in the set",
+    "stale_check": "only 6 host files under whitelisted prefixes are absent from the artifact, and all 6 are the denylisted machine-local state files (browser-state.json, browser.local.toml, two geometry-backend.json selections, onshape-state.json, tool_views.local.toml) -- no stale code",
+    "recovery_point": "C:/MCP/onshapescript-refresh-recovery-20261003-223401/ (overwritten-files.tar.gz with the 18 pre-images, overwritten-files.sha256, state/ copies of six small state files, state-untouched-baseline.txt recording the live profile as 2,766 files and outputs as 155 files without copying them)",
+    "verification_after_apply": [
+      "rsync written entries: 18; a second dry run: 0 pending",
+      "artifact-vs-host sha256: 415/415 files identical, 0 differing, 0 missing",
+      "all six excluded state files byte-identical to the recovery copies and still carrying their 2026 mtimes",
+      "onshape_browser_mode/step_import.py present on the host (24,705 bytes); browser_import_step appears 3x in the deployed browser_tools.py"
+    ],
+    "restart": "bridge_control action=restart id=onshape: preview op-5ff3b346d8dd42029ae3b128848e6f6e, then applied op-0692959555644da5ae509287b454094d -> stoppedGeneration 1, startedGeneration 2, preservedClients 2, reconnectRequired false",
+    "result": "mcp_tool_catalog status: registryCount 116, indexedCount 116, fingerprint 3e3ce1e29c05bac939e1f4da5b882b1ac2c9e9704b63d111dfb015541615ee06; the resident browser and its login survived the whole refresh (health verdict ok, same document page)"
+  },
+  "first_live_import_attempt_2026-10-03": {
+    "source": "onshape_browser_mode/outputs/step_exports/4u-box/model.step (12,798 bytes, sha256 49e3498f...e5ae7) addressed by its staged step-manifest.json; target = the document the browser is on (1ef2be8f3d45e6f996af24ab / bac7c0bf31912a956c44d15a), mode new-tab",
+    "dry_run": "closed ledger check I6's offline half: digest addressing matched the handoff's declared digest, configuration = STEP AP242 / Millimeter / translate, landing proof = the tab bar, refusal rules listed, and the selectors reported the entry as UNVERIFIED",
+    "real_attempt": {
+      "imported": false,
+      "reason": "import_entry_missing",
+      "detail": "no Import entry matched ['get_by_text:导入', 'locator:导入', 'get_by_text:Import', 'locator:Import']",
+      "mutating_side_effects": "none: importEntry.clicked false, spentQuota 0, spentApiRequests 0",
+      "before_read": "all 10 tabs read (the live-observed tab bar works: I1/I2 pass)"
+    },
+    "MEASURED_entry": {
+      "what_it_actually_is": "LI > A#upload-button.dropdown-item, icon <osc-svg-icon icon=\"document-upload\">, data-automation=\"document-upload\", label 导入…, inside the CLOSED UL#document-tabs-create-ul.dropdown-menu owned by the tab bar's create (+) control",
+      "why_every_locator_missed": "the item exists in the DOM but is hidden while its dropdown is closed, and Playwright's locators are visibility-gated; the neighbouring 创建 X items are clicked in page JavaScript for exactly this reason (actions.create_document_tab)",
+      "menu_siblings_observed": [
+        "应用程序",
+        "创建教程…",
+        "创建材料库",
+        "创建 Feature Studio",
+        "创建 Render Studio",
+        "创建 PCB Studio",
+        "创建 CAM Studio",
+        "创建 Part Studio",
+        "创建装配体",
+        "创建 Variable Studio",
+        "创建工程图…",
+        "创建文件夹",
+        "创建表格",
+        "导入…",
+        "粘贴页签"
+      ],
+      "how_it_was_measured": "browser_eval (read-only DOM probes) on the live page: a text/aria/title sweep for 导入|Import, then the item's menu ancestry (DIV.document-tabs-button), then the item's own outerHTML and the menu id"
+    },
+    "code_fix_landed": "onshape_browser_mode/{selectors,step_import}.py now carry the measured constants (DOCUMENT_TABS_CREATE_MENU / DOCUMENT_TABS_IMPORT_ITEM / DOCUMENT_TABS_IMPORT_AUTOMATION), click the hidden item in page JavaScript first and keep the locator chain as a recorded fallback; unverifiedSelectors is down to {dialog, fileInput, submit}; dev/tests/test_browser_step_import.py pins the new route with a fake page that answers the dropdown-script contract",
+    "checks_after_this_attempt": {
+      "I1": "pass (the tab-bar proof read works on a live page)",
+      "I2": "pass (digest addressing was reported and refused nothing)",
+      "I3": "FAILED as first attempted (the entry selector); re-run needed after the code fix",
+      "I4": "not reached",
+      "I5": "not reached",
+      "I6": "offline half closed; live half pending the re-run"
+    }
   }
 }

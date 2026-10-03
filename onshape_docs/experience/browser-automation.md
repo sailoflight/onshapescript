@@ -755,6 +755,28 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
 - 创建页签的下拉项常驻 DOM（`a.dropdown-item`，隐藏状态），用 JS 直接
   `el.click()` 即可创建，不必先真实打开菜单。文本：`创建 Feature Studio`、
   `创建 Part Studio`、`创建装配体`、`创建工程图…`、`创建 Variable Studio` 等。
+- 该下拉菜单本身有 id：`#document-tabs-create-ul.dropdown-menu.bottom-up`，被一个
+  `div.document-tabs-button` 包着（同一个 class 还用在测量/分析/质量属性按钮上，
+  所以**不要**用 `.document-tabs-button` 定位创建菜单）。
+- **导入（Import）就在同一个菜单里**（2026-10-03 实测）：
+  `LI > A#upload-button.dropdown-item`，图标 `<osc-svg-icon icon="document-upload">`
+  带 `data-automation="document-upload"`，可见文本 **`导入…`**（带省略号）。
+  菜单项实测清单：`应用程序`、`创建教程…`、`创建材料库`、`创建 Feature Studio`、
+  `创建 Render Studio`、`创建 PCB Studio`、`创建 CAM Studio`、`创建 Part Studio`、
+  `创建装配体`、`创建 Variable Studio`、`创建工程图…`、`创建文件夹`、`创建表格`、
+  `导入…`、`粘贴页签`。
+- **陷阱（首次实测踩到）**：这些项"存在但隐藏"，而 Playwright 的 `get_by_text` /
+  `text=` 是**可见性门控**的，隐藏项上 `wait_for(state="visible")` 必然失败。
+  `browser_import_step` 的头四次候选全部落空，返回
+  `imported=false, reason=import_entry_missing`，而项其实就在 DOM 里。凡是
+  "菜单项"一律走 JS `el.click()`（本仓库 `actions.create_document_tab` 早就是这么做的），
+  locator 仅作为记录性的兜底。
+- **另一个易错点**：菜单标签带省略号（`导入…`、`导出…`、`创建工程图…`）。对
+  `导入` 做精确文本匹配会失败；用 JS 的**子串**needle 才稳。
+- 定位这类隐藏项的可复用手法（只读、零配额）：在 `browser_eval` 里扫
+  `textContent / aria-label / title / data-tooltip`，再取命中项的菜单祖先与 `outerHTML`，
+  比反复猜 selector 便宜得多。证据与代码改动见
+  `onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json`。
 - 因此 `browser_create_tab` 采用“JS 点隐藏项”，与右键菜单必须真实点击不同。
 - 工具只有在标签列表出现新项时才返回 `created:true`。工程图可能先打开来源/模板
   对话框，此时返回 `triggered:true, created:false`，不能把打开对话框当作创建成功。

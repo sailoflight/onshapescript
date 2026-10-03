@@ -46,9 +46,34 @@ _FORMAT_BY_SUFFIX = {".step": "STEP", ".stp": "STEP"}
 _MEDIA_TYPE = "model/step"
 _ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
-#: The Import entry point is reached by its visible label, not by a guessed class: the label list is
-#: the fallback chain, and a miss is reported with the page facts rather than retried blindly.
+#: The Import entry point is reached by its label, not by a guessed class. MEASURED 2026-10-03: the
+#: label carries an ellipsis (`导入…` / `Import…`) and the item is a *hidden* dropdown item, so these
+#: are substring needles for a page-JavaScript click, and the locator chain below them is a fallback.
 IMPORT_ENTRY_LABELS = ("导入", "Import")
+
+#: Click the import item the way the page exposes it. The item exists in the DOM while its dropdown is
+#: closed (`#upload-button` inside `#document-tabs-create-ul`), and Playwright's visibility-gated
+#: locators cannot click a hidden element -- measured: every one of them missed on a live page while
+#: the item was present, and the same technique is what makes the neighbouring `创建 X` items work
+#: (actions.create_document_tab).
+_ENTRY_ITEM_JS = """
+(labels) => {
+  const needles = (labels || []).map((s) => String(s).toLowerCase());
+  const norm = (el) => (el.textContent || '').trim().replace(/\\s+/g, ' ');
+  const items = Array.from(document.querySelectorAll(
+    'a.dropdown-item, .dropdown-item, li.dropdown-item, #upload-button'));
+  const item = items.find((el) => {
+    const text = norm(el).toLowerCase();
+    return needles.some((needle) => needle && text.includes(needle));
+  });
+  if (!item) {
+    return {clicked: false, reason: 'dropdown item not found',
+            items: items.map((el) => norm(el).slice(0, 60))};
+  }
+  item.click();
+  return {clicked: true, text: norm(item).slice(0, 60), itemId: item.id || ''};
+}
+"""
 
 _TAB_ROWS_JS = """
 () => Array.from(document.querySelectorAll('.os-tab-bar-tab')).map((row) => ({
@@ -235,8 +260,16 @@ def plan_browser_step_import(
             "destination": "current document" if mode == "new-tab" else f"tab {target_tab}",
         },
         "selectors": {
-            # UNVERIFIED until the ledger is answered -- see LEDGER.
+            # The entry is MEASURED (2026-10-03); the dialog constants below are still candidates.
             "importEntryLabels": list(IMPORT_ENTRY_LABELS),
+            "importEntry": {
+                "menu": selectors.DOCUMENT_TABS_CREATE_MENU,
+                "item": selectors.DOCUMENT_TABS_IMPORT_ITEM,
+                "iconAutomation": selectors.DOCUMENT_TABS_IMPORT_AUTOMATION,
+                "observedLabel": "导入…",
+                "measured": "2026-10-03",
+                "how": "hidden dropdown item; clicked in page JavaScript, not by a visible locator",
+            },
             "dialog": selectors.IMPORT_DIALOG,
             "fileInput": selectors.IMPORT_FILE_INPUT,
             "submit": selectors.IMPORT_SUBMIT,
@@ -257,10 +290,11 @@ def plan_browser_step_import(
             "ledger": LEDGER,
             "checks": list(LEDGER_CHECKS),
             "status": "pending-live-verification",
-            "unverifiedSelectors": ["importEntryLabels", "dialog", "fileInput", "submit"],
-            "why": ("the Import dialog has never been opened by this code on a real page; the row lists "
-                    "used as proof are live-observed, so a false success is impossible even while the "
-                    "entry point is unverified"),
+            "unverifiedSelectors": ["dialog", "fileInput", "submit"],
+            "why": ("the Import DIALOG has never been opened by this code on a real page -- the first "
+                    "live attempt (2026-10-03) refused at the entry point, which is now measured -- and "
+                    "the row lists used as proof are live-observed, so a false success is impossible "
+                    "even while the dialog constants are unverified"),
         },
         "refusalRules": [
             "source not a .step/.stp file, or unreadable -> refuse before touching the page",
@@ -322,6 +356,33 @@ def _click_text_candidate(page: Any, labels: tuple[str, ...]) -> dict[str, Any]:
             except Exception:
                 tried.append(f"{strategy}:{label}")
     return {"clicked": False, "label": None, "strategy": None, "tried": tried}
+
+
+def _click_import_entry(page: Any, labels: tuple[str, ...] = IMPORT_ENTRY_LABELS) -> dict[str, Any]:
+    """Click the Import entry at its measured address, then fall back to its label.
+
+    Measured 2026-10-03: the entry is a *hidden* dropdown item (``#upload-button`` with the label
+    ``导入…``), so the visibility-gated locator chain cannot reach it. The page-JavaScript click runs
+    first; the locator chain stays as recorded evidence of what was tried, and a miss is never
+    retried blindly.
+    """
+    tried: list[str] = []
+    try:
+        outcome = page.evaluate(_ENTRY_ITEM_JS, list(labels))
+        if isinstance(outcome, dict) and outcome.get("clicked"):
+            return {
+                "clicked": True,
+                "label": outcome.get("text", ""),
+                "strategy": "page_js_dropdown_item",
+                "itemId": outcome.get("itemId", ""),
+                "candidates": outcome.get("items", []),
+                "tried": tried,
+            }
+        tried.append("page_js_dropdown_item")
+    except Exception as error:  # noqa: BLE001 - a failed click is a refusal, not a crash
+        tried.append(f"page_js_dropdown_item raised {type(error).__name__}")
+    fallback = _click_text_candidate(page, labels)
+    return {**fallback, "tried": tried + list(fallback.get("tried", []))}
 
 
 def _attach_file(page: Any, path: Path) -> dict[str, Any]:
@@ -474,7 +535,7 @@ def import_browser_step(
                             f"be judged: {before['error']}")
         return result
 
-    entry = _click_text_candidate(page, IMPORT_ENTRY_LABELS)
+    entry = _click_import_entry(page, IMPORT_ENTRY_LABELS)
     result["importEntry"] = entry
     if not entry["clicked"]:
         result["reason"] = "import_entry_missing"

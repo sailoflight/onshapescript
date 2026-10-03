@@ -102,7 +102,13 @@ class PlanOnlyPathTest(unittest.TestCase):
         self.assertIn("DRY RUN — no browser, no page, no cloud mutation", result.stdout)
         self.assertIn("addressed by: sha256", result.stdout)
         self.assertIn("estimated REST requests: 0", result.stdout)
-        self.assertIn("importEntryLabels", result.stdout, "the unverified selectors are the point")
+        self.assertIn("import entry (MEASURED live 2026-10-03", result.stdout,
+                      "the measured entry must be reported as measured, not as untrusted")
+        self.assertIn("#upload-button", result.stdout)
+        self.assertIn("selectors this leg is NOT allowed to trust yet:", result.stdout)
+        self.assertIn("- dialog", result.stdout)
+        self.assertIn("- fileInput", result.stdout)
+        self.assertNotIn("- importEntryLabels", result.stdout, "the entry is measured now, not untrusted")
         self.assertIn("I6", result.stdout)
 
     def test_a_delivery_that_is_not_the_addressed_bytes_refuses_before_any_browser(self):

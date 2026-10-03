@@ -173,12 +173,25 @@ ASM_PROGRESS = (
     "[class*='progress'], [class*='loading']"
 )
 
-# STEP import (browser leg, zero quota). The Import ENTRY is reached by its visible label
-# (selectors.IMPORT_ENTRY_LABELS in step_import.py), because no class of that menu item was ever
-# measured; the four constants below are therefore UNVERIFIED candidates. The landing proof does NOT
-# depend on them -- it reads TAB_BAR_TAB / PS_USER_FEATURE, which are live-observed -- so an unverified
-# entry point cannot produce a false success. Ledger:
+# STEP import (browser leg, zero quota).
+#
+# The Import ENTRY was MEASURED on a live page 2026-10-03 (zh-CN UI), after the first live attempt
+# refused with `import_entry_missing`: it is not a standalone text element at all. It is the item
+# `LI > A#upload-button.dropdown-item` -- icon `<osc-svg-icon icon="document-upload">`,
+# `data-automation="document-upload"`, label `导入…` -- inside the closed
+# `UL#document-tabs-create-ul.dropdown-menu` owned by the tab bar's create (+) control. Playwright's
+# visibility-gated locators cannot reach an item that exists but is hidden, which is why
+# `get_by_text`/`text=` missed it on every candidate label; the neighbouring `创建 X` items are
+# clicked in page JavaScript for the same reason (actions.create_document_tab). step_import.py
+# therefore clicks this item in page JavaScript first and keeps the locators as a recorded fallback.
+#
+# The dialog constants below are STILL UNVERIFIED candidates: that attempt never reached them, and an
+# unverified entry point cannot produce a false success because the landing proof reads
+# TAB_BAR_TAB / PS_USER_FEATURE, which are live-observed. Ledger:
 # onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json.
+DOCUMENT_TABS_CREATE_MENU = "#document-tabs-create-ul"  # create (+) dropdown, hidden until opened
+DOCUMENT_TABS_IMPORT_ITEM = "#upload-button"  # the `导入…` item inside that dropdown
+DOCUMENT_TABS_IMPORT_AUTOMATION = "document-upload"  # that item's icon data-automation value
 IMPORT_DIALOG = ".modal.import-dialog, .import-dialog, .xenon-dialog, [role=dialog]"
 IMPORT_FILE_INPUT = "input[type=file]"
 IMPORT_SUBMIT = ".modal button.btn-primary[type='submit'], .xenon-dialog button.btn-primary"

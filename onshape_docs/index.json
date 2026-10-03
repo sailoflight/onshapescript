@@ -2525,7 +2525,7 @@
    "page": "browser-automation",
    "category": "experience",
    "path": "onshape_docs/experience/browser-automation.md",
-   "sha256": "52a4346b2841efd42856875b19967e53a38d911d9f67f1485f21625b787bb0fe",
+   "sha256": "071b2c9efaa3247834469d9e6eb773204e1daf9ef24f9aea826ad4966235f991",
    "title": "浏览器自动化使用经验（Onshape Windows 宿主）",
    "sections": [
     {
@@ -3493,6 +3493,26 @@
         },
         {
          "text": "创建页签的下拉项常驻 DOM（a.dropdown-item，隐藏状态），用 JS 直接 el.click() 即可创建，不必先真实打开菜单。文本：创建 Feature Studio、 创建 Part Studio、创建装配体、创建工程图…、创建 Variable Studio 等。",
+         "depth": 0
+        },
+        {
+         "text": "该下拉菜单本身有 id：#document-tabs-create-ul.dropdown-menu.bottom-up，被一个 div.document-tabs-button 包着（同一个 class 还用在测量/分析/质量属性按钮上， 所以不要用 .document-tabs-button 定位创建菜单）。",
+         "depth": 0
+        },
+        {
+         "text": "导入（Import）就在同一个菜单里（2026-10-03 实测）： LI > A#upload-button.dropdown-item，图标 <osc-svg-icon icon=\"document-upload\"> 带 data-automation=\"document-upload\"，可见文本 导入…（带省略号）。 菜单项实测清单：应用程序、创建教程…、创建材料库、创建 Feature Studio、 创建 Render Studio、创建 PCB Studio、创建 CAM Studio、创建 Part Studio、 创建装配体、创建 Variable Studio、创建工程图…、创建文件夹、创建表格、 导入…、粘贴页签。",
+         "depth": 0
+        },
+        {
+         "text": "陷阱（首次实测踩到）：这些项\"存在但隐藏\"，而 Playwright 的 get_by_text / text= 是可见性门控的，隐藏项上 wait_for(state=\"visible\") 必然失败。 browser_import_step 的头四次候选全部落空，返回 imported=false, reason=import_entry_missing，而项其实就在 DOM 里。凡是 \"菜单项\"一律走 JS el.click()（本仓库 actions.create_document_tab 早就是这么做的）， locator 仅作为记录性的兜底。",
+         "depth": 0
+        },
+        {
+         "text": "另一个易错点：菜单标签带省略号（导入…、导出…、创建工程图…）。对 导入 做精确文本匹配会失败；用 JS 的子串needle 才稳。",
+         "depth": 0
+        },
+        {
+         "text": "定位这类隐藏项的可复用手法（只读、零配额）：在 browser_eval 里扫 textContent / aria-label / title / data-tooltip，再取命中项的菜单祖先与 outerHTML， 比反复猜 selector 便宜得多。证据与代码改动见 onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json。",
          "depth": 0
         },
         {

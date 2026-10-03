@@ -98,6 +98,11 @@ def _print_plan(plan: dict[str, Any]) -> None:
         print(f"  - {rule}")
     print(f"\nnetwork: {plan['network']} | estimated REST requests: {plan['estimatedApiRequests']} "
           f"| mutating: {plan['mutating']}")
+    entry = (plan.get("selectors") or {}).get("importEntry") or {}
+    if entry:
+        print("import entry (MEASURED live 2026-10-03, so not an untrusted constant):")
+        print(f"  item        : {entry.get('item', '')}   label observed: {entry.get('observedLabel', '')}")
+        print(f"  menu        : {entry.get('menu', '')}   how: {entry.get('how', '')}")
     print("selectors this leg is NOT allowed to trust yet:")
     for selector in plan["liveAcceptance"]["unverifiedSelectors"]:
         print(f"  - {selector}")

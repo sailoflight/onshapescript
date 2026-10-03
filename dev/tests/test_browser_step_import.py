@@ -111,7 +111,16 @@ class FakePage:
     def locator(self, selector: str) -> FakeLocator:
         return FakeLocator(self, selector)
 
-    def evaluate(self, script: str):
+    def evaluate(self, script: str, arg=None):
+        # The measured import entry is a HIDDEN dropdown item: its click is scripted here exactly as the
+        # live page answered on 2026-10-03, and it must not consume a proof-row read.
+        if "dropdown-item" in script:
+            return {
+                "clicked": self.entry_present,
+                "text": "导入…" if self.entry_present else "",
+                "itemId": "upload-button" if self.entry_present else "",
+                "items": ["导入…"] if self.entry_present else [],
+            }
         self.evaluate_calls += 1
         index = self.evaluate_calls - 1
         if self.raise_on_read_after is not None and index >= self.raise_on_read_after:
@@ -153,7 +162,13 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(live["ledger"], step_import.LEDGER)
         self.assertEqual(live["checks"], list(step_import.LEDGER_CHECKS))
         self.assertEqual(live["status"], "pending-live-verification")
-        self.assertEqual(set(live["unverifiedSelectors"]), {"importEntryLabels", "dialog", "fileInput", "submit"})
+        self.assertEqual(set(live["unverifiedSelectors"]), {"dialog", "fileInput", "submit"})
+        # The entry was MEASURED live 2026-10-03 (a hidden `#upload-button` dropdown item), so it must
+        # no longer be listed as unverified -- while the dialog constants it never reached still are.
+        self.assertNotIn("importEntryLabels", live["unverifiedSelectors"])
+        self.assertEqual(plan["selectors"]["importEntry"]["item"], selectors.DOCUMENT_TABS_IMPORT_ITEM)
+        self.assertEqual(plan["selectors"]["importEntry"]["menu"], selectors.DOCUMENT_TABS_CREATE_MENU)
+        self.assertEqual(plan["selectors"]["importEntry"]["observedLabel"], "导入…")
         # The proof anchors must NOT be in the unverified set: that separation is the whole design.
         self.assertNotIn("tabRow", live["unverifiedSelectors"])
         self.assertNotIn("userFeatureRow", live["unverifiedSelectors"])
@@ -269,6 +284,33 @@ class ImportTest(unittest.TestCase):
         self.assertFalse(result["importEntry"]["clicked"])
         self.assertEqual(result["pageFacts"]["url"], page.url)
         self.assertEqual(result["pageFacts"]["tabNames"], ["Part Studio 1"])
+
+    def test_the_entry_is_clicked_through_the_measured_hidden_dropdown_item(self):
+        # Measured live 2026-10-03: the entry exists in the DOM while its dropdown is closed, so a
+        # visibility-gated locator misses it and the page-JavaScript click is the working route.
+        page = FakePage(
+            tab_reads=[
+                [{"name": "A", "elementId": "eid1"}],
+                [{"name": "A", "elementId": "eid1"}, {"name": "B", "elementId": "eid2"}],
+            ]
+        )
+        result = self._run(page)
+        entry = result["importEntry"]
+        self.assertTrue(entry["clicked"])
+        self.assertEqual(entry["strategy"], "page_js_dropdown_item")
+        self.assertEqual(entry["itemId"], "upload-button")
+        self.assertEqual(entry["label"], "导入…")
+        self.assertTrue(result["imported"])
+
+    def test_the_measured_route_records_itself_before_the_label_chain(self):
+        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "eid1"}]], entry_present=False)
+        result = self._run(page)
+        self.assertFalse(result["importEntry"]["clicked"])
+        self.assertIn("page_js_dropdown_item", result["importEntry"]["tried"])
+        self.assertTrue(
+            any(item.startswith("get_by_text:") for item in result["importEntry"]["tried"]),
+            "the locator chain must still be recorded, so a miss says what was tried",
+        )
 
     def test_an_unattachable_file_input_is_its_own_failure(self):
         page = FakePage(
