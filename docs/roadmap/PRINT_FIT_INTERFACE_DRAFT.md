@@ -37,7 +37,12 @@ RAW JSON value before converting, because validating after `float()` can never f
 **range**. `0`, `181`, `1e9` and `-45` all passed a guard that only asked for presence and finiteness —
 outside `0 < threshold_deg <= 180` an overhang reading is not looser or stricter, it is meaningless, and
 "an empty reading looks like a healthy certificate". The range is now enforced at both levels, with the
-endpoints that do mean something (`0.001`, `45`, `90`, `180`) still accepted.
+endpoints that do mean something (`0.001`, `45`, `90`, `180`) still accepted. MeshQ then reproduced the
+whole range fix from the outside (192 §1) and reported it as three distinct branches: in-range accepted,
+out-of-range refused with the range named, non-finite refused with its *own* reason — **the real manifest
+still 0 refusals**, which is the half that matters as much as the refusals. It also asked its owner for one
+more rule (192 §2): an **empty probe result is a phenomenon, not evidence**, because a truncated `grep`
+against a guessed path returns empty for a file that exists — now practice 17.
 **Owner of this file:** onshapescript. **Companion of:** `THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` (the
 geometry handoff) — this one is about the step after it: who turns a geometry handoff into a printability
 statement, and where the declarations that decide it enter.

@@ -774,6 +774,34 @@ byte-identical geometry and still disagree by `2.4e-06` in volume and `3.4e-06` 
 bytes" does not imply "identical readings" — and a plane that publishes a reading without its algorithm is
 publishing a number nobody can adjudicate.
 
+### An empty probe is a phenomenon, not evidence
+
+This is the third instance of the probe-cleanliness rule, and it came from the plane that asked for the rule:
+checking this repository's self-audit, it ran one `grep` that was **truncated by `head`** and passed a **guessed
+path** — so it got no output, and no output read as "that file does not exist". It did exist. The clean re-run
+found it.
+
+The general form, which is the same shape as "a missing row is not absence":
+
+* **an empty or partial probe result is a phenomenon to be explained, not evidence** — "absent", "not looked
+  at", "looked at the wrong place" and "the output was cut off" must be distinguishable in the probe itself;
+* a probe that cannot tell those apart must report `unknown` with its reason, never a negative verdict.
+
+Three instances already in this repository, each with the measurement that produced it:
+
+* the Part Studio feature read publishes `headerCount` next to `ready` / `rowsComplete`, because the list is
+  virtualised and renders only a window: **a missing row is not absence** (the tool description says so);
+* the STEP import refuses with `before_read_failed` when its before-read fails, instead of judging landing
+  against an empty row list — "an empty row list" and "a page that could not be read" are different facts, and
+  the test asserts nothing was clicked in that case;
+* the browser export leg's solid count reports `grade: "unknown"` **with a reason** when the recorded artifact
+  cannot be re-read, rather than returning 0 (which would look like a clean measurement).
+
+So the family now has three members, all paid for: **a missing field must be as loud as a false one**
+(field-level), **a judgement must reach the machine-facing outcome** (code-path level), and **an empty probe
+must be distinguishable from an unread one** (measurement level). Each one was found because a party asked
+"what does this absence actually mean?" instead of accepting it as a value.
+
 ### Failures must close: one judgement, every entry point
 
 A third plane found this by asking the inverse of "does the gate say no?" — namely **"when the rule says no,
@@ -976,6 +1004,10 @@ that is portable to any future plane.
     this repository as the 1). The rule that follows is the same one this repository applies to its own
     `send`-style tools: **never carry a claim of receipt that the receipt tool would not confirm**, and
     after any ack, re-ask the tool rather than the memory of having seen a confirmation line.
+17. **An empty probe result is a phenomenon, not evidence.** Say which of "absent", "not looked at" and
+    "output truncated" produced the emptiness, and report `unknown` with a reason when you cannot; a probe
+    that cannot tell those apart has not measured anything. (Instance: a truncated `grep` plus a guessed path
+    produced empty output for a file that exists — and empty read as non-existence.)
 16. **Every entry point maps the verdict to the outcome.** A judgement computed in one place and dropped in
     another is worse than no judgement, because it reads as a green light — ask the inverse question "when
     the rule says no, who hears it?" for every entry point, and prefer one implementation with several
@@ -1041,6 +1073,7 @@ absent so the suite stays offline-clean.
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
 | Addressing needs both halves, in code | Producer: `declaration.identity.sha256` + `sha256_stable: false` + `identity_rule.version` in the staged browser STEP manifest. Consumer: `expect_sha256`/`handoff_manifest` in `onshape_browser_mode/step_import.py`, mismatch refused offline before any click, handoff without a digest refused by name, `addressedBy: "path"` recorded when nothing was declared (23 tests) |
+| An empty probe is a phenomenon, not evidence | MeshQ 192 §2: one `grep` truncated by `head` against a **guessed** path returned empty for a file that exists, and empty read as "does not exist"; the family's three internal instances are recorded with the measurement behind each (virtualised feature list publishing `headerCount`/`ready`/`rowsComplete`; the import leg's `before_read_failed` refusing instead of judging against an empty row list; `_solid_count` reporting `unknown` + reason rather than 0) |
 | Failures must close — one judgement, every entry point | MeshQ 189 §3 measurement (`run` exit 0 while `inspection.verdicts` says `pass: false`; `inspect` exit 1 for the same shape) recorded with its root cause read from the source; this repository's self-audit finds the duplicate-judgement shape (docs index digest in `verify_docs.py` and `test_docs_index_digests.py`) but **one implementation with two callers**, proven by both failing together on one stale digest |
 | The threshold range is part of rule 1 | MeshQ 189 §3: `0`, `181`, `1e9`, `-45` passed this guard's first version; now refused at both levels with the range named, endpoints `0.001`/`45`/`90`/`180` still accepted, real 70-piece manifest still 0 refusals (`test_a_threshold_outside_its_only_meaningful_range_is_refused`) |
 | A tolerance has a vintage; a value has a kind | MeshQ 185 §1 / 187 §2–3: `equivalence_tolerance_vintage` (reader set + date + witness + re-derivation condition, required by `check_identity_against`); rule 2 requires a *literally* true verdict (`applicable: 0` and `"false"` passed the previous version), and the direction/threshold validators check the RAW JSON value before converting — `["0","0","1"]`, `[0,0,True]`, `[0,0,inf]`, `[0,0,NaN]` are all refused, pinned by `test_a_truthy_substitute_does_not_pass_for_a_winding_verdict` and `test_the_raw_value_is_validated_before_it_is_converted` |
