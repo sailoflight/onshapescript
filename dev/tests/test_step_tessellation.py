@@ -201,18 +201,48 @@ class ManifestTest(unittest.TestCase):
             self._run(Path(tmp))
             self.assertTrue((Path(tmp) / "out" / "reproducibility").is_dir())
 
-    def test_an_inconsistent_winding_nulls_the_quantity(self):
+    def test_an_inconsistent_winding_nulls_only_the_winding_dependent_readings(self):
+        """The gate is by NATURE. MeshQ disproved the first version of this rule with three variants.
+
+        Area is Sigma|A_i|, so the winding never enters it: their clean cube, the same cube with two
+        bottom faces flipped, and that mesh shifted +Z 50 all report `surface_area_mm2 = 2400.0`. A
+        rule that turned the area off would reject a number that is still perfectly usable. What DOES
+        depend on winding: the signed volume, `outwardOriented`, and every direction-derived reading.
+        """
         tessellator = FakeTessellator(solids=[cube_with_inverted_face(), CUBE])
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._run(Path(tmp), tessellator=tessellator)
         piece = manifest["declaration"]["geometry"]["parts"][0]
         self.assertFalse(piece["mesh"]["orientation"]["consistent"])
+        # winding-dependent -> null, with the flag
         self.assertFalse(piece["applicable"]["volumeMm3"])
         self.assertIsNone(piece["volume_mm3"])
-        self.assertIsNone(piece["area_mm2"])
-        self.assertIn("winding is inconsistent", piece["mesh"]["notApplicableReason"])
-        # ...and the readable piece is unaffected: the gate is per piece, not global.
-        self.assertIsNotNone(manifest["declaration"]["geometry"]["parts"][1]["volume_mm3"])
+        self.assertFalse(piece["applicable"]["overhangAreaMm2"])
+        self.assertIsNone(piece["mesh"]["overhangAreaMm2"])
+        self.assertIsNone(piece["mesh"]["overhangTriangleCount"])
+        self.assertIsNone(piece["mesh"]["overhangTriangleRatio"])
+        self.assertIn("direction-derived", piece["mesh"]["notApplicableReason"])
+        # winding-INDEPENDENT -> still readable, and it must stay readable
+        self.assertEqual(piece["area_mm2"], 600.0)
+        self.assertTrue(piece["applicable"]["areaMm2"])
+        self.assertEqual(piece["mesh"]["triangleCount"], 12)
+        self.assertEqual(piece["mesh"]["orientation"]["inconsistentEdgePairs"], 3)
+        # ...and the clean piece is unaffected: the gate is per piece, not global.
+        other = manifest["declaration"]["geometry"]["parts"][1]
+        self.assertIsNotNone(other["volume_mm3"])
+        self.assertIsNotNone(other["mesh"]["overhangAreaMm2"])
+        self.assertEqual(other["mesh"]["overhangTriangleRatio"], round(2 / 12, 12))
+
+    def test_every_total_states_how_many_pieces_contributed(self):
+        tessellator = FakeTessellator(solids=[cube_with_inverted_face(), CUBE])
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._run(Path(tmp), tessellator=tessellator)
+        totals = manifest["totals"]
+        self.assertEqual(totals["pieces"], 2)
+        self.assertEqual(totals["contributingPieces"]["areaMm2"], 2)
+        self.assertEqual(totals["contributingPieces"]["overhang"], 1)
+        self.assertEqual(totals["triangleCount"], 24)
+        self.assertEqual(totals["overhangTriangleRatio"], round(2 / 24, 12))
 
     def test_the_mesh_is_cross_checked_against_the_exact_bounds(self):
         with tempfile.TemporaryDirectory() as tmp:

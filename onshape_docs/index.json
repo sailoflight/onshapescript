@@ -12632,7 +12632,7 @@
    "page": "interop-tessellation-verification",
    "category": "verification",
    "path": "onshape_docs/verification/interop-70piece-tessellation-2026-10-03.md",
-   "sha256": "4adb1130a86c7fcdd5a03ed52588a057170a57a5be853a1dd87a1e467f123746",
+   "sha256": "95e929fce6753a48cf9a382109775032e116728ee2563836bdcd003f851fca5a",
    "title": "70-piece STEP tessellation: one handoff, read independently by two implementations",
    "sections": [
     {
@@ -12742,12 +12742,28 @@
          "70/70",
          "70/70",
          "0 disagreements"
+        ],
+        [
+         "counted overhang faces (the numerator)",
+         "34821",
+         "34821",
+         "0"
+        ],
+        [
+         "counted / total triangles",
+         "0.056367645059",
+         "34821 / 617748",
+         "—"
         ]
        ]
       },
       {
        "type": "para",
        "text": "Per-piece maximum relative difference: 3.39e-6 (surface area), 2.60e-6 (overhang area). The aggregate differences are smaller than the per-piece maximum, which is what cancellation looks like — a per-piece-agreeing pair of implementations does not have to agree better in the sum, and quoting only the sum would have hidden the largest disagreement."
+      },
+      {
+       "type": "para",
+       "text": "The counted-face numerator agrees too: this run counts 34821 overhanging faces, which is the same number MeshQ's isolated re-run reported (34821 / 617748), so numerator, denominator and the ratio all have two implementations behind them."
       },
       {
        "type": "para",
@@ -12835,7 +12851,15 @@
          "depth": 0
         },
         {
-         "text": "applicable gates travel per piece: a piece with an inconsistent winding gets volume_mm3: null and applicable.volumeMm3: false rather than a number with a caveat (contract v0.4 §2d row 16).",
+         "text": "applicable gates travel per piece — and the gate is by nature, not by field name: a piece with an inconsistent winding gets volume_mm3 / overhangAreaMm2 as null with their applicable flags false, while area_mm2, the triangle count and bounds_mm stay readable, because area is Σ|Aᵢ| and the winding never enters it. The first version of this rule named area_mm2 as gated; MeshQ disproved it with three variants (surface_area_mm2 = 2400.0 throughout), and both the contract (v0.4 §5 rule 15, rewritten by nature) and this producer were corrected rather than patched over.",
+         "depth": 0
+        },
+        {
+         "text": "A total must say how many pieces contributed. totals.contributingPieces reports it per quantity, so a gated piece can never silently shrink a sum: this run has 70/70 contributing everywhere, which is itself the evidence that no gate fired.",
+         "depth": 0
+        },
+        {
+         "text": "The digest over exact readings is stable across a measurement change. The manifest was regenerated after the gate fix above (a change to what the manifest may report) and the set signature came out identical (ade4c12ab2b91fc522f374024435536613d0fdc454d731257458765dbf55169e) — the same property CadQ asserted when its two-tessellation signature matched. A digest that moved here would have meant it was reading something other than the exact geometry.",
          "depth": 0
         }
        ]

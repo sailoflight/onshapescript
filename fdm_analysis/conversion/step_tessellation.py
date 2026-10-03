@@ -81,13 +81,24 @@ def measure_stl(
     mesh_bounds = {"min": [min(xs), min(ys), min(zs)], "max": [max(xs), max(ys), max(zs)]} if triangles else None
     if mesh_bounds is not None:
         mesh_bounds["size"] = _size(mesh_bounds)
-    # `applicable` is derived, never assumed: a calibrated quantity is only readable when the shell is
-    # closed AND the winding was checked, because an inverted face can hide from a volume.
-    readable = bool(reading["watertight"]) and bool(orientation["consistent"])
+    # `applicable` is derived BY NATURE, never by field name. Two classes, measured:
+    #   * winding-DEPENDENT: a signed quantity, `outwardOriented`, and every direction-derived reading
+    #     (overhang area/count, tilt). MeshQ's three variants show the volume is unchanged at z=0 and
+    #     21333.333333 after a +Z 50 shift; this repository's own retracted ramp shows the counted
+    #     overhang area moving 0.0 -> 565.192416792 when one slope is wound the other way.
+    #   * winding-INDEPENDENT: `area_mm2` is Sigma|A_i|, so the winding never enters (MeshQ measured
+    #     2400.0 on all three variants), and counts/bounds are unaffected too. Turning those off would
+    #     reject numbers that are still perfectly usable -- "a field that needlessly turns itself off is
+    #     waste; one that should have turned itself off and did not is an error".
+    signed_readable = bool(reading["watertight"]) and bool(orientation["consistent"])
+    direction_readable = bool(orientation["consistent"])
     reason = None
-    if not readable:
+    if not signed_readable:
         reason = ("not watertight" if not reading["watertight"]
-                  else "the winding is inconsistent, so a signed quantity is not physically meaningful")
+                  else "the winding is inconsistent, so a signed or direction-derived quantity is not "
+                       "physically meaningful")
+    elif not direction_readable:  # pragma: no cover - unreachable while signed_readable implies it
+        reason = "the winding is inconsistent"
     return {
         "path": str(resolved),
         "sha256": _sha256_bytes(payload),
@@ -99,15 +110,23 @@ def measure_stl(
         "volumeMm3": reading["volumeMm3"],
         "overhangAreaMm2": reading["overhangAreaMm2"],
         "overhangTriangleCount": reading["overhangTriangleCount"],
+        "overhangTriangleRatio": reading["overhangTriangleRatio"],
         "bedContactAreaMm2": reading["bedContactAreaMm2"],
         "bedContactTriangleCount": reading["bedContactTriangleCount"],
+        "bedContactTriangleRatio": reading["bedContactTriangleRatio"],
         "facesWithoutNormal": reading["facesWithoutNormal"],
         "orientation": orientation,
         "outwardOriented": reading["outwardOriented"],
         "applicable": {
-            "volumeMm3": readable,
-            "areaMm2": readable,
-            "outwardOriented": readable,
+            "volumeMm3": signed_readable,
+            # Sigma|A_i|: always defined, and one of the few readings still usable on an
+            # inconsistently wound mesh. Gating it was a contract defect, caught by MeshQ.
+            "areaMm2": True,
+            "outwardOriented": signed_readable,
+            "overhangAreaMm2": direction_readable,
+            "overhangTriangleCount": direction_readable,
+            "bedContactAreaMm2": direction_readable,
+            "bedContactTriangleCount": direction_readable,
             "orientation": True,
         },
         "notApplicableReason": reason,
@@ -303,10 +322,20 @@ def _piece_record(
             "facesWithoutNormal": measured["facesWithoutNormal"],
             "outwardOriented": measured["outwardOriented"],
             "watertight": measured["watertight"],
-            "overhangAreaMm2": measured["overhangAreaMm2"],
-            "overhangTriangleCount": measured["overhangTriangleCount"],
-            "bedContactAreaMm2": measured["bedContactAreaMm2"],
-            "bedContactTriangleCount": measured["bedContactTriangleCount"],
+            # direction-derived: null with `applicable` false when the winding is inconsistent,
+            # because these ARE functions of the face normals.
+            "overhangAreaMm2": (measured["overhangAreaMm2"]
+                                if measured["applicable"]["overhangAreaMm2"] else None),
+            "overhangTriangleCount": (measured["overhangTriangleCount"]
+                                      if measured["applicable"]["overhangTriangleCount"] else None),
+            "overhangTriangleRatio": (measured["overhangTriangleRatio"]
+                                      if measured["applicable"]["overhangTriangleCount"] else None),
+            "bedContactAreaMm2": (measured["bedContactAreaMm2"]
+                                  if measured["applicable"]["bedContactAreaMm2"] else None),
+            "bedContactTriangleCount": (measured["bedContactTriangleCount"]
+                                        if measured["applicable"]["bedContactTriangleCount"] else None),
+            "bedContactTriangleRatio": (measured["bedContactTriangleRatio"]
+                                        if measured["applicable"]["bedContactTriangleCount"] else None),
             "notApplicableReason": measured["notApplicableReason"],
         },
         "cross_plane_ref": {"export_id": export_id, "index": raw["index"], "signature": None},
@@ -407,15 +436,39 @@ def tessellate_step(
     matches = (float(used_linear) == float(linear_tolerance_mm)
                and float(used_angular) == float(angular_tolerance_rad))
     kernel = first.get("kernel") or {}
+    def _sum(key: str) -> tuple[float, int]:
+        """Sum what is readable and SAY how many pieces contributed.
+
+        A total that silently drops the pieces whose reading was gated would be a number nobody can
+        audit; `contributingPieces` is what makes the total honest.
+        """
+        values = [record["mesh"][key] for record in records if record["mesh"][key] is not None]
+        return (round(sum(values), 9), len(values))
+
+    overhang_total, overhang_pieces = _sum("overhangAreaMm2")
+    area_total = round(sum(record["area_mm2"] or 0.0 for record in records), 9)
+    contact_total, contact_pieces = _sum("bedContactAreaMm2")
+    counted_total, counted_pieces = _sum("overhangTriangleCount")
+    piece_count = len(records)
     totals = {
         "triangleCount": sum(record["mesh"]["triangleCount"] for record in records),
-        "overhangAreaMm2": sum(record["mesh"]["overhangAreaMm2"] for record in records),
-        "areaMm2": sum(record["mesh"]["overhangAreaMm2"] for record in records) * 0.0
-        + sum(record["area_mm2"] or 0.0 for record in records),
-        "bedContactAreaMm2": sum(record["mesh"]["bedContactAreaMm2"] for record in records),
+        "countedOverhangTriangles": counted_total,
+        "overhangAreaMm2": overhang_total,
+        "areaMm2": area_total,
+        "bedContactAreaMm2": contact_total,
         "byteCount": sum(record["mesh"]["byteCount"] for record in records),
+        "pieces": piece_count,
+        "contributingPieces": {
+            "triangleCount": piece_count,
+            "areaMm2": sum(1 for record in records if record["area_mm2"] is not None),
+            "overhang": overhang_pieces,
+            "overhangTriangles": counted_pieces,
+            "bedContactAreaMm2": contact_pieces,
+        },
     }
-    totals["overhangRatio"] = (totals["overhangAreaMm2"] / totals["areaMm2"]) if totals["areaMm2"] else None
+    totals["overhangRatio"] = (round(overhang_total / area_total, 12) if area_total else None)
+    totals["overhangTriangleRatio"] = (round(counted_total / totals["triangleCount"], 12)
+                                       if totals["triangleCount"] else None)
     unstable = [record["index"] for record in records if record["mesh"]["sha256_stable"] is False]
     manifest = {
         "schema": SCHEMA,

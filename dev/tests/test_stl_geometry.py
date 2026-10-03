@@ -115,6 +115,9 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
         # The denominator of every ratio: a 10 mm cube has 6 x 100 mm2, and a ratio without a total is
         # unreadable ("26.67 % of the surface" is not a statement until the surface is stated).
         self.assertEqual(result["surfaceAreaMm2"], 600.0)
+        # Two isolated numbers ("2" and "12") cannot be judged without their quotient.
+        self.assertEqual(result["overhangTriangleRatio"], round(2 / 12, 12))
+        self.assertEqual(result["bedContactTriangleRatio"], round(2 / 12, 12))
         self.assertEqual(result["facesWithoutNormal"], 0)
         self.assertEqual(
             result["orientation"],

@@ -178,7 +178,7 @@ Every field exists because one of the three planes already paid for its absence:
 
 | # | Change | Asked by | Resolution |
 |---|---|---|---|
-| 16 | Every measured quantity gains an `applicable` flag, and the orientation-gated ones may not be read without it | MeshQ (151 §C, §D) | MeshQ's answer to "volume is blind to an inverted face" was not a disclaimer but a field that turns itself off: with an inverted face, `volume.applicable = false`. That is stronger than a note because a reader who never sees the number cannot read it wrongly. This draft adopts it as a general rule and names the gate explicitly |
+| 16 | Every measured quantity gains an `applicable` flag, and the **winding-dependent** ones may not be read without it | MeshQ (151 §C/§D, corrected in 163 §B) | MeshQ's answer to "volume is blind to an inverted face" was not a disclaimer but a field that turns itself off: with an inverted face, `volume.applicable = false`. Adopted as a general rule — **but the first version of it named `area_mm2`, and that was wrong**: area is `Σ|Aᵢ|`, independent of winding, so gating it would refuse a usable number (MeshQ measured 2400.0 on three variants) while the genuinely dependent class — everything derived from face normals, including `overhang` — was missing. The rule is therefore stated by nature with two example lists (§5 rule 15). The correction is kept visible here rather than edited away: a rule that asserted the opposite of the measurement is worse than no rule |
 | 17 | The blindness rule is stated in its conditional form | MeshQ (151 §C) | My claim was "the volume is blind to a single inverted face"; MeshQ measured that it is blind **iff that face's plane contains the integration reference point** (clean cube 8000.0 → flipped bottom face at z=0: 8000.0 again → the same mesh shifted +Z 50: **21333.333333**, matching `8000 − 2·c_f` with `c_f = (1/3)(−50)(400)` exactly). So "the volume is unreliable" was too broad and "the volume is fine" would have been wrong: **the observability of a defect depends on where the part sits**, and orientation state must never be inferred from a volume |
 
 ## 3. A real instance, generated from real records (regenerated for every version)
@@ -451,6 +451,16 @@ Two consequences the schema has to carry, and both are now in the shape above:
 3. This run declares 0.1 rad for exactly this reason: 0.3 rad would have been honest (declared = used)
    and would have failed MeshQ's gate anyway.
 
+### A "which tolerance binds" claim must be derived, never asserted
+
+CadQ's manifest carried `binding: {linear: true, angular: null}` while its own measurement said the
+opposite, and MeshQ caught it as the first thing to change: linear 0.05 → 0.02 → 0.01 left the triangle
+counts **bit-identical** (376 / 1044), while 0.3 rad vs 0.1 rad changed **31 of 70** pieces' bytes
+(39 identical). So the true value is `{linear: false, angular: true}`. A field that states the reverse of
+the measurement is worse than an absent field, because a reader believes it. Contract consequence: if a
+producer wants to publish which tolerance binds, it must **publish the measurement that decides it**
+(the two triangle counts, or the two byte-digest sets); otherwise the field may not be published at all.
+
 ## 5. Refusal rules (a consumer must be able to say no)
 
 1. Unknown `schema` id or a version it does not implement → refuse, name the version it saw.
@@ -477,11 +487,25 @@ Two consequences the schema has to carry, and both are now in the shape above:
 12. A mesh handoff without `tessellation.used` → refuse (a declaration with no receipt).
 13. `tessellation.absolute`, `declared_by` or `used_by` missing on a mesh handoff → refuse ("who declared
     this" must be answerable).
-15. A calibrated quantity (`volume_mm3`, `area_mm2`, `outwardOriented`) read while
-    `mesh_orientation.consistent` is false, or without its `applicable` flag → refuse: the value is not
-    physically meaningful in that state, and "the reader will remember the caveat" is not a mechanism.
-16. A mesh handoff whose `mesh_orientation` is absent → refuse: a watertight mesh can still carry an
+14. A mesh handoff whose `mesh_orientation` is absent → refuse: a watertight mesh can still carry an
     inverted face whose reading is silently wrong, so "was the winding checked" is part of the artifact.
+15. A reading that **depends on the winding** read while `mesh_orientation.consistent` is false — or
+    without its `applicable` flag — → refuse. This rule is written **by nature, not by field name**,
+    because the first draft of it named `area_mm2` and was wrong (MeshQ disproved it with three
+    variants). The two classes, each with the measurement that settles it:
+
+    * **winding-dependent → must go `applicable: false`**: signed / divergence volume,
+      `outwardOriented`, and **every direction-derived reading** — `overhang` area, counted overhang
+      faces, `worst_tilt_deg`. Measured here: flipping one slope's winding moved the counted overhang
+      area from **0.0 to 565.192416792** (the retracted ramp, §8), i.e. the reading is a function of
+      the normals.
+    * **winding-independent → must STAY readable**: `area_mm2` (it is `Σ|Aᵢ|`, so the winding never
+      enters), face / triangle / vertex counts, and `bounds_mm`. MeshQ measured `surface_area_mm2 =
+      2400.0` on all three variants, including the one shifted `+Z 50` where the volume is wrong by
+      13333.33 mm³.
+
+    A field that needlessly turns itself off costs the reader a number it could have used; a field that
+    should have turned itself off and did not costs the reader a wrong one. Both are defects.
 
 Rule 5 ("asked to make a decision") is a rule for the **caller**, not a manifest check: the manifest
 cannot know what a consumer is about to do with it. Stated here so nobody implements a validator for a
@@ -543,6 +567,8 @@ copy drifts".
 | The v0.2 instance is generated, not written | `/tmp/draft_handoff_instance_v02.py` reads the real `step-manifest.json`, runs the real measurement, and emits the block above; the set signature is `6ba0265e063c7541…` |
 | Peer review of v0.1 | mailbox messages 120 (MeshQ) and 123 (CadQ), each ack'd against the id; `mail-delivery-receipt.sh` reported `found` for the outbound 116/117/118/119 |
 | Volume blindness is conditional, measured by the other plane | MeshQ message 151 §C: clean cube 8000.0; flipped bottom face in the z=0 plane 8000.0 (unchanged); the same mesh at +Z 50 mm 21333.333333, matching the closed form `8000 − 2·c_f` exactly |
+| Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
+| Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |
 | Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |
 | 70-piece tessellation, two implementations reading one handoff | `onshape_docs/verification/interop-70piece-tessellation-2026-10-03.md`: 0/70 triangle-count mismatches (617748 three ways), 0/70 winding disagreements, overhang aggregate agreeing to 1.31e-7, and 70/70 byte-identical STLs across two tessellation runs |
 | Overhang face-off, both directions | `onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md` (relative differences 1.77e-8 / 2.0e-8 / 3.5e-9; both sides low by 4.9e-5 against the sphere's closed form), including the retraction of my own first probe set |

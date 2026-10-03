@@ -227,6 +227,12 @@ class StlGeometryAnalyzer:
             # is unreadable without it, and because the same policy read at another threshold
             # (`bedContactAreaMm2`) is only comparable when the total is the same number.
             "surfaceAreaMm2": round(surface_area, 9),
+            # Counted/total, published as a ratio rather than leaving two isolated numbers: "132" and
+            # "1044" cannot be judged without their quotient, and MeshQ asked for exactly this.
+            "overhangTriangleRatio": (round(overhang_triangles / len(triangles), 12)
+                                      if triangles else None),
+            "bedContactTriangleRatio": (round(contact_triangles / len(triangles), 12)
+                                        if triangles else None),
             "printHeightMm": round(dimensions[2], 9),
             "overhangAreaMm2": round(overhang_area, 9),
             # Counts are published next to the areas because a bare `faces` field is two different
