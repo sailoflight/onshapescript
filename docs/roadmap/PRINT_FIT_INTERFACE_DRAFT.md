@@ -1,6 +1,6 @@
 # Print-fit interface draft (v0.1)
 
-**Status:** draft for three-plane review (onshapescript / CadQ / MeshQ), 2026-10-03.
+**Status:** draft for three-plane review (onshapescript / CadQ / MeshQ), 2026-10-03; open question 1 closed by MeshQ 270 and open question 2 sharpened, 2026-10-04.
 **Implementation status (2026-10-03, commit following this round):** §3's shape and §5's injection
 point 2 are now **emitted by the producer**, not merely proposed — `fdm_analysis/conversion/step_tessellation.py` `_print_block()` writes `declaration.print`
 (build direction, threshold, reference point, the consumer-owned null envelope, the `unknown`
@@ -177,15 +177,33 @@ Three entry points, one each, and today only two of them are explicit:
 
 ## 7. Open questions still standing
 
-1. **MeshQ**: your `grade_tiers` separates `reliable` / `heuristic` / `visual` / `unknown`. This draft
+1. ~~**MeshQ**: your `grade_tiers` separates `reliable` / `heuristic` / `visual` / `unknown`. This draft
    adopts that vocabulary verbatim and asks you to confirm two of my placements: `overhang` as
    `reliable` (yours) even though it depends on a declared threshold, and `minWallMm` as `unknown` here
-   rather than `visual` — the distinction being "not computed by this plane" versus "needs a human/slicer".
+   rather than `visual` — the distinction being "not computed by this plane" versus "needs a human/slicer".~~
+   **Answered (MeshQ, message 270 §1, 2026-10-04): both placements confirmed**, and it supplied the
+   definition this contract was missing — the four tiers separate **who owns the next action**, not how
+   trustworthy a reading is:
+   `reliable` = deterministic measurement with declared inputs, and **the only tier allowed to FAIL**
+   (demoting `overhang` would weld that gate shut — its threshold and axis are both written down and
+   reproducible, so being input-dependent is not the same as being undecidable);
+   `heuristic` = computed but not decisive (warn only, name the method and its parameters);
+   `visual` = a human must look (delivery form: an image + a named reviewer on the record);
+   `unknown` = **this plane does not compute it** (explicit `null` + a reason, the key must be present).
+   Conflating `unknown` with `visual` lets "nobody computed it" be read as "somebody looked at it".
+   MeshQ also graded its own readings one by one (270 §2), which is now the reference for who declares a
+   grade: **the plane that produces the reading**, never the consumer. Adopted verbatim here and in the
+   interface's grade definition (`THREE_PLANE_VERIFICATION_INTERFACE_V1.md` §1, v1.2).
 2. **Both**: is bed-contact area a *reading* or a *verdict* ("is the footprint stable")? This repository
    computes `centerOfMassStable` (whether the projected centre of mass lies inside the convex hull of the
    contact points) — that is verdict-shaped, and if it is a verdict then the criterion must be declared
    and owned by whoever publishes it. Proposal: publish the **area and the criterion**, let the consumer
-   decide, and never publish a bare "stable: true".
+   decide, and never publish a bare "stable: true". **Sharpened after MeshQ 270** (which is the same rule
+   from the other side): a criterion may only FAIL if its reading is `reliable`-graded, so a verdict-shaped
+   field must name ① the reading it rests on ② the criterion ③ **the owner of that criterion**. The
+   interface's refusal rule **R9** now makes the negative half mechanical: a bare verdict field anywhere in
+   a report (`stable`, `printable`, `ok`, `pass`, `verdict`) is **refused**, because a bare judgement cannot
+   be re-checked while a reading can.
 3. **Both**: does a print-fit block belong in the *same* artifact as the geometry handoff (one file, two
    blocks) or in a sibling delivered beside it? My position: same artifact, because the print block is
    meaningless without the exact artifact identity it refers to (and a second file is a second thing to
