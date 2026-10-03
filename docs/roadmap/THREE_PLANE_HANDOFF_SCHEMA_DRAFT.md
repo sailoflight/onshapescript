@@ -427,6 +427,30 @@ linear deflection is a model-unit length, the angular one is radians), and **thi
 default is 5.0°**, not MeshQ's declared 0.3 rad (≈17.19°). A handoff that does not say "receiver
 declared X, producer used Y" cannot express that difference.
 
+### Why `matches_declaration` is not the same as "good enough" (CadQ's measurement, message 156)
+
+A declaration can be honoured exactly and still miss the consumer's gate. On a real piece from the
+70-solid fixture (exact volume 324.5878 mm³), CadQ measured the mesh's volume error against the exact
+value:
+
+| declared / used | volume error | MeshQ's volume gate (0.05 %) |
+|---|---|---|
+| 0.05 mm / **0.3 rad** | 0.103 % | **fails** (12 of the 70 pieces exceed it) |
+| 0.05 mm / **0.1 rad** | 0.012 % | passes |
+| **0.02 mm** / 0.1 rad | **bit-identical to the 0.05 mm row** | — |
+
+Two consequences the schema has to carry, and both are now in the shape above:
+
+1. `matches_declaration: true` means "the producer used what was declared", **not** "the result meets the
+   consumer's requirement". A consumer still needs its own acceptance gate, and the producer must not be
+   asked to certify a gate it does not own.
+2. **The angular tolerance is the binding one.** Tightening the linear tolerance from 0.05 to 0.02 mm
+   changed nothing at all, while the angular one moved the error by a factor of ~8.6. A single scalar
+   "tolerance" field would have reported "unchanged" for the real change and "changed" for the change
+   that did nothing — this is the measured reason `measure.at` carries both components.
+3. This run declares 0.1 rad for exactly this reason: 0.3 rad would have been honest (declared = used)
+   and would have failed MeshQ's gate anyway.
+
 ## 5. Refusal rules (a consumer must be able to say no)
 
 1. Unknown `schema` id or a version it does not implement → refuse, name the version it saw.
@@ -519,5 +543,7 @@ copy drifts".
 | The v0.2 instance is generated, not written | `/tmp/draft_handoff_instance_v02.py` reads the real `step-manifest.json`, runs the real measurement, and emits the block above; the set signature is `6ba0265e063c7541…` |
 | Peer review of v0.1 | mailbox messages 120 (MeshQ) and 123 (CadQ), each ack'd against the id; `mail-delivery-receipt.sh` reported `found` for the outbound 116/117/118/119 |
 | Volume blindness is conditional, measured by the other plane | MeshQ message 151 §C: clean cube 8000.0; flipped bottom face in the z=0 plane 8000.0 (unchanged); the same mesh at +Z 50 mm 21333.333333, matching the closed form `8000 − 2·c_f` exactly |
+| Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |
+| 70-piece tessellation, two implementations reading one handoff | `onshape_docs/verification/interop-70piece-tessellation-2026-10-03.md`: 0/70 triangle-count mismatches (617748 three ways), 0/70 winding disagreements, overhang aggregate agreeing to 1.31e-7, and 70/70 byte-identical STLs across two tessellation runs |
 | Overhang face-off, both directions | `onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md` (relative differences 1.77e-8 / 2.0e-8 / 3.5e-9; both sides low by 4.9e-5 against the sphere's closed form), including the retraction of my own first probe set |
 | Import request shape | vendored OpenAPI `createTranslation` + `BTBTranslationRequestParams`; `dev/tests/test_rest_step_import.py` cross-checks every sent and unsent field against that schema |
