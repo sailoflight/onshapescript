@@ -245,6 +245,46 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(totals["triangleCount"], 24)
         self.assertEqual(totals["overhangTriangleRatio"], round(2 / 24, 12))
 
+    def test_no_direction_derived_reading_lacks_its_direction(self):
+        """Every reading that is a function of the face normals names the basis it was taken at.
+
+        Print-fit draft §4 rule 1, made structural: an overhang number without its build direction and
+        threshold is not comparable with any other plane's overhang number, and the consumer cannot tell
+        "not applicable" from "taken somewhere else". The basis travels WITH the reading, including when
+        the reading is null.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._run(Path(tmp))
+        block = manifest["declaration"]["print"]
+        self.assertEqual(block["build_direction"], [0.0, 0.0, 1.0])
+        self.assertEqual(block["declared_by"], "onshapescript")
+        self.assertEqual(block["threshold_deg"], 45.0)  # the documented default, declared not assumed
+        self.assertEqual(block["reference_point"], "origin")
+        covered = []
+        for piece in manifest["declaration"]["geometry"]["parts"]:
+            at = piece["mesh"]["at"]
+            self.assertEqual(at["build_direction"], block["build_direction"])
+            self.assertEqual(at["threshold_deg"], block["threshold_deg"])
+            covered.extend(at["covers"])
+        self.assertIn("overhangAreaMm2", covered)
+        self.assertIn("bedContactAreaMm2", covered)
+
+    def test_the_print_block_names_the_owner_of_the_gate_it_does_not_own(self):
+        """The envelope is the consumer's, the thickness reading declares itself unknown, and neither is
+        filled in by this plane: machine state and a missing analyzer must be visible, not implied."""
+        with tempfile.TemporaryDirectory() as tmp:
+            block = self._run(Path(tmp))["declaration"]["print"]
+        self.assertEqual(block["envelope"]["declared_by"], "consumer")
+        for side in ("x_mm", "y_mm", "z_mm"):
+            self.assertIsNone(block["envelope"][side])
+        self.assertIsNone(block["envelope"]["source"])
+        self.assertEqual(block["min_wall"]["value_mm"], None)
+        self.assertEqual(block["min_wall"]["grade"], "unknown")
+        self.assertIn("no thickness analyzer", block["min_wall"]["reason"])
+        # The evidence vocabulary is MeshQ's, and the printability verdicts are `visual`, not computed.
+        self.assertIn("MeshQ", block["evidence_grades"]["vocabulary"])
+        self.assertTrue(any("slicer" in item for item in block["evidence_grades"]["visual"]))
+
     def test_the_bounds_family_is_declared_and_not_mixed(self):
         """One field name may not carry numbers computed by different methods (MeshQ 170 §3).
 

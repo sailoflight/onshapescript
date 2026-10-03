@@ -48,6 +48,12 @@ OVERHANG_FROM_VERTICAL_DEGREES = 45.0
 #: after a +Z 50 shift). The origin is what both this repository and MeshQ use.
 INTEGRATION_REFERENCE = "origin"
 
+# The build direction these readings are taken in. It is +Z because the handoff does NOT re-orient the
+# model: the producer's coordinate system is carried through, and this constant exists so the choice is
+# DECLARED in the artifact instead of defaulted inside a call signature (measured consequence of getting
+# this wrong, MeshQ 151 §C: one mesh at +Z 50 mm reads volume 21333.333333 where the clean one reads 8000.0).
+PRINT_BUILD_DIRECTION = (0.0, 0.0, 1.0)
+
 Tessellator = Callable[..., dict[str, Any]]
 
 
@@ -288,6 +294,7 @@ def plan_step_tessellation(
                          "angular_tolerance_rad": angular_tolerance_rad},
         },
         "overhangFromVerticalDegrees": overhang_from_vertical_degrees,
+        "print": _print_block(overhang_from_vertical_degrees),
         "reproducibilityCheck": bool(reproducibility_check),
         "identityRule": {
             # A DIGEST MUST NAME THE RULE THAT PRODUCED IT. MeshQ 168 measured a peer's set signature
@@ -326,12 +333,48 @@ def plan_step_tessellation(
     }
 
 
+def _print_block(overhang_from_vertical_degrees: float) -> dict[str, Any]:
+    """The print basis these readings were taken at, declared instead of defaulted.
+
+    Three of the print-fit draft's rules are structural here: the build direction is published (a
+    direction-derived reading without it is not comparable with any other plane's reading), the threshold
+    belongs to the same block (the readings are functions of it), and the ENVELOPE is declared by the
+    consumer and is therefore null with its owner named -- this plane does not own an acceptance gate and
+    must not fill one in. `active` states the honest limitation: the handoff does not re-orient the model,
+    so the direction is the producer's coordinate system, and a consumer that prints in another
+    orientation must re-take the readings rather than reuse these.
+    """
+    return {
+        "build_direction": list(PRINT_BUILD_DIRECTION),
+        "declared_by": "onshapescript",
+        "basis": "the model coordinate system of the source artifact; this handoff does not re-orient it",
+        "bed_plane": {"z": 0.0, "in": "build_direction"},
+        "threshold_deg": overhang_from_vertical_degrees,
+        "reference_point": INTEGRATION_REFERENCE,
+        "envelope": {"declared_by": "consumer", "source": None,
+                     "x_mm": None, "y_mm": None, "z_mm": None},
+        "envelope_note": ("machine state, not geometry: a printability verdict is a consumer-local "
+                          "comparison against a declared envelope, and no producer may stamp one"),
+        "min_wall": {"value_mm": None, "grade": "unknown",
+                     "reason": "no thickness analyzer is installed on this host"},
+        "evidence_grades": {
+            "vocabulary": "MeshQ inspection.grade_tiers (reliable/heuristic/visual/unknown)",
+            "reliable": ["volumeMm3", "surfaceAreaMm2", "boundsMm", "bedContactAreaMm2",
+                         "overhangAreaMm2", "printHeightMm"],
+            "visual": ["will a counted overhang warp, curl or delaminate (needs a slicer + a printer)",
+                       "how long the print takes and where the supports actually go (slicer output)",
+                       "is the part printable on a given machine (needs a declared envelope)"],
+        },
+    }
+
+
 def _piece_record(
     raw: dict[str, Any],
     *,
     measured: dict[str, Any],
     second: dict[str, Any] | None,
     export_id: str,
+    overhang_from_vertical_degrees: float,
 ) -> dict[str, Any]:
     same_bytes = None
     evidence: list[str] = [measured["sha256"]]
@@ -404,6 +447,17 @@ def _piece_record(
                                         if measured["applicable"]["bedContactTriangleCount"] else None),
             "bedContactTriangleRatio": (measured["bedContactTriangleRatio"]
                                         if measured["applicable"]["bedContactTriangleCount"] else None),
+            # The basis travels with the reading, including when the reading is null: a consumer has to be
+            # able to tell "not applicable" from "taken at another direction", and a gate that cannot see
+            # the direction cannot audit the number (print-fit draft §4 rule 1). One block per family, so
+            # the two quantities that are functions of the face normals name the same basis.
+            "at": {
+                "build_direction": list(PRINT_BUILD_DIRECTION),
+                "threshold_deg": overhang_from_vertical_degrees,
+                "reference_point": INTEGRATION_REFERENCE,
+                "covers": ["overhangAreaMm2", "overhangTriangleCount", "overhangTriangleRatio",
+                           "bedContactAreaMm2", "bedContactTriangleCount", "bedContactTriangleRatio"],
+            },
             "notApplicableReason": measured["notApplicableReason"],
         },
         "cross_plane_ref": {"export_id": export_id, "index": raw["index"], "signature": None},
@@ -505,7 +559,8 @@ def tessellate_step(
             second_measured = measure_stl(
                 twin["path"], overhang_from_vertical_degrees=overhang_from_vertical_degrees
             )
-        record = _piece_record(raw, measured=measured, second=second_measured, export_id=export_id)
+        record = _piece_record(raw, measured=measured, second=second_measured, export_id=export_id,
+                               overhang_from_vertical_degrees=overhang_from_vertical_degrees)
         # Same family on both sides (mesh vertices vs mesh vertices), which is the only comparison that
         # can find a tessellation that does not reproduce. Comparing the mesh box with the exact box --
         # what this field used to do -- is a method gap, and a method gap can never answer this question.
@@ -603,6 +658,7 @@ def tessellate_step(
                                 "proof of different geometry, and an equal digest is not proof of "
                                 "identical geometry; only identity_rule + equivalence_tolerance decide"),
             },
+            "print": plan["print"],
             "geometry": {
                 "measure": {
                     "kind": "tessellation",

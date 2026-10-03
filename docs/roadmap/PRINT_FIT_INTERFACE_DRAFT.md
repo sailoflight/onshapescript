@@ -1,6 +1,14 @@
 # Print-fit interface draft (v0.1)
 
 **Status:** draft for three-plane review (onshapescript / CadQ / MeshQ), 2026-10-03.
+**Implementation status (2026-10-03, commit following this round):** §3's shape and §5's injection
+point 2 are now **emitted by the producer**, not merely proposed — `fdm_analysis/conversion/step_tessellation.py` `_print_block()` writes `declaration.print`
+(build direction, threshold, reference point, the consumer-owned null envelope, the `unknown`
+thickness reading, the evidence grades) and every direction-derived reading carries
+`mesh.at{covers[]}`. Two tests pin it (`test_no_direction_derived_reading_lacks_its_direction`,
+`test_the_print_block_names_the_owner_of_the_gate_it_does_not_own`), and the regenerated 70-piece
+manifest keeps its byte records and its set signature (`7f427106…`) unchanged, which is the check
+that the new block did not move the identity it is supposed to sit beside.
 **Owner of this file:** onshapescript. **Companion of:** `THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` (the
 geometry handoff) — this one is about the step after it: who turns a geometry handoff into a printability
 statement, and where the declarations that decide it enter.
@@ -57,6 +65,21 @@ consumer's. What has to be an interface is *which facts cross and who declares t
                          "at": {"build_direction": [0.0, 0.0, 1.0], "threshold_deg": 45.0}},
    "minWallMm":         {"value": null, "grade": "unknown", "applicable": false,
                          "reason": "no thickness analyzer is installed on this host"}}}
+```
+
+Emitted today (measured on the regenerated 70-piece handoff):
+
+```json
+{"print": {"build_direction": [0.0, 0.0, 1.0], "declared_by": "onshapescript",
+           "basis": "the model coordinate system of the source artifact; this handoff does not re-orient it",
+           "bed_plane": {"z": 0.0, "in": "build_direction"}, "threshold_deg": 45.0,
+           "reference_point": "origin",
+           "envelope": {"declared_by": "consumer", "source": null, "x_mm": null, "y_mm": null, "z_mm": null},
+           "min_wall": {"value_mm": null, "grade": "unknown",
+                        "reason": "no thickness analyzer is installed on this host"}},
+ "parts[].mesh.at": {"build_direction": [0.0, 0.0, 1.0], "threshold_deg": 45.0, "reference_point": "origin",
+                     "covers": ["overhangAreaMm2", "overhangTriangleCount", "overhangTriangleRatio",
+                                "bedContactAreaMm2", "bedContactTriangleCount", "bedContactTriangleRatio"]}}
 ```
 
 Three deliberate choices, each of which is a rule rather than a preference:
