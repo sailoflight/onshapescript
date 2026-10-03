@@ -107,96 +107,94 @@ apply to every agent, not only Claude.
 <!-- inframanager:mailbox:start v1 -->
 ## 外部能力怎么用 —— 总入口 `infra-manager`
 
-本机装了 **15 个外部能力**（信箱、台账、任务图、会话检索、远端编译、磁盘观测……），
-**全部只经 `infra-manager` 的公开 CLI 使用**。下面这张清单就是"这台机器上你能调什么"。
+本机装了 **15 个外部能力**（信箱、台账、任务图、会话检索等）。**正路是经 `infra-manager` 的公开 CLI 使用**；
+直接跑二进制也能出结果，但**没有闸门与记录**。
 
-> 这一节由 `/home/lijq/code/agent-infra` 维护。**改动会先落成候选文件（`<目标>.new`）请你确认**，
-> 不会静默替换你仓库里的任何东西。
+> 本节由 `/home/lijq/code/agent-infra` 维护；改动只落成候选文件 `<目标>.new`（**在你仓库里新建一个文件**），
+> 默认不替换也不创建 `AGENTS.md`，由你方 agent 问过人再合入。
 
-### 1. 第一条铁律：**别直接跑那些二进制**
+### 1. 先解决"一条都跑不了"
 
-直接跑 `am` / `br` / `bv` / `cass` … **能出结果，但没有账**——你绕过了管理器的动词面与闸门。
-经管理器有闸门、有记录、有**明确拒绝码**；绕过它得到的东西**不可复现、没人能审**。
-
-> 实测对照：`bv --export-graph` 直接跑能出图；经管理器最初被拒
-> （`verb_unclassified`——“面没分类它，`policy.default` 一律拒”），**加进面之后才放行**。
-> ⇒ 想用什么，**先去问管理器**，而不是先绕过。
-
-### 2. 先看这台机器有什么
+`am`/`br`/`bv`/`infra-manager` **都不在 PATH 上**（实测 `which` 全不中）⇒ **本节命令一律写绝对路径**，基于下面这些变量（版本号升级后会变）：
 
 ```bash
-timeout 60 node /home/lijq/code/agent-infra/infra-manager/bin/infra-manager.mjs provider coverage \
-  --catalog /home/lijq/code/agent-infra/docs/capability-pins-20260928/managed-capabilities.json \
-  --install-root ~/.local/share/infra-manager
+R=/home/lijq/code/agent-infra
+M=$R/infra-manager/bin/infra-manager.mjs                          # 管理器
+C=$R/docs/capability-pins-20260928/managed-capabilities.json
+V=$R/docs/capability-verb-surfaces-20260928
+S=$R/docs/verb-run-20260930/specs
+I=~/.local/share/infra-manager
+AM=$I/providers/am/am-0.3.36/am
 ```
 
-`15/15` = 全部就位。（本文件编写时就是这个数。）
+**两条路，报数必须标路径**：**经管理器**有闸门、拒绝码、记录；**直接跑**
+没有闸门也没有账——`br` 的 `--help` 里**没有任何 `--confirm-*`**（实测），所以直接跑写动词 = **没闸门**。
+📌 每条实测都标 **经管理器** / **直接跑**，别把一个路径的结果当普遍结论。
 
-### 3. 清单（15 项）
+### 2. 先看这台机器有什么（只读；经管理器）
 
-| 能力 | 命令 | 干什么 |
-|---|---|---|
-| 信箱与协作 | `am` | 跨项目收发信、身份、协作预留 |
-| 台账 | `br` | issue、状态、依赖——**纯文本、人可手改** |
-| 任务图 | `bv` | 图分析、优先级建议、跨仓视图、**出 SVG/HTML 图** |
-| 会话检索 | `cass` | 跨 agent 会话的索引与查询 |
-| 经验/playbook | `cm` | playbook、经验候选、上下文建议 |
-| 破坏性命令守卫 | `dcg` | 命令风险判定与阻断建议 |
-| 持久记忆检索 | `ee` | 持久本地记忆与检索 |
-| 终端观测 | `ft` | 终端复用、观察与控制 |
-| 会话编排 | `ntm` | tmux/agent 会话编排 |
-| 远端编译 | `rch` | 把编译任务派到远端 worker |
-| 仓库同步 | `ru` | 多仓一致性检查与更新 |
-| 磁盘压力观测 | `sbh` | 磁盘压力与资源状态 |
-| 命令审批 | `slb` | 危险命令审批与受控执行 |
-| bug 扫描 | `ubs` | 第三方 bug 扫描器 |
-| 账号保险库 | `caam` | AI 编码 CLI 的账号/凭据切换 |
+```bash
+timeout 60 node "$M" provider coverage --catalog "$C" --install-root "$I"
+```
 
-### 4. 三条**通用**铁律（每条都对应一次实测踩坑）
+`15/15` = 全部就位（经管理器实测）。**任何调用都自带超时**：没人听的端口是**丢弃**不是拒绝（直接跑）⇒ 永远写 `timeout`。
 
-1. **任何调用都自带超时。**
-   本机回环上**没人在听**的端口是**丢弃**、不是拒绝（实测整 4.00s 超时、`rc=124`）。
-   走 HTTP 的能力（如 `am`）在服务不在时**不返回、挂住**（实测 20s+、0 字节）。
-   ⇒ 永远写 `timeout 30 …`，否则你会**卡死在这一行**。
-2. **"本地库读得到"不等于"服务在跑"。**
-   有些子命令读本地库、秒回；有些要服务。**不要用前者证明后者**。
-3. **身份 / 工作区按绝对路径隔离。**
-   各家的 key 是**绝对路径**，所以**同名 ≠ 同一个人**。
-   ⚠️ **不要注销别人项目里的影子身份**——注销是**终态**、不可恢复。
+**15 项清单**即它的输出：**台账的能力名是 `beads-wsl`（命令 `br`）**，
+信箱 `am`（`agent-collaboration`），任务图 `bv`（`task-graph-analysis`）；其余照它输出。
 
-### 5. 台账（`br` + `bv`）—— 四条实测坑
+### 3. 经管理器怎么调一个能力
 
-1. **工作区必须用 `BEADS_DIR` 钉住**（且放进规格的 `env_allow`）。
-   经管理器跑时 `--db <绝对路径>` **单独不够**，而漏钉会让 `init` 把工作区建进**每次丢弃的临时目录**。
-2. **写动词各带闸门令牌**，令牌是 `--confirmation <token>` 的**值**；
-   写成裸的 `--confirmation` 会**把下一个参数吃掉**。只读动词不需要令牌。
-3. **人改完 `issues.jsonl` 要 `sync --import-only --rebuild` 才生效。**
-   ⚠️ `sync --import-only` **单独用是静默空操作**：退出 0、DB 一点没变。
-4. **答复写进 `comments`，不要自造字段**（自造字段会被静默丢掉）。
-   给 `--actor <名字>`：不给时 `author` 会落成**操作系统用户名**（本机实测 = `lijq`），
-   人写的和 agent 写的**分不出来**。
-   ⚠️ 读评论走 `show --json`；`br comments <id>` 实测**不给令牌也 `rc=0`**（不是写动词）。
-   📌 **每条"实测"都标路径**（经管理器 / 直接跑）：同一条在两路径下可能不同，
-   两条都写"实测"而结果不同时，读者没法判断该信谁 —— 这是外部复跑纠正我的第一条。
+每个能力在 `$V/` 有一份**动词面**。先查闸门（只读）：
 
-### 6. 信箱（`am`）
+```bash
+timeout 60 node "$M" provider verb-policy --file "$V/beads-wsl.json" \
+  --evidence-root "$R" --verb comments --json
+# rc=2 是预期的：decision.reason: "this verb requires --confirm-comments"（只读）
+```
 
-* **收**：`timeout 30 am inbox --agent <身份> --include-bodies --json`
-  ⚠️ 顶层键是 **`inbox`**；正文**只在 `--include-bodies` 时**以 **`body_md`** 出现；
-  **没有 `_alerts` 键 = 没有告警**（不是解析失败）。
-* **发**：`timeout 30 am mail send --to <对端> --subject "<主题>" --body "<正文>"`
-  ⚠️ **只有 `--body`，没有 `--body-file`**。
-* **怎么知道对方真收到了**：**`signaled=false` 不是失败信号**（已签收也是 false，**零区分度**）。
-  真判据是**收据落在哪个 project_id**（消息按"**发送方当前项目**"落库）：
-  `bash /home/lijq/code/agent-infra/docs/agent-mail-interop-20260930/tools/mail-delivery-receipt.sh --project <发信项目> --message-id <id>`
-  报 **`NOT_FOUND` = 黑投**。**路径必须绝对**——这一节要贴到别的项目里，相对路径在那里找不到。
+⚠️ `--evidence-root` **必须给仓库根**：不给，委托动词全判 `evidence_missing` **不可达**（实测 `reachable: 1`）。**令牌是 `--confirmation <闸门字符串>` 的值**，逐动词不同：`q` 的闸门是
+**`--confirm-create`**；裸写 `--confirmation` 会**吃掉下一个参数**。
 
-### 7. 出问题了找谁
+先计划，再执行（下面这条已跑通：`planned`、`executed=false`，只读不执行）：
 
-`/home/lijq/code/agent-infra` 是这条线的 owner。**先把证据复跑一遍再来问**，
-问的时候给三样：**命令、退出码、原文**。**没跑过的不当结论。**
+```bash
+timeout 90 node "$M" provider verb-plan \
+  --surface "$V/am.json" --verb capabilities --spec "$S/am-capabilities.json" \
+  --catalog "$C" --install-root "$I" --evidence-root "$R" --json
+```
 
-<!-- 本节的钉住版本：infra-capabilities AGENTS-section v1
-     来源 docs/agent-mail-interop-20260930/templates/AGENTS-capabilities-section.md
-     人方裁定 2026-10-03：按 ACFS 非覆盖范式产出，撞了留 .new、由该项目 agent 向人方确认 -->
+把 `verb-plan` 换成 `verb-run`、有闸门时加 `--confirmation <令牌>`、再加 `--confirm-verb-run` 才是真执行
+（**本节未跑 `verb-run`**）；`verb-run` 还要 `--state-root`，该目录要**已存在且 0700**（`verb-plan` 上实测）。
+**规格**（`--spec`）是一份 JSON：`verb`/`args`/`env_allow`/`timeout_ms`/`scope`（样例 `$S/`）；
+**`env_allow` 是环境白名单**——变量不列在里面载荷就看不见它（台账的 `BEADS_DIR` **必须列进去**）。
+
+### 4. 台账（`br` + `bv`）
+
+1. **工作区必须用 `BEADS_DIR` 钉住**，并写进规格的 `env_allow`：只给 `--db <绝对路径>` **不够**
+   （报 `Cannot resolve the project .beads directory`，经管理器实测），漏钉会让 `init` 把工作区建进
+   **每次丢弃的临时目录**。
+2. **写动词的闸门只在管理器里**：`br` 直接跑没有任何 `--confirm-*`（实测 `br close --help`）。
+   只读动词（`list`/`ready`/`show`/`search`…，23 个）不要令牌。
+3. **人改完 `<项目>/.beads/issues.jsonl`，要 `sync --import-only --rebuild` 才生效。**
+   ⚠️ `sync --import-only` **单独用是静默空操作**：退出 0、DB 一点没变（经管理器实测，仓内 2026-10-03）。
+4. **答复写进 `comments`**：`br comments add <id> <文本>`；分类 `br label add <id> <名>`（两条**未复跑**）。
+   `--actor <名字>` 是 **br 的全局选项**（不是 `comments` 的）：不给时 `author` 落**操作系统用户名**
+   （仓内直接跑实测 = `lijq`）。读评论走 `show --json`（免令牌）；`br comments <id>` 免令牌 `rc=0`（直接跑实测），**经管理器**却是 `writes:true`、闸门 `--confirm-comments`，不给令牌**被拒**。
+
+### 5. 信箱（`am`）
+
+* **收**：`timeout 30 "$AM" inbox --agent <身份> --include-bodies --json`（`--project` 不给则按当前目录）
+  ——顶层键 **`inbox`**，正文要 `--include-bodies` 才有（**`body_md`**，直接跑实测）；⚠️ **默认只列未读**，
+  "对方说没收到"先用 `--all` 复核。
+* **发**：`timeout 30 "$AM" mail send --project <项目> --from <身份> --to <对端> --subject "<主题>" --body "<正文>"`
+  ⚠️ **`--project` 与 `--from` 是必需参数**，少一个 `rc=2`；**只有 `--body`，没有 `--body-file`**（**未真发**）。
+* **怎么知道对方真收到了**：**`signaled=false` 不是失败信号**（已签收也是 false，**零区分度**）；
+  真判据是**收据落在哪个 project_id**（消息按"**发送方当前项目**"落库）：`timeout 30 bash "$R/docs/agent-mail-interop-20260930/tools/mail-delivery-receipt.sh" --project <发信项目> --message-id <id>`
+  ——判决 **`not-in-this-project`**（形态 `NOT_FOUND`、退出 1；直接跑实测）= **你多半查错了项目，不代表消息丢了**。
+
+### 6. 出问题了找谁
+
+`/home/lijq/code/agent-infra` 是 owner。**复跑证据再问**，给三样：**命令、退出码、原文**。
+
+<!-- 钉住：infra-capabilities AGENTS-section v1 -->
 <!-- inframanager:mailbox:end -->

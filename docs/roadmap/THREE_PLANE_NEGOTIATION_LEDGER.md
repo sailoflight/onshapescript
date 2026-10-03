@@ -35,6 +35,8 @@ meant to prevent.
 | 1.9 | A probe must be shown clean before its result counts — both planes discarded results for this reason (an unclean NaN probe; a missing `set_readings` argument), and this plane's rule 17 verdicts rest on the referee recomputation alone. | practised by both | MeshQ 189 retracts its own "no vintage echo" report; this plane tests NaN explicitly instead of assuming it | `f8ccb58` |
 | 1.8 | The **bytes are the referee**: a field that disagrees with the delivered artifact's own bytes is the field to fix (rule 17). | MeshQ accepts (180), reproduced (182) | third-party referee table (MeshQ 179): this repository 9.8e-13 area / 1.08e-12 volume / 0.0 bounds (70/70 bitwise), CadQ 2.41e-6 volume, MeshQ 3.39e-6 area | `9e42c1e`, `b49feb1` |
 
+| 1.10 | **Where an import lands is a measured property of the UI, not an assumption**: this UI's import dialog lands the translation as **its own document element** and adds **no** feature row to the active Part Studio, so `mode=into-part-studio` cannot keep its promise there; it now answers `imported=false / landed_as_new_element` and names the element, and the target tab is a **claim that must match the screen** (this leg never switches tabs), refused with `target_tab_not_active` before anything is clicked. | found by this plane's live runs (`2f4fea7` … `9e9ab5b`) | three live runs on the real document: attempt 2 landed a real element (`model`, 24-hex id) while the first judge had credited the internal `CAD 导入` bookkeeping row; a wrong-tab call was refused with `activeTab {name: 'GF 4U 盒子', expected: 'model (1)'}` (without the guard it would have imported into a modelled Part Studio); the confirming run answered `landed_as_new_element` for `model (4)` after **7 polls (~3.5 s)** where the feature-row probe alone would have spent 45 s and then said `no_new_element`. Two further defects came out of the same runs: the bookkeeping row was counted as geometry, and the feature-row reader also matched the rollback-bar holder (`not-computed ns-rollbackbar-holder`, empty text — visible as `tabNames: ['Import 1', ""]`). Evidence: `onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json` (attempts 2/3, the into-part-studio run, the confirming run); procedure and outcomes in `onshape_docs/experience/browser-automation.md` §8 | `2f4fea7`, `8e49613`, `9e9ab5b`, `ba42988` |
+
 ## ② Print fit — who judges printability, and where the declarations are injected
 
 | # | Conclusion | Agreed by | Evidence (command → observed) | Landed |
@@ -77,18 +79,25 @@ meant to prevent.
 
 | Quantity | Value | How |
 |---|---|---|
-| Offline test suite | **1419 tests, OK** | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest discover -s dev/tests` |
+| Offline test suite | **1430 tests, OK** | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=temp/browser-common-site .venv/bin/python -m unittest discover -s dev/tests` |
 | Documentation verification | **17/17 checks passed** | `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python onshape_docs/verification/verify_docs.py` |
 | Registered tools | **116** | `len(mcp_main.win.mcp.server.TOOLS)` |
+| Deployed copy (deployment state, re-read it rather than trusting this row) | revision `ba42988`, bridge node generation 9 | `bridge_control action=status`; 415/415 artifact files byte-identical on the host copy, denylisted state files untouched, six in-place refreshes with a tar recovery point each |
 | Real Onshape REST calls this negotiation | **0** | `LIVE_API_ENABLED` never set; every leg above runs offline or through the browser |
 | Set signature of the 70-piece handoff | `7f4271064f1107bebb3aaaf40944b2690285b4aed8c6a7c55ceee54728608292` | unchanged across the print-block, tolerance and vintage additions (measured, not assumed) |
 | Byte identity of the two producers' STLs | **70/70 byte-identical** | four-way join (`/tmp/join_cadq.py`) |
+
+## Hypotheses carried as hypotheses (not conclusions)
+
+| Value | Hypothesis | Why it stays a hypothesis |
+|---|---|---|
+| CadQ's mesh volume differs from the delivered bytes by up to **2.414e-6 relative** (MeshQ's referee table, 179) | the two implementations accumulate the per-triangle contributions in a different order — naive `+=` versus `math.fsum` | **no plane has shown the cause end to end**: nobody swapped only the summation order and watched the delta collapse. It is an inference from the code paths (`cad_agent/core/step_tessellate.py` per-triangle scalar-triple-product accumulation vs this plane's `math.fsum`), and the fact that this plane's reader agrees with the bytes to 1.08e-12 is *consistent with* the hypothesis without establishing it. Treat the number as **unexplained**, and do not cite it as an explanation for anything else |
 
 ## Not concluded (kept visible so it cannot be mistaken for settled)
 
 | Open item | Who owes it | State |
 |---|---|---|
-| Import leg live verification I1–I6 | a human with a signed-in browser | tool + ledger ready (`registered_tool`) **plus a one-command operator path** (`dev/tools/step_import_live_check.py`: local half needs no browser; live half takes `--confirm-browser` + target ids, uses the resident session so no sign-in is spent, and prints a paste-back block with `unproven` kept distinct from `pass`); `I6`'s offline half is closed; **the only remaining structural gap on this plane** |
+| The three import-dialog selectors (`dialog` / `fileInput` / `submit`) | this plane | a successful run does **not** prove a selector was the necessary one, and only a failing path can falsify it — so the ledger's `unverifiedSelectors` list stays as it is (`["dialog", "fileInput", "submit"]`); the entry route is the only one promoted, and it was promoted by a **measured** DOM sweep, not by a green run |
 | MeshQ's printing-precision alignment + `applicable` reason | MeshQ | "our item 17", awaiting its owner's word; it declined to fake a receipt |
 | Rule 16 paired output (post-landing) | MeshQ | reproduction recorded; the paired comparison waits for its change |
 | Its item 18 is landed (`727848d`) — recorded | — | raw output received (CLI `run` 0→1; MCP `gate_failed`/`ok`/`record_missing`), recorded as **second-plane evidence, landed by its owner**; it also publicly corrected its own root cause (the `failed` logic it blamed on `cmd_run` is `cmd_views`; `cmd_run` had no gate at all — three entry points, three criteria) |
