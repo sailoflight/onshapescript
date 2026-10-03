@@ -797,6 +797,18 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   声明与实际不一致时必须**拒绝**（`target_tab_not_active` / 读不到名字则 `active_tab_unknown`），
   否则会把别的 Part Studio 的特征当成结果——实测该拒绝真的挡住了一次"差点导进用户建模盒子"的调用。
 - 因此 `browser_create_tab` 采用“JS 点隐藏项”，与右键菜单必须真实点击不同。
+- **删掉导入留下的页签时，别信删除工具自己那份返回**（2026-10-03 实测）：`browser_delete_element`
+  一次成功的删除会同时返回 `deleted: true` **和** `stillListedIds: [<刚删的那个 id>]`。后者是"等待开始
+  时它还在列表里"的证据，**不是**删除后的状态；把它当成后置状态会得出"每次删除都失败"的错误结论。
+  删完必须用**独立的一次页签读取**（必要时整页 reload 后再读）来收口——本次五个元素即以此确认，
+  行数 16 → 11，reload 后五个 id 确实不在。
+- **内部记账行 `CAD 导入`（`data-id` 字面就是 `CADImportBlobs`，类 `.os-tab-bar-tab-group`）删不掉，
+  这是 UI 的事实而不是工具的 bug**：导入会在页签栏加两行（`model` 与 `CAD 导入`，前者先/后见上），
+  但这一行的右键菜单**没有「删除」项**——`browser_delete_element` 明确拒绝
+  （`deleted: false`，`reason: exact unique visible 删除 menu item not found`），整页 reload 后它仍在。
+  所以"导入后清理"只包括翻译出来的**元素**；这一行的生命周期不归文档元素管，本腿**不会**去猜一条
+  移除路径（不对用户的文档做 DOM 手术）。
+
 - 工具只有在标签列表出现新项时才返回 `created:true`。工程图可能先打开来源/模板
   对话框，此时返回 `triggered:true, created:false`，不能把打开对话框当作创建成功。
 

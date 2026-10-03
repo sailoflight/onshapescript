@@ -378,7 +378,7 @@
         "model (c29f29f7528d07d5b290421c) -- the real translated element",
         "CAD 导入 (CADImportBlobs) -- the internal bookkeeping row"
       ],
-      "cleanup": "browser_delete_element can remove either tab if the document should go back to 10 tabs"
+      "cleanup": "browser_delete_element can remove the translated ELEMENT (verified 2026-10-03, see cleanup_run_2026-10-03) -- but NOT the internal bookkeeping row: that row's context menu offers no 删除 item, so the same contract refuses it. The original wording here ('can remove either tab') was wrong for the internal row and is corrected."
     }
   },
   "third_live_import_attempt_2026-10-03": {
@@ -542,5 +542,38 @@
         "baselineBeforeThisSession": 10
       }
     }
+  },
+  "cleanup_run_2026-10-03": {
+    "requested_by": "the repository owner, in the session (\"删\"), after this leg's live verification closed",
+    "contract_used": "browser_delete_element(element_id=<tab data-id>, confirm_mutation=true) -- the exact data-id deletion contract (browser_delete_tab is its deprecated name-based wrapper over the same core). Zero REST quota; the browser leg holds the shared resident session.",
+    "identity_evidence_before_deleting": [
+      "the document held 15 element rows + 1 internal row; the owner's baseline reconcile to 10 elements, so exactly 5 rows were this leg's imports",
+      "the five rows were the auto-named duplicates `model` / `model (1)`..`model (4)` -- the names Onshape gives a translated STEP element, one per live run (attempts 2 and 3, the into-part-studio call, and the confirming call)",
+      "SPOT CHECK before any deletion: `model (1)` (7c67d0e3308cb6af15ca6fb1) read as a STEP translation -- exactly ONE user feature `Import 1` plus Part 1 over the default geometry rows, i.e. not a modelled element and not the owner's work"
+    ],
+    "deleted_verified_by_an_independent_read": {
+      "ids": [
+        "7c67d0e3308cb6af15ca6fb1 (model (1))",
+        "c29f29f7528d07d5b290421c (model)",
+        "97c1c7f7955e3bfdce6d3025 (model (2))",
+        "0060f68a44058f0231aec5f7 (model (3))",
+        "f992bcd1458ea4cecd390b2d (model (4))"
+      ],
+      "each_verified_how": "after every call an INDEPENDENT browser_get_page_tabs read, never the deleting call's own return; the final read was taken after a full page reload",
+      "rows_before_after": "16 -> 11 (10 owner elements + the internal row)",
+      "reload_confirms": "the five ids are absent from the tab strip after `browser_session action=reload`, so this is a removal, not a hidden-node artefact"
+    },
+    "MEASURED_trap_in_the_deleting_tools_own_return": "browser_delete_element returns `deleted: true` AND `stillListedIds: [<the id just deleted>]` in the same answer. That field is the evidence that the id was still listed when the wait STARTED, not a post-state claim: an independent read after the call shows the row gone. Reading `stillListedIds` as a post-state would wrongly conclude every deletion failed (and reading `deleted: true` alone would be equally unproven) -- which is why every deletion here is settled by the separate tab read.",
+    "NOT_deletable": {
+      "row": "CAD 导入 (data-id literally `CADImportBlobs`, class `.os-tab-bar-tab-group`)",
+      "call": "browser_delete_element(element_id=\"CADImportBlobs\", confirm_mutation=true)",
+      "result": {
+        "deleted": false,
+        "reason": "exact unique visible 删除 menu item not found"
+      },
+      "after_reload": "still present -- so it is not a stale DOM artefact of the deleted translations",
+      "reading": "Onshape offers no delete affordance for its own CAD-import bookkeeping row through the element (tab) menu. The row is a by-product of the import action (measured when it first appeared: two rows were added, `model` and `CAD 导入`), but its lifecycle is not the document's element lifecycle, and this leg will not guess at a removal path for it (no DOM surgery on the owner's document)."
+    },
+    "document_state_after": "10 owner elements (Part Studio 1, Feature Studio 1, Thin Native Features, GF Thin Plate, 网格底板 2×2, GF 4U 盒子, BENCH Feature Studio, BENCH sensor bracket PS, 网格盒子 4U, Assembly 1) + the internal `CAD 导入` row; ZERO elements remain from this leg's live runs"
   }
 }
