@@ -1,6 +1,6 @@
 {
   "probe": "Live acceptance for issue #20, geometry leg (onshape_interference_check), run against the deployed Windows host on 2026-10-03. The tool itself was exercised end to end on the host; the last hop (the host's stored WSL distro name) is wrong and is reported here as a host-state defect rather than a code defect, because the same stored name breaks the pre-existing browser geometry backend too.",
-  "status": "verified-through-the-real-launcher; the deployed run now names its own blocker; a fully deployed run waits on one host-state write that needs human approval",
+  "status": "verified live on the deployed host for both fixtures, after the host-state repair the user approved; the browser leg is the only part still waiting for a live signed-in session",
   "session": "2026-10-03, deployed host C:\\MCP\\onshapescript at 1.5.1 (generation 13) and 1.5.2 (generation 14), repo master c386853",
   "verified": [
     {
@@ -72,6 +72,77 @@
       "what": "On the deployed host, 1.5.2 turns the empty reason into the launcher's own words.",
       "evidence": "onshape_interference_check(step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\overlap.step') at 1.5.2 returned verdict=indeterminate, failureClass=converter_failed, exitCode=4294967295, evidence.stdoutTail='不存在具有所提供名称的分发。\\r\\n错误代码: Wsl/Service/WSL_E_DISTRO_NOT_FOUND\\r\\n', evidence.stderrTail='', failures=['the interference converter exited 4294967295: 不存在具有所提供名称的分发。\\r\\n错误代码: Wsl/Service/WSL_E_DISTRO_NOT_FOUND']",
       "note": "The same call at 1.5.1 reported the same exit code with an empty reason. The decoded UTF-16 launcher error is now the tool's own explanation, and it converges with the host_state_defect section below, which was measured independently."
+    },
+    {
+      "id": "L5",
+      "what": "Fully deployed acceptance: both fixtures called through the deployed MCP server on the Windows host.",
+      "overlap": {
+        "call": "onshape_interference_check(step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\overlap.step')",
+        "verdict": "interference",
+        "counts": {
+          "parts": 2,
+          "selected_parts": 2,
+          "candidate_pairs": 1,
+          "checked_pairs": 1,
+          "interfering": 1,
+          "touching": 0,
+          "pairs_truncated": false
+        },
+        "pair": {
+          "a": "solid_01",
+          "b": "solid_02",
+          "overlap_mm": [
+            2.0000002,
+            3.0000002000000006,
+            4.000000200000001
+          ],
+          "intersection_volume_mm3": 23.999999999999996,
+          "zero_volume_contact": false
+        },
+        "backend": {
+          "owningMode": "onshape_rest_api_mode",
+          "configPath": "C:\\\\MCP\\\\onshapescript\\\\onshape_rest_api_mode\\\\config\\\\geometry-backend.json",
+          "converter": "/mnt/c/MCP/onshapescript/fdm_analysis/conversion/cadquery_interference.py",
+          "fallback": false
+        },
+        "exitCode": 0,
+        "reportSha256": "91bfce6f02e988a4412d5931fbe36baa1c1388d830cc0fa5e49397f0124962e0",
+        "analytic": "24.0 mm^3"
+      },
+      "interlock": {
+        "call": "onshape_interference_check(step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\interlock.step')",
+        "verdict": "clean",
+        "counts": {
+          "parts": 2,
+          "selected_parts": 2,
+          "candidate_pairs": 1,
+          "checked_pairs": 1,
+          "interfering": 0,
+          "touching": 1,
+          "pairs_truncated": false
+        },
+        "pair": {
+          "a": "solid_01",
+          "b": "solid_02",
+          "overlap_mm": [
+            3.0000002000000006,
+            3.0000002000000006,
+            10.0000002
+          ],
+          "intersection_volume_mm3": 0.0,
+          "zero_volume_contact": true
+        },
+        "exitCode": 0,
+        "reportSha256": "e477fc915ff0e2f1221018f5cedb1e0ba1d2a3616de9ec2ede3daf5ea4000f4f",
+        "analytic": "the boxes overlap 3x3x10 mm while the solids share no volume at all"
+      },
+      "note": "Both ran the converter shipped ON THE HOST (/mnt/c/MCP/onshapescript/...), through wsl.exe -d Ubuntu, and neither wrote a file: report='stdout' with no reportPath. The interlock row is the whole point of the issue -- a bounding-box-only check would have called that a clash."
+    },
+    {
+      "id": "L6",
+      "what": "The browser-mode geometry config was repaired too, and its own command was proven to run.",
+      "evidence": "Byte-level replacement of the single occurrence of the wrong distribution name in C:\\\\MCP\\\\onshapescript\\\\onshape_browser_mode\\\\config\\\\geometry-backend.json (a diff against the backup shows exactly that one line changed). That config's own command was then run through the launcher: wsl.exe -d Ubuntu --exec /home/lijq/code/CadQ/.venv/bin/python /home/lijq/code/onshapescript/fdm_analysis/conversion/cadquery_step_to_stl.py --input <overlap.step> --output /tmp/stl-check/probe.stl --linear-tolerance-mm 0.05 --angular-tolerance-degrees 5 -> exit 0, converted=true, shapeCount=1, byteCount=1284, cadqueryVersion=2.8.0, and a real 1284-byte binary STL on disk.",
+      "note": "This repairs a pre-existing breakage for every host-side user of that config, not just this check."
     }
   ],
   "host_state_defect": {
@@ -85,12 +156,18 @@
     "discovery_agrees": "onshape_geometry_status on the host reports the WSL candidate da4a6b54820703d9b763 with distribution 'Ubuntu', i.e. live discovery knows the right name while the stored config keeps the wrong one.",
     "impact": "Not specific to this feature: onshape_build_geometry_package and every other host-side user of the configured geometry backend fail the same way. browser.ready=true in that status is a CONFIG-level readiness and is not a probe that the command runs.",
     "sanctioned_repair": "onshape_configure_geometry_backend(backend='rest', candidate_id='da4a6b54820703d9b763', confirm_mutation=true) after a dry_run preview. That writes only onshape_rest_api_mode/config/geometry-backend.json (operator state, never touched by an upgrade) and makes this mode's own config the primary for the interference check; the browser config is left alone.",
-    "authority": "A production configuration write needs the user's explicit approval, so it was NOT performed in this session. It is the only remaining step between the measured results above and a fully deployed live run."
+    "authority": "A production configuration write needs the user's explicit approval, so it was NOT performed in this session. It is the only remaining step between the measured results above and a fully deployed live run.",
+    "repair": {
+      "approved_by": "the user, in this session (both the sanctioned tool write and the manual browser-config edit)",
+      "rest": "onshape_configure_geometry_backend(backend='rest', candidate_id='da4a6b54820703d9b763', dry_run=true) previewed first, then the same call with confirm_mutation=true. Wrote onshape_rest_api_mode/config/geometry-backend.json: enabled=true, distribution Ubuntu, script /mnt/c/MCP/onshapescript/fdm_analysis/conversion/cadquery_step_to_stl.py.",
+      "browser": "byte-level distribution-name fix in onshape_browser_mode/config/geometry-backend.json",
+      "recovery_point": "both files copied to temp/geometry-config-rollback-20261003T135403/ before either write (sha256 f3297357a2bbabbcd9eb2b86f0f023bd32c203f0d0596cd11878199dddbf494d and f79cf2a66737af332cda7e3425739efe30b367b648008edb3a6b2ca692264751)",
+      "resolved": true
+    }
   },
   "how_to_finish": [
-    "Get explicit approval for the sanctioned repair above (or accept the browser config's distro name being corrected by hand on the host).",
-    "Call onshape_interference_check(step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\overlap.step') and expect verdict=interference with intersection_volume_mm3 23.999999999999996.",
-    "Call the same for interlock.step and expect verdict=clean with zero_volume_contact true and interfering 0.",
-    "Append both raw results here and drop the fixtures from C:\\MCP\\onshapescript\\artifacts\\interference-acceptance."
+    "Re-run the two calls on the final artifact after any further change; the expected numbers are the ones recorded in L5.",
+    "The browser leg is the only remaining live item: onshape_docs/verification/pending-live-verification-2026-10-03.json T1-T5, which needs a human-signed-in browser and an assembly document.",
+    "Drop C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance when the fixtures are no longer useful."
   ]
 }
