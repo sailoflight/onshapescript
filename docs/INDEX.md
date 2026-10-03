@@ -40,6 +40,7 @@ smallest exact module or verification section. Domain knowledge remains under
 | Plan app-generic (cross-studio) browser L2 semantics | `roadmap/BROWSER_GENERIC_L2_SEMANTICS.md` | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md`, `roadmap/DYNAMIC_TOOL_DISCOVERY.md` |
 | Find the deduped list of every planned browser tool | `roadmap/BROWSER_PLANNED_TOOLS.md` | `roadmap/BROWSER_FS_SEMANTIC_TOOLS.md`, `roadmap/BROWSER_GENERIC_L2_SEMANTICS.md`, `roadmap/BROWSER_MODELING_GAPS.md` |
 | Plan cross-plane geometry handoff (Onshape ↔ CadQ ↔ MeshQ) | `roadmap/THREE_PLANE_GEOMETRY_INTEROP.md` | The target module contract, then the other planes' own boundary documents |
+| Check what the three-plane negotiation settled, and with which evidence | `roadmap/THREE_PLANE_NEGOTIATION_LEDGER.md` | the row's own evidence command, then `roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` §5/§9/§10 |
 | Review the cross-plane handoff artifact shape | `roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` | `roadmap/THREE_PLANE_GEOMETRY_INTEROP.md` §8, then `fdm_analysis/contracts.py` |
 | Plan the print-fit split and its injection points (who judges printability) | `roadmap/PRINT_FIT_INTERFACE_DRAFT.md` | `roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` §4/§5, then `fdm_analysis/contracts.py` (`SliceProfile`) and `fdm_analysis/metrics/stl_geometry.py` |
 | Inspect the generated tool surface | `generated/TOOL_REFERENCE.md` | Authoritative schema and handler in `mcp_main` |
