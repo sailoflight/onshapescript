@@ -46,7 +46,7 @@ if verdict is not None:
 | 打印判定的**输入**跟判定一起走吗 | CadQ 悬垂表 **340 行 / 70 件**，列 `part,face,geom,area_mm2,z_mm,normal_z,worst_drop_mm,needs_support`；**没有一行缺输入** | ✅ |
 | 判定能由**发出来的列**重算吗 | **不能**：`worst_drop_mm = 4.0` 同时出现在 `True` 与 `False` 两种判定里；且 `1.5 → True` 而 `1.747 / 2.328 / 3.058 / 10.1 / 11.2 / 114.55 → False` | ❌ **缺陷 E6** |
 | 声明出来的配合目标**有主人**吗 | `fit-gap-r17.json` / `fit-gap-all-r22.json`：`target_mm = 0.15`，行结构 `part/gap_before/gap_after/action`，**没有任何 owner 字段** | ❌ **缺陷 E7** |
-| 对端怎么给"最小壁厚" | 其信 289/290 的最终答案是 `unknown`（本平面的 `min_wall` 同样是 `unknown` + 原因：**两侧独立给出同一个答案**）。注：本轮 grep 它仓 `artifacts/` **找不到 `minWall` 字段**，所以这条按"**引自来信**"记，不当成本轮实测 | ⚠️ 来信级证据 |
+| 对端怎么给「最小壁厚」 | **实测修正（2026-10-04 晚）**：在其 `contract-slice/work_slice_clean/meshq_result.json` 里 `wall_thickness` 是 `grade: "heuristic"` + `method: "ray-cast along -normal from face centres"` + `samples 72 / hits 72` + `min_mm 4.0` + `p05 4.0 / median 8.5022 / max 17.1302` + `caveat: unreliable at bevels, embossed text and sliver faces` + `blocking: false` —— **不是 `unknown`**：上一轮我按来信记成 unknown 是**错的**，此处更正（`minWall` 字段名对不上，它在别处的另一支探针里才是 unknown）。 | ⚠️ 逐单元 `value` 缺 `unit` 归属，且与本平面的 `min_wall: unknown` **并不一致**——这正是要跟对端对的点 |
 
 ## 3. 因此②的接口结论（三条）
 
