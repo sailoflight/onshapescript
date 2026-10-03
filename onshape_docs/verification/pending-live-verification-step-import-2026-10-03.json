@@ -1,6 +1,6 @@
 {
   "probe": "Pending live verification for the browser-leg STEP import (`onshape_browser_mode/step_import.py`). The module landed with 17 offline tests and no live run: the Import dialog has never been opened by this code, so its four selector constants are candidates, not observations. Nothing here is a finding against the code -- it is the list of facts a live session must supply before the entry point can be trusted. The VERDICT half does not depend on them: the landing proof reads the tab bar (`.os-tab-bar-tab`) and the Part Studio user-feature rows (`.os-list-item.ns-user-feature`), both live-observed, so an unverified entry point cannot manufacture a success.",
-  "status": "live-confirmed: entry route, file input, submit control, digest addressing; the landing judge was found defective by attempt 2, fixed, confirmed by attempt 3. A target-tab guard and a tab-bar second probe were added after the into-part-studio run proved both hazards real. I4 remains open in its original terms because this UI lands the import as a new element rather than as a feature row in the active Part Studio; the confirming live run of the new landed_as_new_element verdict is pending.",
+  "status": "live-confirmed: entry route, file input, submit control, digest addressing, and (after three code fixes found by live runs) the landing judges -- new-tab attributes a real 24-hex element, and into-part-studio now reports landed_as_new_element instead of a false 'nothing happened'. Remaining: the three dialog/file-input/submit selectors stay unvalidated by the ledger's own terms because a successful run does not prove the selector was the necessary one; and the tab rows this session created are still in the document.",
   "session": "2026-10-03 (offline implementation); the live run below is NOT yet done",
   "environment_when_implemented": {
     "repo": "onshapescript, see the commit that added this file",
@@ -473,7 +473,7 @@
     "third_defect_found_by_reading_the_tabs_later": {
       "observation": "the tab list read after those calls contains TWO elements that did not exist before: `model (2)` (97c1c7f7955e3bfdce6d3025) and `model (3)` (0060f68a44058f0231aec5f7) -- one per into-part-studio call",
       "why_the_feature_row_reads_missed_it": "`model` (itself a translation element) also carries its own `Import 1` feature row, so the `Import 1` seen in `model (1)` was THAT element's own translation feature -- not an insertion. Each call created a new element, and the feature-row probe watches the active tab, so it could not see it",
-      "inference_not_fact": "one call -> one new element is consistent with two calls and two new tabs, but the tabs were not read immediately before/after each call, so the attribution is an inference, not a measurement",
+      "inference_not_fact": "UPGRADED TO MEASUREMENT by confirming_run_after_the_fix_2026-10-03: one into-part-studio call created exactly one new element (model (4)) with the feature rows unchanged. The original attribution for model (2)/model (3) is therefore confirmed by a direct observation of the same behaviour.",
       "conclusion": "this UI's import dialog lands the translation as its OWN document element; it offers no insert-into-the-active-Part-Studio destination this tool was able to use. `mode=into-part-studio` therefore cannot keep its promise here, and its proof was blind to the real effect -- a false negative, never a false success",
       "fix": "the mode now watches the tab bar as a second probe: a new document element with no new feature row answers imported=false / reason=landed_as_new_element and names that element; two or more are refused as ambiguous_new_elements. The plan and the tool description state it.",
       "document_state_after": {
@@ -488,6 +488,58 @@
           "CAD 导入 (CADImportBlobs) -- Onshape's CAD-import bookkeeping row"
         ],
         "cleanup": "browser_delete_element can remove any of the four; the bookkeeping row is not a normal element and may refuse"
+      }
+    },
+    "confirming_run_after_the_fix_2026-10-03": {
+      "call": "mode=into-part-studio, target_tab='model' (the active tab), revision 9e9ab5b, node generation 8, timeout_ms=45000",
+      "verdict": {
+        "imported": false,
+        "reason": "landed_as_new_element",
+        "newElement": {
+          "name": "model (4)",
+          "elementId": "f992bcd1458ea4cecd390b2d"
+        },
+        "newTabRows": [
+          {
+            "name": "model (4)",
+            "elementId": "f992bcd1458ea4cecd390b2d",
+            "group": false
+          }
+        ],
+        "internalRows": [],
+        "spentQuota": 0
+      },
+      "proof_reads": {
+        "featureRowsBefore": [
+          "Import 1"
+        ],
+        "featureRowsAfter": [
+          "Import 1"
+        ],
+        "polls": {
+          "reads": 7,
+          "changed": true
+        }
+      },
+      "what_it_closes": [
+        "the destination is now MEASURED, not inferred: one into-part-studio call created one new document element and added no feature row to the active Part Studio",
+        "the second probe is what ended the wait: 7 polls (~3.5 s) versus the 45 s the feature-row probe alone would have spent before answering no_new_element (a false negative)",
+        "the feature-row read is also clean now: `['Import 1']` with no rollback-bar holder empty row"
+      ],
+      "I4_answer": "mode=into-part-studio cannot land as a feature row in this UI: the import dialog always creates its own element. The mode's honest verdict is landed_as_new_element (imported=false, element named) -- a new-tab import is the supported operation here.",
+      "document_state_after": {
+        "tabRows": 16,
+        "elementsThisSessionCreated": [
+          "model (c29f29f7528d07d5b290421c)",
+          "model (1) (7c67d0e3308cb6af15ca6fb1)",
+          "model (2) (97c1c7f7955e3bfdce6d3025)",
+          "model (3) (0060f68a44058f0231aec5f7)",
+          "model (4) (f992bcd1458ea4cecd390b2d)"
+        ],
+        "internalRows": [
+          "CAD 导入 (CADImportBlobs)"
+        ],
+        "baselineBeforeThisSession": 10
       }
     }
   }
