@@ -576,6 +576,15 @@ condition it cannot observe.
     while this repository's mesh field matches the bytes on 70/70). A reader that trusts the field over the
     bytes sees a geometry difference that does not exist, and the reverse ordering would have blamed the
     artifact.
+18. A rule set that only says what to do when a field is PRESENT → refuse the rule set. **An absent or
+    null field must be as loud as a field that says no**, because "undeclared" is not "fine" — and it is
+    more dangerous than an explicit no, since nobody reads a field that is not there. Measured, not
+    theorised: ten adversarial variants were run against this repository's print-basis guard and **six were
+    blocked while four passed silently**, all four of the same family — the whole `orientation` block
+    deleted, `applicable` set to null, an `unknown` thickness grade with no reason, and two null reference
+    points. Every rule in the guard had been written as "what to do when the field says X"; deleting the
+    field deleted the rule. So a required field is *required* (a missing one is a refusal, not a default),
+    `null` is distinguished from absent, and the checker is tested with the field **deleted**.
 
 ## 6. Naming and key-set conformance: closed in v0.4
 
@@ -670,6 +679,41 @@ From the same join, on CadQ's 70 solids and this repository's 70 pieces:
   schema 0.1 and 0.2 while every STL byte stayed the same). Hence `identity_rule.version` (this repository
   publishes `onshapescript.mesh-set-signature/1`) and a peer-side `signature_schema`; **a digest comparison
   starts by comparing rules, never digests**.
+
+### The absent-field half of every rule, and why the fixtures hid it
+
+A rule set can be entirely correct field-by-field and still fail open, because "what to do when the field
+says X" says nothing about the field being gone. Measured on this repository's own guard (ten adversarial
+variants, MeshQ 182):
+
+| Variant | First version | Now |
+|---|---|---|
+| A the real handoff | accepted ✓ | accepted ✓ |
+| B caller prints in another direction | rule 5 ✓ | rule 5 ✓ |
+| C `print` block present but all values null | rule 1 ✓ | rule 1 ✓ |
+| D the whole `orientation` block deleted, readings kept | **accepted** | rule 2 |
+| E `orientation.applicable` null, readings kept | **accepted** | rule 2 |
+| F `grade: unknown` with no reason | **accepted** | rule 4 |
+| G the producer stamps `printable: true` | rule 3 ✓ | rule 3 ✓ |
+| H the per-piece `at` deleted | rule 1 ✓ | rule 1 ✓ |
+| I `print: {}` | rule 1 ✓ | rule 1 ✓ |
+| J `envelope.declared_by` names the producer | rule 3 ✓ | rule 3 ✓ |
+| K the reference point null at both levels | **accepted** | rule 1 |
+
+Two lessons, both about the *tests* rather than the rules:
+
+1. **A fixture that always fills every field cannot see this class.** The guard's own test helper supplied
+   `orientation`, `at.reference_point` and `min_wall.reason` on every call, so the absent path was never
+   constructed — which is exactly the shape of "the test pins the weakness" seen earlier, one level up: the
+   first pins a weak value, this one never builds the weak path.
+2. **Per required field, build one fixture with the field absent** (and one with it null). That is now a
+   practice, not an intention (see §10), and it is why the guard ships with all ten variants as tests
+   instead of the ten values it was written for.
+
+This family now has four independent instances, one per plane and one per direction: an `applicable` flag
+used as an all-or-nothing gate (MeshQ), a winding check whose welding precondition was forgotten (CadQ),
+a field name that over-claimed what it computed (`outwardOriented`, this repository), and this guard whose
+rules evaporated on deletion.
 
 ### A tolerance is derived from the measured spread across readers, and each quantity names its own precision
 
@@ -827,6 +871,10 @@ that is portable to any future plane.
     this repository as the 1). The rule that follows is the same one this repository applies to its own
     `send`-style tools: **never carry a claim of receipt that the receipt tool would not confirm**, and
     after any ack, re-ask the tool rather than the memory of having seen a confirmation line.
+14. **Test the deletion, not only the value.** Every required field gets one fixture with the field
+    absent and one with it null, because a fixture that always fills them proves nothing about the path
+    where they are gone — four of ten adversarial variants passed this repository's own guard for exactly
+    that reason.
 13. **Refusals are the interface.** Every conclusion above is written as something a consumer can refuse
     (rules 1-17), because a shared contract that cannot say "no" is a convention, not a boundary.
 
@@ -852,6 +900,7 @@ that is portable to any future plane.
 | Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
+| An absent field must be as loud as a false one | Ten adversarial variants against the print-basis guard: six blocked, four passed silently (deleted `orientation`, `applicable: null`, a silent `unknown`, two null reference points) — all four refused after rule 18, pinned by `test_the_field_is_absent_paths_are_as_loud_as_the_false_ones` and `test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured` |
 | A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as a practice, not hidden; this repository's withdrawn ramp result is superseded in place |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |

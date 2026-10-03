@@ -81,6 +81,72 @@ class PrintBasisGuardTest(unittest.TestCase):
         # ... and the caller's own direction is accepted without complaint.
         self.assertTrue(check_print_basis(manifest(), build_direction=[0.0, 0.0, 1.0])["ok"])
 
+    def test_the_field_is_absent_paths_are_as_loud_as_the_false_ones(self):
+        """MeshQ 182 ran ten adversarial variants against the first version of this guard: six were
+        blocked, four passed SILENTLY, and all four were one family -- *field absent, rule evaporates*.
+        The fixture in this file helped hide it: `piece()` always filled every field, so the absence path
+        had never been constructed. These are its four variants, each now refused.
+        """
+        # D: the whole orientation block deleted, direction-derived readings kept.
+        deleted = piece(0)
+        deleted["mesh"].pop("orientation")
+        result = check_print_basis(manifest(pieces=[deleted]))
+        self.assertFalse(result["ok"], "a deleted orientation verdict must be as loud as a false one")
+        self.assertEqual(result["refusals"][0]["rule"], "print-fit §4 rule 2")
+        self.assertIn("undeclared is not OK", result["refusals"][0]["required_fix"])
+
+        # E: applicable = null ("unknown" read as "nothing to complain about").
+        unknown = piece(0)
+        unknown["mesh"]["orientation"] = {"applicable": None, "consistent": None}
+        self.assertFalse(check_print_basis(manifest(pieces=[unknown]))["ok"])
+
+        # F: a silent `unknown` -- a skipped reading with no stated reason.
+        silent = copy.deepcopy(manifest()["declaration"]["print"])
+        silent["min_wall"] = {"value_mm": None, "grade": "unknown"}
+        self.assertFalse(check_print_basis(manifest(block=silent))["ok"])
+        noisy = copy.deepcopy(silent)
+        noisy["min_wall"]["reason"] = "no thickness analyzer is installed on this host"
+        self.assertTrue(check_print_basis(manifest(block=noisy))["ok"])
+
+        # K: both reference points null -- the reference point decides whether a direction defect is
+        # observable at all, so a null one is an incomplete basis, not a neutral default.
+        no_ref = copy.deepcopy(manifest()["declaration"]["print"])
+        no_ref["reference_point"] = None
+        result = check_print_basis(manifest(block=no_ref))
+        self.assertFalse(result["ok"])
+        self.assertIn("observable", result["refusals"][0]["required_fix"])
+
+    def test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured(self):
+        """The whole variant set, so the guard cannot regress into "six of ten" again."""
+        blocked = {}
+
+        blocked["A_real"] = check_print_basis(manifest())["ok"]
+        blocked["B_other_direction"] = check_print_basis(manifest(), build_direction=[0.0, 1.0, 0.0])["ok"]
+
+        null_block = {key: None for key in manifest()["declaration"]["print"]}
+        blocked["C_null_print_block"] = check_print_basis(manifest(block=null_block))["ok"]
+        blocked["I_empty_print_block"] = check_print_basis(manifest(block={}))["ok"]
+        self.assertFalse(blocked["C_null_print_block"])
+        self.assertFalse(blocked["I_empty_print_block"])
+
+        stamped = copy.deepcopy(manifest()["declaration"]["print"])
+        stamped["printable"] = True
+        blocked["G_producer_verdict"] = check_print_basis(manifest(block=stamped))["ok"]
+
+        foreign = copy.deepcopy(manifest()["declaration"]["print"])
+        foreign["envelope"]["declared_by"] = "cadq"
+        blocked["J_foreign_envelope"] = check_print_basis(manifest(block=foreign))["ok"]
+
+        no_at = piece(0)
+        no_at["mesh"].pop("at")
+        blocked["H_no_at"] = check_print_basis(manifest(pieces=[no_at]))["ok"]
+
+        # A passes; every other variant must be refused.
+        self.assertTrue(blocked.pop("A_real"))
+        self.assertEqual(set(blocked), {"B_other_direction", "C_null_print_block", "G_producer_verdict",
+                                        "H_no_at", "I_empty_print_block", "J_foreign_envelope"})
+        self.assertFalse(any(blocked.values()), blocked)
+
     def test_a_direction_derived_reading_on_a_non_applicable_winding_is_refused(self):
         result = check_print_basis(manifest(pieces=[piece(0, applicable=False)]))
         self.assertFalse(result["ok"])

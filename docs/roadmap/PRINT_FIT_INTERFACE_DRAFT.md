@@ -18,7 +18,15 @@ thickness value under an `unknown` grade, a direction-derived reading on a non-a
 and the reuse of readings at another build direction. Run against the real regenerated 70-piece
 manifest it accepts (`ok: true`, 0 refusals); asked about a caller printing in `[0, 1, 0]` it refuses
 with rule 5. **It returns readings and never a verdict**, because printability is the caller's
-comparison against an envelope the caller declares — 7 tests in `dev/tests/test_print_basis.py`.
+comparison against an envelope the caller declares.
+
+Then MeshQ attacked it (182): ten adversarial variants, **six blocked and four passed silently** —
+a deleted `orientation` block, `applicable: null`, a silent `unknown`, two null reference points.
+All four were the same family (*field absent, rule evaporates*), and the guard's own fixture had
+helped hide it by always filling every field. §4 is now enforced against absence too (a required
+field is required, `null` is not `present`, `unknown` needs its reason), and the test file contains
+**all ten variants** so the guard cannot slide back to six of ten; the real 70-piece manifest is
+still accepted with 0 refusals, and variant D against it now yields 70 refusals.
 **Owner of this file:** onshapescript. **Companion of:** `THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` (the
 geometry handoff) — this one is about the step after it: who turns a geometry handoff into a printability
 statement, and where the declarations that decide it enter.
