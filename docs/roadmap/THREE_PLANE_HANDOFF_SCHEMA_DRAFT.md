@@ -545,7 +545,9 @@ producer wants to publish which tolerance binds, it must **publish the measureme
     * **winding-dependent → must go `applicable: false`**: signed / divergence volume,
       `outwardOriented`, and **every direction-derived reading** — `overhang` area, counted overhang
       faces, `worst_tilt_deg`. Measured here: flipping one slope's winding moved the counted overhang
-      area from **0.0 to 565.192416792** (the retracted ramp, §8), i.e. the reading is a function of
+      area from **0.0 to 565.192416792** (the retracted ramp; the retraction and its replacement
+      fixture are recorded in `onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md`), i.e.
+      the reading is a function of
       the normals.
     * **winding-independent → must STAY readable**: `area_mm2` (it is `Σ|Aᵢ|`, so the winding never
       enters), face / triangle / vertex counts, and `bounds_mm`. MeshQ measured `surface_area_mm2 =
@@ -629,6 +631,11 @@ copy drifts".
   `index` is display order and not identity, holds that a bounding-box overlap is a candidate and never
   a verdict, and states it has **no** "printable" field at all: it computes geometry plus the truth of a
   *caller-declared* threshold, and never stamps a verdict onto anyone's artifact.
+
+## 8. Cross-plane findings (each with the measurement that settled it)
+
+Six findings that are not about the artifact's shape but about how a measurement behaves. Each one changed
+a field or a rule, and each one is here because a measurement contradicted an assumption.
 
 ### A reading declares the state it was taken in, because an action changes it
 
@@ -838,7 +845,7 @@ that is portable to any future plane.
    answers (max gap `3.19e-2 mm`); the fix was not a looser tolerance but a declared family per field.
 4. **Every reading declares the state/action it was taken in.** `cq.exporters.export` mutating the cached
    box, a self-comparison over two post-export numbers, a scratch file derived inside an input directory,
-   and a wait publishing only `elapsedMs` are one defect class (see §4).
+   and a wait publishing only `elapsedMs` are one defect class (see §8).
 5. **The bytes are the referee for a delivered artifact.** Two producers' STL files byte-identical
    piece-for-piece settle which of two bounds fields is wrong (`399.9` vs its own bytes'
    `399.8999938964844`), with no kernel needed in the loop.
@@ -878,7 +885,35 @@ that is portable to any future plane.
 13. **Refusals are the interface.** Every conclusion above is written as something a consumer can refuse
     (rules 1-17), because a shared contract that cannot say "no" is a convention, not a boundary.
 
-## 8. Evidence
+### The consumer's half of the identity rule (implemented)
+
+`fdm_analysis/conversion/identity_check.py::check_identity_against()` is the counterpart of the print-basis
+guard, and the check the import leg needs before anything downstream trusts a converted artifact. Given a
+handoff and the readings a consumer took on what it holds, it reports per quantity: status, both values, the
+difference, the declared tolerance and **the measurement that derived that tolerance** — or a refusal,
+naming which rule and what to fix. Four properties are deliberate:
+
+* **units are checked first and a mismatch is a refusal, not a scale factor** (an inch-vs-mm import is a
+  silent 25.4x change, and a 25.4x error inside a tolerance comparison reads as a correct transfer);
+* **the tolerance comes from the manifest, never from the checker** — and a tolerance with no
+  `equivalence_tolerance_basis` entry is refused, because a bound that only fits its author fails correct
+  peers;
+* **the rule precedes the digest**: a `identity_rule.version` mismatch returns `not_comparable` instead of
+  reporting a difference;
+* **per-piece quantities report the per-piece maximum, the worst piece index, the outside count and a
+  bounded list of the offenders**, never an aggregate alone; and a bounds comparison is only made inside the
+  `bounds_family` the rule declares (an undeclared family is `not_compared`, not a guess).
+
+It also carries the single mapping between the rule's quantity names and the artifact's field names
+(`brepVolumeMm3` ↔ `brep.volume_mm3`), because the boundary has two naming systems and §2d row 10 already
+decided that there is exactly one mapping at the boundary.
+
+Measured: run against the **real 70-piece handoff** with its own readings it accepts and compares 70/70
+pieces with 0 outside; shift every volume by 0.1 % and it reports 70 outside with the worst piece named.
+Eight tests in `dev/tests/test_identity_check.py`, one of which skips itself when the drop directory is
+absent so the suite stays offline-clean.
+
+## 11. Evidence
 
 | Claim | Evidence |
 |---|---|
@@ -900,6 +935,7 @@ that is portable to any future plane.
 | Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
+| The identity rule needs a consumer-side checker | `fdm_analysis/conversion/identity_check.py` + `dev/tests/test_identity_check.py` (8 tests, one against the real 70-piece handoff): units first, tolerance from the manifest with its basis required, rule before digest, per-piece maximum with worst piece, bounds only inside the declared family |
 | An absent field must be as loud as a false one | Ten adversarial variants against the print-basis guard: six blocked, four passed silently (deleted `orientation`, `applicable: null`, a silent `unknown`, two null reference points) — all four refused after rule 18, pinned by `test_the_field_is_absent_paths_are_as_loud_as_the_false_ones` and `test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured` |
 | A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as a practice, not hidden; this repository's withdrawn ramp result is superseded in place |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
