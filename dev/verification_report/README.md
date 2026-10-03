@@ -32,7 +32,7 @@ Exit codes follow the house convention of `dev/tools/check_handoff.py`:
 2  the input could not be read
 ```
 
-## The 13 rules (all binding since 2026-10-04)
+## The 14 rules (13 binding since 2026-10-04, 1 proposed)
 
 `rules.py::RULES` is the rule table **as data**: id, evidence layer, the fixture that
 exercises it, and **`measured_basis` — the real incident the rule rests on, naming which
@@ -65,6 +65,18 @@ rejecting reports. `RuleAdmission` proves **both** directions —
 `test_the_machinery_still_protects_the_next_unconfirmed_rule` (flipped back to `proposed` in memory, it
 refuses nobody and still reports the impact).
 
+**R14 (PROPOSED, so it refuses nobody): a non-zero relative accuracy bound with no range it holds over.**
+Measured by this plane on CadQ's real delivery (`cad_agent/output/three-plane`, ang 0.1 / 0.3): its declared
+`achieved <= 2.414e-6 relative` holds only for the worst part, and that part is the one **farthest from the
+origin** (399.9 mm), while the whole-part aggregate is `1.006e-07` — 24x better. A relative error over a
+float32 tessellation is position-dependent, so a consumer cannot tell which parts a relative-only bound
+covers; an `absolute` bound does **not** clear this, because rule R6 already requires one and a record can
+carry both. It constrains the **peers'** records, so it goes through the same admission gate that held R13:
+it is reported under `proposedRefusals` with the impact it *would* have, and one word from MeshQ/CadQ binds
+it — after which its fixture `bad__R14__relative_bound_without_scope.json` starts refusing. Its own fixture
+is expected to be **accepted** while the rule is proposed, and the tests check all three directions
+(proposed → reported, binding → refused, and the satisfiable case where `scope` clears it).
+
 ## Negative samples: admission vs unit test
 
 Two classes are deliberately kept apart (interface decision §6.1):
@@ -75,7 +87,7 @@ Two classes are deliberately kept apart (interface decision §6.1):
   exercise *this* code. They are never evidence.
 
 `dev/tools/build_verification_fixtures.py` generates one good slice and one bad sample per
-rule (R7 and R8 have two) — **17 bad + 1 good** — plus `expected_verdicts.json` and, for rules that are
+rule (R7 and R8 have two) — **18 bad + 1 good** — plus `expected_verdicts.json` and, for rules that are
 not binding yet, `expected_proposed.json` (their fixtures must be *accepted* while proposed; it is empty
 while every rule is binding, and it is what the next unconfirmed rule would land in):
 
@@ -120,7 +132,7 @@ The real result file supplies a real digest, a real **unstable** digest *with it
 embeds `started_at`/`build_seconds`/`total_seconds`), the peer's declared tessellation (`segments=12`,
 `rings=6`) inside the reading family, its real achieved spread (`2.827e-06` against its own limit),
 and its bound family read under the **second** accepted name (`boundsAlgorithm`). The slice passes
-13/13 binding rules and its projection machine-checks.
+13/13 binding rules (plus one proposed rule that refuses nobody) and its projection machine-checks.
 
 **A negative result worth keeping:** copying the peer's `inspection.verdicts.*.pass` verbatim into a
 report is **refused by R9**. The adapter counts the verdicts and does not copy them: a verdict is only

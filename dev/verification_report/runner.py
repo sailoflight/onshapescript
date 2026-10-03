@@ -337,6 +337,45 @@ def _r13_self_consistency(report: dict, fail) -> None:
             )
 
 
+def _bound_without_scope(node: Any) -> bool:
+    """A non-zero numeric `relative` bound that names no range it holds over (rule R14)."""
+    if not isinstance(node, dict):
+        return False
+    relative = node.get("relative")
+    if isinstance(relative, bool) or not isinstance(relative, (int, float)) or relative == 0:
+        return False
+    # `absolute` does NOT clear this: rule R6 already requires an absolute bound, so a record can carry
+    # both and still leave a consumer unable to tell which parts its non-zero relative bound covers.
+    scope = node.get("scope")
+    return not (isinstance(scope, str) and scope.strip())
+
+
+def _r14_relative_scope(report: dict, fail) -> None:
+    for claim in _claim_list(report):
+        criterion = claim.get("criterion") if isinstance(claim.get("criterion"), dict) else {}
+        tolerance = criterion.get("tolerance") if isinstance(criterion.get("tolerance"), dict) else {}
+        if _bound_without_scope(tolerance):
+            fail(
+                "R14",
+                f"claims[{claim.get('id')}].criterion.tolerance",
+                "a relative tolerance declares no range it holds over",
+                "publish `scope` (where the bound holds, in mm from the source origin) or give an absolute "
+                "bound; in a float32 tessellation the relative error grows with distance from the origin",
+            )
+        readings = claim.get("readings") if isinstance(claim.get("readings"), list) else []
+        for index, reading in enumerate(readings):
+            achieved = reading.get("achieved") if isinstance(reading, dict) else None
+            if _bound_without_scope(achieved):
+                fail(
+                    "R14",
+                    f"claims[{claim.get('id')}].readings[{index}].achieved",
+                    "a non-zero relative accuracy bound declares no range it holds over",
+                    "publish `scope` next to absolute/relative (where the bound holds, in mm from the source "
+                    "origin); a relative error grows with distance from the origin, so without it no consumer "
+                    "can tell which parts the bound actually covers",
+                )
+
+
 _CHECKS: dict[str, Callable[[dict, Callable], None]] = {
     "R1": _r1_schema,
     "R2": _r2_producer,
@@ -351,6 +390,7 @@ _CHECKS: dict[str, Callable[[dict, Callable], None]] = {
     "R11": _r11_independence,
     "R12": _r12_projection,
     "R13": _r13_self_consistency,
+    "R14": _r14_relative_scope,
 }
 
 

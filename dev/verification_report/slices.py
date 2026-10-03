@@ -65,6 +65,11 @@ def build_meshq_report(
                             "absolute": absolute,
                             "relative": _relative(absolute, value),
                             "basis": str(achieved.get("basis")),
+                            # R14: a non-zero relative bound must say where it holds. This one is the
+                            # producer's declared precision for its OWN object in its own probe -- it is not
+                            # a bound over any other part, and this plane did not re-derive it.
+                            "scope": "the producer's own object in its own probe run; not a bound over any"
+                                     " other part, and not re-derived here",
                         },
                     }
                 ],

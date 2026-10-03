@@ -107,94 +107,82 @@ apply to every agent, not only Claude.
 <!-- inframanager:mailbox:start v1 -->
 ## 外部能力怎么用 —— 总入口 `infra-manager`
 
-本机装了 **15 个外部能力**（信箱、台账、任务图、会话检索等）。**正路是经 `infra-manager` 的公开 CLI 使用**；
-直接跑二进制也能出结果，但**没有闸门与记录**。
-
-> 本节由 `/home/lijq/code/agent-infra` 维护；改动只落成候选文件 `<目标>.new`（**在你仓库里新建一个文件**），
-> 默认不替换也不创建 `AGENTS.md`，由你方 agent 问过人再合入。
-
-### 1. 先解决"一条都跑不了"
-
-`am`/`br`/`bv`/`infra-manager` **都不在 PATH 上**（实测 `which` 全不中）⇒ **本节命令一律写绝对路径**，基于下面这些变量（版本号升级后会变）：
+`am`/`br`/`bv`/`infra-manager` **都不在 PATH**（`which` 四个全 rc=1，直接跑实测）；版本段命名不统一，
+路径均经 `ls` 核过。**命令一律用这些变量或绝对路径**：
 
 ```bash
 R=/home/lijq/code/agent-infra
-M=$R/infra-manager/bin/infra-manager.mjs                          # 管理器
-C=$R/docs/capability-pins-20260928/managed-capabilities.json
-V=$R/docs/capability-verb-surfaces-20260928
-S=$R/docs/verb-run-20260930/specs
-I=~/.local/share/infra-manager
-AM=$I/providers/am/am-0.3.36/am
+M=$R/infra-manager/bin/infra-manager.mjs ; C=$R/docs/capability-pins-20260928/managed-capabilities.json
+V=$R/docs/capability-verb-surfaces-20260928 ; S=$R/docs/verb-run-20260930/specs
+T=$R/docs/agent-mail-interop-20260930/tools ; I=$HOME/.local/share/infra-manager
+AM=$I/providers/am/am-0.3.36/am ; BR=$I/providers/beads-wsl/0.6.0/br
 ```
 
-**两条路，报数必须标路径**：**经管理器**有闸门、拒绝码、记录；**直接跑**
-没有闸门也没有账——`br` 的 `--help` 里**没有任何 `--confirm-*`**（实测），所以直接跑写动词 = **没闸门**。
-📌 每条实测都标 **经管理器** / **直接跑**，别把一个路径的结果当普遍结论。
+本机 **15 个外部能力**（`am`/`br`/`bv`…）。**正路是经 `infra-manager` 公开 CLI**
+（有闸门/拒绝码/记录）；直接跑没有这些（`"$BR" --help` 无 `--confirm-*`，匹配数 0，直接跑实测）。
+📌 **每条实测都标路径**（经管理器 / 直接跑）——两条路结果可能不同。本节由
+`/home/lijq/code/agent-infra` 维护：改动只落候选 `<目标>.new`（不替换/不创建 `AGENTS.md`），由你方 agent
+问人后合入。
 
-### 2. 先看这台机器有什么（只读；经管理器）
-
-```bash
-timeout 60 node "$M" provider coverage --catalog "$C" --install-root "$I"
-```
-
-`15/15` = 全部就位（经管理器实测）。**任何调用都自带超时**：没人听的端口是**丢弃**不是拒绝（直接跑）⇒ 永远写 `timeout`。
-
-**15 项清单**即它的输出：**台账的能力名是 `beads-wsl`（命令 `br`）**，
-信箱 `am`（`agent-collaboration`），任务图 `bv`（`task-graph-analysis`）；其余照它输出。
-
-### 3. 经管理器怎么调一个能力
-
-每个能力在 `$V/` 有一份**动词面**。先查闸门（只读）：
+### 经管理器：看家底 → 读闸门 → 先计划
 
 ```bash
+timeout 60 node "$M" provider coverage --catalog "$C" --install-root "$I"   # 15/15
 timeout 60 node "$M" provider verb-policy --file "$V/beads-wsl.json" \
-  --evidence-root "$R" --verb comments --json
-# rc=2 是预期的：decision.reason: "this verb requires --confirm-comments"（只读）
+  --evidence-root "$R" --verb comments --json      # rc=2，decision.reason 原文就是令牌
+timeout 90 node "$M" provider verb-plan --surface "$V/am.json" --verb capabilities \
+  --spec "$S/am-capabilities.json" --catalog "$C" --install-root "$I" --evidence-root "$R" --json
+# ↑ 均经管理器实测；verb-plan：rc=0/planned/executed=false。
 ```
 
-⚠️ `--evidence-root` **必须给仓库根**：不给，委托动词全判 `evidence_missing` **不可达**（实测 `reachable: 1`）。**令牌是 `--confirmation <闸门字符串>` 的值**，逐动词不同：`q` 的闸门是
-**`--confirm-create`**；裸写 `--confirmation` 会**吃掉下一个参数**。
+`--evidence-root` **必须给仓库根**（不给 `reachable:1`、给 `reachable:46`，经管理器实测）。`--spec` **恰好
+8 个键**：`args`/`binary`/`capability`/`env_allow`/`schema_version`(=1)/`scope`
+(=`capability-verb-launch-spec`)/`timeout_ms`/`verb`，多/少/常量错均 rc=1（经管理器实测；照
+`$S/am-capabilities.json` 抄，`manifest.json` 不是 spec）。`env_allow` 不列进去载荷看不见（`BEADS_DIR` 必须
+列）。`verb-run` = 上条换 `verb-run` + `--confirmation <令牌>` + `--confirm-verb-run`；`--state-root`：
+`verb-plan` 无 group/other 位即可（0700/0600 过、0755 ⇒ `state_root_exposed` rc=2，经管理器实测），
+`verb-run` 要 0700（**未复跑**）。
 
-先计划，再执行（下面这条已跑通：`planned`、`executed=false`，只读不执行）：
+### 台账 `br`：先钉 `BEADS_DIR`
+
+只给 `--db` 不够（报 `Cannot resolve the project .beads directory`，经管理器实测）；漏钉 `init` 建进丢弃的
+临时目录。
 
 ```bash
-timeout 90 node "$M" provider verb-plan \
-  --surface "$V/am.json" --verb capabilities --spec "$S/am-capabilities.json" \
-  --catalog "$C" --install-root "$I" --evidence-root "$R" --json
+BEADS_DIR=<项目>/.beads timeout 30 "$BR" list --json        # 对象 {issues,total,limit,offset,has_more}
+BEADS_DIR=<项目>/.beads timeout 30 "$BR" show <id> --json   # 数组（评论在 [0].comments；直接跑实测）
 ```
 
-把 `verb-plan` 换成 `verb-run`、有闸门时加 `--confirmation <令牌>`、再加 `--confirm-verb-run` 才是真执行
-（**本节未跑 `verb-run`**）；`verb-run` 还要 `--state-root`，该目录要**已存在且 0700**（`verb-plan` 上实测）。
-**规格**（`--spec`）是一份 JSON：`verb`/`args`/`env_allow`/`timeout_ms`/`scope`（样例 `$S/`）；
-**`env_allow` 是环境白名单**——变量不列在里面载荷就看不见它（台账的 `BEADS_DIR` **必须列进去**）。
+人改完 `<项目>/.beads/issues.jsonl` 要 `BEADS_DIR=<项目>/.beads "$BR" sync --import-only --rebuild`；
+`--import-only` 单独用是**静默空操作**（rc=0、DB 没变，经管理器实测）。答复/分类写
+`BEADS_DIR=<项目>/.beads "$BR" comments add <id> <文本>`、`BEADS_DIR=<项目>/.beads "$BR" label add <id> <名>`
+（两条**未复跑**）。⚠️ 三条**必须带 `BEADS_DIR`**：不带且 cwd 无 `.beads` 祖先 ⇒ rc=2 `NOT_INITIALIZED`
+（直接跑实测）。`--actor` 是**全局**选项，不给时 `author` 落 OS 用户名（help 原文三级回退，直接跑实测）。
+`bv` 无出口：只有 `version` 有规格（经管理器实测 planned），`--workspace` 无规格、`--robot-triage` 是带闸门写动词。
 
-### 4. 台账（`br` + `bv`）
+### 信箱 `am`：收发只有直接跑
 
-1. **工作区必须用 `BEADS_DIR` 钉住**，并写进规格的 `env_allow`：只给 `--db <绝对路径>` **不够**
-   （报 `Cannot resolve the project .beads directory`，经管理器实测），漏钉会让 `init` 把工作区建进
-   **每次丢弃的临时目录**。
-2. **写动词的闸门只在管理器里**：`br` 直接跑没有任何 `--confirm-*`（实测 `br close --help`）。
-   只读动词（`list`/`ready`/`show`/`search`…，23 个）不要令牌。
-3. **人改完 `<项目>/.beads/issues.jsonl`，要 `sync --import-only --rebuild` 才生效。**
-   ⚠️ `sync --import-only` **单独用是静默空操作**：退出 0、DB 一点没变（经管理器实测，仓内 2026-10-03）。
-4. **答复写进 `comments`**：`br comments add <id> <文本>`；分类 `br label add <id> <名>`（两条**未复跑**）。
-   `--actor <名字>` 是 **br 的全局选项**（不是 `comments` 的）：不给时 `author` 落**操作系统用户名**
-   （仓内直接跑实测 = `lijq`）。读评论走 `show --json`（免令牌）；`br comments <id>` 免令牌 `rc=0`（直接跑实测），**经管理器**却是 `writes:true`、闸门 `--confirm-comments`，不给令牌**被拒**。
+直接跑无兜底⇒一律套 `timeout`；经管理器由 `timeout_ms` 兜底（`$S/` 无这两条规格）。
 
-### 5. 信箱（`am`）
+```bash
+timeout 30 "$AM" inbox --project <项目> --agent <身份> --include-bodies --json
+timeout 30 "$AM" mail send --project <项目> --from <身份> --to <对端> --subject "<主题>" --body "<正文>"
+timeout 30 bash "$T/mail-route-check.sh" --project <项目> [--target <对端>]
+timeout 30 bash "$T/mail-delivery-receipt.sh" --project <发信项目> --message-id <id>
+```
 
-* **收**：`timeout 30 "$AM" inbox --agent <身份> --include-bodies --json`（`--project` 不给则按当前目录）
-  ——顶层键 **`inbox`**，正文要 `--include-bodies` 才有（**`body_md`**，直接跑实测）；⚠️ **默认只列未读**，
-  "对方说没收到"先用 `--all` 复核。
-* **发**：`timeout 30 "$AM" mail send --project <项目> --from <身份> --to <对端> --subject "<主题>" --body "<正文>"`
-  ⚠️ **`--project` 与 `--from` 是必需参数**，少一个 `rc=2`；**只有 `--body`，没有 `--body-file`**（**未真发**）。
-* **怎么知道对方真收到了**：**`signaled=false` 不是失败信号**（已签收也是 false，**零区分度**）；
-  真判据是**收据落在哪个 project_id**（消息按"**发送方当前项目**"落库）：`timeout 30 bash "$R/docs/agent-mail-interop-20260930/tools/mail-delivery-receipt.sh" --project <发信项目> --message-id <id>`
-  ——判决 **`not-in-this-project`**（形态 `NOT_FOUND`、退出 1；直接跑实测）= **你多半查错了项目，不代表消息丢了**。
-
-### 6. 出问题了找谁
-
-`/home/lijq/code/agent-infra` 是 owner。**复跑证据再问**，给三样：**命令、退出码、原文**。
+顶层键 **`inbox`**（数组）外还有 **`_alerts`**（带 `action` 的告警）：**别只读 `inbox`**；也**别**用"键在
+不在"判有无告警——实测**恒存在且非空**（直接跑实测），"缺键"不是判据。`--include-bodies` 才有
+`body_md`；默认只列未读，`--all` 才列全。`mail send` 五个参数全必填、少一个 rc=2，无 `--body-file`
+（**未真发**）。
+**投递闸门在发之前**：`"$T/mail-route-check.sh"`（只读；rc=0 投得达 / rc=1 收件人**或你的身份**不在该
+项目 / rc=2 查不了，直接跑实测）；未知项目必须显式 `--target`。收据只是**事后证据**（头部原文：证明不了
+"真收件人收到了"，闸门在**发前**）。判词**五种**（以 `"$T/mail-delivery-receipt.sh"` 头注释的**列表**为准，
+别看它那句"四种"——那句是错的）：
+`delivered-and-acknowledged`/`persisted-not-acknowledged`（rc=0）、**`shadow-suspect`（rc=1，收件人是发送时
+自动造的影子 ⇒ 很可能没人收到）**、`not-in-this-project`（rc=1，**≠**消息丢了，可能查错项目）、
+`cannot-determine`（rc=2，**不当作没问题**）；`signaled=false` 零区分度（直接跑实测）。owner 即本节
+维护者：复跑证据再问，给命令/rc/原文。
 
 <!-- 钉住：infra-capabilities AGENTS-section v1 -->
 <!-- inframanager:mailbox:end -->

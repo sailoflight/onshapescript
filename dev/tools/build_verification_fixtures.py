@@ -266,6 +266,15 @@ def _m_r13(report: dict) -> None:
     )
 
 
+def _m_r14(report: dict) -> None:
+    """A relative accuracy bound with no range it holds over (measured on CadQ's delivery)."""
+    report["claims"][0]["readings"][0]["achieved"] = {
+        "absolute": 0.005,
+        "relative": 2.414e-06,
+        "basis": "the producer's worst part, compared against its own B-Rep truth",
+    }  # a non-zero relative bound with no `scope`: nothing says which parts it covers
+
+
 def _m_r9(report: dict) -> None:
     report["artifact"]["stable"] = True
 
@@ -300,6 +309,7 @@ MUTATIONS: list[tuple[str, str, Callable[[dict], None]]] = [
     ("R11", "same_code_as_evidence", _m_r11),
     ("R12", "projection_unchecked", _m_r12),
     ("R13", "self_consistency_as_validity", _m_r13),
+    ("R14", "relative_bound_without_scope", _m_r14),
 ]
 
 

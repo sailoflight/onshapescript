@@ -226,6 +226,24 @@ RULES: list[dict] = [
             "runs, its blender-headless pit 81 / open item 25)."
         ),
     },
+    {
+        "id": "R14",
+        "title": "A relative accuracy bound with no range it holds over",
+        "layer": "topology",
+        "needs": ("claims",),
+        # PROPOSED, so it refuses nobody. It was measured by this plane on a third plane's real delivery,
+        # but it constrains the *peers'* records, so admission waits for them -- carried by the machinery
+        # built for R13's admission. One word binds it and its own fixture starts refusing.
+        "status": "proposed",
+        "negative_control": "bad__R14__relative_bound_without_scope.json",
+        "measured_basis": (
+            "Measured by this plane on CadQ's real delivery (three-plane dir, ang 0.1 and 0.3): its declared "
+            "`achieved <= 2.414e-6 relative` holds only for the worst part, and that part is the one FARTHEST "
+            "from the origin (399.9 mm), while the whole-part aggregate is 1.006e-07 -- 24x better. A relative "
+            "bound over a float32 tessellation is position-dependent, so a consumer cannot tell which parts a "
+            "relative-only bound actually covers."
+        ),
+    },
 ]
 
 RULE_IDS: list[str] = [rule["id"] for rule in RULES]

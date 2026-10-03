@@ -251,8 +251,14 @@ class RuleAdmission(unittest.TestCase):
 
     def test_r13_is_binding_and_refuses_its_own_negative_control(self) -> None:
         self.assertIn("R13", R.AGREED_RULE_IDS)
-        self.assertEqual(R.PROPOSED_RULE_IDS, [], "no rule may stay unconfirmed after MeshQ's confirmation")
-        self.assertEqual(len(R.AGREED_RULE_IDS), len(R.RULE_IDS))
+        self.assertIn("R13", R.AGREED_RULE_IDS, "MeshQ's confirmation must show up as a binding rule")
+        self.assertEqual(
+            [rule for rule in R.PROPOSED_RULE_IDS if rule != "R14"], [],
+            "R14 is the only rule still awaiting the peers' word (it constrains their records)",
+        )
+        self.assertEqual(len(R.AGREED_RULE_IDS) + len(R.PROPOSED_RULE_IDS), len(R.RULE_IDS))
+        self.assertEqual(len(R.AGREED_RULE_IDS), 13)
+        self.assertEqual(len(R.PROPOSED_RULE_IDS), 1)
         report = json.loads(self.R13_FIXTURE.read_text(encoding="utf-8"))
         verdict = runner.check_report(report)
         self.assertFalse(verdict["ok"], "a confirmed rule must reject the report it was written for")
@@ -284,7 +290,7 @@ class RuleAdmission(unittest.TestCase):
             verdict = runner.check_report(report)
         self.assertTrue(verdict["ok"], "an unconfirmed rule must not reject a report")
         self.assertEqual(verdict["refusals"], [], "a proposed rule refuses nobody")
-        self.assertEqual(verdict["rulesProposed"], ["R13"])
+        self.assertEqual(sorted(verdict["rulesProposed"]), ["R13", "R14"], "R14 stays proposed in the shipped table")
         self.assertEqual(sorted({r["rule"] for r in verdict["proposedRefusals"]}), ["R13"])
         self.assertIn("self-consistency", verdict["proposedRefusals"][0]["problem"])
         self.assertEqual(verdict["rulesNotRun"], [])
@@ -428,3 +434,73 @@ class SchemaFirstIngestion(unittest.TestCase):
         with self.assertRaises(SystemExit) as caught:
             runner.main([])
         self.assertEqual(caught.exception.code, 2)
+
+class RelativeBoundWithoutScope(unittest.TestCase):
+    """R14 is **proposed**: a relative bound that names no range must be *reported*, not refused.
+
+    Its admission basis is this plane's own measurement on CadQ's real delivery (worst part = farthest from
+    the origin, 399.9 mm, 2.414e-06 relative against a 1.006e-07 aggregate). It constrains the peers'
+    records, so by the same gate that held R13 it stays harmless until they confirm it.
+    """
+
+    R14_FIXTURE = FIXTURES / "bad__R14__relative_bound_without_scope.json"
+
+    def test_r14_is_proposed_and_refuses_nobody(self) -> None:
+        self.assertIn("R14", R.PROPOSED_RULE_IDS)
+        self.assertNotIn("R14", R.AGREED_RULE_IDS)
+        verdict = runner.check_report(json.loads(self.R14_FIXTURE.read_text(encoding="utf-8")))
+        self.assertTrue(verdict["ok"], "a proposed rule must not reject a report")
+        self.assertEqual(verdict["refusals"], [], "a proposed rule refuses nobody")
+        self.assertEqual(verdict["rulesProposed"], ["R14"])
+        problem = verdict["proposedRefusals"][0]["problem"]
+        self.assertIn("relative", problem)
+        self.assertIn("range", problem)
+
+    def test_r14_refuses_the_fixture_the_moment_the_peers_confirm_it(self) -> None:
+        report = json.loads(self.R14_FIXTURE.read_text(encoding="utf-8"))
+        flipped = [dict(rule, status="agreed") if rule["id"] == "R14" else rule for rule in R.RULES]
+        with mock.patch.object(R, "RULES", flipped), mock.patch.object(
+            R, "AGREED_RULE_IDS", [rule["id"] for rule in flipped if rule.get("status", "agreed") == "agreed"]
+        ), mock.patch.object(R, "PROPOSED_RULE_IDS", []):
+            verdict = runner.check_report(report)
+        self.assertFalse(verdict["ok"])
+        refusal = next(r for r in verdict["refusals"] if r["rule"] == "R14")
+        self.assertIn("scope", refusal["required_fix"])
+        self.assertIn("distance from the origin", refusal["required_fix"])
+
+    def test_this_planes_own_records_pass_the_rule_it_proposes(self) -> None:
+        """Self-audit before asking anyone else: no non-zero numeric relative without a scope or an absolute."""
+        offenders = []
+        for name in ("good__vertical_slice.json",):
+            report = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+            for claim in report["claims"]:
+                nodes = [("criterion.tolerance", (claim.get("criterion") or {}).get("tolerance"))] + [
+                    (f"readings[{i}].achieved", reading.get("achieved"))
+                    for i, reading in enumerate(claim.get("readings") or [])
+                ]
+                for where, node in nodes:
+                    if not isinstance(node, dict):
+                        continue
+                    relative = node.get("relative")
+                    if isinstance(relative, bool) or not isinstance(relative, (int, float)) or relative == 0:
+                        continue
+                    if node.get("scope") or isinstance(node.get("absolute"), (int, float)):
+                        continue
+                    offenders.append(f"{name}:{claim.get('id')}:{where}")
+        self.assertEqual(offenders, [], "this plane's own fixture would fail the rule it proposes")
+
+    def test_a_relative_bound_that_names_its_range_is_accepted(self) -> None:
+        """The rule must be satisfiable: `scope` (or an absolute bound) clears it."""
+        report = json.loads(self.R14_FIXTURE.read_text(encoding="utf-8"))
+        achieved = report["claims"][0]["readings"][0]["achieved"]
+        achieved["scope"] = "parts within 500 mm of the source origin"
+        flipped = [dict(rule, status="agreed") if rule["id"] == "R14" else rule for rule in R.RULES]
+        with mock.patch.object(R, "RULES", flipped), mock.patch.object(
+            R, "AGREED_RULE_IDS", [rule["id"] for rule in flipped if rule.get("status", "agreed") == "agreed"]
+        ), mock.patch.object(R, "PROPOSED_RULE_IDS", []):
+            verdict = runner.check_report(report)
+        self.assertEqual([r for r in verdict["refusals"] if r["rule"] == "R14"], [])
+
+
+if __name__ == "__main__":
+    unittest.main()
