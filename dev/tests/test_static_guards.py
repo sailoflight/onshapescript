@@ -74,6 +74,33 @@ class CheckerApiTest(unittest.TestCase):
         self.assertEqual(from_text.errors, from_file.errors)
         self.assertEqual(from_text.warnings, from_file.warnings)
 
+    def test_the_cli_says_in_its_own_output_that_it_is_not_a_gate(self) -> None:
+        """MeshQ 194 §3's boundary: "I am not a gate" has to be written in the output a reader sees.
+
+        A warning-level checker whose output reads like a directive ("MUST be fixed before upload") can still be
+        used as a gate by whoever reads it — and then it becomes a defect through a sentence it never said. The
+        payload carries `advisory: True` for the machine; this pins the human-facing half.
+        """
+        import subprocess
+        import tempfile
+        from pathlib import Path as _Path
+
+        root = _Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            target = _Path(tmp) / "candidate.fs"
+            target.write_text("export const x = 1;\n", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "onshape_docs" / "scripts" / "fs_local_check.py"), str(target)],
+                capture_output=True, text=True, cwd=str(root), timeout=120,
+            )
+        self.assertEqual(result.returncode, 1, "a structural finding still exits 1 as a CLI convenience")
+        printed = result.stdout + result.stderr
+        self.assertIn("ADVISORY", printed)
+        self.assertIn("never blocks an upload", printed)
+        self.assertIn("not \"the upload is forbidden\"", printed)
+        self.assertNotIn("MUST be fixed before upload", printed,
+                         "the old wording read like a gate; it must not come back")
+
     def test_as_result_is_json_friendly_and_advisory(self) -> None:
         clear = check_text(_VALID_FEATURE).as_result()
         self.assertTrue(clear["clear"])

@@ -832,8 +832,16 @@ def main(argv: list[str]) -> int:
             print(f"    ERROR  {error}")
         for warn in fs.warnings:
             print(f"    WARN   {warn}")
+    # The boundary is stated in the OUTPUT, not only in the module docstring (a boundary that lives only in
+    # documentation is a boundary the reader never sees): a warning-level checker that does not say it is not
+    # a gate can still be used as one, and then it becomes a defect through a sentence it never said.
     print(f"\n{len(targets)} file(s), {structural_failures} structural error(s); "
-          "structural errors MUST be fixed before upload (they waste quota).",
+          "structural findings are worth fixing before upload (they waste quota). "
+          "This check is ADVISORY: it never blocks an upload, and exit code 1 means \"structural findings "
+          "were found\", not \"the upload is forbidden\" - the deploy path "
+          "(`onshape_upload_feature_studio` / `browser_deploy_featurescript`) is what decides, and a deploy "
+          "that would write error-level findings asks for an explicit acknowledgement instead of being "
+          "vetoed here.",
           file=sys.stderr)
     return 1 if structural_failures else 0
 
