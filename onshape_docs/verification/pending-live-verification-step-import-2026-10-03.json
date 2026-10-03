@@ -204,5 +204,42 @@
       "the agent's own Windows-interop commands remain in SessionId 0, so the agent still cannot open a window in session 2 by itself"
     ],
     "result": "browser_session action=login returned sessionStatus=awaiting_login / needsHumanLogin=true: the sign-in page is open in a window the human can see. The tool's own advisory applies while the human types -- the sign-in page reloads itself, which discards typed input, so the correct next step after the human reports completion is browser_session(action='health'), never page reads."
+  },
+  "human_login_completed_2026-10-03": {
+    "confirmed_by": "read-only inspection of the resident browser's own DevTools endpoint",
+    "evidence": "GET http://127.0.0.1:9333/json/list -> type=page, url=https://cad.onshape.com/documents/1ef2be8f3d45e6f996af24ab/w/bac7c0bf31912a956c44d15a/e/59f6cc99890dd2fea26d5471, title='Gridfinity 2x2 baseplate | GF 4U \\u76d2\\u5b50' -- a signed-in session sitting on a real document, not the sign-in page",
+    "browser_identity": "pid 1480, --user-data-dir=...onshape_browser_mode\\user_data\\onshape_profile, SessionId 2, Edg/154.0.4258.48, 127.0.0.1:9333 LISTENING",
+    "significance": "the one human login the whole import leg was waiting for is now in place, and it lives in the browser's memory only (Onshape auth cookies are session cookies), so every later step must avoid destroying that process"
+  },
+  "bridge_node_down_2026-10-03": {
+    "observed_at": "right after the confirmed login, while the agent asked for its first post-fix health probe",
+    "symptoms": [
+      "browser_session(action='health') -> Error: downstream_unavailable (twice)",
+      "bridge_control(action='status') -> {\"ok\":false,\"code\":\"control_failed\",\"summary\":\"peer_unavailable: peer bridge link is unavailable\"}",
+      "bridge_diagnostics -> side=wsl, peer=unavailable, activeStreams=0, sharedBackends=0",
+      "no win-wsl-mcp-win.exe process and no python.exe -B -m mcp_main.win.mcp child exists",
+      "netstat: 8768 (the node's local port) not listening; only 8767 (the vision toolkit bridge) is"
+    ],
+    "what_survived": "the resident Edge (pid 1480, SessionId 2) is still alive and still answering on 9333 -- detached-process design working as intended: a bridge/node restart does NOT cost the login",
+    "how_the_node_is_started_now": {
+      "task": "WinWslMcpBridgeWindowsNode",
+      "principal": "075526249, LogonType=Interactive, RunLevel=Limited",
+      "trigger": "MSFT_TaskLogonTrigger for REOLINK\\075526249 (this IS the session fix)",
+      "action": "wscript.exe //B \"C:\\MCP\\win-wsl-bridge\\start-windows-node.vbs\"",
+      "last_run": "2026-10-03 22:27:02, LastTaskResult 0x0, MissedRuns 0",
+      "state": "Ready (not running)",
+      "recovery_script": "C:\\Users\\075526249\\AppData\\Local\\WinWslMcpBridge\\start-serve-manual.ps1 (self-described one-off recovery helper, expires when the normal start procedure is restored)"
+    },
+    "evidence_caution": "the tail of WinWslMcpBridge\\serve-manual.err.log shows 'shared backend onshape ... exhausted after generation 93' and an ActionRateExceeded, but that file's mtime is 2026-09-22 -- it is stale history and must NOT be read as this crash's cause. The crash cause is not established by anything the agent has read.",
+    "agent_authority_note": "restarting the node is an operator action on the bridge deployment and is not the agent's call; the bridge-control path cannot serve it either while peer_unavailable. The owner restarts it; the agent only observes read-only."
+  },
+  "display_and_power_answers_measured_2026-10-03": {
+    "is_the_remote_desktop_shown_on_the_physical_monitor": "No. QWINSTA shows session 2 (human, REOLINK\\075526249) and session 3 'console' Conn with NO user, i.e. the physical display is on the console session sitting at the sign-in screen. The human's desktop is a separate session and is not mirrored to the local display.",
+    "does_turning_the_monitor_off_matter": "No. The monitor is an output device; session 2 and its processes keep running. Measured on the current power scheme (SCHEME_BALANCED): STANDBYIDLE AC = 0 (never sleep) and HIBERNATEIDLE AC = 0 (never hibernate); S3 standby and hibernate are available but not scheduled, so blanking or powering off the display cannot suspend the machine.",
+    "the_real_hazards_instead": [
+      "signing OUT (not disconnecting) ends session 2 and kills the resident browser with it",
+      "reboot / shutdown: the login lives in browser memory only, so it costs another human login",
+      "manually selecting sleep/hibernate"
+    ]
   }
 }
