@@ -777,6 +777,15 @@ profile 的控制工具会污染结果。客户端可用 SHA-256 fingerprint 缓
   `textContent / aria-label / title / data-tooltip`，再取命中项的菜单祖先与 `outerHTML`，
   比反复猜 selector 便宜得多。证据与代码改动见
   `onshape_docs/verification/pending-live-verification-step-import-2026-10-03.json`。
+- **导入 STEP 会在页签栏留下两行，而且先后出现**（2026-10-03 实测，同一文档两次导入）：
+  先是内部记账行 `CAD 导入`（`.os-tab-bar-tab.os-tab-bar-tab-group`，`data-id` 是**字面量**
+  `CADImportBlobs`，不是 24 位元素 id），随后才是真正翻译出来的元素（`model`，24 位 id）。
+  实测顺序：上传被接受 → 记账行出现且**此时读不到任何新元素** → 稍后元素出现。
+  **判据教训**：把"行数变了"当落地证据，就会把记账行当成几何报绿（首次实测就是这样：
+  `imported=true, newElement="CAD 导入"`，而真元素还不存在）；同一件导入稍后再读会看到
+  "两行新增"，若按"两行=歧义"又会把正确结果拒掉——**同一个事实读出两个相反结论**。
+  正确写法：**要求"非 group 行 + 24 位元素 id"**，只看到记账行时继续等待（预算用尽则报
+  `element_not_yet_visible` 并把 `internalRows` 单独列出），歧义只在**真元素**计数 ≥2 时成立。
 - 因此 `browser_create_tab` 采用“JS 点隐藏项”，与右键菜单必须真实点击不同。
 - 工具只有在标签列表出现新项时才返回 `created:true`。工程图可能先打开来源/模板
   对话框，此时返回 `triggered:true, created:false`，不能把打开对话框当作创建成功。

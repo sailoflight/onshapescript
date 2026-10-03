@@ -113,30 +113,77 @@ def _report(result: dict[str, Any]) -> tuple[list[tuple[str, str, str]], int]:
     rows: list[tuple[str, str, str]] = []
     failures = 0
 
+    # I1 -- where the Import entry really is, how it was reached, and the page facts that make a miss
+    # reportable. The criteria require BOTH the route and the real tab names.
     entry = result.get("importEntry") or {}
-    if entry.get("clicked"):
-        rows.append(("I1", "pass", f"import entry clicked via a visible label: {entry.get('label') or entry.get('route') or '(route unrecorded)'}"))
-    else:
-        rows.append(("I1", "fail", f"the import entry was not found: {result.get('detail') or result.get('reason')}"))
-        failures += 1
-
     facts = result.get("pageFacts") or {}
-    rows.append(("I2", "observed" if facts.get("tabNames") else "unproven",
-                 f"tab names read from the page: {facts.get('tabNames') or '(none read)'}"))
-
-    if result.get("imported"):
-        rows.append(("I3", "pass", f"exactly one new row: {[row.get('name') for row in result.get('newRows') or []]}"))
+    tab_names = facts.get("tabNames") or []
+    if not entry.get("clicked"):
+        rows.append(("I1", "fail", f"the import entry was not found: {result.get('detail') or result.get('reason')} | "
+                                   f"tried={entry.get('tried')}"))
+        failures += 1
+    elif not tab_names:
+        rows.append(("I1", "observed", f"entry route={entry.get('strategy')} item={entry.get('itemId') or entry.get('label')!r}, "
+                                       "but no tab names were read, so the page facts this check requires are unproven"))
     else:
-        rows.append(("I3", "fail", f"no landed element: reason={result.get('reason')} "
-                                    f"translationCompleted={result.get('translationCompleted')}"))
+        rows.append(("I1", "pass", f"entry route={entry.get('strategy')} item={entry.get('itemId') or entry.get('label')!r} "
+                                   f"label={entry.get('label')!r}; page facts read {len(tab_names)} tab name(s)"))
+
+    # I2 -- which element received the file. A run that never got this far is unproven, not failed.
+    attach = result.get("fileAttach")
+    if not isinstance(attach, dict):
+        rows.append(("I2", "unproven", "this run never reached the file input, so its selector is unverified"))
+    elif attach.get("attached"):
+        rows.append(("I2", "pass", f"the file was attached through {attach.get('selector')}"))
+    else:
+        rows.append(("I2", "fail", f"no file input accepted the file: {attach.get('error')}"))
         failures += 1
 
-    selectors = result.get("selectorsUsed") or {}
-    rows.append(("I4", "observed" if selectors else "unproven",
-                 f"selectors actually used: {json.dumps(selectors)[:400]}"))
+    # I3 -- which control commits the import, and whether exactly one document element landed.
+    submit = result.get("submit") or {}
+    new_rows = result.get("newRows") or []
+    internal = result.get("internalRows") or []
+    names = [row.get("name") for row in new_rows if isinstance(row, dict)]
+    if result.get("imported") is True:
+        detail = f"submit={submit.get('submitted')} ({submit.get('selector')}); new document element {names}"
+        if internal:
+            detail += f"; internal bookkeeping row(s) reported separately: {[r.get('name') for r in internal]}"
+        rows.append(("I3", "pass", detail))
+    elif result.get("imported") is None:
+        rows.append(("I3", "observed", f"submit={submit.get('submitted')}; the verdict is imported=null "
+                                       f"({result.get('reason')}): a row landed but this mode cannot attribute it"))
+    else:
+        rows.append(("I3", "fail", f"submit={submit.get('submitted')}; no landed element: reason={result.get('reason')} "
+                                   f"translationCompleted={result.get('translationCompleted')}"))
+        failures += 1
 
-    unverified = result.get("unverifiedSelectors") or []
-    rows.append(("I5", "observed", f"{len(unverified)} selector(s) still unverified by this leg: {unverified}"))
+    # I4 -- the Part Studio feature-row proof, exercised only by mode into-part-studio.
+    if (result.get("mode") or "") == "into-part-studio":
+        if result.get("imported") is True:
+            rows.append(("I4", "pass", f"a feature row matched the expected name: {result.get('newElement')}"))
+        else:
+            rows.append(("I4", "observed", f"imported={result.get('imported')} reason={result.get('reason')} "
+                                           f"newRows={new_rows}"))
+    else:
+        rows.append(("I4", "unproven", "this run used mode=new-tab, so the Part Studio feature-row proof was not exercised"))
+
+    # I5 -- row identity: the verdict must carry the new ELEMENT ID, never a name match. The decisive
+    # case is a re-import of the same file, where a same-named row already exists.
+    before_rows = ((result.get("before") or {}).get("rows") or [])
+    new_element = result.get("newElement") or {}
+    same_name = [r for r in before_rows if isinstance(r, dict) and r.get("name")
+                 and r.get("name") == new_element.get("name")]
+    if new_element.get("elementId"):
+        if same_name:
+            rows.append(("I5", "pass", f"the landed row was identified by element id {new_element.get('elementId')!r} "
+                                       f"although a same-named row already existed "
+                                       f"({[r.get('name') for r in same_name]}); the id, not the name, carried the verdict"))
+        else:
+            rows.append(("I5", "observed", f"the landed row carries element id {new_element.get('elementId')!r}, but no "
+                                           "same-named row existed before, so the id-vs-name rule was not exercised "
+                                           "(import the same file a second time to close this)"))
+    else:
+        rows.append(("I5", "unproven", f"no landed element with an element id to reason about (reason={result.get('reason')})"))
 
     source = result.get("source") or {}
     if source.get("addressedBy") == "sha256":

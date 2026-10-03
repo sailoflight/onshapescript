@@ -33,13 +33,20 @@ def landed_result(**overrides):
     result = {
         "imported": True,
         "reason": "new_tab_landed",
+        "mode": "new-tab",
         "translationCompleted": "assumed",
         "source": {"path": "/tmp/h.step", "sha256": "a" * 64, "addressedBy": "sha256",
                    "expectedSha256": "a" * 64, "matchesExpected": True},
-        "importEntry": {"clicked": True, "label": "Import"},
+        "importEntry": {"clicked": True, "label": "导入…", "strategy": "page_js_dropdown_item",
+                        "itemId": "upload-button"},
         "pageFacts": {"url": "https://cad.onshape.com/x", "tabNames": ["Part Studio 1", "handoff"]},
-        "newRows": [{"name": "handoff", "elementId": "eid2"}],
-        "selectorsUsed": {"tabBar": ".os-tab-bar-tab"},
+        "before": {"ok": True, "error": None, "rows": [{"name": "Part Studio 1",
+                                                        "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}]},
+        "fileAttach": {"attached": True, "selector": "input[type=file]", "error": None},
+        "submit": {"submitted": True, "selector": ".xenon-dialog button.btn-primary"},
+        "newRows": [{"name": "handoff", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"}],
+        "newElement": {"name": "handoff", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"},
+        "selectorsUsed": {"tabRow": ".os-tab-bar-tab"},
         "unverifiedSelectors": ["dialog", "fileInput"],
     }
     result.update(overrides)
@@ -55,18 +62,33 @@ class ReportLabellingTest(unittest.TestCase):
         rows = self._rows(landed_result())
         self.assertEqual(failures, 0)
         self.assertEqual(rows["I1"], "pass")
+        self.assertEqual(rows["I2"], "pass")
         self.assertEqual(rows["I3"], "pass")
         self.assertEqual(rows["I6"], "pass")
+        # A new-tab run never exercises the Part Studio feature-row proof, and this run had no
+        # same-named row before it, so the id-vs-name rule is `observed`, not a pass either.
+        self.assertEqual(rows["I4"], "unproven")
+        self.assertEqual(rows["I5"], "observed")
 
     def test_a_missing_observation_is_unproven_rather_than_a_pass(self):
-        rows = self._rows(landed_result(pageFacts={}, selectorsUsed={}, source={"sha256": "a" * 64}))
-        self.assertEqual(rows["I2"], "unproven", "no page facts were read, so the tab names are unproven")
+        rows = self._rows(landed_result(pageFacts={}, fileAttach=None, source={"sha256": "a" * 64}))
+        self.assertEqual(rows["I1"], "observed", "no tab names were read, so the entry route is not a pass")
+        self.assertEqual(rows["I2"], "unproven", "the file input was never reached")
         self.assertEqual(rows["I4"], "unproven")
         self.assertEqual(rows["I6"], "unproven",
                          "a run with no declared digest may not report the addressing check as passed")
 
+    def test_a_repeat_import_is_what_closes_the_id_versus_name_rule(self):
+        result = landed_result(
+            before={"ok": True, "error": None, "rows": [{"name": "handoff",
+                                                         "elementId": "9f9f9f9f9f9f9f9f9f9f9f9f"}]},
+        )
+        rows = self._rows(result)
+        self.assertEqual(rows["I5"], "pass")
+
     def test_an_entry_that_was_never_found_is_a_failure_with_its_reason(self):
-        result = landed_result(importEntry={"clicked": False}, imported=False, reason="import_entry_missing")
+        result = landed_result(importEntry={"clicked": False}, imported=False, reason="import_entry_missing",
+                               fileAttach=None, submit=None)
         rows = self._rows(result)
         _, failures = live_check._report(result)
         # Two checks fail honestly: the entry was never found AND nothing landed. Neither is rounded up.

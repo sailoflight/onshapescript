@@ -1,6 +1,6 @@
 {
   "probe": "Pending live verification for the browser-leg STEP import (`onshape_browser_mode/step_import.py`). The module landed with 17 offline tests and no live run: the Import dialog has never been opened by this code, so its four selector constants are candidates, not observations. Nothing here is a finding against the code -- it is the list of facts a live session must supply before the entry point can be trusted. The VERDICT half does not depend on them: the landing proof reads the tab bar (`.os-tab-bar-tab`) and the Part Studio user-feature rows (`.os-list-item.ns-user-feature`), both live-observed, so an unverified entry point cannot manufacture a success.",
-  "status": "pending-live-verification",
+  "status": "entry point measured and re-run live; submit and file input exercised; the landing judge was found defective by the second attempt and fixed -- the confirming re-run is pending",
   "session": "2026-10-03 (offline implementation); the live run below is NOT yet done",
   "environment_when_implemented": {
     "repo": "onshapescript, see the commit that added this file",
@@ -324,6 +324,61 @@
       "I4": "not reached",
       "I5": "not reached",
       "I6": "offline half closed; live half pending the re-run"
+    }
+  },
+  "second_live_import_attempt_2026-10-03": {
+    "call": "browser_import_step after the measured-entry fix (deployed revision 693a960, bridge node generation 3), same source/handoff as the first attempt, mode new-tab, register_as 4u-box-roundtrip-1",
+    "outcome": {
+      "imported": true,
+      "reason": "new_tab_landed",
+      "spentQuota": 0,
+      "spentApiRequests": 0,
+      "entry": {
+        "clicked": true,
+        "strategy": "page_js_dropdown_item",
+        "label": "导入…",
+        "itemId": "upload-button",
+        "tried": []
+      },
+      "fileAttach": {
+        "attached": true,
+        "selector": "input[type=file]"
+      },
+      "submit": {
+        "submitted": true,
+        "selector": ".modal button.btn-primary[type='submit'], .xenon-dialog button.btn-primary"
+      },
+      "beforeTabCount": 10,
+      "newRows": [
+        {
+          "name": "CAD 导入",
+          "elementId": "CADImportBlobs"
+        }
+      ],
+      "registered": "outputs/step_imports/4u-box-roundtrip-1/import-manifest.json (schemaVersion 1, artifactType imported-browser-step)"
+    },
+    "DEFECT_found_by_this_attempt": {
+      "what": "the landing proof counted ANY new tab row, so it attributed Onshape's internal CAD-import bookkeeping row as the landed element",
+      "measured_evidence": "a re-read of the same page seconds later shows TWO new rows: `CAD 导入` (`.os-tab-bar-tab.os-tab-bar-tab-group`, data-id literally `CADImportBlobs`) and the real translated element `model` (element id c29f29f7528d07d5b290421c). The call had already answered imported=true with newElement=`CAD 导入` while the real element did not exist yet.",
+      "why_it_matters": "a premature true: the reported element was bookkeeping, and a read of the same import a moment later would have been refused as ambiguous_new_elements (two new rows) -- the same fact judged two ways depending on when it was read",
+      "fix": "`_TAB_ROWS_JS` now reads the row's group class; `_is_document_element` accepts only a non-group row carrying a 24-hex element id; `_poll_for_change(require_element=True)` keeps waiting past an internal-only change; the verdict reports `internalRows` separately and answers imported=false with reason=element_not_yet_visible when only the bookkeeping row exists; ambiguity counts document elements only. The measured constants and the entry route are unchanged.",
+      "tests": "4 new cases (bookkeeping row alone is never the element; a late real element is attributed while the internal row is reported; a group row with an element-shaped id stays internal; the id-vs-name repeat case) -- offline suite 1425 OK, verify_docs 17/17"
+    },
+    "checks_after_this_attempt": {
+      "I1": "pass (the entry route is measured: page_js_dropdown_item on #upload-button, label 导入…)",
+      "I2": "pass (the file went in through input[type=file])",
+      "I3": "pass for the submit step; the landing verdict needs the re-run after the judge fix, because this run named the bookkeeping row",
+      "I4": "not exercised (mode=new-tab)",
+      "I5": "observed: the landed row carried an element id, but no same-named row existed before, so the id-vs-name rule was not exercised",
+      "I6": "pass (addressed by sha256, matchesExpected true, digest echoed into the registered manifest)"
+    },
+    "document_state_after": {
+      "tabCount": 12,
+      "addedByTheseTwoAttempts": [
+        "model (c29f29f7528d07d5b290421c) -- the real translated element",
+        "CAD 导入 (CADImportBlobs) -- the internal bookkeeping row"
+      ],
+      "cleanup": "browser_delete_element can remove either tab if the document should go back to 10 tabs"
     }
   }
 }

@@ -152,7 +152,8 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(plan["estimatedApiRequests"], 0)
         self.assertEqual(plan["maxApiRequests"], 0)
         self.assertTrue(plan["mutating"])
-        self.assertIn("exactly one new tab row", plan["landingProof"]["rule"])
+        self.assertIn("exactly one new DOCUMENT ELEMENT row", plan["landingProof"]["rule"])
+        self.assertIn("is not an element", plan["landingProof"]["rule"])
         self.assertIn(selectors.TAB_BAR_TAB, plan["landingProof"]["reads"])
 
     def test_plan_names_the_selectors_it_is_not_allowed_to_trust(self):
@@ -225,20 +226,20 @@ class ImportTest(unittest.TestCase):
     def test_one_new_tab_is_a_proven_import(self):
         page = FakePage(
             tab_reads=[
-                [{"name": "Part Studio 1", "elementId": "eid1"}],
-                [{"name": "Part Studio 1", "elementId": "eid1"}, {"name": "handoff", "elementId": "eid2"}],
+                [{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}, {"name": "handoff", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"}],
             ]
         )
         result = self._run(page)
         self.assertTrue(result["imported"])
         self.assertEqual(result["reason"], "new_tab_landed")
-        self.assertEqual(result["newElement"], {"name": "handoff", "elementId": "eid2"})
+        self.assertEqual(result["newElement"], {"name": "handoff", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"})
         self.assertEqual(result["spentQuota"], 0)
         self.assertEqual(result["spentApiRequests"], 0)
         self.assertEqual(page.input_files[0]["path"].endswith("handoff.step"), True)
 
     def test_an_unchanged_row_list_never_reads_as_success(self):
-        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "eid1"}]])
+        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}]])
         result = self._run(page)
         self.assertFalse(result["imported"])
         self.assertEqual(result["reason"], "no_new_element")
@@ -248,20 +249,70 @@ class ImportTest(unittest.TestCase):
     def test_two_new_rows_are_refused_rather_than_guessed(self):
         page = FakePage(
             tab_reads=[
-                [{"name": "A", "elementId": "eid1"}],
-                [{"name": "A", "elementId": "eid1"}, {"name": "B", "elementId": "eid2"},
-                 {"name": "C", "elementId": "eid3"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}, {"name": "B", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"},
+                 {"name": "C", "elementId": "3c3c3c3c3c3c3c3c3c3c3c3c"}],
             ]
         )
         result = self._run(page)
         self.assertFalse(result["imported"])
         self.assertEqual(result["reason"], "ambiguous_new_elements")
 
+    # --- Measured live 2026-10-03: a STEP import adds TWO tab rows --------------------------------
+    # The internal `CAD 导入` row (`.os-tab-bar-tab-group`, id literally `CADImportBlobs`) appears as
+    # soon as the file is uploaded, BEFORE the translated element exists. Counting any new row made the
+    # tool report that bookkeeping row as the landed element -- the live call answered
+    # imported=true / newElement="CAD 导入" while the real element (`model`) did not exist yet.
+    def test_the_internal_bookkeeping_row_alone_is_never_the_imported_element(self):
+        page = FakePage(
+            tab_reads=[
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"},
+                 {"name": "CAD 导入", "elementId": "CADImportBlobs", "group": True}],
+            ]
+        )
+        result = self._run(page)
+        self.assertFalse(result["imported"], "a bookkeeping row is never the imported geometry")
+        self.assertEqual(result["reason"], "element_not_yet_visible")
+        self.assertEqual(result["newRows"], [])
+        self.assertEqual(result["internalRows"][0]["elementId"], "CADImportBlobs")
+        self.assertIn("not a failed import", result["detail"])
+
+    def test_a_late_real_element_is_attributed_while_the_internal_row_is_reported(self):
+        page = FakePage(
+            tab_reads=[
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"},
+                 {"name": "CAD 导入", "elementId": "CADImportBlobs", "group": True}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"},
+                 {"name": "CAD 导入", "elementId": "CADImportBlobs", "group": True},
+                 {"name": "model", "elementId": "4d4d4d4d4d4d4d4d4d4d4d4d"}],
+            ]
+        )
+        result = self._run(page)
+        self.assertTrue(result["imported"])
+        self.assertEqual(result["reason"], "new_tab_landed")
+        self.assertEqual(result["newElement"], {"name": "model", "elementId": "4d4d4d4d4d4d4d4d4d4d4d4d"})
+        self.assertEqual([row["name"] for row in result["internalRows"]], ["CAD 导入"])
+        self.assertGreater(result["polls"]["reads"], 1, "the internal row alone must not end the wait")
+
+    def test_a_group_row_stays_internal_even_with_an_element_shaped_id(self):
+        page = FakePage(
+            tab_reads=[
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"},
+                 {"name": "疑似元素", "elementId": "5e5e5e5e5e5e5e5e5e5e5e5e", "group": True}],
+            ]
+        )
+        result = self._run(page)
+        self.assertFalse(result["imported"])
+        self.assertEqual(result["reason"], "element_not_yet_visible")
+
     def test_a_failed_after_read_is_not_a_success(self):
         page = FakePage(
             tab_reads=[
-                [{"name": "A", "elementId": "eid1"}],
-                [{"name": "A", "elementId": "eid1"}, {"name": "B", "elementId": "eid2"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}, {"name": "B", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"}],
             ],
             raise_on_read_after=1,
         )
@@ -278,7 +329,7 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(page.input_files, [])
 
     def test_a_missing_import_entry_reports_the_page_facts(self):
-        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "eid1"}]], entry_present=False)
+        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}]], entry_present=False)
         result = self._run(page)
         self.assertEqual(result["reason"], "import_entry_missing")
         self.assertFalse(result["importEntry"]["clicked"])
@@ -290,8 +341,8 @@ class ImportTest(unittest.TestCase):
         # visibility-gated locator misses it and the page-JavaScript click is the working route.
         page = FakePage(
             tab_reads=[
-                [{"name": "A", "elementId": "eid1"}],
-                [{"name": "A", "elementId": "eid1"}, {"name": "B", "elementId": "eid2"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}, {"name": "B", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"}],
             ]
         )
         result = self._run(page)
@@ -303,7 +354,7 @@ class ImportTest(unittest.TestCase):
         self.assertTrue(result["imported"])
 
     def test_the_measured_route_records_itself_before_the_label_chain(self):
-        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "eid1"}]], entry_present=False)
+        page = FakePage(tab_reads=[[{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}]], entry_present=False)
         result = self._run(page)
         self.assertFalse(result["importEntry"]["clicked"])
         self.assertIn("page_js_dropdown_item", result["importEntry"]["tried"])
@@ -315,8 +366,8 @@ class ImportTest(unittest.TestCase):
     def test_an_unattachable_file_input_is_its_own_failure(self):
         page = FakePage(
             tab_reads=[
-                [{"name": "A", "elementId": "eid1"}],
-                [{"name": "A", "elementId": "eid1"}, {"name": "B", "elementId": "eid2"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                [{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}, {"name": "B", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"}],
             ],
             file_input_attachable=False,
         )
@@ -356,7 +407,7 @@ class ImportTest(unittest.TestCase):
 
     def test_the_poll_is_bounded_by_the_injected_clock(self):
         clock = FakeClock()
-        page = FakePage(tab_reads=[[{"name": "A", "elementId": "eid1"}]])
+        page = FakePage(tab_reads=[[{"name": "A", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}]])
         with tempfile.TemporaryDirectory() as tmp:
             result = step_import.import_browser_step(
                 page,
@@ -385,7 +436,7 @@ class RegisterTest(unittest.TestCase):
             "translationCompleted": "assumed",
             "source": {"sha256": "ab" * 32, "path": "/tmp/handoff.step"},
             "target": {"tab": None},
-            "newElement": {"name": "handoff", "elementId": "eid2"},
+            "newElement": {"name": "handoff", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"},
             "landingProof": {"mode": "new-tab"},
             "pageFacts": {"url": "https://cad.onshape.com/..."},
             "unverifiedSelectors": ["dialog", "fileInput"],
@@ -512,8 +563,8 @@ class StepImportDigestAddressingTest(unittest.TestCase):
             clock = FakeClock()
             page = FakePage(
                 tab_reads=[
-                    [{"name": "Part Studio 1", "elementId": "eid1"}],
-                    [{"name": "Part Studio 1", "elementId": "eid1"}, {"name": "handoff", "elementId": "eid2"}],
+                    [{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}],
+                    [{"name": "Part Studio 1", "elementId": "1a1a1a1a1a1a1a1a1a1a1a1a"}, {"name": "handoff", "elementId": "2b2b2b2b2b2b2b2b2b2b2b2b"}],
                 ],
             )
             result = step_import.import_browser_step(

@@ -79,6 +79,7 @@ _TAB_ROWS_JS = """
 () => Array.from(document.querySelectorAll('.os-tab-bar-tab')).map((row) => ({
   name: ((row.querySelector('.os-tab-name') || row).textContent || '').trim(),
   elementId: row.getAttribute('data-element-id') || row.getAttribute('data-id') || '',
+  group: String(row.className || '').indexOf('os-tab-bar-tab-group') !== -1,
 }))
 """
 
@@ -229,8 +230,12 @@ def plan_browser_step_import(
         proof = {
             "mode": "new-tab",
             "reads": "the document tab bar (`.os-tab-bar-tab`, live-observed)",
-            "rule": "exactly one new tab row must appear after the import; two or more is refused as ambiguous",
-            "importedTrueRequires": "one new row, with a non-empty name or element id",
+            "rule": ("exactly one new DOCUMENT ELEMENT row must appear after the import; Onshape's internal "
+                     "CAD-import bookkeeping row (`CAD 导入`, `.os-tab-bar-tab-group`, id `CADImportBlobs`) "
+                     "is not an element and is reported separately; two or more new elements are refused "
+                     "as ambiguous"),
+            "importedTrueRequires": ("one new row that is not a group row and whose id is a 24-hex document "
+                                     "element id"),
         }
     else:
         proof = {
@@ -303,7 +308,9 @@ def plan_browser_step_import(
             "file input cannot be attached -> refuse with the page facts (a dialog that opens but has no "
             "file input is a different failure from a dialog that never opens)",
             "after-read fails -> imported=False with reason element_read_failed, never a success",
-            "two or more new rows -> refused as ambiguous, never guessed",
+            "the internal CAD-import bookkeeping row appears alone -> imported=False with reason "
+            "element_not_yet_visible; that row is not the imported geometry, and the wait continues",
+            "two or more new document elements -> refused as ambiguous, never guessed",
             "into-part-studio without a matching expect_feature_name -> imported=None, not True",
         ],
     }
@@ -416,8 +423,14 @@ def _poll_for_change(
     interval_ms: int,
     pause: Any,
     now: Any,
+    require_element: bool = False,
 ) -> dict[str, Any]:
-    """Bounded wait for the proof list to change. Terminates on the injected clock."""
+    """Bounded wait for the proof list to change. Terminates on the injected clock.
+
+    With ``require_element`` (mode new-tab) an internal bookkeeping row appearing alone does NOT end
+    the wait: the translated element is what the proof needs, so the loop keeps polling until it
+    appears or the budget runs out.
+    """
     deadline = now() + (timeout_ms / 1000.0)
     reads = 0
     last = before
@@ -427,8 +440,13 @@ def _poll_for_change(
         reads += 1
         if not last["ok"]:
             continue
-        if len(last["rows"]) != len(before["rows"]):
-            return {"changed": True, "reads": reads, "after": last}
+        if len(last["rows"]) == len(before["rows"]):
+            continue
+        if require_element and not any(
+            _is_document_element(row) for row in _new_rows(before["rows"], last["rows"])
+        ):
+            continue
+        return {"changed": True, "reads": reads, "after": last}
     return {"changed": False, "reads": reads, "after": last}
 
 
@@ -439,40 +457,78 @@ def _new_rows(before: list[Any], after: list[Any]) -> list[Any]:
     return [row for row in after if row not in before]
 
 
+#: A real document element's tab row carries a 24-hex element id; the CAD-import bookkeeping row does
+#: not (measured 2026-10-03: its `data-id` is literally `CADImportBlobs` and it also carries the
+#: `os-tab-bar-tab-group` class).
+_ELEMENT_ID = re.compile(r"^[0-9a-f]{24}$")
+
+
+def _is_document_element(row: Any) -> bool:
+    """Is this tab row an actual document element, rather than Onshape's import bookkeeping row?
+
+    MEASURED 2026-10-03: importing a STEP file adds TWO tab rows. The internal `CAD 导入` row
+    (`.os-tab-bar-tab-group`, ``data-id="CADImportBlobs"``) appears FIRST -- as soon as the file is
+    uploaded, before the translation exists -- and the translated element (`model`, a 24-hex id)
+    follows. Counting *any* new row therefore reported the bookkeeping row as the landed element.
+    A row is an element only when it is not a group row and carries an element-shaped id: this proof
+    prefers a false negative (refuse and keep waiting) over attributing a bookkeeping row.
+    """
+    if not isinstance(row, dict):
+        return False
+    if row.get("group"):
+        return False
+    return bool(_ELEMENT_ID.match(str(row.get("elementId") or "")))
+
+
+def _split_new_rows(new: list[Any]) -> tuple[list[Any], list[Any]]:
+    elements = [row for row in new if _is_document_element(row)]
+    internal = [row for row in new if not _is_document_element(row)]
+    return elements, internal
+
+
 def _verdict(mode: str, before: dict[str, Any], polled: dict[str, Any], expect_feature_name: str) -> dict[str, Any]:
     if not polled["after"]["ok"]:
         return {"imported": False, "reason": "element_read_failed", "detail": polled["after"]["error"],
                 "translationCompleted": "unknown"}
     new = _new_rows(before["rows"], polled["after"]["rows"])
+    elements, internal = _split_new_rows(new) if mode == "new-tab" else (new, [])
     if not new:
         return {"imported": False, "reason": "no_new_element",
                 "detail": ("the proof list did not change within the budget; the translation may still be "
                            "running, which is not the same as a failed import"),
                 "translationCompleted": "unknown", "newRows": []}
-    if len(new) > 1:
+    if not elements and internal:
+        return {"imported": False, "reason": "element_not_yet_visible",
+                "detail": ("the import was accepted -- Onshape's internal CAD-import bookkeeping row "
+                           f"{internal[0].get('name') if isinstance(internal[0], dict) else internal[0]!r} "
+                           "appeared -- but no translated document element is visible yet; a slow "
+                           "translation is not a failed import, and the bookkeeping row is not the "
+                           "imported geometry"),
+                "translationCompleted": "unknown", "newRows": [], "internalRows": internal}
+    if len(elements) > 1:
         return {"imported": False, "reason": "ambiguous_new_elements",
-                "detail": "more than one row appeared; refusing to guess which one is this import",
-                "translationCompleted": "unknown", "newRows": new}
+                "detail": "more than one document element appeared; refusing to guess which one is this import",
+                "translationCompleted": "unknown", "newRows": elements, "internalRows": internal}
     if mode == "new-tab":
-        row = new[0]
+        row = elements[0]
         if not (isinstance(row, dict) and (row.get("name") or row.get("elementId"))):
             return {"imported": False, "reason": "unidentified_new_element",
-                    "detail": "the new row carries neither a name nor an element id",
-                    "translationCompleted": "unknown", "newRows": new}
+                    "detail": "the new document-element row carries neither a name nor an element id",
+                    "translationCompleted": "unknown", "newRows": elements, "internalRows": internal}
         return {"imported": True, "reason": "new_tab_landed", "newElement": row,
-                "translationCompleted": "assumed", "newRows": new}
+                "translationCompleted": "assumed", "newRows": elements, "internalRows": internal}
     # into-part-studio: a new feature row proves *something* was added, not that this file landed.
     text = str(new[0])
     if not expect_feature_name:
         return {"imported": None, "reason": "landing_unproven",
                 "detail": "a new feature row appeared, but no expect_feature_name was supplied to match it",
-                "translationCompleted": "unknown", "newRows": new}
+                "translationCompleted": "unknown", "newRows": elements}
     if expect_feature_name.lower() in text.lower():
         return {"imported": True, "reason": "feature_row_matched", "newElement": {"name": text},
-                "translationCompleted": "assumed", "newRows": new}
+                "translationCompleted": "assumed", "newRows": elements}
     return {"imported": False, "reason": "feature_row_mismatch",
             "detail": f"the new row {text!r} does not contain {expect_feature_name!r}",
-            "translationCompleted": "unknown", "newRows": new}
+            "translationCompleted": "unknown", "newRows": elements}
 
 
 def import_browser_step(
@@ -551,7 +607,8 @@ def import_browser_step(
 
     result["submit"] = _click_submit(page)
     polled = _poll_for_change(
-        page, script, before, timeout_ms=timeout_ms, interval_ms=500, pause=pause, now=now
+        page, script, before, timeout_ms=timeout_ms, interval_ms=500, pause=pause, now=now,
+        require_element=(mode == "new-tab"),
     )
     result["polls"] = {"reads": polled["reads"], "changed": polled["changed"]}
     result["after"] = polled["after"]
