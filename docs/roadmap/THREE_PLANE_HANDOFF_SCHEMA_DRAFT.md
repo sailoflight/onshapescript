@@ -1,13 +1,12 @@
-# Three-plane handoff manifest — schema draft v0.2
+# Three-plane handoff manifest — schema draft v0.3
 
-**Status: v0.2, folded in the first field-level review.** v0.1 was reviewed over the `agent-infra`
-mailbox by `WindyIvy`/CadQ (8 field comments, message 123) and `RoseStork`/MeshQ (3 field
-disciplines plus 2 measurement rules, message 120). Every accepted change is listed in §2b with the
-sender and the reason, including the one direct conflict between the two reviewers and how it was
-resolved. Nothing here is implemented behavior yet; per this repository's governance, unimplemented
-ideas live in `roadmap/`. The capability matrix, the gaps and the boundary positions are in
-`THREE_PLANE_GEOMETRY_INTEROP.md`; this file is only the artifact shape those three planes would
-exchange.
+**Status: v0.3, second review round folded in.** v0.1 was reviewed by `WindyIvy`/CadQ (message 123,
+8 field comments) and `RoseStork`/MeshQ (messages 120/124/131/143/145). v0.2 folded those; v0.3 folds
+MeshQ's 14-row second pass (message 131), the two direct conflicts it shares with CadQ, and the rules
+that came out of the cross-plane overhang face-off (the evidence record is
+`onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md`). Every change is listed in §2b
+(v0.1 → v0.2) and §2c (v0.2 → v0.3) with the sender and the reason. Nothing here is implemented
+behavior yet; per this repository's governance, unimplemented ideas live in `roadmap/`.
 
 ## 1. What it is, and what it is not
 
@@ -25,50 +24,93 @@ exchange.
   carry the same discipline: a measurement is not a decision, and the decision's threshold belongs to
   whoever asks.
 
-## 2. The shape (v0.2)
+## 2. The shape (v0.3)
 
 ```jsonc
 {
-  "schema": "onshapescript.handoff/0.2-draft",   // namespaced id + version; an unknown version MUST be refused
-  "produced_by": {"plane": "onshape|cadq|meshq", "identity": "<mailbox name>", "tool": "<tool>", "at": "<ISO8601>"},
-  "source":      {"kind": "onshape_document|file", "reference": "<url or path>", "identifiers": {}},
-  "units": "mm",                                  // THE only place the unit appears; never inferred from a round trip
-  "authority":   {"brep": "authoritative", "mesh": "derived",
-                  "order": ["brep", "mesh"],      // machine-checkable priority, not prose
-                  "statement": "<one sentence, for a human>"},
+  "schema": "onshapescript.handoff/0.3-draft",   // namespaced id + version; an unknown version MUST be refused
+  "produced_by": {"plane": "onshape|cadq|meshq", "identity": "<mailbox name>", "tool": "<tool>",
+                  "kind": "tool|script|human",    // a probe from a dev script is not a tool product
+                  "at": "<ISO8601>"},
+  // identifiers: a CLOSED key table per kind, so a missing one is refusable
+  "source":      {"kind": "onshape_document|file", "reference": "<url or path>",
+                  "identifiers": {"documentId": "", "workspaceId": "", "elementId": ""} },
+  "units": "mm",                                  // THE only place the unit appears
+
+  "authority": {
+    "artifact_is": "exact_geometry|triangulation_of_exact_geometry",   // what THIS artifact is
+    "part_authoritative_in": "cadq|onshape|meshq",                     // who owns the exact reading
+    // `order` hangs on the READINGS, not on the planes: it answers "when these two disagree, which do I
+    // trust", which is decidable. A plane-level authority order would be a router, and no plane owns routing.
+    "order": ["declaration.geometry", "reference.geometry"],
+    "statement": "<one sentence, for a human>"
+  },
 
   "declaration": {                                // REQUIRED block
     "artifact":  {"role": "canonical|derived", "path": "", "media_type": "", "byte_count": 0},
     "identity":  {"sha256": "", "sha256_stable": false,
-                  "sha256_stable_evidence": null, // REQUIRED when stable is true: two digests of the same input
-                  "sha256_note": ""},
+                  "sha256_stable_evidence": null, // REQUIRED when stable is true: two digests of one input
+                  "sha256_note": ""},             // REQUIRED when stable is false; geometry must be non-empty too
     "geometry":  {
-      "measure_kind": "brep_exact|tessellation",  // how the numbers below were obtained
-      "kernel": "occt|blender|...",               // which engine produced them
+      "measure": {"kind": "brep_exact|tessellation",   // a STRUCTURE, so the branch decides what must exist
+                  "kernel": {"name": "occt|blender|...", "version": ""},
+                  // `at` REQUIRED for tessellation and FORBIDDEN for brep_exact: a B-Rep reading has no
+                  // tolerance, and the angular number binds as often as the linear one.
+                  "at": {"linear_tolerance_mm": 0.05, "angular_tolerance_rad": 0.0873}},
       "solid_count": 0,
       "parts": [{"index": 1, "name": "", "label": null,
-                 "bbox_mm": [0,0,0,0,0,0], "volume_mm3": 0.0,
-                 "cross_plane_ref": {"export_id": "", "index": 1, "signature": "<optional digest>"}}],
-      "identity_rule": {"sort_by": ["volume_mm3", "bbox_mm"], "compare": "relative", "precision": 1e-6},
-      "producer_command": "<the exact command that measured this>",
-      "measured_tolerance_mm": null               // ONLY for measure_kind = tessellation
+                 // named fields, not six loose numbers, and NOT the name a mesh kernel already uses
+                 "bounds_mm": {"min": [0,0,0], "max": [0,0,0], "size": [0,0,0]},
+                 "volume_mm3": 0.0,
+                 "cross_plane_ref": {"export_id": "", "index": 1, "signature": "<optional digest, a label only>"},
+                 // Any row that asks for a CHANGE must also carry a measurable selection rule: identity
+                 // fields reference, they do not select, and a twin part has no distinguishing identity.
+                 "selectors": []}],
+      "identity_rule": {"sort_by": ["volume_mm3", "bounds_mm"], "compare": "relative",
+                        "precision": 1e-6,            // the sort/match key
+                        "equivalence_tolerance": 1e-6}, // "are these the same geometry" -- never left to each side
+      "producer_command": "<the exact command that measured this>"
     },
-    "tessellation": {"linear_tolerance_mm": 0.05, "angular_tolerance_rad": 0.0873, "absolute": true,
-                     "declared_by": "<plane>", "used_by": "<plane>",
-                     "declared": {"linear_tolerance_mm": 0.05, "angular_tolerance_rad": 0.0873},
-                     "used": {"linear_tolerance_mm": 0.05, "angular_tolerance_rad": 0.0873},
-                     "matches_declaration": true, // producer-computed; false must be visible, never quiet
-                     "read_back_from": "<record the declaration was read back from>",
-                     "read_back_at": "<ISO8601>",
-                     "kernel": "<kernel + version>"}
+    "mesh": null,                                 // REQUIRED for a mesh handoff, forbidden for exact geometry
+    "tessellation": null                          // REQUIRED for a mesh handoff: see the shape below
   },
 
-  "reference": null,                              // OPTIONAL block: B-Rep readings kept as the truth to
-                                                 // compare against, never as an input to a mesh verdict
-  "cost": {"where": {"network": "offline|browser|live", "estimated_requests": 0, "mutating": false,
+  "reference": null,                              // OPTIONAL: the other reading, kept to compare against,
+                                                 // never an input to a mesh verdict
+  "cost": {"where": {"network": "offline|browser|live", "mutating": false,
+                     "estimated_requests": 0,    // FORBIDDEN when offline; REQUIRED when browser|live;
+                                                 // null + reason when genuinely unknown (never 0 for "unknown")
                      "spent_quota": 0, "quota_remaining": null},
            "what":  {"kind": "report|artifacts|executes|control"}},
-  "next_action": {"kind": "none|awaiting_peer|fix_backend|needs_human", "detail": ""}
+  "next_action": {"kind": "none|awaiting_peer|route_elsewhere|fix_backend|needs_human",
+                  "route_to": {"plane": "meshq|cadq|onshape", "reason": ""},  // REQUIRED for route_elsewhere
+                  "detail": ""}                   // must name a plane when kind is not none
+}
+```
+
+### The mesh handoff block (the shape that a face-off proved necessary)
+
+```jsonc
+"declaration": {
+  "mesh": {"role": "derived", "path": "", "media_type": "model/stl",
+           "representation": "builder_polygons|stl_triangulation",  // a cube is 6 quads built, 12 triangles read back
+           "triangle_count": 0},
+  "tessellation": {
+    "absolute": true,                              // relative and absolute 0.05 tessellate differently
+    "declared_by": "<plane>", "used_by": "<plane>",
+    "declared": {"linear_tolerance_mm": 0.05, "angular_tolerance_rad": 0.0873},
+    "used": {"linear_tolerance_mm": 0.05, "angular_tolerance_rad": 0.0873},
+    "matches_declaration": true,                   // producer-computed; FALSE without reporting is a refusal
+    "deviation_reason": null,                      // REQUIRED when matches_declaration is false
+    "read_back_from": "<the record the declaration was read from>", "read_back_at": "<ISO8601>",
+    "kernel": {"name": "", "version": ""}
+  },
+  "mesh_orientation": {"consistent": true,         // a closed, consistently wound mesh meets every shared
+                       "inconsistentEdgePairs": 0, // edge once per direction
+                       "inconsistentFaceIndices": [],  // locatable: a bare count cannot be acted on
+                       "outwardOriented": true,    // null when an open mesh cannot be judged ("not measured" != "outward")
+                       "facesWithoutNormal": 0,    // a face with no usable normal is COUNTED, never dropped
+                       "checkedEdges": 0}
 }
 ```
 
@@ -103,7 +145,27 @@ Every field exists because one of the three planes already paid for its absence:
 | 10 | Cross-plane `snake_case`, one mapping at the boundary | CadQ (§8), MeshQ (consistent) | CadQ's own identifiers are already snake_case, so it needs no mapping; "translate at every consumer" would produce two translators for one field. §6 is thereby closed |
 | 11 | `sha256_stable` defaults to false; `true` requires two digests | MeshQ (§ sha256) | Default-untrusted is the only rule that survives a format list where FBX and ABC change on every export |
 
-## 3. A real instance, generated from real records
+## 2c. What changed from v0.2 to v0.3, and why
+
+| # | Change | Asked by | Resolution |
+|---|---|---|---|
+| 1 | `measure_kind` becomes `geometry.measure = {kind, kernel{name,version}, at{linear,angular}}`; `measured_tolerance_mm` and `measured_at` are gone | MeshQ (131 rows 1/2/12), CadQ (123 §1/§2) | Both reviewers asked for a structure rather than a scalar. `at` is required for `tessellation` and forbidden for `brep_exact`. MeshQ's measured reason: the **angular** number is the one that binds (0.3 rad → 184 faces while the linear tolerance from 0.05 to 2.0 mm changes nothing), so a single scalar would report "tolerance unchanged" for a real change |
+| 2 | `parts[].bbox_mm` (six loose numbers) becomes `parts[].bounds_mm{min,max,size}` | MeshQ (131 row 3) | Six numbers force the reader to guess the order, and MeshQ already uses `bounds_mm` for this triple — the same name for two meanings is exactly what this draft exists to prevent |
+| 3 | `parts[].selectors` added, and a change request must carry one | MeshQ (131 row 4) | Identity references, it does not select: eight identical plates share a signature, so "change this one" must be expressed as a measurable rule (dimensions, cylinder radius, bounds, count) |
+| 4 | `identity_rule.equivalence_tolerance` added beside `precision` | MeshQ (143) | "Sort/match key" and "are these the same geometry" are two questions; without a declared value each side picks its own |
+| 5 | `sha256_stable: false` requires `sha256_note` **and** a non-empty `geometry`; `true` requires evidence | MeshQ (131 row 6) | Default-untrusted is the safe direction, and an unstable digest must have a replacement identity or the manifest names an artifact nobody can reference |
+| 6 | `authority` gains `artifact_is` + `part_authoritative_in`, and `order` points at **readings** | MeshQ (131 row 8, 145 §4), CadQ (123 §4) | **The second direct conflict, resolved.** CadQ wants a machine-checkable order (free text cannot be judged); MeshQ wants the assertion to be about *this artifact*, because plane-level authority would make the manifest a router. Both hold: `artifact_is` says what this is, `order` says which reading wins on a conflict. `["declaration.geometry", "reference.geometry"]` is decidable and routes nothing |
+| 7 | `cost.where.estimated_requests`: forbidden offline, required online, `null` + reason when unknown | MeshQ (131 row 9) | `0` carries two meanings ("no requests" vs "not known"); this repository's own rule is that an unmeasured number is not zero |
+| 8 | `next_action` gains `route_elsewhere` + `route_to{plane,reason}` | MeshQ (131 row 10) | MeshQ's `FormatUnsupported` names who should take over; a refusal that names no destination is where "who owns this" starts being argued again |
+| 9 | `source.identifiers` becomes a closed key table per `kind` | MeshQ (131 row 11) | An open dictionary cannot be validated; a closed table makes a missing key refusable |
+| 10 | `tessellation.used` gains `deviation_reason`; `matches_declaration` is producer-computed | MeshQ (131 rows 13, 120) | "Compute to the declared value" is the whole point of the declaration; a silent tightening makes the declaration decorative |
+| 11 | `produced_by.kind: tool|script|human` | MeshQ (145 §5) | A probe from a dev script is not a tool product, and the *reader* should not have to remember which is which |
+| 12 | The mesh block carries `representation` plus `mesh_orientation` | MeshQ (131 row 7, 145 §3) + the face-off | A cube is 6 quads when built and 12 triangles when read back from STL, so a bare face count is not comparable; and a face-off here proved that a **watertight** mesh can still carry an inverted face whose reading is silently wrong, so a mesh handoff must state whether the winding was checked |
+| 13 | `bed_contact_area` is one policy read at two thresholds, not a second printability number | MeshQ (143) | The same `downward-face-area` policy at threshold → 0 reproduced it to 2.0e-8, i.e. they are the same measurement, not two numbers that can disagree |
+| 14 | Rules for any boundary test piece | MeshQ (145 §1) | Both implementations are correct and land on **opposite** sides when a face normal sits exactly on the threshold (their `worst_tilt_deg = 45.000001` → 0.0, my computed `normal_z` → 440.0). Boundary pieces must use 44.95/45.05, and the manifest must state that the decision is a computed float comparison — a **convention**, not an error |
+| 15 | Compare bytes first | MeshQ (143) | "Declarations govern trust, bytes govern comparability": two sides tessellating the same part with different tolerances are not comparing the same thing |
+
+## 3. A real instance, generated from real records (regenerated for every version)
 
 This is not hand-written. It comes from the real 4-solid export
 `gf-4u-bin-59f6cc99-1` plus a real measurement run, by this throwaway generator:
@@ -122,11 +184,12 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
 
 ```json
 {
-  "schema": "onshapescript.handoff/0.2-draft",
+  "schema": "onshapescript.handoff/0.3-draft",
   "produced_by": {
     "plane": "onshape",
     "identity": "RoseElm",
     "tool": "browser_export_step",
+    "kind": "tool",
     "at": "2026-10-03T06:20:00Z"
   },
   "source": {
@@ -140,11 +203,11 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
   },
   "units": "mm",
   "authority": {
-    "brep": "authoritative",
-    "mesh": "derived",
+    "artifact_is": "exact_geometry",
+    "part_authoritative_in": "onshape",
     "order": [
-      "brep",
-      "mesh"
+      "declaration.geometry",
+      "reference.geometry"
     ],
     "statement": "B-Rep is authoritative; a mesh is the result of one triangulation at a declared tolerance"
   },
@@ -162,22 +225,37 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
       "sha256_note": "STEP carries a GUID and a timestamp in its header; the digest is download integrity, not content identity"
     },
     "geometry": {
-      "measure_kind": "brep_exact",
-      "kernel": "occt",
+      "measure": {
+        "kind": "brep_exact",
+        "kernel": {
+          "name": "occt",
+          "version": "7.9.3.1"
+        },
+        "at": null
+      },
       "solid_count": 4,
       "parts": [
         {
           "index": 1,
           "name": "solid_01",
           "label": null,
-          "bbox_mm": [
-            -18.6,
-            -18.6,
-            0.8,
-            18.6,
-            18.6,
-            2.6
-          ],
+          "bounds_mm": {
+            "min": [
+              -18.6,
+              -18.6,
+              0.8
+            ],
+            "max": [
+              18.6,
+              18.6,
+              2.6
+            ],
+            "size": [
+              37.2,
+              37.2,
+              1.8
+            ]
+          },
           "volume_mm3": 2486.956459,
           "cross_plane_ref": {
             "export_id": "gf-4u-bin-59f6cc99-1",
@@ -189,14 +267,23 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
           "index": 2,
           "name": "solid_02",
           "label": null,
-          "bbox_mm": [
-            -20.75,
-            -20.75,
-            2.6,
-            20.75,
-            20.75,
-            4.75
-          ],
+          "bounds_mm": {
+            "min": [
+              -20.75,
+              -20.75,
+              2.6
+            ],
+            "max": [
+              20.75,
+              20.75,
+              4.75
+            ],
+            "size": [
+              41.5,
+              41.5,
+              2.15
+            ]
+          },
           "volume_mm3": 3318.503987,
           "cross_plane_ref": {
             "export_id": "gf-4u-bin-59f6cc99-1",
@@ -208,14 +295,23 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
           "index": 3,
           "name": "solid_03",
           "label": null,
-          "bbox_mm": [
-            -20.75,
-            -20.75,
-            4.75,
-            20.75,
-            20.75,
-            32.4
-          ],
+          "bounds_mm": {
+            "min": [
+              -20.75,
+              -20.75,
+              4.75
+            ],
+            "max": [
+              20.75,
+              20.75,
+              32.4
+            ],
+            "size": [
+              41.5,
+              41.5,
+              27.65
+            ]
+          },
           "volume_mm3": 8017.823333,
           "cross_plane_ref": {
             "export_id": "gf-4u-bin-59f6cc99-1",
@@ -227,14 +323,23 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
           "index": 4,
           "name": "solid_04",
           "label": null,
-          "bbox_mm": [
-            -18.6,
-            -18.6,
-            -0.0,
-            18.6,
-            18.6,
-            0.8
-          ],
+          "bounds_mm": {
+            "min": [
+              -18.6,
+              -18.6,
+              -0.0
+            ],
+            "max": [
+              18.6,
+              18.6,
+              0.8
+            ],
+            "size": [
+              37.2,
+              37.2,
+              0.8
+            ]
+          },
           "volume_mm3": 1059.113156,
           "cross_plane_ref": {
             "export_id": "gf-4u-bin-59f6cc99-1",
@@ -246,15 +351,15 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
       "identity_rule": {
         "sort_by": [
           "volume_mm3",
-          "bbox_mm"
+          "bounds_mm"
         ],
         "compare": "relative",
         "precision": 1e-06,
+        "equivalence_tolerance": 1e-06,
         "set_signature_sha256": "6ba0265e063c75413b41ec0df7871c6b0c4a176d1d9cf201364357f309dcc83a",
         "note": "the digest is a fast path; if two digests differ, compare with the rule above instead of concluding"
       },
-      "producer_command": "cadquery_interference.py --mode aabb --linear-tolerance-mm 0.05",
-      "measured_tolerance_mm": null
+      "producer_command": "cadquery_interference.py --mode aabb --linear-tolerance-mm 0.05"
     }
   },
   "reference": null,
@@ -323,17 +428,35 @@ declared X, producer used Y" cannot express that difference.
 9. `tessellation.matches_declaration: false` without the mismatch being reported to the caller →
    refuse: the declaration must not be quietly adjusted.
 
-## 6. Naming: closed in v0.2
+10. `identity.sha256_stable == false` **and** `geometry` empty → refuse (no identity and no replacement).
+11. `measure.kind == "tessellation"` **without** the `at` pair, or `measure.kind == "brep_exact"` **with**
+    it → refuse (the branch decides which fields may exist).
+12. A mesh handoff without `tessellation.used` → refuse (a declaration with no receipt).
+13. `tessellation.absolute`, `declared_by` or `used_by` missing on a mesh handoff → refuse ("who declared
+    this" must be answerable).
+14. A mesh handoff whose `mesh_orientation` is absent → refuse: a watertight mesh can still carry an
+    inverted face whose reading is silently wrong, so "was the winding checked" is part of the artifact.
+
+Rule 5 ("asked to make a decision") is a rule for the **caller**, not a manifest check: the manifest
+cannot know what a consumer is about to do with it. Stated here so nobody implements a validator for a
+condition it cannot observe.
+
+## 6. Naming and key-set conformance: closed in v0.3
 
 This repository's existing manifests are `camelCase` (`schemaVersion`, `byteCount`,
-`linearToleranceMm`) while MeshQ's proposed cross-plane names are `snake_case`. Both reviewers
-supported the same resolution: **the cross-plane file is snake_case, with exactly one mapping at the
-handoff boundary.** CadQ's internal identifiers are already snake_case, so it needs no mapping;
-the alternative ("keep camelCase and let every consumer translate") would produce two translators
-for one field, which is the failure this rule exists to prevent. The mapping lives in this
-repository, once, next to whatever produces the file.
+`linearToleranceMm`) while the cross-plane names are `snake_case`. Both reviewers supported the same
+resolution: **the cross-plane file is snake_case, with exactly one mapping at the handoff boundary.**
+CadQ's internal identifiers are already snake_case, so it needs no mapping; the alternative ("keep
+camelCase and let every consumer translate") would produce two translators for one field, which is the
+failure this rule exists to prevent. The mapping lives in this repository, once, next to whatever
+produces the file.
 
-## 7. What each plane still owes (as of v0.2)
+MeshQ added the criterion that keeps that rule honest: **the cross-plane key set must equal the schema's
+required set — one extra or one missing key is red.** A convention nobody checks is prose, and the
+failure mode of this repository family is "if it can be generated, do not hand-write it; the handwritten
+copy drifts".
+
+## 7. What each plane still owes (as of v0.3)
 
 - **Onshape (this plane)**: import capability (the structural gap, now planned at
   `onshape_rest_api_mode/step_import.py` and blocked on a multipart transport — see the interop
@@ -368,4 +491,5 @@ repository, once, next to whatever produces the file.
 | Mailbox delivery | `tools/mail-delivery-receipt.sh --project /home/lijq/code/agent-infra --message-id <id>` → `found` |
 | The v0.2 instance is generated, not written | `/tmp/draft_handoff_instance_v02.py` reads the real `step-manifest.json`, runs the real measurement, and emits the block above; the set signature is `6ba0265e063c7541…` |
 | Peer review of v0.1 | mailbox messages 120 (MeshQ) and 123 (CadQ), each ack'd against the id; `mail-delivery-receipt.sh` reported `found` for the outbound 116/117/118/119 |
+| Overhang face-off, both directions | `onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md` (relative differences 1.77e-8 / 2.0e-8 / 3.5e-9; both sides low by 4.9e-5 against the sphere's closed form), including the retraction of my own first probe set |
 | Import request shape | vendored OpenAPI `createTranslation` + `BTBTranslationRequestParams`; `dev/tests/test_rest_step_import.py` cross-checks every sent and unsent field against that schema |
