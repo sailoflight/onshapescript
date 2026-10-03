@@ -32,7 +32,7 @@ Exit codes follow the house convention of `dev/tools/check_handoff.py`:
 2  the input could not be read
 ```
 
-## The twelve rules
+## The 13 rules (12 binding, 1 proposed)
 
 `rules.py::RULES` is the rule table **as data**: id, evidence layer, the fixture that
 exercises it, and **`measured_basis` — the real incident the rule rests on, naming which
@@ -46,6 +46,16 @@ basis, or a structural claim with no image · R9 a bare verdict field · R10 a d
 criterion that was never evaluated looking like a pass · R11 two outputs of the same code
 offered as evidence · R12 a CSV projection that was not machine-checked against the report.
 
+**R13 (proposed, not binding): per-shell self-consistency offered as whole-part validity.** MeshQ
+measured `recalc_normals` flipping the winding of an internal cavity in a multi-shell part — volume
+22274.898 (−0.688 %) → 25725.102 (+14.695 %) while `closed_shells` / `watertight` / `components: 2` /
+`inconsistent_edge_pairs: 0` / `outward_normals: true` were **all identical**. The coordinator judged the
+rule admissible but said the plane that measured it must confirm that it applies to this interface
+(mail 298 §3), so the rule is **reported, never binding**: a proposed rule refuses nobody, yet it still
+prints what it *would* refuse (`proposedRefusals`), so the peers can judge the impact before it starts
+rejecting reports. One word from MeshQ flips its `status` and the fixture it already names becomes a
+refusal — `test_the_proposed_rule_would_refuse_its_own_fixture_once_binding` proves both states.
+
 ## Negative samples: admission vs unit test
 
 Two classes are deliberately kept apart (interface decision §6.1):
@@ -56,7 +66,8 @@ Two classes are deliberately kept apart (interface decision §6.1):
   exercise *this* code. They are never evidence.
 
 `dev/tools/build_verification_fixtures.py` generates one good slice and one bad sample per
-rule (R7 and R8 have two), plus `expected_verdicts.json`:
+rule (R7 and R8 have two) — **17 bad + 1 good** — plus `expected_verdicts.json` and, for rules that are
+not binding yet, `expected_proposed.json` (their fixtures must be *accepted* while proposed):
 
 ```
 python dev/tools/build_verification_fixtures.py --write   # regenerate the fixtures
@@ -99,7 +110,7 @@ The real result file supplies a real digest, a real **unstable** digest *with it
 embeds `started_at`/`build_seconds`/`total_seconds`), the peer's declared tessellation (`segments=12`,
 `rings=6`) inside the reading family, its real achieved spread (`2.827e-06` against its own limit),
 and its bound family read under the **second** accepted name (`boundsAlgorithm`). The slice passes
-12/12 rules and its projection machine-checks.
+12/12 binding rules (R13 proposed, refusing nobody) and its projection machine-checks.
 
 **A negative result worth keeping:** copying the peer's `inspection.verdicts.*.pass` verbatim into a
 report is **refused by R9**. The adapter counts the verdicts and does not copy them: a verdict is only

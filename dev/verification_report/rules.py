@@ -195,9 +195,37 @@ RULES: list[dict] = [
             "(onshapescript, dev/tests/test_ewf_instance.py)."
         ),
     },
+    {
+        "id": "R13",
+        "title": "Per-shell self-consistency offered as whole-part validity",
+        "layer": "topology",
+        "needs": ("claims",),
+        # NOT BINDING YET. MeshQ measured the incident; the coordinator judged the rule admissible but
+        # said the plane that measured it must confirm that it applies to this interface (mail 298).
+        # Until MeshQ confirms, this rule is reported under `proposedRefusals` and refuses nobody --
+        # an unconfirmed rule must not start rejecting reports.
+        "status": "proposed",
+        "negative_control": "bad__R13__self_consistency_as_validity.json",
+        "measured_basis": (
+            "MeshQ measured `recalc_normals` flipping the winding of an internal cavity in a "
+            "multi-shell part: volume 22274.898 (-0.688 %) -> 25725.102 (+14.695 %, i.e. block 24000 "
+            "+ cavity 1725) while `closed_shells` / `watertight` / `components: 2` / "
+            "`inconsistent_edge_pairs: 0` / `outward_normals: true` were ALL identical; only the "
+            "volume gate that knows the truth caught it (MeshQ mail 289 §4, four single-variable A/B "
+            "runs, its blender-headless pit 81 / open item 25)."
+        ),
+    },
 ]
 
 RULE_IDS: list[str] = [rule["id"] for rule in RULES]
+
+#: Binding rules only. A `status: "proposed"` rule is reported but never refuses anyone: the plane
+#: that measured the incident has to confirm it applies to this interface first.
+AGREED_RULE_IDS: list[str] = [rule["id"] for rule in RULES if rule.get("status", "agreed") == "agreed"]
+PROPOSED_RULE_IDS: list[str] = [rule["id"] for rule in RULES if rule.get("status") == "proposed"]
+
+#: The declaration a claim makes when its whole-part validity rests on per-shell checks.
+SELF_CONSISTENCY_REFERENCE = "self_consistency"
 
 #: Keys that must not appear anywhere: a bare judgement cannot be re-checked.
 BARE_VERDICT_KEYS = ("stable", "printable", "ok", "pass", "verdict")

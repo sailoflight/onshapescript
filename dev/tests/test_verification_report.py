@@ -21,10 +21,11 @@ FIXTURES = ROOT / "dev" / "verification_report" / "fixtures"
 SCHEMA = ROOT / "dev" / "verification_report" / "schema" / "verification_report_v1.schema.json"
 
 sys.path.insert(0, str(ROOT))
-from dev.verification_report import adapters, rules as R, runner  # noqa: E402
+from dev.verification_report import adapters, rules as R, runner, slices  # noqa: E402
 
 GOOD_REPORT = json.loads((FIXTURES / "good__vertical_slice.json").read_text(encoding="utf-8"))
 EXPECTED = json.loads((FIXTURES / "expected_verdicts.json").read_text(encoding="utf-8"))
+EXPECTED_PROPOSED = json.loads((FIXTURES / "expected_proposed.json").read_text(encoding="utf-8"))
 
 
 class GoodSlice(unittest.TestCase):
@@ -32,7 +33,9 @@ class GoodSlice(unittest.TestCase):
         verdict = runner.check_report(GOOD_REPORT)
         self.assertTrue(verdict["ok"], verdict["refusals"])
         self.assertEqual(verdict["rulesNotRun"], [])
-        self.assertEqual(sorted(verdict["rulesRun"]), sorted(R.RULE_IDS))
+        self.assertEqual(sorted(verdict["rulesRun"]), sorted(R.AGREED_RULE_IDS))
+        self.assertEqual(verdict["rulesProposed"], list(R.PROPOSED_RULE_IDS))
+        self.assertEqual(verdict["proposedRefusals"], [], "a proposed rule must not have anything to say about a good slice")
 
     def test_cli_exit_zero_on_the_good_slice(self) -> None:
         self.assertEqual(runner.main(["--report", str(FIXTURES / "good__vertical_slice.json"), "--json"]), 0)
@@ -52,15 +55,18 @@ class NegativeControls(unittest.TestCase):
                 self.assertEqual(verdict["rulesNotRun"], [])
 
     def test_coverage_both_ways(self) -> None:
-        covered = {rule for rule in EXPECTED.values() if rule}
+        covered = {rule for rule in list(EXPECTED.values()) + list(EXPECTED_PROPOSED.values()) if rule}
         self.assertEqual([rule["id"] for rule in R.RULES], list(R.RULE_IDS))
         self.assertEqual(len(set(R.RULE_IDS)), len(R.RULE_IDS), "duplicate rule ids")
         for rule_id in R.RULE_IDS:
             self.assertIn(rule_id, covered, f"{rule_id} has no negative control")
         for rule_id in covered:
             self.assertIn(rule_id, R.RULE_IDS)
-        for name in EXPECTED:
+        for name in list(EXPECTED) + list(EXPECTED_PROPOSED):
             self.assertTrue((FIXTURES / name).exists(), f"{name} is missing on disk")
+        self.assertEqual(
+            sorted(set(EXPECTED_PROPOSED.values())), sorted(R.PROPOSED_RULE_IDS), "every proposed rule needs a fixture"
+        )
 
     def test_every_rule_names_a_measured_basis_and_an_existing_fixture(self) -> None:
         for rule in R.RULES:
@@ -229,3 +235,126 @@ class Cli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProposedRules(unittest.TestCase):
+    """A rule that is not confirmed yet must be visible **and** harmless.
+
+    The coordinator judged R13 admissible but said the plane that measured it has to confirm that it
+    applies to this interface (mail 298 §3). So the machinery is in place, the fixture exists, and the
+    rule refuses nobody -- until one word changes.
+    """
+
+    R13_FIXTURE = FIXTURES / "bad__R13__self_consistency_as_validity.json"
+
+    def test_a_proposed_rule_refuses_nobody_but_says_what_it_would_refuse(self) -> None:
+        report = json.loads(self.R13_FIXTURE.read_text(encoding="utf-8"))
+        verdict = runner.check_report(report)
+        self.assertTrue(verdict["ok"], "an unconfirmed rule must not reject a report")
+        self.assertEqual(verdict["refusals"], [], "a proposed rule refuses nobody")
+        self.assertEqual(verdict["rulesProposed"], ["R13"])
+        # It still *says* what it would refuse -- that is what lets the peers judge the impact before
+        # confirming it, instead of discovering it after the rule starts rejecting reports.
+        self.assertEqual(
+            sorted({refusal["rule"] for refusal in verdict["proposedRefusals"]}), ["R13"], verdict["proposedRefusals"]
+        )
+        self.assertIn("self-consistency", verdict["proposedRefusals"][0]["problem"])
+        # ... and the fixture really does carry what the rule is about:
+        injected = next(claim for claim in report["claims"] if claim["id"] == "c_self")
+        self.assertEqual(injected["reference"], R.SELF_CONSISTENCY_REFERENCE)
+        self.assertEqual(injected["grade"], "reliable")
+
+    def test_the_proposed_rule_would_refuse_its_own_fixture_once_binding(self) -> None:
+        report = json.loads(self.R13_FIXTURE.read_text(encoding="utf-8"))
+        flipped = [dict(rule, status="agreed") if rule["id"] == "R13" else rule for rule in R.RULES]
+        with mock.patch.object(R, "RULES", flipped), mock.patch.object(
+            R, "AGREED_RULE_IDS", [rule["id"] for rule in flipped]
+        ):
+            verdict = runner.check_report(report)
+        self.assertFalse(verdict["ok"], "the moment R13 is confirmed it must refuse this fixture")
+        self.assertEqual(sorted({refusal["rule"] for refusal in verdict["refusals"]}), ["R13"])
+        self.assertEqual(verdict["proposedRefusals"], [])
+        self.assertIn("+14.695 %", verdict["refusals"][0]["required_fix"])
+
+    def test_the_peer_slice_keeps_its_self_consistency_claim_honest(self) -> None:
+        """The real slice grades per-shell consistency `heuristic`, so R13 has nothing to say about it."""
+        report = slices.build_meshq_report()
+        verdict = runner.check_report(report)
+        self.assertTrue(verdict["ok"], verdict["refusals"])
+        shell = next(claim for claim in report["claims"] if claim["id"] == "c_shell")
+        self.assertNotEqual(shell["grade"], "reliable")
+        self.assertTrue(shell["not_evaluated"], "the whole-part gap must be a declared absence")
+
+
+class SelfClaims(unittest.TestCase):
+    """Machine-check the claims this package makes about **its own code**.
+
+    The coordinator reported a real case elsewhere: an implementation whose final report claimed a
+    property its code did not have, while 549 of its own tests stayed green (mail 298 §5). A claim in
+    one's own document is exactly as checkable as a claim in one's own report, so it is checked here.
+    """
+
+    PACKAGE = ROOT / "dev" / "verification_report"
+    README = PACKAGE / "README.md"
+
+    def test_the_package_imports_the_standard_library_only(self) -> None:
+        import ast
+        import sys as _sys
+
+        # Sibling modules inside this package are not "third party": `runner.py` falls back to
+        # `import rules` when it is executed as a script rather than imported as a package.
+        siblings = {path.stem for path in self.PACKAGE.glob("*.py")}
+        for path in sorted(self.PACKAGE.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name.split(".")[0] for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    if node.level:  # relative import inside the package
+                        continue
+                    names = [(node.module or "").split(".")[0]]
+                else:
+                    continue
+                for name in names:
+                    with self.subTest(module=name, file=path.name):
+                        self.assertTrue(
+                            name in _sys.stdlib_module_names or name in siblings,
+                            f"{path.name} imports the non-stdlib module {name}",
+                        )
+
+    def test_this_plane_still_has_no_renderer(self) -> None:
+        """The README claims the image leg is CadQ's. If that changes, this test must fail loudly."""
+        import re as _re
+
+        patterns = (_re.compile(r"\bmatplotlib\b"), _re.compile(r"\bsavefig\b"), _re.compile(r"\brender_parts\b"),
+                    _re.compile(r"\bimageio\b"), _re.compile(r"\bfrom PIL\b"), _re.compile(r"\bimport PIL\b"))
+        offenders: list[str] = []
+        for directory in ("mcp_main", "onshape_browser_mode"):
+            base = ROOT / directory
+            if not base.exists():
+                continue
+            for path in base.rglob("*.py"):
+                text = path.read_text(encoding="utf-8", errors="replace")
+                if any(pattern.search(text) for pattern in patterns):
+                    offenders.append(str(path.relative_to(ROOT)))
+        self.assertEqual(
+            offenders, [],
+            "this plane now renders: update dev/verification_report/README.md (and the peer slice) rather than deleting this test",
+        )
+        self.assertIn("has no renderer", self.README.read_text(encoding="utf-8"))
+
+    def test_the_readme_counts_match_the_code(self) -> None:
+        import re as _re
+
+        readme = self.README.read_text(encoding="utf-8")
+        rules_mentioned = _re.search(r"(\d+) rules", readme)
+        self.assertIsNotNone(rules_mentioned, "the README must state the rule count")
+        self.assertEqual(int(rules_mentioned.group(1)), len(R.RULES))
+        self.assertEqual(len(R.AGREED_RULE_IDS) + len(R.PROPOSED_RULE_IDS), len(R.RULES))
+        self.assertIn("proposed", readme, "the README must explain that a proposed rule refuses nobody")
+        self.assertIn("R13", readme)
+
+        fixtures = sorted((self.PACKAGE / "fixtures").glob("bad__*.json"))
+        stated = _re.search(r"(\d+) bad \+ 1 good", readme)
+        self.assertIsNotNone(stated, "the README must state the fixture counts")
+        self.assertEqual(int(stated.group(1)), len(fixtures))

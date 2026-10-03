@@ -315,6 +315,28 @@ def _r12_projection(report: dict, fail) -> None:
         )
 
 
+def _r13_self_consistency(report: dict, fail) -> None:
+    """Per-shell self-consistency is not whole-part validity (MeshQ's measured incident)."""
+    for claim in _claim_list(report):
+        which = f"claims[{claim.get('id')}]"
+        declared = claim.get("reference") == R.SELF_CONSISTENCY_REFERENCE
+        families = " ".join(
+            str((reading or {}).get("family") or "")
+            for reading in (claim.get("readings") or [])
+            if isinstance(reading, dict)
+        )
+        via_reading = "self_consistency" in families
+        if (declared or via_reading) and claim.get("grade") == "reliable":
+            fail(
+                "R13",
+                which,
+                "whole-part validity is graded reliable on per-shell self-consistency "
+                f"({'declared reference' if declared else 'reading family'})",
+                "a whole-part claim resting on per-shell checks must not be `reliable`: MeshQ measured every shell "
+                "check green while a multi-shell part's volume moved by +14.695 %",
+            )
+
+
 _CHECKS: dict[str, Callable[[dict, Callable], None]] = {
     "R1": _r1_schema,
     "R2": _r2_producer,
@@ -328,32 +350,58 @@ _CHECKS: dict[str, Callable[[dict, Callable], None]] = {
     "R10": _r10_unevaluated,
     "R11": _r11_independence,
     "R12": _r12_projection,
+    "R13": _r13_self_consistency,
 }
 
 
 def check_report(report: dict) -> dict:
-    """Run every rule and collect every refusal (never stop at the first)."""
+    """Run every rule and collect every refusal (never stop at the first).
+
+    Binding rules decide `ok`. A rule whose `status` is `proposed` is **reported** under
+    `proposedRefusals` but never refuses anyone: it becomes binding only when the plane that measured
+    the incident confirms that it applies to this interface. The fixture it names is therefore
+    expected to be *accepted* while the rule is proposed -- and refused the moment its status flips.
+    """
     refusals: list[dict] = []
+    proposed_refusals: list[dict] = []
     rules_run: list[str] = []
     rules_not_run: list[str] = []
+    rules_proposed: list[str] = []
 
-    def fail(rule: str, where: str, problem: str, required_fix: str) -> None:
-        refusals.append({"rule": rule, "where": where, "problem": problem, "required_fix": required_fix})
+    def record(bucket: list[dict], rule: str, where: str, problem: str, required_fix: str) -> None:
+        bucket.append({"rule": rule, "where": where, "problem": problem, "required_fix": required_fix})
 
     for rule in R.RULES:
         rule_id = rule["id"]
+        proposed = rule.get("status", "agreed") == "proposed"
+        bucket = proposed_refusals if proposed else refusals
+
+        def fail(rule, where, problem, required_fix, _bucket=bucket) -> None:  # type: ignore[no-untyped-def]
+            # Same four-argument convention the checks already use; only the bucket differs, and the
+            # bucket is what decides whether this refusal is binding.
+            record(_bucket, rule, where, problem, required_fix)
+
         try:
             _CHECKS[rule_id](report, fail)
         except Exception as exc:  # a rule that did not run must be as loud as a refusal
+            if proposed:
+                record(bucket, rule_id, "<rule did not run>", f"{type(exc).__name__}: {exc}", "fix the input or the rule")
+                rules_proposed.append(rule_id)
+                continue
             rules_not_run.append(rule_id)
-            fail(rule_id, "<rule did not run>", f"{type(exc).__name__}: {exc}", "fix the input or the rule so it can be evaluated")
+            record(bucket, rule_id, "<rule did not run>", f"{type(exc).__name__}: {exc}", "fix the input or the rule so it can be evaluated")
             continue
-        rules_run.append(rule_id)
+        if proposed:
+            rules_proposed.append(rule_id)
+        else:
+            rules_run.append(rule_id)
     return {
         "ok": not refusals and not rules_not_run,
         "refusals": refusals,
+        "proposedRefusals": proposed_refusals,
         "rulesRun": rules_run,
         "rulesNotRun": rules_not_run,
+        "rulesProposed": rules_proposed,
     }
 
 
@@ -437,11 +485,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(verdict, ensure_ascii=False, indent=2, sort_keys=True))
     else:
-        print(f"rules run: {len(verdict['rulesRun'])}/{len(R.RULES)}  refusals: {len(verdict['refusals'])}")
+        print(
+            f"rules run: {len(verdict['rulesRun'])}/{len(R.AGREED_RULE_IDS)}  refusals: {len(verdict['refusals'])}"
+            f"  proposed: {len(verdict['rulesProposed'])} ({len(verdict['proposedRefusals'])} would refuse)"
+        )
         for refusal in verdict["refusals"]:
             print(f"  [{refusal['rule']}] {refusal['where']}")
             print(f"      problem : {refusal['problem']}")
             print(f"      required: {refusal['required_fix']}")
+        for refusal in verdict["proposedRefusals"]:
+            print(f"  (proposed {refusal['rule']}, not binding) {refusal['where']}: {refusal['problem']}")
         if verdict["rulesNotRun"]:
             print(f"  rules that did not run: {', '.join(verdict['rulesNotRun'])}")
         print("verdict:", "ok" if verdict["ok"] else "REFUSED")

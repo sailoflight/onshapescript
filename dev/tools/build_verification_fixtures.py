@@ -30,6 +30,10 @@ from dev.verification_report import rules as R  # noqa: E402
 
 GOOD = "good__vertical_slice.json"
 EXPECTED = "expected_verdicts.json"
+#: Rules that are **not binding yet**: their fixture must be *accepted* while the rule is proposed,
+#: and refused the moment its status flips to agreed. MeshQ measured R13's incident; it becomes
+#: binding only when MeshQ confirms it applies to this interface (coordinator mail 298 §3).
+EXPECTED_PROPOSED = "expected_proposed.json"
 
 #: The recorded signature of the real 70-piece handoff set (three-plane session).
 HANDOFF_SIGNATURE = "7f4271064f1107bebb3aaaf40944b2690285b4aed8c6a7c55ceee54728608292"
@@ -240,6 +244,28 @@ def _m_r8_structural(report: dict) -> None:
     report["claims"][0]["layers"] = ["geometry", "topology"]
 
 
+def _m_r13(report: dict) -> None:
+    """A whole-part claim resting on per-shell checks, graded reliable (MeshQ's incident)."""
+    report["claims"].append(
+        {
+            "id": "c_self",
+            "quantity": "mesh.whole_part_validity",
+            "layers": ["topology"],
+            "grade": "reliable",
+            "reference": "self_consistency",
+            "readings": [
+                {
+                    "value": 0,
+                    "unit": "count",
+                    "family": "shell_self_consistency(inconsistent_edge_pairs)",
+                    "algorithm": "per-shell closure / manifold / winding checks of the produced mesh",
+                    "achieved": {"absolute": 0.0, "relative": 0.0, "basis": "exact integer counts over the mesh edges"},
+                }
+            ],
+        }
+    )
+
+
 def _m_r9(report: dict) -> None:
     report["artifact"]["stable"] = True
 
@@ -273,6 +299,7 @@ MUTATIONS: list[tuple[str, str, Callable[[dict], None]]] = [
     ("R10", "incomplete_looks_green", _m_r10),
     ("R11", "same_code_as_evidence", _m_r11),
     ("R12", "projection_unchecked", _m_r12),
+    ("R13", "self_consistency_as_validity", _m_r13),
 ]
 
 
@@ -285,13 +312,19 @@ def build() -> dict[str, Any]:
     good = _good_report()
     out: dict[str, Any] = {GOOD: good}
     expected: dict[str, Any] = {GOOD: None}
+    proposed: dict[str, str] = {}
     for rule_id, slug, mutate in MUTATIONS:
         report = copy.deepcopy(good)
         mutate(report)
         name = fixture_name(rule_id, slug)
         out[name] = report
-        expected[name] = rule_id
+        # A proposed rule's fixture is expected to be *accepted* while it is not binding.
+        if rule_id in R.PROPOSED_RULE_IDS:
+            proposed[name] = rule_id
+        else:
+            expected[name] = rule_id
     out[EXPECTED] = expected
+    out[EXPECTED_PROPOSED] = proposed
     return out
 
 
@@ -327,11 +360,13 @@ def cmd_check() -> int:
 def cmd_facts() -> int:
     fixtures = build()
     expected = fixtures.get(EXPECTED) or {}
-    covered = {rule for rule in expected.values() if rule}
+    proposed = fixtures.get(EXPECTED_PROPOSED) or {}
+    covered = {rule for rule in list(expected.values()) + list(proposed.values()) if rule}
     missing = [rule["id"] for rule in R.RULES if rule["id"] not in covered]
     print(f"rules: {len(R.RULES)}")
     print(f"fixtures: {len([name for name in fixtures if name.startswith('bad__')])} bad + 1 good")
     print(f"rules without a negative control: {missing or 'none'}")
+    print(f"proposed (not binding, never refuses): {sorted(set(proposed.values())) or 'none'} -- their fixtures are expected to be accepted")
     print(f"admission samples (real incidents) named in the rule table: {len(R.RULES)}")
     return 0 if not missing else 1
 
