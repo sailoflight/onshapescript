@@ -575,5 +575,10 @@
       "reading": "Onshape offers no delete affordance for its own CAD-import bookkeeping row through the element (tab) menu. The row is a by-product of the import action (measured when it first appeared: two rows were added, `model` and `CAD 导入`), but its lifecycle is not the document's element lifecycle, and this leg will not guess at a removal path for it (no DOM surgery on the owner's document)."
     },
     "document_state_after": "10 owner elements (Part Studio 1, Feature Studio 1, Thin Native Features, GF Thin Plate, 网格底板 2×2, GF 4U 盒子, BENCH Feature Studio, BENCH sensor bracket PS, 网格盒子 4U, Assembly 1) + the internal `CAD 导入` row; ZERO elements remain from this leg's live runs"
+  },
+  "display_off_end_to_end_test_declined_2026-10-03": {
+    "owner_decision": "\"关屏不测了\" -- the owner declined the end-to-end display-off test (turn the physical monitor off for 1-2 minutes, then re-measure the bridge node and browser_session health).",
+    "state_before_the_decision": "the question was still open as an end-to-end run even though the mechanism was already answered: the owner's desktop is session 2 and is NOT mirrored to the physical console display, and the current power scheme cannot suspend or hibernate on AC (STANDBYIDLE AC = 0, HIBERNATEIDLE AC = 0) -- see display_and_power_answers_measured_2026-10-03 above.",
+    "consequence": "the display-off leg is recorded as DECLINED, not as passed and not as pending: no one should read this record as waiting for that run. The measured mechanism (a monitor is an output device; sessions keep running) stands on its own evidence, but it is an argument, not a live run of the whole leg."
   }
 }
