@@ -240,7 +240,8 @@ def plan_browser_step_import(
     else:
         proof = {
             "mode": "into-part-studio",
-            "reads": "the Part Studio user-feature rows (`.os-list-item.ns-user-feature`, live-observed)",
+            "reads": "the Part Studio user-feature rows (`.os-list-item.ns-user-feature`, live-observed) of the "
+                     "ACTIVE tab; this leg never switches tabs, so target_tab must already be active",
             "rule": ("exactly one new user-feature row must appear AND its text must contain "
                      "expect_feature_name, otherwise the answer is imported=null (landing unproven)"),
             "importedTrueRequires": "one new row whose text contains expect_feature_name",
@@ -311,6 +312,9 @@ def plan_browser_step_import(
             "the internal CAD-import bookkeeping row appears alone -> imported=False with reason "
             "element_not_yet_visible; that row is not the imported geometry, and the wait continues",
             "two or more new document elements -> refused as ambiguous, never guessed",
+            "mode into-part-studio while another tab is active (or the active tab's name is unreadable) -> "
+            "refused with target_tab_not_active / active_tab_unknown before anything is clicked, because this "
+            "leg never switches tabs and the proof rows would belong to someone else",
             "into-part-studio without a matching expect_feature_name -> imported=None, not True",
         ],
     }
@@ -363,6 +367,28 @@ def _click_text_candidate(page: Any, labels: tuple[str, ...]) -> dict[str, Any]:
             except Exception:
                 tried.append(f"{strategy}:{label}")
     return {"clicked": False, "label": None, "strategy": None, "tried": tried}
+
+
+#: The active tab's name, so a target-tab claim can be checked instead of assumed. The marker comment
+#: is what the offline fakes dispatch on (the live page ignores it).
+_ACTIVE_TAB_JS = """
+() => { /* active-tab-name */
+  const rows = Array.from(document.querySelectorAll('.os-tab-bar-tab'));
+  const isActive = (row) => String(row.className || '').split(' ').indexOf('active') !== -1;
+  const active = rows.find(isActive);
+  if (!active) return '';
+  return ((active.querySelector('.os-tab-name') || active).textContent || '').trim();
+}
+"""
+
+
+def _active_tab_name(page: Any) -> str:
+    """Read the active tab's visible name, or '' when it cannot be read."""
+    try:
+        name = page.evaluate(_ACTIVE_TAB_JS)
+    except Exception:  # noqa: BLE001 - an unreadable name is a refusal, not a crash
+        return ""
+    return name.strip() if isinstance(name, str) else ""
 
 
 def _click_import_entry(page: Any, labels: tuple[str, ...] = IMPORT_ENTRY_LABELS) -> dict[str, Any]:
@@ -564,6 +590,31 @@ def import_browser_step(
     now = now or time.monotonic
 
     script = _TAB_ROWS_JS if mode == "new-tab" else _FEATURE_ROWS_JS
+
+    # A target tab is a CLAIM, not an action: this leg never switches tabs, so the proof rows below are
+    # read from whatever element is on screen. Refuse unless the claim matches the screen, or the verdict
+    # could describe another Part Studio's features while naming this one (found by inspection while
+    # preparing the into-part-studio live run, 2026-10-03).
+    active_tab = ""
+    if mode == "into-part-studio":
+        active_tab = _active_tab_name(page)
+        if active_tab != target_tab:
+            return {
+                "imported": False,
+                "reason": "active_tab_unknown" if not active_tab else "target_tab_not_active",
+                "detail": ("the active tab's name could not be read, so proof rows cannot be attributed to a known "
+                           "element; activate the target tab first (this leg never switches tabs)" if not active_tab
+                           else f"the active tab is {active_tab!r}, not {target_tab!r}: this leg reads the proof rows "
+                                "from whatever Part Studio is on screen and never switches tabs, so nothing was "
+                                "clicked -- activate the target tab first"),
+                "mode": mode,
+                "target": {"documentId": document_id or None, "workspaceId": workspace_id or None,
+                           "tab": target_tab or None, "expectFeatureName": expect_feature_name or None},
+                "activeTab": {"name": active_tab, "expected": target_tab},
+                "before": None, "after": None, "newRows": [],
+                "network": "browser", "estimatedApiRequests": 0, "spentApiRequests": 0, "spentQuota": 0,
+            }
+
     before = _read_rows(page, script)
     facts = _page_facts(page, rows=before["rows"] if before["ok"] else None)
     result: dict[str, Any] = {
@@ -585,6 +636,8 @@ def import_browser_step(
         "spentApiRequests": 0,
         "spentQuota": 0,
     }
+    if active_tab:
+        result["activeTab"] = {"name": active_tab, "expected": target_tab}
     if not before["ok"]:
         result["reason"] = "before_read_failed"
         result["detail"] = ("the proof row list could not be read before the import, so landing cannot "

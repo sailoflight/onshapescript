@@ -161,6 +161,9 @@ def _report(result: dict[str, Any]) -> tuple[list[tuple[str, str, str]], int]:
     if (result.get("mode") or "") == "into-part-studio":
         if result.get("imported") is True:
             rows.append(("I4", "pass", f"a feature row matched the expected name: {result.get('newElement')}"))
+        elif result.get("reason") in {"target_tab_not_active", "active_tab_unknown"}:
+            rows.append(("I4", "unproven", f"the check could not run: {result.get('reason')} -- "
+                                           f"{result.get('detail')}"))
         else:
             rows.append(("I4", "observed", f"imported={result.get('imported')} reason={result.get('reason')} "
                                            f"newRows={new_rows}"))

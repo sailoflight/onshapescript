@@ -84,6 +84,7 @@ class FakePage:
         entry_present: bool = True,
         file_input_attachable: bool = True,
         raise_on_read_after: int | None = None,
+        active_tab_name: str = "",
     ) -> None:
         self.url = "https://cad.onshape.com/documents/did/w/wid/e/eid"
         self.tab_reads = list(tab_reads or [])
@@ -91,6 +92,7 @@ class FakePage:
         self.entry_present = entry_present
         self.file_input_attachable = file_input_attachable
         self.raise_on_read_after = raise_on_read_after
+        self.active_tab_name = active_tab_name
         self.evaluate_calls = 0
         self.clicks: list[str] = []
         self.waits: list[dict] = []
@@ -112,6 +114,9 @@ class FakePage:
         return FakeLocator(self, selector)
 
     def evaluate(self, script: str, arg=None):
+        # The active-tab read backs the target_tab guard; it must not consume a proof-row read either.
+        if "active-tab-name" in script:
+            return self.active_tab_name
         # The measured import entry is a HIDDEN dropdown item: its click is scripted here exactly as the
         # live page answered on 2026-10-03, and it must not consume a proof-row read.
         if "dropdown-item" in script:
@@ -378,13 +383,13 @@ class ImportTest(unittest.TestCase):
 
     def test_into_part_studio_without_a_name_match_is_unproven_not_true(self):
         page = FakePage(
-            feature_reads=[["Base"], ["Base", "导入 1"]],
+            feature_reads=[["Base"], ["Base", "导入 1"]], active_tab_name="Part Studio 1",
         )
         result = self._run(page, mode="into-part-studio", target_tab="Part Studio 1", document_id="did1")
         self.assertIsNone(result["imported"])
         self.assertEqual(result["reason"], "landing_unproven")
         matched = self._run(
-            FakePage(feature_reads=[["Base"], ["Base", "导入 1"]]),
+            FakePage(feature_reads=[["Base"], ["Base", "导入 1"]], active_tab_name="Part Studio 1"),
             mode="into-part-studio",
             target_tab="Part Studio 1",
             document_id="did1",
@@ -394,7 +399,7 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(matched["reason"], "feature_row_matched")
 
     def test_into_part_studio_with_a_wrong_name_is_a_mismatch(self):
-        page = FakePage(feature_reads=[["Base"], ["Base", "导入 1"]])
+        page = FakePage(feature_reads=[["Base"], ["Base", "导入 1"]], active_tab_name="Part Studio 1")
         result = self._run(
             page,
             mode="into-part-studio",
@@ -404,6 +409,25 @@ class ImportTest(unittest.TestCase):
         )
         self.assertFalse(result["imported"])
         self.assertEqual(result["reason"], "feature_row_mismatch")
+
+    def test_a_target_tab_that_is_not_active_refuses_before_clicking_anything(self):
+        # The leg never switches tabs, so the proof rows would belong to whichever element is on screen.
+        page = FakePage(
+            feature_reads=[["Base"], ["Base", "导入 1"]], active_tab_name="GF 4U 盒子",
+        )
+        result = self._run(page, mode="into-part-studio", target_tab="Part Studio 1", document_id="did1")
+        self.assertFalse(result["imported"])
+        self.assertEqual(result["reason"], "target_tab_not_active")
+        self.assertEqual(result["activeTab"], {"name": "GF 4U 盒子", "expected": "Part Studio 1"})
+        self.assertEqual(page.clicks, [], "nothing may be clicked when the target tab is not on screen")
+        self.assertEqual(page.evaluate_calls, 0, "no proof rows may be read from another element")
+        self.assertIsNone(result["before"])
+
+    def test_an_unreadable_active_tab_refuses_rather_than_guessing(self):
+        page = FakePage(feature_reads=[["Base"]], active_tab_name="")
+        result = self._run(page, mode="into-part-studio", target_tab="Part Studio 1", document_id="did1")
+        self.assertEqual(result["reason"], "active_tab_unknown")
+        self.assertIn("never switches tabs", result["detail"])
 
     def test_the_poll_is_bounded_by_the_injected_clock(self):
         clock = FakeClock()
