@@ -92,7 +92,7 @@ $ python3 dev/tools/build_ewf_instance.py --facts   # 只打印本次复算出�
    GitHub Release 只能 `custom` + `system_name: github-releases`，而 `system_name` 不是必填。
 5. **许可与再分发无处安放**：产物再分发上游语料与内置 wheel，但 `artifact` payload 只有
    `realization_kind` / `satisfies` / `identity`，许可义务只能写进散文。
-6. **产物留存 / 可得性无处安放**：验证记录里点名 6 个构建 revision，本地只有 2 个 zip；
+6. **产物留存政策无处安放**（「可得性」本身不是缺口，见回灌队列 `onshapescript-FB-06` 的处置）：验证记录里点名 6 个构建 revision，本地只有 2 个 zip；
    「哪个版本还留着、留多久、谁能删」在 EWF 里既不是 Release 字段、也不是 Entity。
 7. **工具标识与真实命令对不上**：真实命令是 `gh release create` / `sha256sum -c`，而 `id` 的
    字符集不允许空格，只能改写成 `gh-release` / `sha256sum`；机器可读侧没有地方放真实命令。
@@ -344,7 +344,7 @@ $ sha256sum -c SHA256SUMS | grep -c ": 成功"
 - `onshapescript-FB-03` —— 生成出来的实例无法记录「由哪些源数据、什么摘要生成、是否过期」。
 - `onshapescript-FB-04` —— `artifact.identity` 单字符串装不下真实的三元组身份。
 - `onshapescript-FB-05` —— `release` payload 没有 `supersedes`，而 `baseline` 有。
-- `onshapescript-FB-06` —— 没有产物留存 / 处置 / 可得性的表达位置。
+- `onshapescript-FB-06` —— 没有产物留存**政策**的表达位置（「可得性那半」被 EWF 侧复现推翻）。
 - `onshapescript-FB-07` —— `external_ref.system` 枚举没有发布 / 分发渠道。
 - `onshapescript-FB-08` —— 没有许可 / 第三方再分发的表达位置。
 - `onshapescript-FB-09` —— 官方校验器不认 `--help`，退出码 1。
