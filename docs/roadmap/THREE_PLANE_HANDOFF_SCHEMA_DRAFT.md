@@ -774,6 +774,22 @@ byte-identical geometry and still disagree by `2.4e-06` in volume and `3.4e-06` 
 bytes" does not imply "identical readings" — and a plane that publishes a reading without its algorithm is
 publishing a number nobody can adjudicate.
 
+### A criterion softer than the question lets a whole class through (peer-reported)
+
+CadQ reported this measurement (203 §1) from its own plane, and it belongs in this list because it is the same
+shape as rule 19 one level down: **its interference check judged face-to-face intersection, which cannot see a
+part mounted entirely inside another.** Face intersection answered "do these surfaces cross?", while the
+question was "do these solids collide?" — so an entire class of defect (a part enclosed by another) passed. It
+switched to **solid intersection and immediately found 16 pairs** in the same assembly.
+
+The general form: **a test that is weaker than the question is not a near-miss, it is a different test** — it
+returns green for the cases its criterion cannot express, and nothing in its output says which cases those are.
+The repair is a criterion that can express the question, or a declared statement of what the criterion cannot
+see (which is the same obligation as `unknown` + `reason` and as `rulesNotRun`).
+
+Attribution: this is a peer's measurement, reproduced in this repository's contract because it is a rule about
+how to measure; it is **not** reproducible here (this repository implements no interference check).
+
 ### An unevaluated check must not look green
 
 A peer measured this on its own tool (its item 20): `inspect <part> --checks overhang --expect-volume 1` — an
@@ -865,6 +881,13 @@ So the family now has three members, all paid for: **a missing field must be as 
 (field-level), **a judgement must reach the machine-facing outcome** (code-path level), and **an empty probe
 must be distinguishable from an unread one** (measurement level). Each one was found because a party asked
 "what does this absence actually mean?" instead of accepting it as a value.
+
+### The absent-field rule has a landing shape: explicit `null` plus a reason
+
+Agreed with CadQ (203 §2) as **how** rule 18 gets implemented rather than re-argued: a field that has no value
+is published as an **explicit `null` with a reason** — the key is not omitted — and **a consumer may not infer a
+default for a missing field**. The reason is the one this negotiation keeps paying for: a missing key and a key
+that says "nothing here" look identical to a reader, and only one of them is a statement.
 
 ### Failures must close: one judgement, every entry point
 
@@ -1003,7 +1026,13 @@ A router becomes justified when at least one of these is true, and none is today
 2. the planes must share a **quota or session ledger** that cannot be reconstructed from each plane's own
    receipts (today each plane's ledger is local and read-only to the others);
 3. **more than one modifying plane** acts on the same target (today one plane modifies; the others read
-   the artifact or the bytes).
+   the artifact or the bytes);
+4. **(CadQ's addition, 2026-10-03)** the middle layer starts **buying a capability instead of forwarding** —
+   its example: bridging two mutually unreachable run windows. That is the generalisation of condition 1 in
+   §9.1's terms: a hop that *does* something the endpoints cannot is no longer a hop. Both planes agree the
+   test is the same one used to demote `browser_invoke_discovered` — **does the middle layer add something the
+   endpoints cannot do?** — and that a router which begins to answer "yes" must have the conclusion re-derived
+   rather than grandfathered.
 
 Until one holds, the contract is: **exact artifact identity + declared field vocabulary + capability cards
 for whole jobs**, and no process in the middle.
@@ -1089,6 +1118,10 @@ that is portable to any future plane.
     and the drift resolves in favour of the half that has tests. Where the stronger form is available, prefer
     making the abuse **impossible** (a key set that simply cannot name a warning-level check) over stating that
     it is unsupported; a sentence is the fallback for what cannot be made impossible.
+20. **A test weaker than the question is a different test.** It returns green exactly for the cases its
+    criterion cannot express — so either use a criterion that can express the question, or declare what it
+    cannot see. (Instance: a face-to-face interference check cannot see a part mounted inside another; switching
+    to solid intersection found 16 pairs in the same assembly.)
 17. **An empty probe result is a phenomenon, not evidence.** Say which of "absent", "not looked at" and
     "output truncated" produced the emptiness, and report `unknown` with a reason when you cannot; a probe
     that cannot tell those apart has not measured anything. (Instance: a truncated `grep` plus a guessed path
