@@ -1,7 +1,7 @@
 {
   "probe": "Live acceptance for issue #20, geometry leg (onshape_interference_check), run against the deployed Windows host on 2026-10-03. The tool itself was exercised end to end on the host; the last hop (the host's stored WSL distro name) is wrong and is reported here as a host-state defect rather than a code defect, because the same stored name breaks the pre-existing browser geometry backend too.",
-  "status": "verified-through-the-real-launcher; blocked short of a fully deployed run by host state",
-  "session": "2026-10-03, deployed host C:\\MCP\\onshapescript at 1.5.1 (generation 13), repo master e43573c",
+  "status": "verified-through-the-real-launcher; the deployed run now names its own blocker; a fully deployed run waits on one host-state write that needs human approval",
+  "session": "2026-10-03, deployed host C:\\MCP\\onshapescript at 1.5.1 (generation 13) and 1.5.2 (generation 14), repo master c386853",
   "verified": [
     {
       "id": "L1",
@@ -16,16 +16,46 @@
       "overlap": {
         "file": "overlap.step",
         "exit": 0,
-        "counts": {"parts": 2, "selected_parts": 2, "candidate_pairs": 1, "checked_pairs": 1, "interfering": 1, "touching": 0, "pairs_truncated": false},
-        "pair": {"a": "solid_01", "b": "solid_02", "overlap_mm": [2.0000002, 3.0000002000000006, 4.000000200000001], "intersection_volume_mm3": 23.999999999999996, "zero_volume_contact": false},
+        "counts": {
+          "parts": 2,
+          "selected_parts": 2,
+          "candidate_pairs": 1,
+          "checked_pairs": 1,
+          "interfering": 1,
+          "touching": 0,
+          "pairs_truncated": false
+        },
+        "pair": {
+          "a": "solid_01",
+          "b": "solid_02",
+          "overlap_mm": [
+            2.0000002,
+            3.0000002000000006,
+            4.000000200000001
+          ],
+          "intersection_volume_mm3": 23.999999999999996,
+          "zero_volume_contact": false
+        },
         "verdict": "interference",
         "analytic": "two 10 mm boxes offset by (8, 7, 6) share a 2x3x4 mm region = 24.0 mm^3"
       },
       "interlock": {
         "file": "interlock.step",
         "exit": 0,
-        "counts": {"parts": 2, "selected_parts": 2, "candidate_pairs": 1, "checked_pairs": 1, "interfering": 0, "touching": 1, "pairs_truncated": false},
-        "pair": {"a": "solid_01", "b": "solid_02", "zero_volume_contact": true},
+        "counts": {
+          "parts": 2,
+          "selected_parts": 2,
+          "candidate_pairs": 1,
+          "checked_pairs": 1,
+          "interfering": 0,
+          "touching": 1,
+          "pairs_truncated": false
+        },
+        "pair": {
+          "a": "solid_01",
+          "b": "solid_02",
+          "zero_volume_contact": true
+        },
         "verdict": "clean",
         "analytic": "an L-shaped part and the block that fills its notch overlap as boxes (3x3x10 mm) while sharing zero volume, which is exactly the false positive a bounding-box-only check cannot resolve"
       },
@@ -36,6 +66,12 @@
       "what": "A failing backend can never be reported as a clean model.",
       "evidence": "With the host's real (broken) config the deployed call returned verdict=indeterminate, failureClass=converter_failed, exitCode=4294967295, failures=['the interference converter exited 4294967295: '] at 1.5.1 -- a non-clean verdict with an empty reason. 1.5.2 fixes the empty reason by decoding the launcher's UTF-16 output and reporting a stdout tail.",
       "note": "The verdict honesty held; the reason did not. That gap is the reason 1.5.2 exists."
+    },
+    {
+      "id": "L4",
+      "what": "On the deployed host, 1.5.2 turns the empty reason into the launcher's own words.",
+      "evidence": "onshape_interference_check(step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\overlap.step') at 1.5.2 returned verdict=indeterminate, failureClass=converter_failed, exitCode=4294967295, evidence.stdoutTail='不存在具有所提供名称的分发。\\r\\n错误代码: Wsl/Service/WSL_E_DISTRO_NOT_FOUND\\r\\n', evidence.stderrTail='', failures=['the interference converter exited 4294967295: 不存在具有所提供名称的分发。\\r\\n错误代码: Wsl/Service/WSL_E_DISTRO_NOT_FOUND']",
+      "note": "The same call at 1.5.1 reported the same exit code with an empty reason. The decoded UTF-16 launcher error is now the tool's own explanation, and it converges with the host_state_defect section below, which was measured independently."
     }
   ],
   "host_state_defect": {
