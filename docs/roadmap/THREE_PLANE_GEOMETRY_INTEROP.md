@@ -245,6 +245,32 @@ deliverable is an end-to-end reconciliation of one delivery, not a wider field s
   **one**. If the coordinator's runner becomes the authority, this package becomes the **adapter +
   rule table + admission set** and conforms to it; this plane will not argue for two runners.
 
+### 7.4 The runner reconciled a **peer's real artifact** (2026-10-04)
+
+The agreed order was "vertical slice first". The slice was then run on **MeshQ's own contract probe**
+(its repository, read-only here) rather than on our fixture, which measures two different things: that
+the runner is artifact-agnostic, and that the peer's raw output is verdict-shaped by design.
+
+- `dev/verification_report/slices.py` assembles a contract report from extracted fields only, and
+  `machine_check_projection()` performs the check R12 demands.
+- Evidence, offline: `python -m unittest dev.tests.test_verification_report_peer_slice` → **5 tests OK**.
+  The real `work_sphere_cap_coarse/meshq_result.json` gives the report a real digest (recomputed from
+  the file), a real **unstable** digest with its reason (`started_at`/`build_seconds`/`total_seconds`
+  are embedded, so a re-run writes different bytes), the peer's real declared **tessellation**
+  (`segments=12`, `rings=6`) inside the reading family, its real **achieved** precision
+  (`triangulation_spread_mm3 = 2.827e-06` against its own limit), and the peer's real bound family read
+  under the **second** accepted name (`boundsAlgorithm`).
+- The slice passes the runner: `rules run: 12/12  refusals: 0`, and its CSV projection machine-checks.
+- **A negative result worth keeping:** copying the peer's `inspection.verdicts.*.pass` verbatim into a
+  report is **refused by R9** — measured on the real artifact, not argued. The adapter counts the
+  verdicts and does not copy them; the report carries readings, grades and the criterion text. Whether a
+  producer's verdict should travel *with* its reading is now an open question for the three planes.
+- **Independence, stated honestly:** `apg context --target . --task <this task>` routes this work as
+  `development/verifier` with **authority granted: false**, and the governance itself says a second agent
+  on the *same identity, worktree and permissions* can only offer a **peer challenge**, not formal IV&V.
+  So these tests are **author tests**; the independence this contract claims rests on MeshQ's artifact and
+  measurement, not on our own test run. A formal verification of this package needs a different identity.
+
 ## 8. Mailbox round 1: what the three planes agreed (2026-10-03)
 
 Participants: `RoseElm` (onshapescript), `RoseStork` (MeshQ), `WindyIvy` (CadQ), coordinator

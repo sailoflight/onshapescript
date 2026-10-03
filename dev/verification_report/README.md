@@ -16,7 +16,8 @@ is [`docs/roadmap/THREE_PLANE_NEGOTIATION_LEDGER.md`](../../docs/roadmap/THREE_P
 |---|---|
 | `schema/verification_report_v1.schema.json` | the **declarative** half: the shape a report must have |
 | `runner.py` | the **normative** half: judgement, refusals, exit codes. **The runner is the only authority.** |
-| `adapters.py` | **extraction only**: pull fields out of an artifact. An adapter never judges. |
+| `adapters.py` | **extraction only**: pull fields out of an artifact (our manifest, MeshQ's probe result). An adapter never judges. |
+| `slices.py` | assemble a report from extracted fields + machine-check its own CSV projection. Assembly is not judgement. |
 
 Refusal semantics cannot be expressed in JSON Schema (a disagreement between two names is
 not a shape error, an unevaluated criterion looks like a pass, a bare verdict is a shape
@@ -82,6 +83,28 @@ onshape_browser_mode/ mcp_main/` is empty), so the image leg is CadQ's. A numeri
 delivery does not need an image — which is exactly the boundary the two R8 fixtures probe
 from the other side (an image missing its basis; a claim that becomes structural because it
 claims geometry **and** topology and ships no image).
+
+## The slice was run on a **peer's real artifact**
+
+`dev/verification_report/slices.py` assembles a report from extracted fields only (assembly is not
+judgement) and `machine_check_projection()` performs the check R12 demands. It was pointed at
+**MeshQ's own contract probe** (`/home/lijq/code/MeshQ/artifacts/contract-probe/`, read-only here),
+so the reconciliation runs against a peer artifact rather than our own fixture:
+
+```
+python -m unittest dev.tests.test_verification_report_peer_slice     # 5 tests OK
+```
+
+The real result file supplies a real digest, a real **unstable** digest *with its reason* (the JSON
+embeds `started_at`/`build_seconds`/`total_seconds`), the peer's declared tessellation (`segments=12`,
+`rings=6`) inside the reading family, its real achieved spread (`2.827e-06` against its own limit),
+and its bound family read under the **second** accepted name (`boundsAlgorithm`). The slice passes
+12/12 rules and its projection machine-checks.
+
+**A negative result worth keeping:** copying the peer's `inspection.verdicts.*.pass` verbatim into a
+report is **refused by R9**. The adapter counts the verdicts and does not copy them: a verdict is only
+re-checkable when it travels with its reading, its criterion and the owner of the criterion. Whether a
+producer's verdict should travel *with* its reading is an open question for the three planes.
 
 ## The CSV projection is Excel-safe by construction
 
