@@ -2,6 +2,7 @@
   "bad__R10__incomplete_looks_green.json": "R10",
   "bad__R11__same_code_as_evidence.json": "R11",
   "bad__R12__projection_unchecked.json": "R12",
+  "bad__R13__self_consistency_as_validity.json": "R13",
   "bad__R1__unknown_schema_version.json": "R1",
   "bad__R2__no_revision.json": "R2",
   "bad__R3__unstable_digest_without_reason.json": "R3",

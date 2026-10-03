@@ -32,7 +32,7 @@ Exit codes follow the house convention of `dev/tools/check_handoff.py`:
 2  the input could not be read
 ```
 
-## The 13 rules (12 binding, 1 proposed)
+## The 13 rules (all binding since 2026-10-04)
 
 `rules.py::RULES` is the rule table **as data**: id, evidence layer, the fixture that
 exercises it, and **`measured_basis` — the real incident the rule rests on, naming which
@@ -46,15 +46,24 @@ basis, or a structural claim with no image · R9 a bare verdict field · R10 a d
 criterion that was never evaluated looking like a pass · R11 two outputs of the same code
 offered as evidence · R12 a CSV projection that was not machine-checked against the report.
 
-**R13 (proposed, not binding): per-shell self-consistency offered as whole-part validity.** MeshQ
+**R13 (binding since 2026-10-04): per-shell self-consistency offered as whole-part validity.** MeshQ
 measured `recalc_normals` flipping the winding of an internal cavity in a multi-shell part — volume
 22274.898 (−0.688 %) → 25725.102 (+14.695 %) while `closed_shells` / `watertight` / `components: 2` /
 `inconsistent_edge_pairs: 0` / `outward_normals: true` were **all identical**. The coordinator judged the
-rule admissible but said the plane that measured it must confirm that it applies to this interface
-(mail 298 §3), so the rule is **reported, never binding**: a proposed rule refuses nobody, yet it still
-prints what it *would* refuse (`proposedRefusals`), so the peers can judge the impact before it starts
-rejecting reports. One word from MeshQ flips its `status` and the fixture it already names becomes a
-refusal — `test_the_proposed_rule_would_refuse_its_own_fixture_once_binding` proves both states.
+rule admissible but required the plane that measured it to confirm that it applies to this interface
+(mail 298 §3); MeshQ did exactly that in one line (mail 305, "R13: 可以绑定", signed
+`MeshQ/RoseStork 实测`) and this plane then **reproduced the evidence itself** before binding it
+(`artifacts/contract-slice/work{,_no_recalc,_no_merge,_neither}/meshq_result.json`: signed volume
+22274.898343 → 25725.101657 against `expected_volume_mm3` 22429.203673205102, with every
+closure/orientation field identical in all four runs). `confirmed_by` / `confirmed_at` /
+`reproduced_here` in the rule table record that admission.
+
+The unconfirmed-rule machinery stays: a rule whose `status` is `proposed` refuses **nobody** yet still
+prints what it *would* refuse (`proposedRefusals`), so the peers judge the impact before it starts
+rejecting reports. `RuleAdmission` proves **both** directions —
+`test_r13_is_binding_and_refuses_its_own_negative_control` (shipped table refuses) and
+`test_the_machinery_still_protects_the_next_unconfirmed_rule` (flipped back to `proposed` in memory, it
+refuses nobody and still reports the impact).
 
 ## Negative samples: admission vs unit test
 
@@ -67,7 +76,8 @@ Two classes are deliberately kept apart (interface decision §6.1):
 
 `dev/tools/build_verification_fixtures.py` generates one good slice and one bad sample per
 rule (R7 and R8 have two) — **17 bad + 1 good** — plus `expected_verdicts.json` and, for rules that are
-not binding yet, `expected_proposed.json` (their fixtures must be *accepted* while proposed):
+not binding yet, `expected_proposed.json` (their fixtures must be *accepted* while proposed; it is empty
+while every rule is binding, and it is what the next unconfirmed rule would land in):
 
 ```
 python dev/tools/build_verification_fixtures.py --write   # regenerate the fixtures
@@ -110,7 +120,7 @@ The real result file supplies a real digest, a real **unstable** digest *with it
 embeds `started_at`/`build_seconds`/`total_seconds`), the peer's declared tessellation (`segments=12`,
 `rings=6`) inside the reading family, its real achieved spread (`2.827e-06` against its own limit),
 and its bound family read under the **second** accepted name (`boundsAlgorithm`). The slice passes
-12/12 binding rules (R13 proposed, refusing nobody) and its projection machine-checks.
+13/13 binding rules and its projection machine-checks.
 
 **A negative result worth keeping:** copying the peer's `inspection.verdicts.*.pass` verbatim into a
 report is **refused by R9**. The adapter counts the verdicts and does not copy them: a verdict is only

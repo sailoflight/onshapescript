@@ -200,11 +200,22 @@ RULES: list[dict] = [
         "title": "Per-shell self-consistency offered as whole-part validity",
         "layer": "topology",
         "needs": ("claims",),
-        # NOT BINDING YET. MeshQ measured the incident; the coordinator judged the rule admissible but
-        # said the plane that measured it must confirm that it applies to this interface (mail 298).
-        # Until MeshQ confirms, this rule is reported under `proposedRefusals` and refuses nobody --
-        # an unconfirmed rule must not start rejecting reports.
-        "status": "proposed",
+        # BINDING since 2026-10-04. MeshQ measured the incident AND confirmed the rule applies to this
+        # interface (mail 305, "R13: 可以绑定", signature `MeshQ/RoseStork 实测`), which was the one
+        # condition the coordinator attached to it (mail 298). It was reported under `proposedRefusals`
+        # and refused nobody while it was unconfirmed -- an unconfirmed rule must not start rejecting
+        # reports -- and the same fixture now refuses, with tests for both states.
+        "status": "agreed",
+        "confirmed_by": "MeshQ/RoseStork",
+        "confirmed_at": "2026-10-04",
+        "reproduced_here": (
+            "This plane re-read MeshQ's own single-variable 2x2 (artifacts/contract-slice/work/, "
+            "work_no_recalc/, work_no_merge/ and work_neither/, each `meshq_result.json`) and reproduced both the "
+            "percentages and the unchanged fields: signed_volume_mm3 22274.898343 (recalc OFF) vs "
+            "25725.101657 (recalc ON) against expected_volume_mm3 22429.203673205102 = -0.688 % / "
+            "+14.695 %, while closed_shells / topologically_closed / components.count: 2 / "
+            "inconsistent_edge_pairs: 0 / normals.consistent were identical in all four runs."
+        ),
         "negative_control": "bad__R13__self_consistency_as_validity.json",
         "measured_basis": (
             "MeshQ measured `recalc_normals` flipping the winding of an internal cavity in a "

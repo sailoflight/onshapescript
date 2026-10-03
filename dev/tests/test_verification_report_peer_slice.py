@@ -18,7 +18,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from dev.verification_report import adapters, runner, slices  # noqa: E402
+from dev.verification_report import adapters, rules, runner, slices  # noqa: E402
 
 HAS_MESHQ_PROBE = (slices.MESHQ_SPHERE_COARSE / "meshq_result.json").exists()
 
@@ -55,7 +55,7 @@ class PeerSlice(unittest.TestCase):
         verdict = runner.check_report(report)
         self.assertTrue(verdict["ok"], verdict["refusals"])
         self.assertEqual(verdict["rulesNotRun"], [])
-        self.assertEqual(len(verdict["rulesRun"]), 12)
+        self.assertEqual(len(verdict["rulesRun"]), len(rules.AGREED_RULE_IDS))
 
     def test_the_real_tessellation_and_spread_are_carried(self) -> None:
         report = slices.build_meshq_report()

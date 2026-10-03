@@ -51,7 +51,7 @@ evidence_units: no such record: /tmp/no-such-file.json                    exit=2
 | # | 本平面的报告 | MeshQ 的单元（真实 91 个单元的键：`blocking`/`grade`/`layer`/`object`/`quantity`/`unit`/`value`） | 判定 |
 |---|---|---|---|
 | D1 | 报告是**传输形状**（`schema.id` + `version`） | 抽取器**只认自家产方的封套**（`inspection`） | **接口级缺陷**：我们议定的"报告"目前**只写不读**——两家都在读自家产方的原始记录，没有一方在读那份报告。**本平面已按议定判据落地入口规则（见 §5）** |
-| D2 | 读数必带 `family` + `algorithm`（"同一个词、不同方法 ⇒ 数字不可比"） | 单元里**没有**这两个字段的位置 | **缺陷**：这条要求**没有落脚点**，出不了自己的仓 |
+| D2 | 读数必带 `family` + `algorithm`（"同一个词、不同方法 ⇒ 数字不可比"） | 单元里**没有**这两个字段的位置 | **已结（2026-10-04）**：对端已加 `family` + `algorithm`（提交 `232f8f7`），并配了一条本平面没有的更硬规矩——**方法名只在记录自己报了 `method` 时才算数**：没报就写 `algorithm_reason` 并**指出实现位置**（实测 75 单元 / 11 带方法文本 / 64 带理由，无一条为空），理由是「不许适配器自己编一句算法描述」 |
 | D3 | `readings[].value` 原为 **number（必填）** | `value` **恒在**，缺席写作 `null` + `null_reason`（真实 91 个单元里 7 个 null，**7/7 都有 `null_reason`**） | **本平面的缺陷**（本轮已修，见 §3） |
 | D4 | `complete` / `independence` / `vintage` / `cost` / `csv_projection` | 无对应；它对端有 `job_id` / `verified_version` / `repo_commit` / `admission` / `artifacts[]` | **缺陷**：报告的**来历与成本块没有对端**；若报告要当传输，对端至少要"不因此读不通" |
 | D5 | `layers` 是**数组**（结构类结论 = geometry + topology） | `layer` **每个单元一个值** | **分歧**：结构类结论在对端模型里必须**拆成按层的单元** |
@@ -125,3 +125,20 @@ exit=2
    `null_reason` 是**读数缺席**（逐单元），`not_evaluated` 是**判据缺席**（报告级清单），
    `rulesNotRunning` 是**检查器缺席**（工具没跑那条规则）。三者都必须显式，但**不能合并成一栏**：
    合并会把"没人测这个量"和"测了但工具没跑"混掉，而这正是我们三家各自都栽过的坑。
+
+## 8. 对端 304/305 号信带来的三条下落（2026-10-04 晚）
+
+1. **D1 两侧都做到了「带名字的拒绝」**：本平面是「先看 `schema`，认不出就点名 adapter」；对端选了「**拒得明白**」——
+   它把「看到一个不认识的东西」写成
+   `found schema='onshapescript.verification-report/1', top-level keys=not_evaluated,records,schema` + 一行退 2，
+   并明确**不把抽取器扩成第二个运行器**（报告的消费者该是共享运行器，不是逐平面的适配器）。两条路殊途同归，且都进了测试。
+2. **D2 已结**（见 §2 表格）：对端加了 `family`+`algorithm`，并加了一条本平面没有的更硬规矩——
+   **「方法名只有记录自己报了 `method` 才算数」**：记录没说，就写 `algorithm_reason` 并指出实现位置，
+   **不许适配器自己编一句算法描述**（那会是「第二份关于这个方法是什么的说法」，一定会漂）。这条已收下。
+3. **三级缺席的责任归属谈定**（回答本平面第 5 问）：
+
+   | 层 | 本平面 | 对端 | 谁负责 |
+   |---|---|---|---|
+   | 读数缺席 | 逐单元 `null_reason` | 逐单元 `value: null` + `null_reason` | **适配器/抽取器** |
+   | 判据缺席 | 报告级 `not_evaluated` | `inert_rules` / `check_errors` | **运行器**（不是抽取器） |
+   | 检查器没跑 | `rulesNotRunning` | `checks_run` 里没有那个名字；声明过期望就以 `inert_rules` 出现 | **记录自己**（产方签发、运行器消费） |

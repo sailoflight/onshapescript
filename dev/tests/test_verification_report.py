@@ -237,44 +237,57 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class ProposedRules(unittest.TestCase):
-    """A rule that is not confirmed yet must be visible **and** harmless.
+class RuleAdmission(unittest.TestCase):
+    """R13 bound on 2026-10-04, and the machinery that keeps the *next* unconfirmed rule harmless.
 
-    The coordinator judged R13 admissible but said the plane that measured it has to confirm that it
-    applies to this interface (mail 298 §3). So the machinery is in place, the fixture exists, and the
-    rule refuses nobody -- until one word changes.
+    The coordinator judged R13 admissible but required the plane that measured it to confirm it applies
+    to this interface (mail 298 §3); MeshQ did exactly that with one word (mail 305, "R13: 可以绑定",
+    signature `MeshQ/RoseStork 实测`). So this class now checks both directions of the same mechanism:
+    the shipped table refuses, and a rule flipped back to `proposed` stops refusing while still saying
+    what it would refuse.
     """
 
     R13_FIXTURE = FIXTURES / "bad__R13__self_consistency_as_validity.json"
 
-    def test_a_proposed_rule_refuses_nobody_but_says_what_it_would_refuse(self) -> None:
+    def test_r13_is_binding_and_refuses_its_own_negative_control(self) -> None:
+        self.assertIn("R13", R.AGREED_RULE_IDS)
+        self.assertEqual(R.PROPOSED_RULE_IDS, [], "no rule may stay unconfirmed after MeshQ's confirmation")
+        self.assertEqual(len(R.AGREED_RULE_IDS), len(R.RULE_IDS))
         report = json.loads(self.R13_FIXTURE.read_text(encoding="utf-8"))
         verdict = runner.check_report(report)
-        self.assertTrue(verdict["ok"], "an unconfirmed rule must not reject a report")
-        self.assertEqual(verdict["refusals"], [], "a proposed rule refuses nobody")
-        self.assertEqual(verdict["rulesProposed"], ["R13"])
-        # It still *says* what it would refuse -- that is what lets the peers judge the impact before
-        # confirming it, instead of discovering it after the rule starts rejecting reports.
-        self.assertEqual(
-            sorted({refusal["rule"] for refusal in verdict["proposedRefusals"]}), ["R13"], verdict["proposedRefusals"]
-        )
-        self.assertIn("self-consistency", verdict["proposedRefusals"][0]["problem"])
+        self.assertFalse(verdict["ok"], "a confirmed rule must reject the report it was written for")
+        self.assertEqual(sorted({refusal["rule"] for refusal in verdict["refusals"]}), ["R13"])
+        self.assertEqual(verdict["proposedRefusals"], [])
+        self.assertIn("+14.695 %", verdict["refusals"][0]["required_fix"])
         # ... and the fixture really does carry what the rule is about:
         injected = next(claim for claim in report["claims"] if claim["id"] == "c_self")
         self.assertEqual(injected["reference"], R.SELF_CONSISTENCY_REFERENCE)
         self.assertEqual(injected["grade"], "reliable")
 
-    def test_the_proposed_rule_would_refuse_its_own_fixture_once_binding(self) -> None:
+    def test_the_admission_is_traceable_in_the_rule_table(self) -> None:
+        """A binding rule must name who confirmed it, when, and where a reader can reproduce it."""
+        rule = next(rule for rule in R.RULES if rule["id"] == "R13")
+        self.assertEqual(rule["confirmed_by"], "MeshQ/RoseStork")
+        self.assertEqual(rule["confirmed_at"], "2026-10-04")
+        self.assertEqual(rule["status"], "agreed")
+        self.assertEqual(rule["negative_control"], "bad__R13__self_consistency_as_validity.json")
+        for anchor in ("-0.688", "+14.695", "work_no_recalc", "work_neither", "closed_shells"):
+            self.assertIn(anchor, rule["reproduced_here"], anchor)
+
+    def test_the_machinery_still_protects_the_next_unconfirmed_rule(self) -> None:
+        """Flip R13 back to `proposed` in memory: it must refuse nobody, yet say what it would refuse."""
         report = json.loads(self.R13_FIXTURE.read_text(encoding="utf-8"))
-        flipped = [dict(rule, status="agreed") if rule["id"] == "R13" else rule for rule in R.RULES]
+        flipped = [dict(rule, status="proposed") if rule["id"] == "R13" else rule for rule in R.RULES]
         with mock.patch.object(R, "RULES", flipped), mock.patch.object(
-            R, "AGREED_RULE_IDS", [rule["id"] for rule in flipped]
-        ):
+            R, "AGREED_RULE_IDS", [rule["id"] for rule in flipped if rule.get("status", "agreed") == "agreed"]
+        ), mock.patch.object(R, "PROPOSED_RULE_IDS", ["R13"]):
             verdict = runner.check_report(report)
-        self.assertFalse(verdict["ok"], "the moment R13 is confirmed it must refuse this fixture")
-        self.assertEqual(sorted({refusal["rule"] for refusal in verdict["refusals"]}), ["R13"])
-        self.assertEqual(verdict["proposedRefusals"], [])
-        self.assertIn("+14.695 %", verdict["refusals"][0]["required_fix"])
+        self.assertTrue(verdict["ok"], "an unconfirmed rule must not reject a report")
+        self.assertEqual(verdict["refusals"], [], "a proposed rule refuses nobody")
+        self.assertEqual(verdict["rulesProposed"], ["R13"])
+        self.assertEqual(sorted({r["rule"] for r in verdict["proposedRefusals"]}), ["R13"])
+        self.assertIn("self-consistency", verdict["proposedRefusals"][0]["problem"])
+        self.assertEqual(verdict["rulesNotRun"], [])
 
     def test_the_peer_slice_keeps_its_self_consistency_claim_honest(self) -> None:
         """The real slice grades per-shell consistency `heuristic`, so R13 has nothing to say about it."""
