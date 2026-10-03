@@ -464,15 +464,24 @@ def read_projection_csv(text: str) -> list[dict]:
 #: rather than quietly producing "no error".
 KNOWN_PRODUCER_RECORDS = (
     ("inspection", "MeshQ inspect result", "dev.verification_report.adapters.extract_meshq_result"),
-    ("produced_by", "onshapescript handoff manifest", "dev.verification_report.adapters.extract_onshapescript_manifest"),
     ("evidenceUnits", "MeshQ evidence-units record", "dev.verification_report.adapters.extract_meshq_result"),
 )
+
+#: Producer records that declare their own plane (`produced_by.plane`) or whose schema is namespaced.
+#: Measured 2026-10-04: CadQ's manifest also carries `produced_by`, so a marker alone mislabelled a third
+#: plane's record as this plane's handoff. The plane decides, not the marker.
+PLANE_ADAPTERS = {
+    "onshapescript": "dev.verification_report.adapters.extract_onshapescript_manifest",
+    "cadq": "dev.verification_report.adapters.extract_cadq_manifest",
+    "meshq": "dev.verification_report.adapters.extract_meshq_result",
+}
 
 
 def sniff_schema(document: Any) -> dict[str, Any]:
     """Decide what a document is **before** checking it. Never guess, never fail silently."""
     if not isinstance(document, dict):
-        return {"kind": "unknown", "schemaId": None, "adapter": None, "reason": "top level is not an object"}
+        return {"kind": "unknown", "schemaId": None, "plane": None, "adapter": None,
+                "reason": "top level is not an object"}
     raw = document.get("schema")
     if isinstance(raw, dict):
         schema_id = raw.get("id")
@@ -485,24 +494,55 @@ def sniff_schema(document: Any) -> dict[str, Any]:
     if schema_id == R.SCHEMA_ID:
         if version is None:
             # Peer-style versioned string: `<id>/<version>`.
-            return {"kind": "unknown", "schemaId": schema_id, "adapter": None,
+            return {"kind": "unknown", "schemaId": schema_id, "plane": None, "adapter": None,
                     "reason": f"schema id {schema_id!r} carries no version: a numbering must be declared before the shape can be read"}
         if version != R.SCHEMA_VERSION:
-            return {"kind": "unknown", "schemaId": schema_id, "adapter": None,
+            return {"kind": "unknown", "schemaId": schema_id, "plane": None, "adapter": None,
                     "reason": f"unknown schema version {version!r}: a consumer that cannot read this version must refuse it, not coerce it"}
-        return {"kind": "report", "schemaId": schema_id, "adapter": None, "reason": "readable verification report"}
+        return {"kind": "report", "schemaId": schema_id, "plane": "onshapescript", "adapter": None,
+                "reason": "readable verification report"}
+
+    produced_by = document.get("produced_by") if isinstance(document.get("produced_by"), dict) else {}
+    plane = produced_by.get("plane")
+    if plane is None and isinstance(schema_id, str) and "." in schema_id:
+        plane = schema_id.split(".", 1)[0]
 
     for marker, what, adapter in KNOWN_PRODUCER_RECORDS:
         if marker in document:
             return {
                 "kind": "producer_record",
                 "schemaId": schema_id,
+                "plane": plane or "meshq",
                 "adapter": adapter,
                 "reason": f"this is a {what} (marker {marker!r}), not a verification report; extract it with {adapter}",
             }
+    if "produced_by" in document or "declaration" in document:
+        known = PLANE_ADAPTERS.get(plane)
+        if known:
+            return {
+                "kind": "producer_record",
+                "schemaId": schema_id,
+                "plane": plane,
+                "adapter": known,
+                "reason": (
+                    f"this is a producer record from plane {plane!r} (schema id {schema_id!r}), not a verification "
+                    f"report; extract it with {known}"
+                ),
+            }
+        return {
+            "kind": "producer_record",
+            "schemaId": schema_id,
+            "plane": plane,
+            "adapter": None,
+            "reason": (
+                f"this is a producer record from plane {plane!r} (schema id {schema_id!r}), not a verification report; "
+                "no adapter for that plane on this side yet -- say so rather than guessing at its fields"
+            ),
+        }
     return {
         "kind": "unknown",
         "schemaId": schema_id,
+        "plane": plane,
         "adapter": None,
         "reason": (
             f"unrecognised shape (schema id {schema_id!r}): refusing rather than guessing -- "
