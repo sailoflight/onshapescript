@@ -755,6 +755,34 @@ byte-identical geometry and still disagree by `2.4e-06` in volume and `3.4e-06` 
 bytes" does not imply "identical readings" — and a plane that publishes a reading without its algorithm is
 publishing a number nobody can adjudicate.
 
+### A tolerance has a vintage, and a value has a kind
+
+Two additions from the third round of adversarial review, both about a bound or a value being *stale or
+mistyped* rather than absent.
+
+**A tolerance has a vintage.** `equivalence_tolerance_basis` says where a number came from; it does not say
+*whom it was derived for, or when*. `areaMm2: 1e-5` was derived from one reader set on one day (this
+repository `9.8e-13` / CadQ `4.99e-7` / MeshQ `3.39e-6`), and freezing that number does two harmful things:
+it stays looser than necessary once the loosest reader tightens, and — worse — it silently admits a future
+reader that is just as loose, which defeats the only reason the bound exists (not to fail a *correct*
+reader). So `equivalence_tolerance_vintage` names the reader set, the date, the witness, and the
+re-derivation condition ("any listed reader changes its algorithm or its printing precision"), and the
+consumer-side checker refuses a declared tolerance that has no vintage at all. This is the same lesson as a
+reading declaring the state it was taken in, one level up: **a reading declares its state; a bound declares
+its readers.**
+
+**A value has a kind.** The print-basis guard's first hardening refused an absent or `null` verdict and a
+literal `False`, which left every value in between passing — so a producer that declared "not applicable"
+with a JSON `0` or the string `"false"` obtained a pass, i.e. **the rule was inverted by a type**. The same
+round caught a validator that converted with `float()` and then ran `isinstance` over its own conversion, so
+that half could never fail: `["0","0","1"]`, `[0,0,True]` and `[0,0,inf]` all passed while the message
+claimed to require three *finite* numbers. Two rules follow: a required boolean must be **literally** `true`
+at a gate (a truthy substitute is a refusal, and an honest `false` gets a different, accurate reason), and
+**a raw value is validated before it is converted** — validation that runs after conversion is not
+validation. The reviewer also reported that its own NaN probe was unclean (one reused list object, where
+CPython's comparison takes an identity fast path), so NaN is now tested rather than assumed, and the
+unclean result was left out of its conclusions rather than promoted.
+
 ### The evidence axes are two, not one
 
 `unknown` means **not computed here** (a gap, and it must carry a reason); `visual` means **the evidence is
@@ -881,6 +909,9 @@ that is portable to any future plane.
     this repository as the 1). The rule that follows is the same one this repository applies to its own
     `send`-style tools: **never carry a claim of receipt that the receipt tool would not confirm**, and
     after any ack, re-ask the tool rather than the memory of having seen a confirmation line.
+15. **Test the kind, not only the presence.** One fixture per required field with the *wrong type* and
+    one with a *non-finite* value: a field of the wrong kind looks filled in, so it is harder to notice than
+    a hole, and a validator that converts before it checks has already lost the information.
 14. **Test the deletion, not only the value.** Every required field gets one fixture with the field
     absent and one with it null, because a fixture that always fills them proves nothing about the path
     where they are gone — four of ten adversarial variants passed this repository's own guard for exactly
@@ -938,6 +969,7 @@ absent so the suite stays offline-clean.
 | Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
+| A tolerance has a vintage; a value has a kind | MeshQ 185 §1 / 187 §2–3: `equivalence_tolerance_vintage` (reader set + date + witness + re-derivation condition, required by `check_identity_against`); rule 2 requires a *literally* true verdict (`applicable: 0` and `"false"` passed the previous version), and the direction/threshold validators check the RAW JSON value before converting — `["0","0","1"]`, `[0,0,True]`, `[0,0,inf]`, `[0,0,NaN]` are all refused, pinned by `test_a_truthy_substitute_does_not_pass_for_a_winding_verdict` and `test_the_raw_value_is_validated_before_it_is_converted` |
 | The identity rule needs a consumer-side checker | `fdm_analysis/conversion/identity_check.py` + `dev/tests/test_identity_check.py` (8 tests, one against the real 70-piece handoff): units first, tolerance from the manifest with its basis required, rule before digest, per-piece maximum with worst piece, bounds only inside the declared family |
 | An absent field must be as loud as a false one | Ten adversarial variants against the print-basis guard: six blocked, four passed silently (deleted `orientation`, `applicable: null`, a silent `unknown`, two null reference points) — all four refused after rule 18, pinned by `test_the_field_is_absent_paths_are_as_loud_as_the_false_ones` and `test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured` |
 | A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as a practice, not hidden; this repository's withdrawn ramp result is superseded in place |

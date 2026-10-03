@@ -116,6 +116,78 @@ class PrintBasisGuardTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("observable", result["refusals"][0]["required_fix"])
 
+    def test_a_truthy_substitute_does_not_pass_for_a_winding_verdict(self):
+        """MeshQ 187: `applicable: 0` and `applicable: "false"` passed the previous version.
+
+        The first version refused absence and `null` in one branch and a literal `False` in another, so
+        every value in between -- including a JSON 0 and the string "false", both natural for a non-Python
+        producer -- read as agreement. That is the rule inverted by a type: a producer declaring "not
+        applicable" obtained a pass. The verdict must be *literally* true.
+        """
+        for substitute in (0, "false", "no", 1, "true", [], {}):
+            with self.subTest(applicable=substitute):
+                substituted = piece(0)
+                substituted["mesh"]["orientation"] = {"applicable": substitute, "consistent": True}
+                result = check_print_basis(manifest(pieces=[substituted]))
+                self.assertFalse(result["ok"], f"{substitute!r} must not read as a winding verdict")
+                self.assertEqual(result["refusals"][0]["rule"], "print-fit §4 rule 2")
+                self.assertIn("not literally true", result["refusals"][0]["problem"])
+            # and the same for a substituted `consistent`
+            with self.subTest(consistent=substitute):
+                substituted = piece(0)
+                substituted["mesh"]["orientation"] = {"applicable": True, "consistent": substitute}
+                self.assertFalse(check_print_basis(manifest(pieces=[substituted]))["ok"])
+
+    def test_an_honest_false_is_still_told_the_truth_about_its_own_fix(self):
+        """A literal false is a different failure from a wrong type, and must say so."""
+        honest = piece(0)
+        honest["mesh"]["orientation"] = {"applicable": False, "consistent": False}
+        result = check_print_basis(manifest(pieces=[honest]))
+        self.assertFalse(result["ok"])
+        self.assertIn("vacuously-consistent", result["refusals"][0]["required_fix"])
+
+    def test_the_raw_value_is_validated_before_it_is_converted(self):
+        """MeshQ 187: converting first and validating afterwards made the finiteness half dead code.
+
+        `[float(v) for v in raw]` then `isinstance(v, (int, float))` over the conversion's own output can
+        never fail, so strings and bools passed and finiteness was never checked at all. Reported honestly:
+        MeshQ also said its NaN probe was itself unclean (it reused one list object, where CPython's
+        comparison takes an identity fast path), so NaN is tested here rather than assumed.
+        """
+        bad_directions = (["0", "0", "1"], [0, 0, True], [0, 0, float("inf")], [0, 0, float("nan")],
+                          [0, 0], [0, 0, 1, 0], "0,0,1", None)
+        for bad in bad_directions:
+            with self.subTest(direction=bad):
+                block = copy.deepcopy(manifest()["declaration"]["print"])
+                block["build_direction"] = bad
+                result = check_print_basis(manifest(block=block))
+                self.assertFalse(result["ok"], f"{bad!r} is not a direction")
+                self.assertIn("three finite JSON numbers", result["refusals"][0]["problem"])
+
+        # A non-finite threshold is refused as itself, not as a per-piece mismatch.
+        block = copy.deepcopy(manifest()["declaration"]["print"])
+        block["threshold_deg"] = float("nan")
+        result = check_print_basis(manifest(block=block))
+        self.assertFalse(result["ok"])
+        self.assertIn("threshold", result["refusals"][0]["where"])
+
+        # A valid direction expressed as numbers still passes (no false positive).
+        block = copy.deepcopy(manifest()["declaration"]["print"])
+        block["build_direction"] = [0, 0, 1]
+        self.assertTrue(check_print_basis(manifest(block=block))["ok"])
+
+    def test_a_per_piece_basis_with_the_wrong_kind_of_value_is_refused_as_such(self):
+        odd = piece(0)
+        odd["mesh"]["at"]["build_direction"] = ["0", "0", "1"]
+        result = check_print_basis(manifest(pieces=[odd]))
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["refusals"][0]["rule"], "print-fit §4 rule 1")
+        self.assertIn("not finite", result["refusals"][0]["problem"])
+
+        nonfinite = piece(1)
+        nonfinite["mesh"]["at"]["threshold_deg"] = float("inf")
+        self.assertFalse(check_print_basis(manifest(pieces=[nonfinite]))["ok"])
+
     def test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured(self):
         """The whole variant set, so the guard cannot regress into "six of ten" again."""
         blocked = {}

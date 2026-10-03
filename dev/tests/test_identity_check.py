@@ -32,6 +32,11 @@ def synthetic() -> dict:
                     "equivalence_tolerance": {"brepVolumeMm3": 1e-6, "bounds_mm": 1e-3, "areaMm2": 1e-5},
                     "equivalence_tolerance_basis": {"brepVolumeMm3": "bitwise", "bounds_mm": "family",
                                                     "areaMm2": "reader spread"},
+                    "equivalence_tolerance_vintage": {
+                        "readers": {"onshapescript": "9.8e-13", "cadq": "4.99e-7", "meshq": "3.39e-6"},
+                        "taken": "2026-10-03", "witness": "MeshQ 179 referee table",
+                        "re_derive_when": "any listed reader changes its algorithm or printing precision",
+                    },
                 },
                 "parts": [
                     {"index": 0, "brep": {"volume_mm3": 324.58775714774686},
@@ -114,6 +119,23 @@ class IdentityCheckTest(unittest.TestCase):
         result = check_identity_against(handoff, set_readings={"areaMm2": 1.0})
         self.assertFalse(result["ok"])
         self.assertIn("fails correct peers", result["refusals"][0]["required_fix"])
+
+    def test_a_tolerance_without_its_vintage_is_refused_and_one_with_it_is_echoed(self):
+        """MeshQ 185 §1: a bound is derived from a READER SET at a TIME.
+
+        Without the vintage, `areaMm2: 1e-5` fossilses the loosest reader of the day: it stays looser than
+        needed once that reader tightens, and it silently admits a future reader that is just as loose --
+        which defeats the only reason the bound exists.
+        """
+        stripped = synthetic()
+        del stripped["declaration"]["geometry"]["identity_rule"]["equivalence_tolerance_vintage"]
+        refused = check_identity_against(stripped, set_readings={"areaMm2": 1.0})
+        self.assertFalse(refused["ok"])
+        self.assertIn("reader set", refused["refusals"][0]["required_fix"])
+
+        echoed = check_identity_against(synthetic(), set_readings={"areaMm2": 2796354.139889901})["verdicts"]["areaMm2"]
+        self.assertEqual(echoed["declaredToleranceVintage"]["taken"], "2026-10-03")
+        self.assertIn("re_derive_when", echoed["declaredToleranceVintage"])
 
     @unittest.skipUnless(REAL.exists(), "the real 70-piece handoff is not in the drop directory")
     def test_the_real_handoff_is_compared_piece_by_piece(self):

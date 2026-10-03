@@ -26,7 +26,13 @@ All four were the same family (*field absent, rule evaporates*), and the guard's
 helped hide it by always filling every field. §4 is now enforced against absence too (a required
 field is required, `null` is not `present`, `unknown` needs its reason), and the test file contains
 **all ten variants** so the guard cannot slide back to six of ten; the real 70-piece manifest is
-still accepted with 0 refusals, and variant D against it now yields 70 refusals.
+still accepted with 0 refusals, and variant D against it now yields 70 refusals. A second adversarial
+round (187) found the remaining gap was the *kind* of a value rather than its presence: `applicable: 0`
+and `applicable: "false"` passed, because refusing absence/`null` in one branch and a literal `False`
+in another left everything in between reading as agreement — the rule inverted by a type, since a
+producer that meant "not applicable" got a pass. Rule 2 now requires a literally true verdict (an
+honest `false` still gets its own, accurate reason), and the direction/threshold validators check the
+RAW JSON value before converting, because validating after `float()` can never fail.
 **Owner of this file:** onshapescript. **Companion of:** `THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` (the
 geometry handoff) — this one is about the step after it: who turns a geometry handoff into a printability
 statement, and where the declarations that decide it enter.

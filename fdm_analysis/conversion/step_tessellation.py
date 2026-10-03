@@ -344,6 +344,25 @@ def plan_step_tessellation(
             # Per quantity: family, algorithm, and the precision actually demonstrated against an
             # independent recomputation -- the third identity dimension MeshQ named ("not only who defined
             # it, but who computed it and to how many digits").
+            # A tolerance has a VINTAGE (MeshQ 185 §1): it is derived from a reader SET at a TIME, so the
+            # set, the date, the witness and the re-derivation condition travel with the number. Without
+            # this, `areaMm2: 1e-5` fossilises the loosest reader of the day -- it stays looser than needed
+            # after that reader tightens, and it silently admits a future reader that is just as loose,
+            # which defeats the only reason the bound exists.
+            "equivalence_tolerance_vintage": {
+                "readers": {
+                    "onshapescript": "9.8e-13 relative (mesh area, 1 ulp of float64)",
+                    "cadq": "4.99e-7 relative (mesh area, tessellation readings)",
+                    "meshq": "3.39e-6 relative (mesh area, self-reported as arithmetic rather than geometry)",
+                },
+                "taken": "2026-10-03",
+                "witness": "MeshQ 179: an independent per-triangle double + math.fsum recomputation over "
+                           "byte-identical STL input, used as the referee",
+                "re_derive_when": ("any listed reader changes its algorithm or its printing precision: the "
+                                   "bound is the widest reader's spread, so the widest reader moving moves it"),
+                "why": ("the bound's whole purpose is not to fail a CORRECT reader, so it can only be "
+                        "derived from the readers that exist when it is taken"),
+            },
             "readings_basis": {
                 "volumeMm3": {
                     "family": "tessellation_vertices(artifact_bytes)",
@@ -719,6 +738,7 @@ def tessellate_step(
                     "equivalence_tolerance": plan["identityRule"]["equivalence_tolerance"],
                     "equivalence_tolerance_basis": plan["identityRule"]["equivalence_tolerance_basis"],
                     "readings_basis": plan["identityRule"]["readings_basis"],
+                    "equivalence_tolerance_vintage": plan["identityRule"]["equivalence_tolerance_vintage"],
                     "set_signature_sha256": _set_signature(records),
                     "note": ("parts are addressed by this rule, never by row order: a re-export can reorder "
                              "solids, and this file contains identical twins"),

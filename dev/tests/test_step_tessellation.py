@@ -260,6 +260,12 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(sorted(tolerances), sorted(basis))
         self.assertEqual(tolerances["areaMm2"], 1e-5)
         self.assertIn("1e-6 bound would fail a correct reader", basis["areaMm2"])
+        vintage = rule["equivalence_tolerance_vintage"]
+        self.assertEqual(vintage["taken"], "2026-10-03")
+        self.assertEqual(sorted(vintage["readers"]), ["cadq", "meshq", "onshapescript"])
+        self.assertIn("3.39e-6", vintage["readers"]["meshq"])
+        self.assertIn("re_derive_when", vintage)
+        self.assertIn("MeshQ 179", vintage["witness"])
         self.assertIn("3.39e-6", basis["areaMm2"])
         for key, entry in rule["readings_basis"].items():
             self.assertIn("family", entry, key)

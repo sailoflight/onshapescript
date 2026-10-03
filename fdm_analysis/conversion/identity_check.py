@@ -128,6 +128,12 @@ def check_identity_against(
             refuse(f"declaration.geometry.identity_rule.equivalence_tolerance_basis.{quantity}",
                    "a declared tolerance with no measurement behind it",
                    "state where the bound came from: a bound that only fits its author fails correct peers")
+    vintage = rule.get("equivalence_tolerance_vintage") or {}
+    if tolerances and not vintage:
+        refuse("declaration.geometry.identity_rule.equivalence_tolerance_vintage",
+               "a declared tolerance with no vintage: nothing says whom it was derived for, or when",
+               "name the reader set, the date, the witness and when to re-derive: a bound frozen at one "
+               "reader set goes stale silently and then admits the very reader it existed to exclude")
 
     # --- set-level quantities, against the declared totals
     for quantity, (scope, kind) in QUANTITIES.items():
@@ -149,6 +155,7 @@ def check_identity_against(
             "consumerReading": measured, "handoffReading": declared,
             "difference": difference, "kind": kind, "declaredTolerance": tolerance,
             "declaredToleranceBasis": basis.get(quantity),
+            "declaredToleranceVintage": vintage or None,
         }
         if not within:
             refuse(quantity,
@@ -219,7 +226,7 @@ def check_identity_against(
                 "scope": "piece", "piecesCompared": compared,
                 "piecesOutside": len(outside), "outsideListed": outside[:MAX_LISTED],
                 "worstPiece": worst, "kind": kind, "declaredTolerance": tolerance,
-                "declaredToleranceBasis": basis.get(quantity),
+                "declaredToleranceBasis": basis.get(quantity), "declaredToleranceVintage": vintage or None,
                 "note": "reported as a per-piece maximum with its worst piece, never as an aggregate alone",
             }
             if outside:

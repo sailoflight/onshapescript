@@ -17,12 +17,18 @@ either satisfies structurally (the `print` block and the per-piece `at` it now e
   version of this guard exactly that way);
 * rule 5 — a caller printing in another build direction must re-take the readings, not reuse them.
 
+Two obligations that only show up when values are wrong in KIND rather than absent (MeshQ 187): a required
+boolean must be **literally** `true` (`0`, `"false"` and `True` are not interchangeable at a gate — treating
+them as such inverts the rule), and a raw JSON value must be validated **before** it is converted, because
+validating after `float()` checks only the floats the validator itself produced.
+
 The guard deliberately returns the READINGS and never a verdict: "printable" is the caller's comparison
 against its own envelope, and this module has no envelope of its own.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 #: The fields that are functions of the face normals (print-fit draft §3/§4 rule 1).
@@ -34,6 +40,40 @@ DIRECTION_DERIVED = (
     "bedContactTriangleCount",
     "bedContactTriangleRatio",
 )
+
+
+#: What a "number" may be, at the JSON level: a bool is not a number even though Python lets it be one,
+#: and a non-finite value is not a direction or a threshold.
+_NUMBERS = (int, float)
+
+
+def _direction(raw: Any) -> list[float] | None:
+    """Return three finite components from a RAW JSON value, or ``None``.
+
+    Validate first, convert second. The earlier version converted with ``float(v)`` and then ran an
+    ``isinstance`` test over the conversion's own output, so that half could never fail: ``["0","0","1"]``
+    and ``[0,0,True]`` both passed, and nothing ever checked finiteness even though the message claimed to
+    (MeshQ 187, which also reported that its NaN probe was itself unclean — so this validator is tested for
+    NaN, inf, bools and strings rather than trusted for them).
+    """
+    if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+        return None
+    converted: list[float] = []
+    for value in raw:
+        if isinstance(value, bool) or not isinstance(value, _NUMBERS):
+            return None
+        number = float(value)
+        if not math.isfinite(number):
+            return None
+        converted.append(number)
+    return converted
+
+
+def _finite_number(raw: Any) -> float | None:
+    if isinstance(raw, bool) or not isinstance(raw, _NUMBERS):
+        return None
+    number = float(raw)
+    return number if math.isfinite(number) else None
 
 
 def _refusal(rule: int, where: str, problem: str, required: str) -> dict[str, str]:
@@ -62,24 +102,27 @@ def check_print_basis(
         refusals.append(_refusal(
             1, "declaration.print", "the manifest declares no print basis at all",
             "publish build_direction, threshold_deg and reference_point with the readings"))
-    declared_direction = [float(v) for v in (block.get("build_direction") or [])]
-    declared_threshold = block.get("threshold_deg")
+    raw_direction = block.get("build_direction")
+    declared_direction = _direction(raw_direction)
+    declared_threshold = _finite_number(block.get("threshold_deg"))
 
     # A rule that only says "what to do when a field says something" is silent when the field is absent,
     # and absence is the more dangerous case because nobody reads a field that is not there (MeshQ 182:
     # four of ten adversarial variants passed this guard exactly this way). So the basis must be COMPLETE:
     # a direction needs three finite numbers, the threshold needs a value, and the reference point is not
     # decoration -- it decides whether an orientation defect is observable at all (the blindness rule).
-    if len(declared_direction) != 3 or not all(isinstance(v, (int, float)) for v in declared_direction):
+    if declared_direction is None:
         refusals.append(_refusal(
             1, "declaration.print.build_direction",
-            f"the build direction is {declared_direction!r}, not three numbers",
-            "publish the direction the readings were taken at, as three finite components"))
-    if declared_threshold is None or not isinstance(declared_threshold, (int, float)):
+            f"the build direction is {raw_direction!r}, which is not three finite JSON numbers",
+            "publish the direction the readings were taken at as three finite numbers: a string, a boolean "
+            "or a non-finite component is not a direction, and the raw value is validated before conversion"))
+        declared_direction = []
+    if declared_threshold is None:
         refusals.append(_refusal(
             1, "declaration.print.threshold_deg",
-            "the overhang threshold is absent or not a number",
-            "an overhang reading is a function of its threshold; publish the one it used"))
+            f"the overhang threshold is {block.get('threshold_deg')!r}, which is absent or not finite",
+            "an overhang reading is a function of its threshold; publish the finite number it used"))
     if block.get("reference_point") in (None, ""):
         refusals.append(_refusal(
             1, "declaration.print.reference_point",
@@ -117,8 +160,16 @@ def check_print_basis(
                     "direction-derived readings carry no basis",
                     "publish the build direction, threshold and reference point beside them"))
                 continue
-            if [float(v) for v in (at.get("build_direction") or [])] != declared_direction or \
-                    at.get("threshold_deg") != declared_threshold or \
+            piece_direction = _direction(at.get("build_direction"))
+            piece_threshold = _finite_number(at.get("threshold_deg"))
+            if piece_direction is None or piece_threshold is None:
+                refusals.append(_refusal(
+                    1, f"parts[{index}].mesh.at",
+                    f"the per-piece basis is incomplete or not finite ({at.get('build_direction')!r}, "
+                    f"{at.get('threshold_deg')!r})",
+                    "publish the same three-finite-number direction and finite threshold the declaration "
+                    "publishes, so a consumer can tell a real basis from a plausible-looking one"))
+            elif piece_direction != declared_direction or piece_threshold != declared_threshold or \
                     at.get("reference_point") != block.get("reference_point"):
                 refusals.append(_refusal(
                     1, f"parts[{index}].mesh.at",
@@ -131,19 +182,33 @@ def check_print_basis(
             # "undeclared" was being read as "nothing to complain about".
             orientation = mesh.get("orientation")
             if has_reading:
-                if not orientation or orientation.get("applicable") is None:
+                applicable_value = (orientation or {}).get("applicable")
+                consistent_value = (orientation or {}).get("consistent")
+                if applicable_value is True and consistent_value is True:
+                    pass
+                elif not orientation or applicable_value is None or consistent_value is None:
                     refusals.append(_refusal(
                         2, f"parts[{index}].mesh.orientation",
                         "direction-derived readings are published with no (or an undeclared) orientation "
                         "verdict, so nothing says the winding check was even applicable",
                         "publish `applicable` and `consistent` explicitly; undeclared is not OK, and a "
                         "deleted field must be as loud as a false one"))
-                elif orientation.get("applicable") is False or orientation.get("consistent") is False:
+                elif applicable_value is False or consistent_value is False:
+                    # The producer said so honestly; the fix is its own, and the reason is named as such
+                    # rather than as a type problem.
                     refusals.append(_refusal(
                         2, f"parts[{index}].mesh",
                         "a direction-derived reading is published on a mesh whose winding verdict is "
-                        "false or not applicable (edge graph not closed)",
+                        "false (edge graph not closed), the vacuously-consistent case",
                         "null those readings and say why, as the vacuously-consistent rule requires"))
+                else:
+                    refusals.append(_refusal(
+                        2, f"parts[{index}].mesh.orientation",
+                        f"the winding verdict is not literally true ({applicable_value!r}/"
+                        f"{consistent_value!r}), so a direction-derived reading has no applicable basis",
+                        "a producer that means 'not applicable' must say false; a gate that accepts a "
+                        "truthy substitute (0, or the string 'false') is not a gate, because that is how "
+                        "the rule gets inverted by a type"))
 
     # --- rule 4: a thickness reading without an analyzer
     min_wall = block.get("min_wall") or {}
