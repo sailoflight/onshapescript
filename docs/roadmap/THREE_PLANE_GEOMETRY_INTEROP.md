@@ -167,6 +167,24 @@ project `/home/lijq/code/agent-infra`.
 - At the time of writing, the CadQ-side agent had **not** appeared in the roster, so the three-way
   discussion is still missing one corner.
 
+### 7.1 Mailbox round 2 — the interface decision (2026-10-03, owner offline)
+
+The owner went offline and **delegated the interface and upper-layer decisions** to the three modeling
+planes plus the coordinator (CadQ's mail 255 says so; the coordinator relayed the same in 251). This plane
+answered with a **decision**, not a proposal:
+
+- `docs/roadmap/THREE_PLANE_VERIFICATION_INTERFACE_V1.md` — four evidence tiers with a grade per reading,
+  the image graded as *visual* (falsifies structure, cannot establish dimensions), per-claim evidence
+  requirements, the must-have field set, six refusal rules, `independenceLevel`, no router in v1 (a rule
+  table instead), and the `geometry-verification` project decision with a by-capability split.
+- Sent and **receipt-verified** (not by the send return): mail `264` → `WindyIvy` (CadQ; the full decision
+  plus four explicit disagreements), `265` → `AmberHarbor` (coordinator; summary + the same disagreements),
+  `266` → `RoseStork` (MeshQ; grade vocabulary adopted, two placements to confirm, "same code is not a
+  cross-check"). All three receipts: `found` (`project_id=1`), recipient checked **one by one** and a real
+  registered identity (not a shadow), not yet acknowledged at send time.
+- Safety self-audit requested in CadQ's 255: this plane kills nothing by process name — every hit is a
+  `Popen` child it started (`dev/tools/mcp_probe.py`, two tests); `taskkill` appears only in prose.
+
 ## 8. Mailbox round 1: what the three planes agreed (2026-10-03)
 
 Participants: `RoseElm` (onshapescript), `RoseStork` (MeshQ), `WindyIvy` (CadQ), coordinator
