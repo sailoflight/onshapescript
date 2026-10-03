@@ -825,6 +825,15 @@ exit code 1 means "structural findings were found", not "the upload is forbidden
 a deploy that would write error-level findings asks for an explicit acknowledgement instead of being vetoed
 here. The regression test asserts the three phrases **and** that the old wording does not come back.
 
+**Sub-rule, proposed by the same plane and adopted here: "one truth, two readers."** When a fact already
+exists in a machine-readable form (`advisory`, `blocking`, the meaning of an exit code), the human-facing
+sentence must be **generated from it or validated against it** — because two independently written sentences
+drift, and the drift resolves in the machine's favour, since only the machine half has tests. That is exactly
+what had happened here: the payload said `advisory: True` while the printed line said `MUST`. The fix was not a
+better sentence but a **single source**: `onshape_docs/query/fs_check.ADVISORY_BOUNDARY` is carried by the
+payload as `boundary` and printed verbatim by the CLI, and the test asserts the printed text contains the
+payload's own string — so the two cannot disagree without failing a test.
+
 This is also the clean statement of the criterion the same plane proposed for telling a design decision from a
 defect: **is it used as a gate?** A warning-level finding that is never a gate is a design choice; the moment
 someone treats it as one, it is a defect — which is exactly why the boundary has to be in the output.
@@ -1068,6 +1077,11 @@ that is portable to any future plane.
 18. **A check that does not block must say so in its own output** — in the payload and in the printed text,
     along with what its exit code means. A boundary kept only in documentation is a boundary the reader never
     sees, and a warning-level check nobody warned about becomes a defect through a sentence it never said.
+    **Sub-rule ("one truth, two readers", a peer's phrasing):** when the fact already exists machine-readably,
+    the human-facing sentence must be generated from it or validated against it — two parallel sentences drift,
+    and the drift resolves in favour of the half that has tests. Where the stronger form is available, prefer
+    making the abuse **impossible** (a key set that simply cannot name a warning-level check) over stating that
+    it is unsupported; a sentence is the fallback for what cannot be made impossible.
 17. **An empty probe result is a phenomenon, not evidence.** Say which of "absent", "not looked at" and
     "output truncated" produced the emptiness, and report `unknown` with a reason when you cannot; a probe
     that cannot tell those apart has not measured anything. (Instance: a truncated `grep` plus a guessed path
@@ -1138,6 +1152,7 @@ absent so the suite stays offline-clean.
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
 | Addressing needs both halves, in code | Producer: `declaration.identity.sha256` + `sha256_stable: false` + `identity_rule.version` in the staged browser STEP manifest. Consumer: `expect_sha256`/`handoff_manifest` in `onshape_browser_mode/step_import.py`, mismatch refused offline before any click, handoff without a digest refused by name, `addressedBy: "path"` recorded when nothing was declared (23 tests) |
 | Unevaluated checks must not look green (round 4) | Peer reproduction recorded (its item 20: `--checks overhang --expect-volume 1` exits 0 with `_failed: []` while `_summary.inert_rules` names the expectation); **landed here**: `check_print_basis` returns `complete`/`rulesRun`/`rulesNotRun` with the reason and the way to close each skipped rule, and `dev/tools/check_handoff.py` exits 1 for an incomplete run unless `--declaration-only` is passed, whose verdict reads `PASS (PARTIAL, …)` |
+| "One truth, two readers" (single-source boundary) | MeshQ 196 §3 sub-rule: `onshape_docs/query/fs_check.ADVISORY_BOUNDARY` is one constant carried by the payload as `boundary` and printed verbatim by the CLI; `test_static_guards` asserts the printed text contains the payload's own string, so a drift fails a test. Peer's own audit found the stronger form applies on its side: its `RULE_KEYS` cannot name a `heuristic` check, so "use as a gate" is structurally impossible there |
 | "I am not a gate" is written in the output | MeshQ 194 §3 (its boundary rule): this repository's local FeatureScript check printed `structural errors MUST be fixed before upload` — advice phrased as a directive — while its payload already carried `advisory: True`; the summary now states the boundary and what exit 1 means, and `dev/tests/test_static_guards.py::test_the_cli_says_in_its_own_output_that_it_is_not_a_gate` asserts the three phrases plus the absence of the old wording |
 | An empty probe is a phenomenon, not evidence | MeshQ 192 §2: one `grep` truncated by `head` against a **guessed** path returned empty for a file that exists, and empty read as "does not exist"; the family's three internal instances are recorded with the measurement behind each (virtualised feature list publishing `headerCount`/`ready`/`rowsComplete`; the import leg's `before_read_failed` refusing instead of judging against an empty row list; `_solid_count` reporting `unknown` + reason rather than 0) |
 | Failures must close — one judgement, every entry point | MeshQ 189 §3 measurement (`run` exit 0 while `inspection.verdicts` says `pass: false`; `inspect` exit 1 for the same shape) recorded with its root cause read from the source; this repository's self-audit finds the duplicate-judgement shape (docs index digest in `verify_docs.py` and `test_docs_index_digests.py`) but **one implementation with two callers**, proven by both failing together on one stale digest |

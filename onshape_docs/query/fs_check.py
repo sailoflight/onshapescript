@@ -129,7 +129,22 @@ class FsFile:
             "warningCount": len(self.warnings),
             "errors": list(self.errors),
             "warnings": list(self.warnings),
+            "advisory": True,
+            "boundary": ADVISORY_BOUNDARY,
         }
+
+
+#: The boundary, in ONE place: the machine-facing payload carries it as `boundary`, and the CLI prints this
+#: exact string. MeshQ 196 §3 named the failure this prevents -- "one truth, two readers": when a fact exists
+#: machine-readably but the human-facing sentence is written separately, the two drift, and the disagreement
+#: resolves in the machine's favour because only the machine half has tests. So the human half is not written
+#: here at all; it is generated from this constant, and a test asserts the two texts are the same string.
+ADVISORY_BOUNDARY = (
+    "this check is ADVISORY: it never blocks an upload, and exit code 1 means \"structural findings were "
+    "found\", not \"the upload is forbidden\" - the deploy path (`onshape_upload_feature_studio` / "
+    "`browser_deploy_featurescript`) is what decides, and a deploy that would write error-level findings asks "
+    "for an explicit acknowledgement instead of being vetoed here"
+)
 
 
 def strip_strings_and_comments(text: str) -> str:
@@ -837,11 +852,7 @@ def main(argv: list[str]) -> int:
     # a gate can still be used as one, and then it becomes a defect through a sentence it never said.
     print(f"\n{len(targets)} file(s), {structural_failures} structural error(s); "
           "structural findings are worth fixing before upload (they waste quota). "
-          "This check is ADVISORY: it never blocks an upload, and exit code 1 means \"structural findings "
-          "were found\", not \"the upload is forbidden\" - the deploy path "
-          "(`onshape_upload_feature_studio` / `browser_deploy_featurescript`) is what decides, and a deploy "
-          "that would write error-level findings asks for an explicit acknowledgement instead of being "
-          "vetoed here.",
+          + ADVISORY_BOUNDARY + ".",
           file=sys.stderr)
     return 1 if structural_failures else 0
 

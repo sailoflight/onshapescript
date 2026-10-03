@@ -94,7 +94,13 @@ class LocalityTest(unittest.TestCase):
 
         source = "FeatureScript 3044;\n"
         result = fs_check.check_source(fs_check.FsFile.from_text(source, name="probe.fs")).as_result()
-        self.assertEqual(set(result), {"name", "checked", "clear", "errorCount", "warningCount", "errors", "warnings"})
+        # The key set is pinned on purpose: a new field must be a reviewed decision rather than an accident.
+        # `advisory`/`boundary` were added deliberately (practice 18: a check that does not block says so in
+        # its own output), and the boundary is the ONE source the CLI prints as well.
+        self.assertEqual(set(result), {"name", "checked", "clear", "errorCount", "warningCount", "errors",
+                                       "warnings", "advisory", "boundary"})
+        self.assertIs(result["advisory"], True)
+        self.assertEqual(result["boundary"], fs_check.ADVISORY_BOUNDARY)
         self.assertGreater(result["errorCount"], 0)  # the import line is genuinely missing
 
 

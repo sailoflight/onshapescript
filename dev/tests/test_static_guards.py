@@ -101,6 +101,16 @@ class CheckerApiTest(unittest.TestCase):
         self.assertNotIn("MUST be fixed before upload", printed,
                          "the old wording read like a gate; it must not come back")
 
+        # "One truth, two readers": the sentence the HUMAN reads is the very string the machine payload
+        # carries, so the two cannot drift. Comparing the two texts is the assertion; the printed sentence is
+        # not written anywhere on its own.
+        payload = fs_check.check_source(
+            fs_check.FsFile.from_text("export const x = 1;\n", "<candidate>")
+        ).as_result()
+        self.assertIn(payload["boundary"] + ".", printed,
+                      "the CLI must print the payload's own boundary string, not a parallel sentence")
+        self.assertIs(payload["advisory"], True)
+
     def test_as_result_is_json_friendly_and_advisory(self) -> None:
         clear = check_text(_VALID_FEATURE).as_result()
         self.assertTrue(clear["clear"])
