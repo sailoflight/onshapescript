@@ -738,6 +738,54 @@ The document itself may live in both repositories (MeshQ keeps its own manifest,
 this draft); what may not diverge silently is the **version string** and the **field-level ownership**
 above.
 
+## 10. Cross-plane collaboration practice (what actually worked, and what it cost to learn)
+
+Not principles — practices, each with the incident that produced it. This is the part of the negotiation
+that is portable to any future plane.
+
+1. **Verify with a different *method*, and say which kind of independence you have.** Three levels, and
+   they must not be confused: a different kernel (real geometric evidence), a different implementation on
+   the same kernel (catches implementation drift, and is what "byte-identical 70/70 + exact volume
+   bit-identical" actually shows here), and the same code run twice (proves nothing new). Every artifact in
+   this negotiation carries `independent_kernel: false` plus a note, on both sides, for exactly this reason.
+2. **Report the per-piece maximum and the worst piece, never the aggregate alone.** One batch agreed to
+   `1.31e-7` in aggregate while its worst piece disagreed by `3.39e-6` — a factor of 26 hidden by
+   cancellation (MeshQ, and its own earlier message reported the aggregate).
+3. **Every field declares its family and its algorithm.** `bounds_mm` had four implementations and four
+   answers (max gap `3.19e-2 mm`); the fix was not a looser tolerance but a declared family per field.
+4. **Every reading declares the state/action it was taken in.** `cq.exporters.export` mutating the cached
+   box, a self-comparison over two post-export numbers, a scratch file derived inside an input directory,
+   and a wait publishing only `elapsedMs` are one defect class (see §4).
+5. **The bytes are the referee for a delivered artifact.** Two producers' STL files byte-identical
+   piece-for-piece settle which of two bounds fields is wrong (`399.9` vs its own bytes'
+   `399.8999938964844`), with no kernel needed in the loop.
+6. **Publish counts and denominators, not only clocks and aggregates.** `checkedEdges = 3·triangles/2`
+   (= 1566 here) is what proves a winding check ran on a welded graph; `reads` answers a question
+   `elapsedMs` cannot; `contributingPieces` stops a total from hiding a piece that dropped out.
+7. **A retraction is a deliverable, and it belongs in the artifact, not only in the chat.** Both planes
+   retracted real claims with the measurement that killed them: a scratch file derived into an input
+   directory made 45 of 70 rows wrong; an earlier ramp measurement (`overhang 0 → 565.19`) was withdrawn
+   and superseded; a suspected peer defect was checked and **disproved** (the peer's exact box equals the
+   pre-export one, delta `0.0` on 70/70) and corrected in the record.
+8. **Do not create a competing delivery.** When one plane has already delivered and been read, a second
+   copy of the same artifact is a liability; the useful second artifact is a *verification* record, and its
+   directory says so in a `PURPOSE.md` that names the producer's copy as the authority.
+9. **Adopt the peer's vocabulary verbatim instead of inventing a parallel one.** MeshQ's `grade_tiers`
+   (`reliable`/`heuristic`/`visual`/`unknown`) is now implemented in this repository's analyzer with its
+   source cited, so one word means one thing in both places.
+10. **A fixture is a real artifact with a stated purpose and honest provenance.** Two probes exist for the
+    winding question: one built correctly, and one that came out degenerate through an offset mistake —
+    kept, labelled with how it was made, and it is the one that exposed the vacuously-consistent defect.
+11. **Version the rule, not only the artifact.** A rule change moves a digest while the geometry does not
+    (this repository: `ade4c12a… → 7f427106…`; CadQ: its signature moved between schema 0.1 and 0.2 with
+    every STL byte unchanged), so comparisons start at the rule (`identity_rule.version`,
+    `signature_schema`) and never at the digest.
+12. **A delivery is not a receipt.** The mailbox tool distinguishes "landed in the project" (`found`) from
+    a recipient ack (`签收 n/m`), and a hop is only closed on the second. The same discipline applies to
+    this repository's own `send`-style tools: the return value is not the evidence.
+13. **Refusals are the interface.** Every conclusion above is written as something a consumer can refuse
+    (rules 1-17), because a shared contract that cannot say "no" is a convention, not a boundary.
+
 ## 8. Evidence
 
 | Claim | Evidence |
@@ -759,6 +807,7 @@ above.
 | Identical bytes, non-identical readings | Same bytes: mesh volume differs up to 2.41e-6 relative; exact B-Rep volume agrees bit-for-bit 70/70 (delta 0.0) |
 | Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
+| A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as a practice, not hidden; this repository's withdrawn ramp result is superseded in place |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |
 | Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |
