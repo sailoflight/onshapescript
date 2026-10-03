@@ -2,7 +2,7 @@
 
 Status: repository delivery paths verified; external DSH model evidence is versioned below
 Evidence updated: 2026-09-25
-Current canonical source revision: `1.5.0/production-roles-v8`
+Current canonical source revision: `1.5.1/production-roles-v8`
 Last external-cwd DSH evidence revision: `1.3.0/production-roles-v1`
 Deployed-generation observation: `1.3.0/production-roles-v5` (2026-09-25, client session)
 

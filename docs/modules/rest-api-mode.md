@@ -67,11 +67,17 @@ Status: verified
   `cadquery_interference.py` in the same directory, and an operator can override
   it with an optional `interference.argumentTemplate` block. A derivation that
   cannot find a `.py` element reports `unavailable` with a next action instead of
-  guessing. The report is read from the converter's stdout (`--output -`), so the
-  call writes nothing and stays honestly read-only; the verdict comes from the
-  measured volumes, and `clean` requires boolean mode, a parsed report and zero
-  interfering pairs, so a failed, timed-out or truncated check can never read as a
-  clean model.
+  guessing. This mode's config is tried first; the browser mode's is offered as a
+  fallback, because both configure the same physical command and a host whose
+  geometry backend was set up for browser mode should not need a second identical
+  configuration before an offline step-file check can run. The answer always
+  names the config it used (`backend.configPath`/`owningMode`/`fallback`), and a
+  config file that cannot be read at all is reported as one more reason rather
+  than raised out of the tool. The report is read from the converter's stdout
+  (`--output -`), so the call writes nothing and stays honestly read-only; the
+  verdict comes from the measured volumes, and `clean` requires boolean mode, a
+  parsed report and zero interfering pairs, so a failed, timed-out or truncated
+  check can never read as a clean model.
 - Mutating MCP tools require explicit confirmation before constructing a live client.
 - Credential values and authorization material never enter tool responses, committed fixtures, prompts, or protocol stdout.
 - Runtime data and configuration stay under the REST module; example parameter files stay with the example.

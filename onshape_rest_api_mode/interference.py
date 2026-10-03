@@ -48,7 +48,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from fdm_analysis.configuration import load_command_geometry_config
 from fdm_analysis.conversion.command import subprocess_platform_kwargs
@@ -133,12 +133,17 @@ def _max_pairs(value: Any) -> int:
     return value
 
 
-def _tolerance(config: dict[str, Any], value: Any) -> float:
+def _optional_tolerance(value: Any) -> float | None:
     if value is None:
-        return float(config["linearToleranceMm"])
+        return None
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
         raise ValueError("tolerance_mm must be a positive number")
     return float(value)
+
+
+def _tolerance(config: dict[str, Any], value: Any) -> float:
+    resolved = _optional_tolerance(value)
+    return resolved if resolved is not None else float(config["linearToleranceMm"])
 
 
 def _file_sha256(path: Path) -> str:
@@ -263,26 +268,31 @@ def _command(template: list[str], *, values: dict[str, str]) -> list[str]:
 
 
 
-def plan_interference_check(
+def _owning_mode(config_path: Path) -> str | None:
+    """Name the owning mode of a geometry config by its directory, not by import.
+
+    A geometry config is operator state owned by one mode, so the file's own
+    location is the honest answer and keeps this module free of a cross-mode
+    import.
+    """
+
+    parent = config_path.resolve().parent.parent.name
+    return parent if parent.startswith("onshape_") and parent.endswith("_mode") else None
+
+
+def _evaluate_backend(
+    config: dict[str, Any],
     *,
-    step_path: Any,
-    mode: Any = None,
-    tolerance_mm: Any = None,
-    part_names: Any = None,
-    max_pairs: Any = None,
-    config_path: Path = CONFIG_PATH,
-    repo_root: Path = REPO_ROOT,
-) -> dict[str, Any]:
-    """Report exactly what a check would run, without running it."""
+    config_path: Path,
+    step: Path,
+    resolved_mode: str,
+    names: list[str],
+    cap: int,
+    tolerance_mm: Any,
+) -> tuple[dict[str, Any], list[str], list[str] | None, float]:
+    """Judge one geometry config: its report block, failures, argv, tolerance."""
 
-    del repo_root  # reserved for a caller that relocates the module-owned tree
-    step = _step_path(step_path)
-    resolved_mode = _mode(mode)
-    config = load_command_geometry_config(config_path)
     resolved_tolerance = _tolerance(config, tolerance_mm)
-    names = _part_names(part_names)
-    cap = _max_pairs(max_pairs)
-
     template = _template_from_config(config)
     failures: list[str] = []
     backend: dict[str, Any] = {
@@ -290,6 +300,8 @@ def plan_interference_check(
         "version": config.get("version") or None,
         "executable": config.get("executable") or None,
         "configured": bool(config.get("enabled")),
+        "configPath": str(config_path),
+        "owningMode": _owning_mode(config_path),
         "templateSource": template["source"],
         "argumentTemplate": template["template"],
         "converter": template["converter"],
@@ -332,6 +344,98 @@ def plan_interference_check(
         ]
         if not failures:
             command = candidate
+    return backend, failures, command, resolved_tolerance
+
+
+def plan_interference_check(
+    *,
+    step_path: Any,
+    mode: Any = None,
+    tolerance_mm: Any = None,
+    part_names: Any = None,
+    max_pairs: Any = None,
+    config_path: Path = CONFIG_PATH,
+    fallback_config_paths: Sequence[Path] = (),
+    repo_root: Path = REPO_ROOT,
+) -> dict[str, Any]:
+    """Report exactly what a check would run, without running it.
+
+    ``config_path`` is this mode's geometry config and always wins when it can
+    run. ``fallback_config_paths`` lets the orchestrating layer offer another
+    mode's already-configured backend -- the same physical command serves both,
+    so a host whose geometry backend was configured for browser mode should not
+    need a second identical configuration before an offline step-file check can
+    run. The selected config is always reported, with its path and owning mode,
+    and a fallback that is itself unusable never hides the primary's reason.
+    """
+
+    del repo_root  # reserved for a caller that relocates the module-owned tree
+    step = _step_path(step_path)
+    resolved_mode = _mode(mode)
+    names = _part_names(part_names)
+    cap = _max_pairs(max_pairs)
+
+    tried: list[dict[str, Any]] = []
+    selected: tuple[dict[str, Any], list[str], list[str], float] | None = None
+    primary: tuple[dict[str, Any], list[str], list[str] | None, float] | None = None
+    resolved_tolerance: float | None = _optional_tolerance(tolerance_mm)
+    for index, candidate in enumerate((config_path, *fallback_config_paths)):
+        try:
+            config = load_command_geometry_config(candidate)
+        except (ValueError, OSError) as exc:
+            # A malformed or foreign-platform config file is reported, never fatal:
+            # the tool's contract is an explicit verdict, and another mode's config
+            # may still be usable.
+            tried.append(
+                {
+                    "configPath": str(candidate),
+                    "owningMode": _owning_mode(candidate),
+                    # The loader's own message usually names the file; prefix only
+                    # when it does not, so the reason stays readable.
+                    "failures": [str(exc) if str(candidate) in str(exc) else f"{candidate}: {exc}"],
+                }
+            )
+            continue
+        backend, failures, command, resolved_tolerance = _evaluate_backend(
+            config,
+            config_path=candidate,
+            step=step,
+            resolved_mode=resolved_mode,
+            names=names,
+            cap=cap,
+            tolerance_mm=tolerance_mm,
+        )
+        if index == 0:
+            primary = (backend, failures, command, resolved_tolerance)
+        if command is not None and not failures:
+            selected = (backend, failures, command, resolved_tolerance)
+            break
+        tried.append({"configPath": str(candidate), "owningMode": backend["owningMode"], "failures": failures})
+
+    if selected is not None:
+        backend, failures, command, resolved_tolerance = selected
+        backend = {**backend, "fallback": str(backend["configPath"]) != str(config_path)}
+    elif primary is not None:
+        backend, failures, command, resolved_tolerance = primary
+        if len(tried) > 1:
+            failures = [
+                f"{entry['configPath']}: {reason}"
+                for entry in tried
+                for reason in (entry["failures"] or ["no interference command could be assembled"])
+            ]
+        backend = {**backend, "fallback": False, "tried": tried}
+    else:
+        # Not even this mode's own config could be read, so no configured default
+        # tolerance exists to report.
+        backend = {
+            "configured": False,
+            "configPath": str(config_path),
+            "owningMode": _owning_mode(config_path),
+            "fallback": False,
+            "tried": tried,
+        }
+        failures = [reason for entry in tried for reason in entry["failures"]]
+        command = None
 
     available = not failures and command is not None
     return {
@@ -363,6 +467,7 @@ def run_interference_check(
     part_names: Any = None,
     max_pairs: Any = None,
     config_path: Path = CONFIG_PATH,
+    fallback_config_paths: Sequence[Path] = (),
     repo_root: Path = REPO_ROOT,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
@@ -375,6 +480,7 @@ def run_interference_check(
         part_names=part_names,
         max_pairs=max_pairs,
         config_path=config_path,
+        fallback_config_paths=fallback_config_paths,
         repo_root=repo_root,
     )
     base: dict[str, Any] = {

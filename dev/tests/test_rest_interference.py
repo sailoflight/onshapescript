@@ -193,6 +193,101 @@ def _report(*, interfering: int, truncated: bool = False) -> dict[str, object]:
     }
 
 
+class FallbackConfigTest(unittest.TestCase):
+    """Both owning modes configure the same command, so either config may serve.
+
+    A host whose geometry backend was configured for browser mode must not need a
+    second identical configuration before an offline step-file check can run --
+    but the answer has to say which config it used, and a fallback that is itself
+    unusable must never hide the primary's reason.
+    """
+
+    def setUp(self) -> None:
+        self.temp = Path(tempfile.mkdtemp(prefix="interference-fallback-"))
+        self.step = self.temp / "part.step"
+        self.step.write_text("ISO-10303-21;\n", encoding="utf-8")
+        self.rest = self._config_at("onshape_rest_api_mode", enabled=False)
+        self.browser = self.temp / "onshape_browser_mode" / "config" / "geometry-backend.json"
+
+    def _config_at(self, mode: str, **extra: object) -> Path:
+        path = self.temp / mode / "config" / "geometry-backend.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return _config(path, **extra)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp, ignore_errors=True)
+
+    def test_a_configured_browser_backend_serves_this_mode(self) -> None:
+        self._config_at("onshape_browser_mode", linearToleranceMm=0.2)
+        plan = interference.plan_interference_check(
+            step_path=str(self.step),
+            config_path=self.rest,
+            fallback_config_paths=(self.browser,),
+        )
+        self.assertTrue(plan["available"], plan["failures"])
+        self.assertEqual(plan["failures"], [])
+        self.assertIs(plan["backend"]["fallback"], True)
+        self.assertEqual(plan["backend"]["owningMode"], "onshape_browser_mode")
+        self.assertTrue(plan["backend"]["configPath"].endswith("onshape_browser_mode/config/geometry-backend.json"))
+        # The selected config supplies the default tolerance, and the argv is still
+        # the interference converter rather than the STEP one.
+        self.assertEqual(plan["tolerance_mm"], 0.2)
+        self.assertIn("/srv/repo/fdm_analysis/conversion/cadquery_interference.py", plan["command"])
+
+    def test_the_primary_config_wins_when_it_can_run(self) -> None:
+        primary = self._config_at("onshape_rest_api_mode")
+        self._config_at("onshape_browser_mode")
+        plan = interference.plan_interference_check(
+            step_path=str(self.step),
+            config_path=primary,
+            fallback_config_paths=(self.browser,),
+        )
+        self.assertTrue(plan["available"], plan["failures"])
+        self.assertIs(plan["backend"]["fallback"], False)
+        self.assertEqual(plan["backend"]["owningMode"], "onshape_rest_api_mode")
+
+    def test_two_unusable_configs_report_both_reasons(self) -> None:
+        self._config_at("onshape_browser_mode", enabled=False)
+        plan = interference.plan_interference_check(
+            step_path=str(self.step),
+            config_path=self.rest,
+            fallback_config_paths=(self.browser,),
+        )
+        self.assertFalse(plan["available"])
+        joined = " | ".join(plan["failures"])
+        self.assertIn("onshape_rest_api_mode/config/geometry-backend.json", joined)
+        self.assertIn("onshape_browser_mode/config/geometry-backend.json", joined)
+        self.assertEqual(len(plan["backend"]["tried"]), 2)
+        # A caller that cannot run must be told how to fix it, not left guessing.
+        self.assertEqual(plan["nextAction"]["kind"], "configure_existing")
+
+    def test_a_fallback_whose_converter_is_missing_is_refused(self) -> None:
+        # A Windows converter path cannot be confirmed from this side, so the
+        # derived interference script is unverifiable and the fallback is refused
+        # rather than invoked blind.
+        self._config_at(
+            "onshape_browser_mode",
+            template=[
+                "/opt/cadquery/bin/python",
+                "C:\\repo\\fdm_analysis\\conversion\\cadquery_step_to_stl.py",
+                "--input",
+                "{input}",
+                "--output",
+                "{output}",
+            ],
+        )
+        plan = interference.plan_interference_check(
+            step_path=str(self.step),
+            config_path=self.rest,
+            fallback_config_paths=(self.browser,),
+        )
+        self.assertFalse(plan["available"])
+        joined = " | ".join(plan["failures"])
+        self.assertIn("cadquery_interference.py", joined)
+        # The primary's own reason survives the failed fallback.
+        self.assertIn("onshape_rest_api_mode/config/geometry-backend.json", joined)
+
+
 class VerdictTest(unittest.TestCase):
     """`clean` is the one verdict that must be hard to reach."""
 

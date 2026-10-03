@@ -70,6 +70,6 @@
     "Run the checks from a development MCP instance, or from the deployed one after a refresh; never edit the deployed source in place.",
     "Do T1 first (entry point), then T2 (empty state), then T3/T4 (parsing and filtering), then T5 (read-only proof). Each answer is either a selector edit or a documented confirmation.",
     "Record the result in this file (status -> verified/failed with the tool output) and update issue #20.",
-    "A failing check becomes the next code change; the geometry leg's live acceptance is separate and is recorded in the 1.5.0 release evidence, because it needs no browser."
+    "A failing check becomes the next code change; the geometry leg's live acceptance is separate and is recorded in the 1.5.1 release evidence, because it needs no browser."
   ]
 }

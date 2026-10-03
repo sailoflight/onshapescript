@@ -105,13 +105,13 @@ assertions can all be true while two bodies overlap, so nothing but the volume o
 their boolean intersection disproves a clash. Two tools cover it, and both are
 read-only:
 
-- `onshape_interference_check` measures that volume offline. It runs the
-  already-configured geometry backend with a different script, so it needs a
-  `.step`/`.stp` file that is already on the machine (for example one written by
-  `browser_export_step`), and it spends no REST quota and writes nothing — the
-  report arrives on stdout. `mode='boolean'` decides; `mode='aabb'` only lists
-  bounding-box candidates, because overlapping boxes are often a designed
-  interlock.
+- `onshape_interference_check` measures that volume offline. It runs whichever
+  geometry backend is already configured — this mode's or the browser mode's —
+  with a different script, so it needs a `.step`/`.stp` file that is already on
+  the machine (for example one written by `browser_export_step`), and it spends no
+  REST quota and writes nothing: the report arrives on stdout. `mode='boolean'`
+  decides; `mode='aabb'` only lists bounding-box candidates, because overlapping
+  boxes are often a designed interlock.
 - `browser_interference_check` drives Onshape's own Interference Detection on an
   assembly tab at zero REST quota and reads the result list back. Its DOM
   selectors have not yet been verified against a live assembly, so treat a live

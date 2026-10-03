@@ -245,7 +245,7 @@ ledger, or output directory is not "cleanup".
 After any change, re-check the **deployed generation**: the generated
 runtime-policy companion must report the same revision string as
 `mcp_main/win/mcp/runtime_prompt.py` (`RUNTIME_PROMPT_REVISION`; the current
-canonical source is `1.5.0/production-roles-v8`). The revision string is the
+canonical source is `1.5.1/production-roles-v8`). The revision string is the
 check; a deployment whose companion still reports an older revision lags the
 checkout (`../verification/MCP_CLIENT_COMPATIBILITY.md`).
 

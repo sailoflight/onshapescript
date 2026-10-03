@@ -503,7 +503,7 @@
    "page": "mcp-consumer",
    "category": "guide",
    "path": "docs/usage/MCP_CONSUMER.md",
-   "sha256": "4e9c90b0aff9d447414a17b57529d7e70f6161dfc34d393f7944df7967bf3e59",
+   "sha256": "02f451231c76e900746fbce99ffedff286e96896dbc345842901bc4fa7cb09f1",
    "title": "Onshape FeatureScript MCP usage",
    "sections": [
     {
@@ -734,7 +734,7 @@
        "type": "list",
        "items": [
         {
-         "text": "onshape_interference_check measures that volume offline. It runs the already-configured geometry backend with a different script, so it needs a .step/.stp file that is already on the machine (for example one written by browser_export_step), and it spends no REST quota and writes nothing — the report arrives on stdout. mode='boolean' decides; mode='aabb' only lists bounding-box candidates, because overlapping boxes are often a designed interlock.",
+         "text": "onshape_interference_check measures that volume offline. It runs whichever geometry backend is already configured — this mode's or the browser mode's — with a different script, so it needs a .step/.stp file that is already on the machine (for example one written by browser_export_step), and it spends no REST quota and writes nothing: the report arrives on stdout. mode='boolean' decides; mode='aabb' only lists bounding-box candidates, because overlapping boxes are often a designed interlock.",
          "depth": 0
         },
         {
@@ -12756,7 +12756,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "5be4fd509f21a956ad237cebe3365c4baed387c90cbfc02a5c848e4c034f67c7",
+   "sha256": "b06d522b257d157564ad2b42f25c39c300f92fa0dbd0c2466d2a592894d6f8a1",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -12781,7 +12781,7 @@
          "depth": 0
         },
         {
-         "text": "Server: onshape-mcp 1.5.0",
+         "text": "Server: onshape-mcp 1.5.1",
          "depth": 0
         },
         {

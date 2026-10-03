@@ -545,11 +545,25 @@ def _interference_check(arguments: dict[str, Any]) -> dict[str, Any]:
 
     Read-only and offline: the report is read from the converter's stdout, so the
     call writes nothing at all and spends zero Onshape REST quota.
+
+    Both owning modes configure the same physical converter command, so the REST
+    config is tried first and the browser config is offered as a fallback: a host
+    whose geometry backend is already configured for browser mode should not need
+    a second identical configuration before an offline step-file check can run.
+    The answer always names the config it used.
     """
     from onshape_rest_api_mode.interference import (
         plan_interference_check,
         run_interference_check,
     )
+
+    fallback_config_paths: tuple[Any, ...] = ()
+    try:
+        from onshape_browser_mode.geometry import CONFIG_PATH as _BROWSER_GEOMETRY_CONFIG
+
+        fallback_config_paths = (_BROWSER_GEOMETRY_CONFIG,)
+    except ImportError:  # a rest-only deployment still answers from its own config
+        fallback_config_paths = ()
 
     request: dict[str, Any] = {
         "step_path": arguments.get("step_path"),
@@ -557,6 +571,7 @@ def _interference_check(arguments: dict[str, Any]) -> dict[str, Any]:
         "tolerance_mm": arguments.get("tolerance_mm"),
         "part_names": arguments.get("part_names"),
         "max_pairs": arguments.get("max_pairs"),
+        "fallback_config_paths": fallback_config_paths,
     }
     if arguments.get("dry_run"):
         return plan_interference_check(**request)
@@ -2731,8 +2746,11 @@ TOOLS: list[dict[str, Any]] = [
             "`candidates_only` is all bounding-box mode (mode='aabb') may ever say, because overlapping boxes "
             "can be a designed interlock; `indeterminate` means the check did not complete (missing STEP, "
             "converter failure, timeout, unreadable report, or a truncated candidate list with no finding) and "
-            "`unavailable` means no command could be assembled -- neither is ever a clean model. `failures` and "
-            "`nextAction` carry the reason. `part_names` restricts the check to a subset, which is what makes a "
+            "`unavailable` means no command could be assembled -- no usable geometry backend config, or an "
+            "unreadable one; neither is ever a clean model. `failures` and "
+            "`nextAction` carry the reason. The command comes from whichever geometry backend is already "
+            "configured, this mode's or the browser mode's, and `backend` reports which one was used. "
+            "`part_names` restricts the check to a subset, which is what makes a "
             "large assembly affordable; `max_pairs` bounds the boolean evaluations. Zero Onshape REST calls."
         ),
         "inputSchema": object_schema({
