@@ -358,3 +358,60 @@ class SelfClaims(unittest.TestCase):
         stated = _re.search(r"(\d+) bad \+ 1 good", readme)
         self.assertIsNotNone(stated, "the README must state the fixture counts")
         self.assertEqual(int(stated.group(1)), len(fixtures))
+
+
+class SchemaFirstIngestion(unittest.TestCase):
+    """Defect D1: a consumer must decide what a document is **before** judging it.
+
+    Measured in round 17: MeshQ's extractor refused our report with
+    `has no \\`inspection\\` object -- not a MeshQ record` and exit 2 -- correct behaviour for a foreign
+    shape, but it left the agreed report **write-only**. The fix agreed with the coordinator (mail 301)
+    is: look at `schema` first; an unrecognised shape is refused **with a reason that names an adapter**,
+    never accepted by default and never reported on as if it had been checked.
+    """
+
+    GOOD = FIXTURES / "good__vertical_slice.json"
+    PEER_RECORD = pathlib.Path("/home/lijq/code/MeshQ/artifacts/contract-probe/work_sphere_cap_coarse/meshq_result.json")
+
+    def test_our_own_report_is_recognised(self) -> None:
+        sniffed = runner.sniff_schema(json.loads(self.GOOD.read_text(encoding="utf-8")))
+        self.assertEqual(sniffed["kind"], "report")
+        self.assertEqual(sniffed["schemaId"], R.SCHEMA_ID)
+        self.assertEqual(runner.main(["--ingest", str(self.GOOD)]), 0)
+
+    def test_an_unknown_version_of_our_own_schema_is_refused(self) -> None:
+        document = {"schema": {"id": R.SCHEMA_ID, "version": R.SCHEMA_VERSION + 1}}
+        sniffed = runner.sniff_schema(document)
+        self.assertEqual(sniffed["kind"], "unknown")
+        self.assertIn("version", sniffed["reason"])
+
+    @unittest.skipUnless(PEER_RECORD.exists(), "MeshQ's contract probe is not checked out beside this repo")
+    def test_a_peers_producer_record_is_named_not_judged(self) -> None:
+        document = json.loads(self.PEER_RECORD.read_text(encoding="utf-8"))
+        sniffed = runner.sniff_schema(document)
+        self.assertEqual(sniffed["kind"], "producer_record")
+        self.assertEqual(sniffed["adapter"], "dev.verification_report.adapters.extract_meshq_result")
+        self.assertIn("inspection", sniffed["reason"])
+        self.assertEqual(runner.main(["--ingest", str(self.PEER_RECORD)]), 2)
+        # And handing it to the checker must not produce a verdict about it at all.
+        self.assertEqual(runner.main(["--report", str(self.PEER_RECORD)]), 2)
+
+    @unittest.skipUnless(adapters.REAL_MANIFEST.exists(), "this plane's own handoff is not in the drop directory")
+    def test_this_planes_own_handoff_is_named_too(self) -> None:
+        sniffed = runner.sniff_schema(json.loads(adapters.REAL_MANIFEST.read_text(encoding="utf-8")))
+        self.assertEqual(sniffed["kind"], "producer_record")
+        self.assertEqual(sniffed["adapter"], "dev.verification_report.adapters.extract_onshapescript_manifest")
+
+    def test_an_unrecognised_shape_says_why_silence_is_not_acceptance(self) -> None:
+        sniffed = runner.sniff_schema({"hello": 1})
+        self.assertEqual(sniffed["kind"], "unknown")
+        self.assertIn("no error", sniffed["reason"])
+        self.assertIsNone(sniffed["adapter"])
+        for non_object in ([], "text", 7, None):
+            with self.subTest(value=non_object):
+                self.assertEqual(runner.sniff_schema(non_object)["kind"], "unknown")
+
+    def test_the_cli_demands_one_of_report_or_ingest(self) -> None:
+        with self.assertRaises(SystemExit) as caught:
+            runner.main([])
+        self.assertEqual(caught.exception.code, 2)

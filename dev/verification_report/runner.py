@@ -457,15 +457,84 @@ def read_projection_csv(text: str) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------- ingestion (defect D1)
+
+#: Shapes a consumer may be handed, and what to do with each. The whole point of D1: a consumer must
+#: decide by **looking at `schema` first**, and an unrecognised shape must be refused **with a reason**
+#: rather than quietly producing "no error".
+KNOWN_PRODUCER_RECORDS = (
+    ("inspection", "MeshQ inspect result", "dev.verification_report.adapters.extract_meshq_result"),
+    ("produced_by", "onshapescript handoff manifest", "dev.verification_report.adapters.extract_onshapescript_manifest"),
+    ("evidenceUnits", "MeshQ evidence-units record", "dev.verification_report.adapters.extract_meshq_result"),
+)
+
+
+def sniff_schema(document: Any) -> dict[str, Any]:
+    """Decide what a document is **before** checking it. Never guess, never fail silently."""
+    if not isinstance(document, dict):
+        return {"kind": "unknown", "schemaId": None, "adapter": None, "reason": "top level is not an object"}
+    raw = document.get("schema")
+    if isinstance(raw, dict):
+        schema_id = raw.get("id")
+        version = raw.get("version")
+    elif isinstance(raw, str):
+        schema_id, version = raw, None
+    else:
+        schema_id, version = None, None
+
+    if schema_id == R.SCHEMA_ID:
+        if version is None:
+            # Peer-style versioned string: `<id>/<version>`.
+            return {"kind": "unknown", "schemaId": schema_id, "adapter": None,
+                    "reason": f"schema id {schema_id!r} carries no version: a numbering must be declared before the shape can be read"}
+        if version != R.SCHEMA_VERSION:
+            return {"kind": "unknown", "schemaId": schema_id, "adapter": None,
+                    "reason": f"unknown schema version {version!r}: a consumer that cannot read this version must refuse it, not coerce it"}
+        return {"kind": "report", "schemaId": schema_id, "adapter": None, "reason": "readable verification report"}
+
+    for marker, what, adapter in KNOWN_PRODUCER_RECORDS:
+        if marker in document:
+            return {
+                "kind": "producer_record",
+                "schemaId": schema_id,
+                "adapter": adapter,
+                "reason": f"this is a {what} (marker {marker!r}), not a verification report; extract it with {adapter}",
+            }
+    return {
+        "kind": "unknown",
+        "schemaId": schema_id,
+        "adapter": None,
+        "reason": (
+            f"unrecognised shape (schema id {schema_id!r}): refusing rather than guessing -- "
+            "'no error' must never be read as 'accepted'"
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------- the CLI
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check a three-plane verification report (the runner is the only authority).")
-    parser.add_argument("--report", required=True, help="path to the report JSON")
+    parser.add_argument("--report", help="path to the verification report JSON")
+    parser.add_argument("--ingest", metavar="PATH", help="say what a document is before checking it (schema-first, D1)")
     parser.add_argument("--json", action="store_true", help="print the verdict as JSON")
     parser.add_argument("--csv", action="store_true", help="print the Excel-safe CSV projection instead")
     args = parser.parse_args(argv)
+
+    if not args.report and not args.ingest:
+        parser.error("one of --report or --ingest is required")
+
+    if args.ingest:
+        path = pathlib.Path(args.ingest)
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"cannot read {path}: {exc}", file=sys.stderr)
+            return 2
+        verdict = sniff_schema(document)
+        print(json.dumps(verdict, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if verdict["kind"] == "report" else 2
 
     path = pathlib.Path(args.report)
     try:
@@ -475,6 +544,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if not isinstance(report, dict):
         print(f"cannot read {path}: top level is not an object", file=sys.stderr)
+        return 2
+    sniffed = sniff_schema(report)
+    if sniffed["kind"] != "report":
+        # Refuse a foreign document by shape, with its reason -- never report a verdict about it.
+        print(json.dumps(sniffed, ensure_ascii=False, indent=2, sort_keys=True), file=sys.stderr)
         return 2
 
     if args.csv:

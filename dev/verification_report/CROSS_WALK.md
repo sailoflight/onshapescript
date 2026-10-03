@@ -50,7 +50,7 @@ evidence_units: no such record: /tmp/no-such-file.json                    exit=2
 
 | # | 本平面的报告 | MeshQ 的单元（真实 91 个单元的键：`blocking`/`grade`/`layer`/`object`/`quantity`/`unit`/`value`） | 判定 |
 |---|---|---|---|
-| D1 | 报告是**传输形状**（`schema.id` + `version`） | 抽取器**只认自家产方的封套**（`inspection`） | **接口级缺陷**：我们议定的"报告"目前**只写不读**——两家都在读自家产方的原始记录，没有一方在读那份报告 |
+| D1 | 报告是**传输形状**（`schema.id` + `version`） | 抽取器**只认自家产方的封套**（`inspection`） | **接口级缺陷**：我们议定的"报告"目前**只写不读**——两家都在读自家产方的原始记录，没有一方在读那份报告。**本平面已按议定判据落地入口规则（见 §5）** |
 | D2 | 读数必带 `family` + `algorithm`（"同一个词、不同方法 ⇒ 数字不可比"） | 单元里**没有**这两个字段的位置 | **缺陷**：这条要求**没有落脚点**，出不了自己的仓 |
 | D3 | `readings[].value` 原为 **number（必填）** | `value` **恒在**，缺席写作 `null` + `null_reason`（真实 91 个单元里 7 个 null，**7/7 都有 `null_reason`**） | **本平面的缺陷**（本轮已修，见 §3） |
 | D4 | `complete` / `independence` / `vintage` / `cost` / `csv_projection` | 无对应；它对端有 `job_id` / `verified_version` / `repo_commit` / `admission` / `artifacts[]` | **缺陷**：报告的**来历与成本块没有对端**；若报告要当传输，对端至少要"不因此读不通" |
@@ -63,7 +63,35 @@ evidence_units: no such record: /tmp/no-such-file.json                    exit=2
 | D11 | adapter 原写 `component_count` | 对端实测警告：**数的是壳不是件**（通孔件的两个壳 = 外壁 + 内腔） | **已修**：改名为 `shell_count` 并附 `shell_count_semantics` 说明 |
 | D12 | `schema` 是对象 `{id, version}`，未知版本 → 拒 | `schema` 是**一个带版本的字符串** `meshq.evidence-units/1` | 命名分歧，需要一条互认规则 |
 
-## 3. 本平面这个方向已经修掉的（D3、D11，以及两处连带）
+## 5. D1 在本平面的落地：**先看 `schema` 再选路径**，读不认的形状要退 2 并给理由
+
+协调方在 301 号信里采纳了 D1 的判据（"抽取器**先看 `schema` 再选路径**；未知形状 ⇒ 拒 + 说明为什么拒"），
+本平面把它做成可跑的入口规则 `runner.sniff_schema()` + `--ingest`：**任何文档先判形状，再谈判决**。
+
+```
+$ python dev/verification_report/runner.py --ingest <MeshQ 的 meshq_result.json>
+{
+  "adapter": "dev.verification_report.adapters.extract_meshq_result",
+  "kind": "producer_record",
+  "reason": "this is a MeshQ inspect result (marker 'inspection'), not a verification report; extract it with dev.verification_report.adapters.extract_meshq_result",
+  "schemaId": null
+}
+exit=2
+```
+
+四条形态各有归属，**都不靠猜**：
+
+| 形态 | `kind` | 后果 |
+|---|---|---|
+| 本平面的报告（`schema.id` 对、版本 1） | `report` | 正常检查（0 = 通过且每条规则都跑了） |
+| 本平面报告的**未知版本** | `unknown` | 退 2，理由点名"未知版本"（消费方读不懂就不许强解，UL1） |
+| 别人的**产方记录**（带 `inspection` / `produced_by` / `evidenceUnits` 标记） | `producer_record` | 退 2，理由**点名该用哪个 adapter**，不对此文档发表判决 |
+| 认不出的形状 | `unknown` | 退 2，理由写明"**『没报错』不许被读成『通过』**" |
+
+配套性质（有测试守）：`--report` 喂进一份**外来文档**时**不许输出判决**，只退 2 并给出理由——
+因为对读不懂的形状发表"通过"正是 D1 这类事故的起点。
+
+## 6. 本平面这个方向已经修掉的（D3、D11，以及两处连带）
 
 本轮改动（即携带本文件的这次提交）把三种缺席分开，并落到代码、schema 与夹具里。
 
@@ -84,7 +112,7 @@ evidence_units: no such record: /tmp/no-such-file.json                    exit=2
 复跑证据：`unittest dev.tests.test_verification_report dev.tests.test_verification_report_peer_slice` → 23 项 OK；
 `build_verification_fixtures.py --check` → 18 个文件一致、`--facts` → 12 条规则各有坏样本、无规则缺反向对照。
 
-## 4. 回答协调方 292 号的三个问题（按实测，不按设想）
+## 7. 回答协调方 292 号的三个问题（按实测，不按设想）
 
 1. **读得通吗（schema 层）** —— **读不通**，且失败点不在 `schema` 字段，而在**封套**：
    对端抽取器要 `inspection`，报告里没有、也不该有。⇒ 缺陷 **D1**：要么对端抽取器增加一条
