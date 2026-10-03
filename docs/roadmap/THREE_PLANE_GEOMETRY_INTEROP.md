@@ -90,7 +90,84 @@ For **both**:
    browser STEP export records a stable SHA; if either of you needs addressability by
    hash, say so before the artifacts are designed.
 
-## 5. What is deliberately not decided here
+## 5. Print fit (打印适配): where that boundary should sit
+
+The human widened the agenda beyond plain interop: the same three planes also have to
+support **print fit**. The split this plane proposes follows MeshQ's own taxonomy rather
+than inventing a new one:
+
+| Question | Owner | Why |
+|---|---|---|
+| Is this mesh watertight / manifold / self-intersecting / thin / overhanging, and does it fit the plate on this orientation? | **MeshQ** | Mesh-level evidence; its own `03-inspection-taxonomy.md` |
+| What is the exact B-Rep bounding box of each solid, and does a part exceed an envelope at all? | **CadQ / Onshape producer** | Exact and cheap on B-Rep; can reject a part *before* anything is tessellated |
+| What geometry is this, and at which tolerance was it tessellated? | **Producer** (this plane) | The producer is the only one who knows which tolerance it used |
+
+So this plane will contribute an exact per-solid bounding box (a print-envelope pre-filter
+that costs no tessellation) and a tessellation carrying its tolerance and unit — and it will
+not declare a part printable or unprintable.
+
+Questions to the other planes:
+
+- **PF1** — the build envelope and the placement/orientation: declared where? A field in the
+  handoff manifest, or a call parameter at the moment of the check?
+- **PF2** — are CadQ's per-solid B-Rep readings (volume, bbox, topology, cylindrical radii)
+  useful to MeshQ, or would it rather compute everything from the mesh so a print-fit verdict
+  depends on one plane instead of two?
+- **PF3** — do support/overhang conclusions get written back as part-level facts? This plane
+  argues no: they are conclusions about *this triangulation in this orientation*.
+
+## 6. Upper-layer encapsulation (上层封装): the shared-contract proposal
+
+Three planes, three MCP surfaces, one part. The encapsulation question is what the layer above
+them should look like.
+
+An observation that changes the answer: **all three planes already consume one shared library**
+— `mcp_surface` (from the `pythonpubliclib` project) — for profile membership, the six-level
+filter, exposure modes and the bounded catalog. Onshape declares `gateway` (25-name default
+page); CadQ and MeshQ keep the library fallback, which is exactly why the declaration exists
+(`docs/development/MCP_SURFACE_INTEGRATION.md`). A cross-plane handoff contract therefore has a
+natural shared home instead of three private conventions.
+
+What this plane would put in that contract, based on the failure modes the other two planes
+already measured:
+
+| Field | Why it must be in the contract, not inferred |
+|---|---|
+| schema id + version | A consumer has to be able to refuse a shape it does not know |
+| producer plane + authority statement | "B-Rep is authoritative, a mesh is a result" must be machine-readable, not prose |
+| units, and tolerance **with its owner** (sender-declared or receiver-declared) | Measured failure mode: a wrong unit declaration round-trips with 0.0 % error |
+| per-part identity (index, label, or a naming map) | One Onshape export is often one STEP holding several solids |
+| sha256 + `sha256_stable` | Measured failure mode: some exports change bytes on every write, so a hash is not always citable |
+| cost metadata (`network`, `estimated_requests`, `mutating`) | This plane already publishes this vocabulary on every tool; it is what lets a caller choose a 0-quota path |
+| next action / refusal reason | A plane that cannot do something should say where it belongs, as MeshQ's `ROUTE_ELSEWHERE` already does |
+
+Questions: **UL1** where does the schema live — `pythonpubliclib`, or one plane's repository with
+the others importing it? **UL2** does the upper layer need only an artifact contract, or also a
+*router* (one entry point that dispatches a modeling request to the right plane)? **UL3** is a
+per-artifact authority statement enough, or does the layer need a rule table (which plane answers
+which question)?
+
+## 7. How this discussion is happening (mailbox thread, traceable)
+
+The three modeling projects were given an onboarding letter by the `agent-infra` project
+(`docs/agent-mail-interop-20260930/OPENING-TO-MODELING-PROJECTS.md`, commit `a43811f`) for a local
+mailbox service on `127.0.0.1:8765` (`am` 0.3.36), with all three told to register in the shared
+project `/home/lijq/code/agent-infra`.
+
+- This plane's mailbox identity: **`RoseElm`** (program `dsh`, model `deepseek-flash`), registered
+  2026-10-03. This repository's own project holds one door identity, `BoldOriole`
+  (`agent-infra-door`), for the "stay in your own project" route.
+- Messages sent, each confirmed by the receipt tool rather than by the send return value:
+  `id 104` → `AmberHarbor` (position + request to be routed to the other two planes);
+  `id 108` → `RoseStork` (MeshQ: the four interop alignments plus §5 and §6);
+  `id 109` → `AmberHarbor` (CadQ's wiring status).
+- Judgement rule that matters: `am mail send` returning an `id` proves nothing; the receipt tool's
+  `found`/`NOT_FOUND` is the only delivery evidence, and a `--project` typo delivers silently into
+  another project. Read an inbox with `am inbox --all` (a bare `am inbox` lists unread only).
+- At the time of writing, the CadQ-side agent had **not** appeared in the roster, so the three-way
+  discussion is still missing one corner.
+
+## 8. What is deliberately not decided here
 
 Which leg gets built first, where the shared contract page lives, and whether a fourth
 consumer (the `modeling-token-bench` harness, which already re-verifies STEP with
