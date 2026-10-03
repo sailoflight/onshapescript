@@ -84,9 +84,11 @@ _TAB_ROWS_JS = """
 """
 
 _FEATURE_ROWS_JS = """
-() => Array.from(document.querySelectorAll('.os-list-item.ns-user-feature')).map(
-  (row) => (row.textContent || '').trim()
-)
+() => Array.from(document.querySelectorAll('.os-list-item.ns-user-feature')).filter((row) => {
+  const cls = String(row.className || '');
+  if (cls.indexOf('ns-rollbackbar-holder') !== -1) return false;
+  return (row.textContent || '').trim().length > 0;
+}).map((row) => (row.textContent || '').trim())
 """
 
 

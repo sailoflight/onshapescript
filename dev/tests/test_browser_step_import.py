@@ -148,6 +148,13 @@ def _source(tmp: Path, name: str = "handoff.step") -> Path:
 
 
 class PlanTest(unittest.TestCase):
+    def test_the_feature_row_read_ignores_the_rollback_bar_holder(self):
+        # Measured live 2026-10-03: `.os-list-item.ns-user-feature` ALSO matches the rollback-bar holder
+        # (`os-list-item ns-user-feature not-computed ns-rollbackbar-holder`, empty text) -- a permanent
+        # structural row, not a feature. It must never enter the proof set.
+        self.assertIn("ns-rollbackbar-holder", step_import._FEATURE_ROWS_JS)
+        self.assertIn("trim().length > 0", step_import._FEATURE_ROWS_JS)
+
     def test_plan_states_that_a_translation_is_not_a_landing(self):
         with tempfile.TemporaryDirectory() as tmp:
             plan = step_import.plan_browser_step_import(source_path=_source(Path(tmp)))

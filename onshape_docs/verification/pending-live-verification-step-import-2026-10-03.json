@@ -439,5 +439,36 @@
       ],
       "cleanup": "browser_delete_element can remove any of them if the document should go back to 10 tabs"
     }
+  },
+  "into_part_studio_live_run_2026-10-03": {
+    "why": "I4 (the Part Studio feature-row proof) was the last unexercised check",
+    "target": "the imported element `model (1)` (7c67d0e3308cb6af15ca6fb1) -- a disposable element this session created, so the test never touches a modelled Part Studio",
+    "the_guard_proved_itself_before_any_import": {
+      "call": "mode=into-part-studio with target_tab='model (1)' while the active tab was 'GF 4U 盒子'",
+      "verdict": "imported=false / reason=target_tab_not_active, activeTab {name: 'GF 4U 盒子', expected: 'model (1)'}",
+      "why_it_matters": "without the guard the very same call would have clicked the import entry and imported INTO the user's modelled box; the wrong-tab risk was real, not hypothetical",
+      "evidence": "nothing was clicked, before/after null, 0 quota spent"
+    },
+    "first_import_landed_while_the_call_timed_out": {
+      "call": "the same mode after activating `model (1)` (browser_activate_tab: activeBefore 59f6cc99..., activeAfter 7c67d0e3..., content partstudio ready)",
+      "transport": "downstream_timeout -- the MCP call outlived its transport budget, so the tool never returned a verdict; the outcome was determined by independent page reads instead, and the call was NOT replayed automatically",
+      "page_read_after": "element 7c67d0e3... carries exactly one user feature `Import 1` (ns-user-feature, no error flag) and 1 part (`零件数 (1)` / `Part 1`)",
+      "so": "the into-part-studio leg works end to end (entry, file attach, submit, landing) and the observed row text is `Import 1` -- the fact I4 exists for"
+    },
+    "second_import_into_the_same_element_did_not_land": {
+      "call": "same mode/target with expect_feature_name='Import', timeout_ms=30000",
+      "ui_steps": "importEntry clicked (page_js_dropdown_item on #upload-button), file attached (input[type=file]), submit clicked (.xenon-dialog button.btn-primary)",
+      "verdict": "imported=false / reason=no_new_element / translationCompleted=unknown (60 polls, no change)",
+      "page_read_after": "still exactly one user feature `Import 1` and 1 part; no visible dialog and no error toast afterwards",
+      "cause": "UNVERIFIED -- a duplicate import of the same CAD blob into the same element looks like a silent no-op (that element's import bookkeeping already exists), but that is an inference. The honest statement: all three UI steps can report success while nothing lands, and the landing proof refused to call it a success (no false green)"
+    },
+    "defect_found_by_this_run": {
+      "what": "`.os-list-item.ns-user-feature` also matches the rollback-bar holder (`os-list-item ns-user-feature not-computed ns-rollbackbar-holder`, empty text) -- a permanent structural row, not a feature",
+      "evidence": "the same run's `pageFacts.tabNames` was ['Import 1', ''] -- the empty string is that holder",
+      "fix": "_FEATURE_ROWS_JS now drops `ns-rollbackbar-holder` rows and empty-text rows; pinned by a test and deployed in revision (see the next commit)"
+    },
+    "checks_after_this_run": {
+      "I4": "still open: the row text is measured, but a verdict of imported=true with expect_feature_name matching a new row has not yet been produced -- the fresh-element retry is the next step"
+    }
   }
 }

@@ -1,0 +1,200 @@
+<!-- agent-project-guides:v3:start -->
+## Project governance routing
+
+Project ID: `onshapescript`; variant: `shared-runtime.pinned`; pinned release: `3.0.7` / `sha256:50852ae93ac3a935a00d4e3d0f6c8b76857f53b9228f0d47c75dfb3a8a8e5e24`; manifest: `sha256:81ae8e3bd787c8aa65c460ce6f54ea8a8c3d698bfa55e31591969461c7df44db`.
+
+Before work, run `apg context --target . --task <current-task> --format context` and use only the returned governance content. Resolve any ambiguity before protected work. The shared CLI and exact packed digest are runtime dependencies; missing content fails explicitly and never falls back to `latest`. Returned sources are intended context and do not prove model-effective context.
+<!-- agent-project-guides:v3:end -->
+## Consumer / development plane gate
+
+- **Consumer/operator deployment** (installed from a Release artifact, or this
+  checkout is used only to consume the MCP), or any environment where `apg` is not
+  available: do NOT run `apg context`, do NOT fetch or install the governance
+  package, and do NOT treat the development governance material as a consumer
+  instruction. Route to the runtime policy returned by `initialize`,
+  `docs/usage/MCP_CONSUMER.md` (Production / User), and
+  `docs/operations/MCP_RUNBOOK.md` (Production / Operator).
+- **Development/maintenance/review/release plane** with `apg` available: the
+  pinned-dependency rule above applies unchanged (fixed release plus digest;
+  missing content fails explicitly; never fall back to `latest`).
+
+A consumer-side code defect is an Issue for development; never fix it by editing
+the deployed source in place.
+
+# Repository agent instructions
+
+## Project scope and routes
+
+This repository delivers an ordinary stdio MCP server whose browser and local
+runtime resources belong to the host process. Cross-host transport is an
+independent deployment dependency; do not add relay/listener/launcher code here.
+
+- Start repository work at `docs/INDEX.md`, then read one exact task authority.
+- Development commands are in `docs/development/START.md`.
+- Current boundaries are in `docs/architecture/OVERVIEW.md` and mapped module contracts.
+- Select checks from `docs/verification/MATRIX.md`.
+- Production use and recovery remain separated in `docs/usage/MCP_CONSUMER.md`
+  and `docs/operations/MCP_RUNBOOK.md`.
+
+## Mandatory lookup-first protocol
+
+For any repository, FeatureScript, Onshape API, or browser-automation question,
+do not start from memory or speculation. Use this order:
+
+1. **Classify the question** as project workflow, FeatureScript, REST API, browser experience, or source code.
+2. **Search the cheapest index first** and inspect its candidate list or heading outline.
+3. **Open the smallest exact entry**: one documentation section, function, type, endpoint, schema, or matched source region.
+4. **Read a complete authored or raw source only when the indexed detail cannot answer the question.**
+5. **Reason, plan, and edit only after the lookup evidence is collected.**
+
+Do not skip directly from a vague question to a large original file. Do not
+guess an Onshape name, signature, payload, selector, or workflow that can be
+looked up locally.
+
+## Domain routing
+
+| Question | Index first | Exact detail second | Full source last |
+|---|---|---|---|
+| Project workflow or known lesson | `docs_search` or `docs_list` | `docs_section` for one section | Authored `.md` file |
+| FeatureScript concept or symbol | `fs_quick_reference`, then `fs_search` | `fs_get_function`, `fs_get_type`, or `fs_guide_section` | `fs_library_source`, then `reference/raw/` only if needed |
+| Onshape REST API | `onshape_api_list_tags` or `onshape_api_search` | `onshape_api_endpoint`, `onshape_api_schema`, `onshape_api_auth`, or `onshape_api_error_codes` | Vendored OpenAPI or raw developer page only if needed |
+| Browser behavior | `docs_search` over `browser-automation` / `browser-modeling` | `docs_section` for the matched lesson | Browser source/fixture after the documented behavior |
+| Repository implementation | File/content search | Read the matched function and its tests | Whole module only when local context is insufficient |
+
+`onshape_docs/reference/raw/` is provenance and build input, not the first read.
+The normal read order is quick index -> structured detail -> exact original.
+Do not open generated JSON indexes directly; use their query tools.
+
+## Large index protection
+
+`onshape_docs/index.json` is a generated index of roughly 191 KiB; its size varies
+after rebuild. Never load the whole file into model context to answer one
+question. Prefer `docs_search` or `docs_list`, then retrieve one exact section
+with `docs_section`.
+If those query tools are unavailable, use `grep`/`rg` only to locate candidate
+keywords, page ids, paths, or headings, then read a bounded window around the
+match from the authored Markdown. Do not print or ingest the complete JSON
+index. Apply the same candidate-first, bounded-read rule to other large indexes
+and raw sources.
+
+## Source precedence
+
+1. Current code and offline tests define implemented behavior.
+2. `onshape_docs/experience/` records reusable verified behavior and operational lessons.
+3. `onshape_docs/verification/` holds evidence, reports, and experiment records behind those lessons.
+4. `onshape_docs/reference/` holds vendored upstream material and its generated indexes.
+
+When sources disagree, identify version/date scope and report the conflict. Do
+not silently combine stale experience with current behavior.
+
+## API quota safety
+
+- Keep `LIVE_API_ENABLED` off by default.
+- Use local docs, indexes, code, tests, mocks, fixtures, replay, and dry-run before considering a live request.
+- Never use the real Onshape API for trial-and-error debugging.
+- A live request requires one explicit unresolved fact and a hard request budget.
+
+Detailed quota, retry, fixture, and mutation constraints are in `CLAUDE.md` and
+apply to every agent, not only Claude.
+
+## Change discipline
+
+- Preserve concurrent user or agent edits and re-read shared files before changing them.
+- Keep runtime data and configuration with the module that owns it.
+- Rebuild `onshape_docs/index.json` after changing indexed documentation.
+- Run offline tests with `LIVE_API_ENABLED` unset; never enable it for regression verification.
+
+<!-- inframanager:mailbox:start v1 -->
+## 外部能力怎么用 —— 总入口 `infra-manager`
+
+本机装了 **15 个外部能力**（信箱、台账、任务图、会话检索、远端编译、磁盘观测……），
+**全部只经 `infra-manager` 的公开 CLI 使用**。下面这张清单就是"这台机器上你能调什么"。
+
+> 这一节由 `/home/lijq/code/agent-infra` 维护。**改动会先落成候选文件（`<目标>.new`）请你确认**，
+> 不会静默替换你仓库里的任何东西。
+
+### 1. 第一条铁律：**别直接跑那些二进制**
+
+直接跑 `am` / `br` / `bv` / `cass` … **能出结果，但没有账**——你绕过了管理器的动词面与闸门。
+经管理器有闸门、有记录、有**明确拒绝码**；绕过它得到的东西**不可复现、没人能审**。
+
+> 实测对照：`bv --export-graph` 直接跑能出图；经管理器最初被拒
+> （`verb_unclassified`——“面没分类它，`policy.default` 一律拒”），**加进面之后才放行**。
+> ⇒ 想用什么，**先去问管理器**，而不是先绕过。
+
+### 2. 先看这台机器有什么
+
+```bash
+timeout 60 node /home/lijq/code/agent-infra/infra-manager/bin/infra-manager.mjs provider coverage \
+  --catalog /home/lijq/code/agent-infra/docs/capability-pins-20260928/managed-capabilities.json \
+  --install-root ~/.local/share/infra-manager
+```
+
+`15/15` = 全部就位。（本文件编写时就是这个数。）
+
+### 3. 清单（15 项）
+
+| 能力 | 命令 | 干什么 |
+|---|---|---|
+| 信箱与协作 | `am` | 跨项目收发信、身份、协作预留 |
+| 台账 | `br` | issue、状态、依赖——**纯文本、人可手改** |
+| 任务图 | `bv` | 图分析、优先级建议、跨仓视图、**出 SVG/HTML 图** |
+| 会话检索 | `cass` | 跨 agent 会话的索引与查询 |
+| 经验/playbook | `cm` | playbook、经验候选、上下文建议 |
+| 破坏性命令守卫 | `dcg` | 命令风险判定与阻断建议 |
+| 持久记忆检索 | `ee` | 持久本地记忆与检索 |
+| 终端观测 | `ft` | 终端复用、观察与控制 |
+| 会话编排 | `ntm` | tmux/agent 会话编排 |
+| 远端编译 | `rch` | 把编译任务派到远端 worker |
+| 仓库同步 | `ru` | 多仓一致性检查与更新 |
+| 磁盘压力观测 | `sbh` | 磁盘压力与资源状态 |
+| 命令审批 | `slb` | 危险命令审批与受控执行 |
+| bug 扫描 | `ubs` | 第三方 bug 扫描器 |
+| 账号保险库 | `caam` | AI 编码 CLI 的账号/凭据切换 |
+
+### 4. 三条**通用**铁律（每条都对应一次实测踩坑）
+
+1. **任何调用都自带超时。**
+   本机回环上**没人在听**的端口是**丢弃**、不是拒绝（实测整 4.00s 超时、`rc=124`）。
+   走 HTTP 的能力（如 `am`）在服务不在时**不返回、挂住**（实测 20s+、0 字节）。
+   ⇒ 永远写 `timeout 30 …`，否则你会**卡死在这一行**。
+2. **"本地库读得到"不等于"服务在跑"。**
+   有些子命令读本地库、秒回；有些要服务。**不要用前者证明后者**。
+3. **身份 / 工作区按绝对路径隔离。**
+   各家的 key 是**绝对路径**，所以**同名 ≠ 同一个人**。
+   ⚠️ **不要注销别人项目里的影子身份**——注销是**终态**、不可恢复。
+
+### 5. 台账（`br` + `bv`）—— 四条实测坑
+
+1. **工作区必须用 `BEADS_DIR` 钉住**（且放进规格的 `env_allow`）。
+   经管理器跑时 `--db <绝对路径>` **单独不够**，而漏钉会让 `init` 把工作区建进**每次丢弃的临时目录**。
+2. **写动词各带闸门令牌**，令牌是 `--confirmation <token>` 的**值**；
+   写成裸的 `--confirmation` 会**把下一个参数吃掉**。只读动词不需要令牌。
+3. **人改完 `issues.jsonl` 要 `sync --import-only --rebuild` 才生效。**
+   ⚠️ `sync --import-only` **单独用是静默空操作**：退出 0、DB 一点没变。
+4. **答复写进 `comments`，不要自造字段**（自造字段会被静默丢掉）。
+   `br comments add <id> <文本>` **必须给 `--actor`**——不给时 `author` 字面量就是 `"unknown"`,
+   人写的和 agent 写的**分不出来**。
+   ⚠️ 读评论走 `show --json`（免令牌）；`br comments <id>` 是**写动词，连读都要令牌**。
+
+### 6. 信箱（`am`）
+
+* **收**：`timeout 30 am inbox --agent <身份> --include-bodies --json`
+  ⚠️ 顶层键是 **`inbox`**；正文**只在 `--include-bodies` 时**以 **`body_md`** 出现；
+  **没有 `_alerts` 键 = 没有告警**（不是解析失败）。
+* **发**：`timeout 30 am mail send --to <对端> --subject "<主题>" --body "<正文>"`
+  ⚠️ **只有 `--body`，没有 `--body-file`**。
+* **怎么知道对方真收到了**：**`signaled=false` 不是失败信号**（已签收也是 false，**零区分度**）。
+  真判据是**收据落在哪个 project_id**（消息按"**发送方当前项目**"落库）：
+  `bash /home/lijq/code/agent-infra/docs/agent-mail-interop-20260930/tools/mail-delivery-receipt.sh --project <发信项目> --message-id <id>`
+  报 **`NOT_FOUND` = 黑投**。**路径必须绝对**——这一节要贴到别的项目里，相对路径在那里找不到。
+
+### 7. 出问题了找谁
+
+`/home/lijq/code/agent-infra` 是这条线的 owner。**先把证据复跑一遍再来问**，
+问的时候给三样：**命令、退出码、原文**。**没跑过的不当结论。**
+
+<!-- 本节的钉住版本：infra-capabilities AGENTS-section v1
+     来源 docs/agent-mail-interop-20260930/templates/AGENTS-capabilities-section.md
+     人方裁定 2026-10-03：按 ACFS 非覆盖范式产出，撞了留 .new、由该项目 agent 向人方确认 -->
+<!-- inframanager:mailbox:end -->
