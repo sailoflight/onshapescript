@@ -173,9 +173,11 @@ timeout 60 node /home/lijq/code/agent-infra/infra-manager/bin/infra-manager.mjs 
 3. **人改完 `issues.jsonl` 要 `sync --import-only --rebuild` 才生效。**
    ⚠️ `sync --import-only` **单独用是静默空操作**：退出 0、DB 一点没变。
 4. **答复写进 `comments`，不要自造字段**（自造字段会被静默丢掉）。
-   `br comments add <id> <文本>` **必须给 `--actor`**——不给时 `author` 字面量就是 `"unknown"`,
+   给 `--actor <名字>`：不给时 `author` 会落成**操作系统用户名**（本机实测 = `lijq`），
    人写的和 agent 写的**分不出来**。
-   ⚠️ 读评论走 `show --json`（免令牌）；`br comments <id>` 是**写动词，连读都要令牌**。
+   ⚠️ 读评论走 `show --json`；`br comments <id>` 实测**不给令牌也 `rc=0`**（不是写动词）。
+   📌 **每条"实测"都标路径**（经管理器 / 直接跑）：同一条在两路径下可能不同，
+   两条都写"实测"而结果不同时，读者没法判断该信谁 —— 这是外部复跑纠正我的第一条。
 
 ### 6. 信箱（`am`）
 

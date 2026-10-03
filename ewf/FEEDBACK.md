@@ -92,3 +92,117 @@ MUST 可分离表达，`existence` 的 `engineering_object: absent` + `record: p
 **引用的 OQ 现在都真实存在**：`OQ-011` / `OQ-016` / `OQ-017` / `OQ-020` / `OQ-023` 之外，
 本轮新增了 `OQ-030`（`FB-13`）、`OQ-031`（`FB-04`）、`OQ-032`（`FB-06`）、`OQ-033`（`FB-08`），
 四条都已进 `docs/open-questions.md` 与 `SPEC.md` §24。
+
+## 答复 EWF 侧 2026-10-03 提问「写方向三面」
+
+这是**问答记录，不是新的缺口**，所以没有新增队列表行。提问要点：① `--check` 退出码 + 前 20 行；
+② 逐面说生成器写不写 `document-envelope` / `id-identity` / `extension-escape-hatch`
+（含 `SPEC_VERSION` 是常量而非现读 schema 的 `x-ewf-spec-version` 是否有意、会不会跟版本走）；
+③ `FB-04` / `FB-05` 今天是否仍成立（各给命令 + 退出码 + 原文）。
+按提问的边界，**没有为了迎合任何文档改动生成器或实例**。以下命令都在
+`/home/lijq/code/onshapescript` 下原样可复跑。
+
+### ① `python3 dev/tools/build_ewf_instance.py --check`
+
+退出码 **0**；全部输出只有 **1 行**（所以「前 20 行」就是这一行）：
+
+```
+OK: ewf/instance.yaml 与生成结果一致
+```
+
+要点：这是**自洽**检查（生成器 vs 已提交的 `instance.yaml`），**不是**与 schema 的一致性检查——
+② 里那条版本漂移因此不会被它发现。
+
+### ② 三个「写」面：逐面回答
+
+| 面 | 生成器写不写 | 实测依据（可复跑） |
+|---|---|---|
+| `document-envelope` | **写**（`kind: ewf-instance` + 顶层 `spec_version`），但版本值是**模块常量**，不读 schema | `grep -n SPEC_VERSION dev/tools/build_ewf_instance.py` → 第 **62** 行 `SPEC_VERSION = "0.6.0"`；`grep -rn x-ewf-spec-version --include=*.py .` → **0 命中**（全仓仅 `ewf/FEEDBACK.md` 的 FB-13 行把它当 EWF 侧证据引用） |
+| `id-identity` | **写**：22 个 Entity 每条都带 `id`；今天全部唯一 | `python3` 读 `ewf/instance.yaml`：`entities=22 id 全部唯一=True 重复=[]`。生成器自身**没有**唯一性断言（id 是模板里的字面量），但**工具链会查**——见下 |
+| `extension-escape-hatch` | **不写，且是有意的** | `grep -c '^[[:space:]]*x-' ewf/instance.yaml` → **0**；守卫测试 `dev/tests/test_ewf_instance.py::test_instance_uses_no_private_extension_keys` 只要出现 `^\s*x-` 就失败；理由记在 `ewf/README.md` §8（不把事实藏进 `x-*` 键） |
+
+**「常量而不是现读 schema」是有意的吗？** 诚实回答：**没有为它记过任何策略**。它就是版本住的
+那个位置；仓库里没有任何代码读 `x-ewf-spec-version`，也没有任何测试把 `instance.spec_version`
+与 schema 版本钉在一起（被钉住的只有两对：实例 ↔ README 的版本行是投影关系、
+实例 ↔ 生成器由 `--check` 保证）。**所以它不会跟着版本走**：bump 需要有人改常量并 `--write`。
+
+**今天这个漂移已经存在，而两个实现都不判失败**（本轮实跑，`/home/lijq/code/onshapescript` 下）：
+
+```
+$ cd /home/lijq/code/ewf && ./.venv/bin/python tests/validate_examples.py --project /home/lijq/code/onshapescript/ewf
+EWF Core V0 example validation —— spec_version 0.6.1
+  OK  [project] ewf                   nodes=9   entities=22  tailoring=6   （不做断言校验）
+PASS —— 1 个 project 通过 schema + 引用完整性校验        # exit 0，且**没有**提到漂移
+
+$ cd /home/lijq/code/ewf-tools && ./.venv/bin/python -m ewf_tools.check --project /home/lijq/code/onshapescript/ewf
+EWF read-only check —— spec_version 0.6.1
+  - ewf：instance 的 spec_version=0.6.0，本工具与规范已到 0.6.1——这是版本漂移，只记录、不影响本次判定
+PASS —— 1 个 project 通过 schema + 引用完整性        # exit 0
+```
+
+即：`grep -o '"x-ewf-spec-version": *"[^"]*"' /home/lijq/code/ewf/schema/*.json` 今天 8 个文件
+**全是 0.6.1**，我方实例声明 **0.6.0**，官方校验器 PASS 且**不提**，消费者工具 PASS 且**只记一条说明**。
+
+**`id-identity` 是被机器查的，查在两个不同的层**（合成实例实验，只在 `/tmp`，做完即删）：
+
+```
+# 只做一件事：把 REQ-OSH-CONTENT 整条复制一份追加（不删不改任何 id）→ 23 条实体
+$ cd /home/lijq/code/ewf && ./.venv/bin/python tests/validate_examples.py --project /tmp/ewf-dup-clean-...
+FAIL —— 1 条问题：
+  - [refs] 引用完整性失败 — Entity 内出现 2 个同 id 对象 `REQ-OSH-CONTENT`（EWF-ENT-010：一个 id 只标识一个对象）
+exit=1
+# 另造一个含空格的 id（不动其他）→ 形状那半在 schema 层被拦
+  - [schema] instance/entities/21/id: 'id with a space' does not match '^[A-Za-z0-9][A-Za-z0-9._:/#-]*$'
+exit=1
+```
+
+结论：**形状在 `schema` 层（JSON Schema pattern）**、**唯一性在 `refs` 层（`EWF-ENT-010`）**，
+两边都 FAIL 且退出码 1。写方向这条面**不需要我方生成器自己断言**，但也不该指望它自证。
+
+### ③ `FB-04` / `FB-05` 今天是否仍成立
+
+**两条都仍成立**（逐字复核，命令与原文如下）。
+
+`FB-04`（`artifact.identity` 是单个 string）：
+
+```
+$ cd /home/lijq/code/onshapescript && python3 - <<'PY'
+import json; s=json.load(open("/home/lijq/code/ewf/schema/ewf-instance.schema.json"))
+a=s["$defs"]["entityInstance"]["properties"]["artifact"]
+print(sorted(a["properties"])); print(a["properties"]["identity"]); print(a["additionalProperties"])
+PY
+['identity', 'realization_kind', 'satisfies']
+{'type': 'string', 'description': '内容标识（hash / commit / revision），仅当需要时提供。'}
+False            # exit 0
+```
+
+本仓实例侧依旧是"三元组散落"：归档 sha256 落在 `artifact.identity`
+（`ewf/instance.yaml:445` `identity: "sha256:d112de9c…"`），来源 revision 另落在
+baseline 的 configuration（`:490` `{kind: software-commit, identity: "6ceacfb", …}`），
+版本 `1.3.0` 只在 id / 标题 / 散文里。**机器仍无法从任一处推出另外两处。**
+
+`FB-05`（`release` payload 无 `supersedes`）：
+
+```
+$ cd /home/lijq/code/onshapescript && python3 - <<'PY'
+import json; s=json.load(open("/home/lijq/code/ewf/schema/ewf-instance.schema.json"))
+p=s["$defs"]["entityInstance"]["properties"]
+print(sorted(p["release"]["properties"]), p["release"]["additionalProperties"], "supersedes" in p["release"]["properties"])
+print(sorted(p["baseline"]["properties"]))
+print(p["baseline"]["properties"]["supersedes"])
+PY
+['package', 'release_gate', 'released_baseline', 'target_environment', 'transition_work_node'] False False
+['configuration', 'purpose', 'supersedes']
+{'$ref': 'https://ewf.dev/schema/v0/common.schema.json#/$defs/ref'}            # exit 0
+```
+
+本仓实例侧依旧只能借 baseline 表达取代：`ewf/instance.yaml:495` 的
+`supersedes: BAS-OSH-1.3.0-PREV` 挂在唯一的 baseline 上；唯一的 release Entity
+**没有也不能有** `supersedes`（`:496` 的 note 记录了这处绕行）。
+
+### 本轮的两个副产品（供你们判读，不要求你们改任何东西）
+
+1. **版本漂移两个实现都不失败**：官方校验器对 `instance.spec_version 0.6.0` vs schema `0.6.1`
+   **完全沉默**，消费者工具只记一条说明。若你们希望"信封版本"也进强制层，这是一个现成的空档。
+2. **`id-identity` 已经是机器强制的**（`EWF-ENT-010` + schema pattern），所以"写方向没有机器执行者"
+   这句话里，至少这一面存在可复算的机器判定；而 `document-envelope` 的版本那半，今天确实没有。
