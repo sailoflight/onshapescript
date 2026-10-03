@@ -10,7 +10,7 @@ spec_version: "0.6.0"
 #   S1 已发布归档 onshapescript-mcp-1.3.0-6ceacfb.zip
 #      与同名 .sha256 边车（/home/lijq/code/onshapescript-releases/），以及归档内
 #      的 release-manifest.json / SHA256SUMS / RELEASE-NOTES.md
-#   S2 发布工具源码 dev/tools/consumer_release_spec.py（白名单 / 黑名单 / plan()）
+#   S2 发布工具源码 dev/tools/consumer_release_spec.py 的发布点那一版（白名单 / 黑名单 / plan()）
 #   S3 发布验证记录 onshape_docs/verification/resident-login-survival-2026-09-26.json
 #
 # 生成前的硬校验（任何一条对不上即拒绝写出）：

@@ -78,7 +78,7 @@ class McpServerTest(unittest.TestCase):
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-06-18")
         self.assertEqual(
             responses[0]["result"]["serverInfo"],
-            {"name": "onshape-mcp", "version": "1.3.0"},
+            {"name": "onshape-mcp", "version": "1.4.0"},
         )
         self.assertFalse(responses[0]["result"]["capabilities"]["tools"]["listChanged"])
         instructions = responses[0]["result"]["instructions"]

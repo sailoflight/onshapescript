@@ -9,7 +9,8 @@
   S1  /home/lijq/code/onshapescript-releases/onshapescript-mcp-1.3.0-6ceacfb.zip
       以及同名 .sha256 边车，和归档内的 release-manifest.json / SHA256SUMS /
       RELEASE-NOTES.md。
-  S2  dev/tools/consumer_release_spec.py（白名单 / 黑名单 / plan() 的唯一真相源）。
+  S2  dev/tools/consumer_release_spec.py 的**发布点那一版**（`git show v1.3.0:…`）；该文件是
+      白名单 / 黑名单 / plan() 的唯一真相源，本实例读它被冻结的形态。
   S3  onshape_docs/verification/resident-login-survival-2026-09-26.json
       （本仓自己的发布验证记录）。
 
@@ -86,8 +87,15 @@ def _git(*args: str) -> str:
 
 
 def _spec_constants() -> dict:
-    """用 ast 读发布工具里的常量，不 import 它（import 会往 checkout 写 .pyc）。"""
-    tree = ast.parse(SPEC_TOOL.read_text(encoding="utf-8"))
+    """用 ast 读发布工具里的常量，不 import 它（import 会往 checkout 写 .pyc）。
+
+    读的是**发布点那一版**（`git show <TAG>:<path>`），不是工作树里的当前文件：本实例描述的
+    是一个已经冻结的发布，S2 的四个常量（白名单 / 黑名单 / 待决 / server 版本）都是那次发布的
+    属性。从工作树读会让后续的版本提升或白名单调整悄悄改写一份历史报告——而那个失误只有
+    `--check` 会报，报出来也难看出成因。
+    """
+    text = _git("show", f"{TAG}:dev/tools/consumer_release_spec.py")
+    tree = ast.parse(text)
     wanted = {
         "WHITELIST",
         "DENYLIST",
@@ -227,7 +235,7 @@ spec_version: "@@SPEC_VERSION@@"
 #   S1 已发布归档 @@ARCHIVE_NAME@@
 #      与同名 .sha256 边车（/home/lijq/code/onshapescript-releases/），以及归档内
 #      的 @@MANIFEST_NAME@@ / @@CHECKSUM_SIDECAR_NAME@@ / RELEASE-NOTES.md
-#   S2 发布工具源码 dev/tools/consumer_release_spec.py（白名单 / 黑名单 / plan()）
+#   S2 发布工具源码 dev/tools/consumer_release_spec.py 的发布点那一版（白名单 / 黑名单 / plan()）
 #   S3 发布验证记录 @@RECORD_PATH@@
 #
 # 生成前的硬校验（任何一条对不上即拒绝写出）：

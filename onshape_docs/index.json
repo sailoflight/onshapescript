@@ -12729,7 +12729,7 @@
    "page": "mcp-tool-reference",
    "category": "reference",
    "path": "docs/generated/TOOL_REFERENCE.md",
-   "sha256": "a101f3fd67ded6618da7ab6ddfcbe0cf69b68cc6cfe0d2852df13b46f507e766",
+   "sha256": "2dc6429532380b5fb33e728f9a5c375bf2c94296b14b99f8507cb66155959147",
    "title": "Generated MCP tool reference",
    "sections": [
     {
@@ -12754,7 +12754,7 @@
          "depth": 0
         },
         {
-         "text": "Server: onshape-mcp 1.3.0",
+         "text": "Server: onshape-mcp 1.4.0",
          "depth": 0
         },
         {
