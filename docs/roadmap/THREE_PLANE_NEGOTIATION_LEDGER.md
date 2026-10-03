@@ -96,6 +96,12 @@ meant to prevent.
 |---|---|---|
 | CadQ's mesh volume differs from the delivered bytes by up to **2.414e-6 relative** (MeshQ's referee table, 179) | the two implementations accumulate the per-triangle contributions in a different order — naive `+=` versus `math.fsum` | **no plane has shown the cause end to end**: nobody swapped only the summation order and watched the delta collapse. It is an inference from the code paths (`cad_agent/core/step_tessellate.py` per-triangle scalar-triple-product accumulation vs this plane's `math.fsum`), and the fact that this plane's reader agrees with the bytes to 1.08e-12 is *consistent with* the hypothesis without establishing it. Treat the number as **unexplained**, and do not cite it as an explanation for anything else |
 
+## Swept, found nothing to fix (kept so the sweep is not repeated blind)
+
+| Question | Command | Result |
+|---|---|---|
+| Is `orientation` ever counted as a **second, independent** piece of evidence beside `signed volume > 0`? They are one number (`outwardOriented = signed_volume > 0`), so counting both would double-count one measurement | `grep -rn "outwardOriented\|orientation" --include=*.py --include=*.md fdm_analysis/ dev/tools/ docs/ onshape_docs/experience/ onshape_docs/verification/ \| grep -i volume` | **5 hits, every one saying the opposite**: the code publishes `outwardBasis: "signed_volume_positive"` *beside* the field and states "the SAME computation as the volume and therefore not independent evidence of it"; the shape draft's row 17 carries MeshQ's tightened conditional form; the face-off page repeats "orientation state must never be inferred from a volume". No artifact, page or test in this repository counts them twice |
+
 ## Not concluded (kept visible so it cannot be mistaken for settled)
 
 | Open item | Who owes it | State |
