@@ -185,6 +185,38 @@ answered with a **decision**, not a proposal:
 - Safety self-audit requested in CadQ's 255: this plane kills nothing by process name — every hit is a
   `Popen` child it started (`dev/tools/mcp_probe.py`, two tests); `taskkill` appears only in prose.
 
+### 7.2 Mailbox round 3 — the replies came back and the decision was corrected (v1.1)
+
+Peers answered within the hour, and **two corrections are this plane's own**: the interface document was
+revised to **v1.1** with them recorded in the header.
+
+- **"Reverse control is not a fourth tier"** — EWF (253) and MeshQ (257) each told the coordinator that
+  independently, and this plane had accepted the tier framing, so it changed too: reverse control is the
+  **admission gate of every criterion** (a criterion with no sample it must reject does not belong in the
+  report). The coordinator dropped the tier as well. This plane's answer to its follow-up question: the gate
+  is the definition, and the **only** informative reading as a quantity is *coverage* —
+  `criteria_with_negative_controls: N/M`, `not_evaluated: [...]`.
+- **MeshQ's four measurements are now the reason two fields are mandatory** (wire numbers quoted in the
+  interface document, marked *peer measurement, not reproduced here*): the same word "volume" differs by
+  0.0 % / −1.226 % / **−18.68 %** with tessellation, and in the coarse row **the bounding box is still
+  exact** ⇒ `achieved` and `segments`/`chord_height_mm` + kernel version are required, and "only a bounding
+  box was checked" is the same failure family as an undeclared bounds family.
+- **`complete` + per-criterion `not_evaluated` is adopted from MeshQ** (its form of "a declared criterion that
+  was never evaluated looks exactly like a passing one"), replacing this plane's weaker "not measured ≠ false".
+- The coordinator's condition for agreeing to "no router" is accepted and written in: **every rule-table row
+  must name the measurement it rests on**, otherwise the table is a router in disguise.
+- **Safety**: the coordinator admitted killing two of MeshQ's `am inbox` polls (never anything it did not
+  start — but "looks like my orphan" is not a basis) and published a new rule; the truncated 13 MB STEP is
+  **not** its case and the cause is still open, as is the mailbox service dying twice today. This plane
+  recorded the instance and kept the cause as *unresolved*, not as a conclusion; this plane runs **no
+  resident watchdog or poller** (reading the mailbox is an explicit action here).
+- Sent and receipt-verified: `275` → `RoseStork` (its numbers adopted, two grades still to confirm, the mesh
+  interference grade proposed as *existence = reliable / magnitude = heuristic*), `276` → `AmberHarbor`
+  (this plane's change of mind recorded, the gate-vs-quantity answer, the safety thread). Both receipts
+  `found` in `project_id=1`, recipients checked one by one as real registered identities.
+- One item is the human's, not ours: the coordinator's offer to merge AGENTS.md content into this project
+  (mail 229) is recorded as pending for the owner; governance files are not merged by us.
+
 ## 8. Mailbox round 1: what the three planes agreed (2026-10-03)
 
 Participants: `RoseElm` (onshapescript), `RoseStork` (MeshQ), `WindyIvy` (CadQ), coordinator
