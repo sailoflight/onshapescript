@@ -113,6 +113,54 @@ class IdentityCheckTest(unittest.TestCase):
         # and it is not reported as agreement
         self.assertEqual(result["identityLevel"], "not_comparable")
 
+    def test_the_family_declaration_is_read_under_the_name_the_shape_draft_uses(self):
+        """The shape draft (and CadQ, message 202) declare the bounds family as `boundsAlgorithm`.
+
+        This repository's emitter writes `bounds_family`, so a consumer that reads only its own name would
+        refuse a peer's *proper* declaration -- a false refusal that costs a whole comparison round.
+        """
+        handoff = synthetic()
+        rule = handoff["declaration"]["geometry"]["identity_rule"]
+        del rule["bounds_family"]
+        rule["boundsAlgorithm"] = "tessellation_vertices(artifact_bytes)"
+        result = check_identity_against(
+            handoff, piece_readings=[{"index": 0, "bounds_mm": {"max": [7.0, 380.0, 86.0]}}])
+        self.assertEqual(result["verdicts"]["bounds_mm"]["status"], "within")
+        self.assertNotEqual(result["identityLevel"], "not_comparable")
+
+    def test_a_different_family_under_the_other_name_is_quoted_back_with_the_key_that_carried_it(self):
+        handoff = synthetic()
+        rule = handoff["declaration"]["geometry"]["identity_rule"]
+        del rule["bounds_family"]
+        rule["boundsAlgorithm"] = "float32_vertices_of_the_bytes"
+        entry = check_identity_against(
+            handoff, piece_readings=[{"index": 0, "bounds_mm": {"max": [7.0, 380.0, 86.0]}}],
+        )["verdicts"]["bounds_mm"]
+        self.assertEqual(entry["status"], "not_compared")
+        self.assertIn("float32_vertices_of_the_bytes", entry["reason"])
+        self.assertEqual(entry["declaredUnder"], ["boundsAlgorithm"])
+
+    def test_two_disagreeing_family_declarations_are_a_contradiction_not_a_preference(self):
+        handoff = synthetic()
+        handoff["declaration"]["geometry"]["identity_rule"]["boundsAlgorithm"] = "some_other_box"
+        result = check_identity_against(
+            handoff, piece_readings=[{"index": 0, "bounds_mm": {"max": [7.0, 380.0, 86.0]}}])
+        entry = result["verdicts"]["bounds_mm"]
+        self.assertEqual(entry["status"], "not_compared")
+        self.assertIn("must not pick one", entry["reason"])
+        self.assertEqual(set(entry["declaredUnder"]), {"bounds_family", "boundsAlgorithm"})
+        self.assertEqual(result["identityLevel"], "not_comparable")
+
+    def test_a_handoff_silent_about_the_family_is_told_both_names_that_were_looked_for(self):
+        handoff = synthetic()
+        del handoff["declaration"]["geometry"]["identity_rule"]["bounds_family"]
+        entry = check_identity_against(
+            handoff, piece_readings=[{"index": 0, "bounds_mm": {"max": [7.0, 380.0, 86.0]}}],
+        )["verdicts"]["bounds_mm"]
+        self.assertEqual(entry["status"], "not_compared")
+        self.assertIn("identity_rule.bounds_family", entry["reason"])
+        self.assertIn("identity_rule.boundsAlgorithm", entry["reason"])
+
     def test_a_tolerance_without_its_measurement_is_refused(self):
         handoff = synthetic()
         del handoff["declaration"]["geometry"]["identity_rule"]["equivalence_tolerance_basis"]["areaMm2"]

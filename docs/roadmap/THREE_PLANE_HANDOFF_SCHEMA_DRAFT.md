@@ -470,6 +470,16 @@ after the export is how this repository published a number in no other implement
 own self-comparison happily reported "no gap". Consequences now in the shape:
 
 * `bounds_mm` is the **mesh-vertex** family and declares it (`boundsAlgorithm`), because that is the one
+  * **One field, two names — and the consumer must read both.** This draft declares the family as
+    `boundsAlgorithm`; onshapescript's emitter writes `bounds_family`. A consumer that reads only its own
+    name turns the other plane's *proper* declaration into "declares nothing" and refuses to compare — a
+    false refusal that costs a whole comparison round. So the consumer reads **both** names, quotes back
+    the key that carried the declaration, and refuses a **contradiction** (two names, two different
+    families) rather than picking one. A producer writes the name its own contract specifies and need not
+    write both; writing both with the same value is allowed but cosmetic. Landed on this plane:
+    `fdm_analysis/conversion/identity_check.py` (`BOUNDS_FAMILY_KEYS`), four tests in
+    `dev/tests/test_identity_check.py` (read under the other name / different family quoted back / a
+    contradiction refused / a silent handoff told both names).
   any consumer can reproduce from the artifact bytes;
 * the exact box travels beside it with its own algorithm, and the post-export box is kept as
   `boundsAfterTessellationMm` + `boundsMutatedByExport` (true on 70/70 pieces) so the mutation is visible

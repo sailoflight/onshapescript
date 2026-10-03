@@ -63,6 +63,28 @@ def _bounds_max(bounds: Any) -> list[float] | None:
     return None
 
 
+# The bounds-family declaration travels under TWO names in the wild: `bounds_family` is what this
+# repository's emitter writes (`fdm_analysis/conversion/step_tessellation.py`), and `boundsAlgorithm` is
+# the name the handoff shape draft uses (`docs/roadmap/THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md`, "the bounds
+# family is declared") and the name CadQ offered to declare under (its message 202). A checker that reads
+# only its own name turns a peer's *proper* declaration into "declares None" -- a false refusal that costs
+# a whole comparison round -- so both are read and a disagreement is refused as a contradiction.
+BOUNDS_FAMILY_KEYS = ("bounds_family", "boundsAlgorithm")
+COMPARABLE_BOUNDS_FAMILY = "tessellation_vertices(artifact_bytes)"
+
+
+def _declared_bounds_family(rule: dict[str, Any]) -> tuple[Any, list[str], bool]:
+    """Read the bounds family under every name it travels under.
+
+    Returns ``(family, keys_that_carried_a_declaration, conflicting)``. Two names carrying two different
+    families are a contradiction, not a preference: the caller refuses instead of picking one.
+    """
+    found = [(key, rule.get(key)) for key in BOUNDS_FAMILY_KEYS if rule.get(key) not in (None, "")]
+    if not found:
+        return None, [], False
+    return found[0][1], [key for key, _ in found], len({value for _, value in found}) > 1
+
+
 def check_identity_against(
     handoff: dict[str, Any],
     *,
@@ -191,13 +213,28 @@ def check_identity_against(
                 if quantity == "bounds_mm":
                     # Compare inside the family the RULE declares. A box read in one family cannot be
                     # compared with another family's bound (the cross-family method gap reaches 1.2e-5 mm),
-                    # so an undeclared family is a refusal to compare rather than a guess.
-                    family = rule.get("bounds_family")
-                    if family != "tessellation_vertices(artifact_bytes)":
+                    # so an undeclared family is a refusal to compare rather than a guess. Both declaration
+                    # names are read (BOUNDS_FAMILY_KEYS); two names carrying different families are refused
+                    # as a contradiction rather than silently resolved in favour of one of them.
+                    family, family_keys, conflicting = _declared_bounds_family(rule)
+                    if conflicting:
                         verdicts[quantity] = {
                             "status": "not_compared", "scope": "piece",
+                            "declaredUnder": {key: rule.get(key) for key in family_keys},
+                            "reason": "the handoff declares two different bounds families for one field "
+                                      f"({', '.join(f'{key}={rule.get(key)!r}' for key in family_keys)}); "
+                                      "a checker must not pick one of them",
+                        }
+                        compared_any = False
+                        break
+                    if family != COMPARABLE_BOUNDS_FAMILY:
+                        looked_for = " / ".join(f"identity_rule.{key}" for key in BOUNDS_FAMILY_KEYS)
+                        verdicts[quantity] = {
+                            "status": "not_compared", "scope": "piece",
+                            "declaredUnder": family_keys or None,
                             "reason": f"the handoff declares the bounds family {family!r}, which this "
-                                      "checker cannot compare into",
+                                      "checker cannot compare into"
+                                      + ("" if family_keys else f" (looked for {looked_for})"),
                         }
                         compared_any = False
                         break
