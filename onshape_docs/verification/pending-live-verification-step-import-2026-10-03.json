@@ -149,5 +149,14 @@
     "path": "dev/tools/step_import_live_check.py",
     "why": "so the human half is one command: no browser by default, resident session for the live half, and a paste-back block that keeps `unproven` distinct from `pass`",
     "tests": "dev/tests/test_step_import_live_check.py (8): the default run is local and names the unverified selectors; a wrong digest refuses; a real import without a target refuses before the session starts; a missing source is its own exit code; and the report labels missing observations `unproven` rather than `pass`"
+  },
+  "prerequisite_measured_2026-10-03": {
+    "finding": "the live import cannot run against the deployed copy as it stands",
+    "evidence": [
+      "deployed copy C:\\MCP\\onshapescript is release 1.3.0 (STDIO_DEPLOYMENT.json) and contains no `onshape_browser_mode/step_import.py`; `browser_import_step` occurs 0 times in its `mcp_main/win/mcp/browser_tools.py`",
+      "the WSL side cannot drive it either: this venv has no `playwright` (`ModuleNotFoundError`), and the Windows resident browser's CDP port 9333 is unreachable from WSL (no CDP response on 127.0.0.1 or on the Windows host IP 192.168.124.1) — the browser and Playwright live on the Windows side"
+    ],
+    "therefore": "the Windows copy must be refreshed before I1-I6 can be attempted (Operator action, in-place code-only refresh per docs/operations/RELEASE.md), with the human present to authorize it",
+    "login_cost_correction": "a refresh does NOT necessarily cost a sign-in: RELEASE.md's measured 2026-09-26 note records a detached resident browser surviving the refresh and two server restarts with the same PID and DevTools browser GUID, provided residency is on (it is the default; the deployed browser.local.toml has resident=true, port 9333)"
   }
 }
