@@ -132,7 +132,7 @@ Every field exists because one of the three planes already paid for its absence:
 | `units` in **one** place | A wrong unit declaration round-trips with 0.0 % error (MeshQ's USD case: 40 mm declared as 40 m). Two copies of one value drift, so `geometry` carries no unit of its own |
 | `identity.sha256_stable` (default false) + `sha256_stable_evidence` | Measured here: two real Onshape exports of the same geometry differ by **34 bytes** (STEP header GUID + timestamp). MeshQ's rule is default-untrusted: `true` requires evidence |
 | `geometry.identity_rule` + `cross_plane_ref` | CadQ's real fixture `gf-storage-v25-U-two-legs.step` (70 solids) contains 8 identical `200×150×2` plates and 8 frames with 80 Ø7.8 holes: an index alone would silently rebind "change this one" to another part after a re-export reorders solids |
-| `measure_kind` + `kernel`, and `measured_tolerance_mm` only for tessellation | B-Rep volume/bbox are analytic (CadQ measured 2.65e-15 relative error against hand-built values); stamping 0.05 mm on a truth hides the difference between truth and approximation |
+| `geometry.measure{kind, kernel{name,version}, at}` with `at` only for `tessellation` | B-Rep volume/bbox are analytic (CadQ measured 2.65e-15 relative error against hand-built values); stamping 0.05 mm on a truth hides the difference between truth and approximation. The branch decides which fields may exist, so a validator cannot look for a tolerance on an exact reading |
 | `tessellation.absolute` + `declared`/`used` + `matches_declaration` | A relative and an absolute `0.05` tessellate 68 vs 144 faces; and MeshQ's rule is *compute to the declared value*, so a silent tightening must be visible |
 | `cost.where` × `cost.what` (two axes) + `spent_quota`/`quota_remaining` | "Where the work happens", "what the tool does" and "how much external resource it burned" are three different questions; only the producer knows the third |
 | `next_action.kind: awaiting_peer` | In a real round trip the most common state is "the ball is with the other side"; calling that `none` says nobody owes anything |
@@ -373,7 +373,7 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
         "precision": 1e-06,
         "equivalence_tolerance": 1e-06,
         "set_signature_sha256": "6ba0265e063c75413b41ec0df7871c6b0c4a176d1d9cf201364357f309dcc83a",
-        "note": "the digest is a fast path; if two digests differ, compare with the rule above instead of concluding"
+        "note": "digests are a fast path in BOTH directions: a differing digest is not proof of different geometry, and an equal digest is not proof of identical geometry; only this rule + equivalence_tolerance decide"
       },
       "producer_command": "cadquery_interference.py --mode aabb --linear-tolerance-mm 0.05"
     }
@@ -432,15 +432,18 @@ declared X, producer used Y" cannot express that difference.
 1. Unknown `schema` id or a version it does not implement → refuse, name the version it saw.
 2. `units` absent → refuse (never infer from a successful conversion).
 3. `tessellation` present without `absolute` → refuse (a bare `0.05` is ambiguous by measurement).
-4. A `geometry` block claiming `measure_kind: brep_exact` from a plane that only read a mesh, or
-   `tessellation` for a verdict it did not compute → refuse.
+4. A `geometry` block whose `measure.kind` claims more than was actually read — `brep_exact` from a plane
+   that only read a mesh, or `tessellation` for a verdict it did not compute → refuse.
 5. `authority` absent when a downstream plane is asked to make a decision → refuse (the decision
    would silently pick a side).
 6. The unit present in more than one place → refuse (one definition per field; two copies drift).
-7. A geometry digest that differs used *as* proof of different geometry → refuse: digests are a fast
-   path, and only `identity_rule` decides.
-8. `measured_tolerance_mm` non-null with `measure_kind: brep_exact` → refuse: analytic truth is not an
-   approximation.
+7. A geometry digest used in **either** direction as a verdict → refuse: a differing digest is not
+   proof of different geometry, and an equal digest is not proof of identical geometry (two
+   implementations or two triangulations of one part can hash differently). Digests are a fast path;
+   only `identity_rule` + `equivalence_tolerance` decide.
+8. `solid_count` disagreeing with the number of `parts` rows, or two rows sharing an `index` → refuse:
+   the two counts state the same fact twice, and a reader that trusts the wrong one miscounts a document
+   (the real 70-solid fixture has 8-way identical groups, so a wrong count is not self-correcting).
 9. `tessellation.matches_declaration: false` without the mismatch being reported to the caller →
    refuse: the declaration must not be quietly adjusted.
 
@@ -471,7 +474,12 @@ failure this rule exists to prevent. The mapping lives in this repository, once,
 produces the file.
 
 MeshQ added the criterion that keeps that rule honest: **the cross-plane key set must equal the schema's
-required set — one extra or one missing key is red.** A convention nobody checks is prose, and the
+required set — one extra or one missing key is red.** The same measure applies to this draft's own
+refusal-rule table: it must be **derived from §2's schema**, not hand-written. MeshQ caught exactly that
+drift by reading the text (`8d33e76`): rules 4 and 8 still named `measure_kind` / `measured_tolerance_mm`
+after v0.3 had deleted those keys, and rule 8 had become a duplicate of rule 11 — so a consumer
+implementing §5 would have looked for keys that no longer exist. Historical change tables (§2b-§2d) keep
+the old names on purpose; only the current-text tables are generated from the schema. A convention nobody checks is prose, and the
 failure mode of this repository family is "if it can be generated, do not hand-write it; the handwritten
 copy drifts".
 

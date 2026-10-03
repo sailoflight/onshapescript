@@ -146,10 +146,13 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
         self.assertFalse(result["orientation"]["consistent"])
         self.assertEqual(result["orientation"]["inconsistentEdgePairs"], 3)
         self.assertEqual(result["orientation"]["inconsistentFaceIndices"], [0, 1, 7, 9])
-        # ... and the volume is blind to it: that face lies in the z=0 plane, so its tetrahedron
-        # with the origin is degenerate. This is why an orientation check must exist next to a
-        # volume, and why `outwardOriented` alone is not enough (it only sees a globally flipped
-        # mesh, which this is not).
+        # ... and the volume is blind to it *here*: that face lies in the z=0 plane, so its tetrahedron
+        # with the origin is degenerate. The blindness is CONDITIONAL, not general -- MeshQ measured
+        # the same defect on a cube at +Z 50 mm as 21333.333333, matching 8000 - 2*c_f exactly. So the
+        # rule is "the observability of a defect depends on where the part sits", and orientation state
+        # must never be inferred from a volume. This is why an orientation check must exist next to a
+        # volume, and why `outwardOriented` alone is not enough (it only sees a globally flipped mesh,
+        # which this is not).
         self.assertEqual(result["volumeMm3"], 1000.0)
         self.assertTrue(result["outwardOriented"])
 
