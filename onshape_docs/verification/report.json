@@ -79,7 +79,7 @@
   {
    "name": "Project docs index.json page sha256 all match",
    "ok": true,
-   "detail": "32 pages ok"
+   "detail": "33 pages ok"
   },
   {
    "name": "Project docs sections well-formed (title + blocks)",
@@ -284,14 +284,14 @@
    ]
   },
   "docs": {
-   "pages": 32,
-   "sections": 378,
+   "pages": 33,
+   "sections": 385,
    "categories": {
     "example": 6,
     "experience": 4,
     "guide": 6,
     "reference": 3,
-    "verification": 13
+    "verification": 14
    },
    "pageNames": [
     "documentation-map",
@@ -317,6 +317,7 @@
     "mcp-gateway-live-verification",
     "delegation-lookup-cost-verification",
     "live-verification",
+    "interop-handoff-verification",
     "quick-reference",
     "mcp-tool-reference",
     "reference",

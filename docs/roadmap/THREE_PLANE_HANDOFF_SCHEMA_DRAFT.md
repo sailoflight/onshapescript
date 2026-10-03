@@ -1,11 +1,11 @@
-# Three-plane handoff manifest — schema draft v0.3
+# Three-plane handoff manifest — schema draft v0.4
 
-**Status: v0.3, second review round folded in.** v0.1 was reviewed by `WindyIvy`/CadQ (message 123,
+**Status: v0.4, third review round folded in.** v0.1 was reviewed by `WindyIvy`/CadQ (message 123,
 8 field comments) and `RoseStork`/MeshQ (messages 120/124/131/143/145). v0.2 folded those; v0.3 folds
 MeshQ's 14-row second pass (message 131), the two direct conflicts it shares with CadQ, and the rules
 that came out of the cross-plane overhang face-off (the evidence record is
 `onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md`). Every change is listed in §2b
-(v0.1 → v0.2) and §2c (v0.2 → v0.3) with the sender and the reason. Nothing here is implemented
+(v0.1 → v0.2), §2c (v0.2 → v0.3) and §2d (v0.3 → v0.4) with the sender and the reason. Nothing here is implemented
 behavior yet; per this repository's governance, unimplemented ideas live in `roadmap/`.
 
 ## 1. What it is, and what it is not
@@ -24,11 +24,11 @@ behavior yet; per this repository's governance, unimplemented ideas live in `roa
   carry the same discipline: a measurement is not a decision, and the decision's threshold belongs to
   whoever asks.
 
-## 2. The shape (v0.3)
+## 2. The shape (v0.4)
 
 ```jsonc
 {
-  "schema": "onshapescript.handoff/0.3-draft",   // namespaced id + version; an unknown version MUST be refused
+  "schema": "onshapescript.handoff/0.4-draft",   // namespaced id + version; an unknown version MUST be refused
   "produced_by": {"plane": "onshape|cadq|meshq", "identity": "<mailbox name>", "tool": "<tool>",
                   "kind": "tool|script|human",    // a probe from a dev script is not a tool product
                   "at": "<ISO8601>"},
@@ -36,6 +36,15 @@ behavior yet; per this repository's governance, unimplemented ideas live in `roa
   "source":      {"kind": "onshape_document|file", "reference": "<url or path>",
                   "identifiers": {"documentId": "", "workspaceId": "", "elementId": ""} },
   "units": "mm",                                  // THE only place the unit appears
+  // APPLICABILITY: a field whose value is not physically meaningful in the state this manifest
+  // reports must say so itself -- `{"applicable": false, "reason": ...}` -- rather than carry a
+  // number the reader can only avoid by remembering a caveat. Measured basis: with an inverted
+  // face present the signed volume is unchanged only when that face's plane contains the
+  // integration reference point, and 21333.333333 (exactly wrong) when the same mesh is shifted
+  // +Z 50 mm. So `volume_mm3`/`area_mm2` may only be read when `mesh_orientation.consistent` is
+  // true, and `outwardOriented` is `applicable: false` whenever the winding is inconsistent --
+  // one plane's own record contradicted itself on exactly this point (normals.consistent=false
+  // while volume.outward_normals=true).
 
   "authority": {
     "artifact_is": "exact_geometry|triangulation_of_exact_geometry",   // what THIS artifact is
@@ -165,6 +174,13 @@ Every field exists because one of the three planes already paid for its absence:
 | 14 | Rules for any boundary test piece | MeshQ (145 §1) | Both implementations are correct and land on **opposite** sides when a face normal sits exactly on the threshold (their `worst_tilt_deg = 45.000001` → 0.0, my computed `normal_z` → 440.0). Boundary pieces must use 44.95/45.05, and the manifest must state that the decision is a computed float comparison — a **convention**, not an error |
 | 15 | Compare bytes first | MeshQ (143) | "Declarations govern trust, bytes govern comparability": two sides tessellating the same part with different tolerances are not comparing the same thing |
 
+## 2d. What changed from v0.3 to v0.4, and why
+
+| # | Change | Asked by | Resolution |
+|---|---|---|---|
+| 16 | Every measured quantity gains an `applicable` flag, and the orientation-gated ones may not be read without it | MeshQ (151 §C, §D) | MeshQ's answer to "volume is blind to an inverted face" was not a disclaimer but a field that turns itself off: with an inverted face, `volume.applicable = false`. That is stronger than a note because a reader who never sees the number cannot read it wrongly. This draft adopts it as a general rule and names the gate explicitly |
+| 17 | The blindness rule is stated in its conditional form | MeshQ (151 §C) | My claim was "the volume is blind to a single inverted face"; MeshQ measured that it is blind **iff that face's plane contains the integration reference point** (clean cube 8000.0 → flipped bottom face at z=0: 8000.0 again → the same mesh shifted +Z 50: **21333.333333**, matching `8000 − 2·c_f` with `c_f = (1/3)(−50)(400)` exactly). So "the volume is unreliable" was too broad and "the volume is fine" would have been wrong: **the observability of a defect depends on where the part sits**, and orientation state must never be inferred from a volume |
+
 ## 3. A real instance, generated from real records (regenerated for every version)
 
 This is not hand-written. It comes from the real 4-solid export
@@ -184,7 +200,7 @@ signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()               
 
 ```json
 {
-  "schema": "onshapescript.handoff/0.3-draft",
+  "schema": "onshapescript.handoff/0.4-draft",
   "produced_by": {
     "plane": "onshape",
     "identity": "RoseElm",
@@ -434,14 +450,17 @@ declared X, producer used Y" cannot express that difference.
 12. A mesh handoff without `tessellation.used` → refuse (a declaration with no receipt).
 13. `tessellation.absolute`, `declared_by` or `used_by` missing on a mesh handoff → refuse ("who declared
     this" must be answerable).
-14. A mesh handoff whose `mesh_orientation` is absent → refuse: a watertight mesh can still carry an
+15. A calibrated quantity (`volume_mm3`, `area_mm2`, `outwardOriented`) read while
+    `mesh_orientation.consistent` is false, or without its `applicable` flag → refuse: the value is not
+    physically meaningful in that state, and "the reader will remember the caveat" is not a mechanism.
+16. A mesh handoff whose `mesh_orientation` is absent → refuse: a watertight mesh can still carry an
     inverted face whose reading is silently wrong, so "was the winding checked" is part of the artifact.
 
 Rule 5 ("asked to make a decision") is a rule for the **caller**, not a manifest check: the manifest
 cannot know what a consumer is about to do with it. Stated here so nobody implements a validator for a
 condition it cannot observe.
 
-## 6. Naming and key-set conformance: closed in v0.3
+## 6. Naming and key-set conformance: closed in v0.4
 
 This repository's existing manifests are `camelCase` (`schemaVersion`, `byteCount`,
 `linearToleranceMm`) while the cross-plane names are `snake_case`. Both reviewers supported the same
@@ -456,7 +475,7 @@ required set — one extra or one missing key is red.** A convention nobody chec
 failure mode of this repository family is "if it can be generated, do not hand-write it; the handwritten
 copy drifts".
 
-## 7. What each plane still owes (as of v0.3)
+## 7. What each plane still owes (as of v0.4)
 
 - **Onshape (this plane)**: import capability (the structural gap, now planned at
   `onshape_rest_api_mode/step_import.py` and blocked on a multipart transport — see the interop
@@ -491,5 +510,6 @@ copy drifts".
 | Mailbox delivery | `tools/mail-delivery-receipt.sh --project /home/lijq/code/agent-infra --message-id <id>` → `found` |
 | The v0.2 instance is generated, not written | `/tmp/draft_handoff_instance_v02.py` reads the real `step-manifest.json`, runs the real measurement, and emits the block above; the set signature is `6ba0265e063c7541…` |
 | Peer review of v0.1 | mailbox messages 120 (MeshQ) and 123 (CadQ), each ack'd against the id; `mail-delivery-receipt.sh` reported `found` for the outbound 116/117/118/119 |
+| Volume blindness is conditional, measured by the other plane | MeshQ message 151 §C: clean cube 8000.0; flipped bottom face in the z=0 plane 8000.0 (unchanged); the same mesh at +Z 50 mm 21333.333333, matching the closed form `8000 − 2·c_f` exactly |
 | Overhang face-off, both directions | `onshape_docs/verification/interop-overhang-faceoff-2026-10-03.md` (relative differences 1.77e-8 / 2.0e-8 / 3.5e-9; both sides low by 4.9e-5 against the sphere's closed form), including the retraction of my own first probe set |
 | Import request shape | vendored OpenAPI `createTranslation` + `BTBTranslationRequestParams`; `dev/tests/test_rest_step_import.py` cross-checks every sent and unsent field against that schema |

@@ -78,6 +78,17 @@ are **withdrawn**.
    **locatable**, which is exactly what MeshQ's `normals` cannot yet do (it publishes a count only, and
    they registered that as their own visibility gap). `test_stl_geometry.py` pins all of it, including
    that the volume is blind to a single inverted face lying in the `z = 0` plane.
+
+   **MeshQ tightened that last claim, and the tightening matters.** My version ("the volume is blind to
+   an inverted face") was too broad. Their measurement: a 20 mm cube reads `signed_volume_mm3 = 8000.0`
+   clean; with the bottom two triangles reversed it **still reads 8000.0** because that face's plane
+   contains the integration reference point; shift the same mesh `+Z 50` mm and the same defect reads
+   **21333.333333** — matching the closed form `8000 − 2·c_f` with `c_f = (1/3)(−50)(400)` exactly. So
+   the defect is blind **iff its face plane contains the reference point**, and in general *the
+   observability of a defect depends on where the part sits*. Neither "the volume is unreliable" nor
+   "the volume is fine" is correct; **orientation state must never be inferred from a volume.** Their
+   answer is not a caveat but a gate: with an inverted face, `volume.applicable = false`. This is now
+   a draft rule (v0.4 §2d row 16) rather than a sentence in an experience page.
 3. **`bed_contact_area` is not a second printability number.** The same `downward-face-area` policy at
    threshold → 0 reproduces it to 2.0e-8, so it is one policy read at two thresholds, not two numbers
    that can disagree.
