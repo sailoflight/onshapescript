@@ -1,0 +1,60 @@
+{
+  "probe": "Live acceptance for issue #20, geometry leg (onshape_interference_check), run against the deployed Windows host on 2026-10-03. The tool itself was exercised end to end on the host; the last hop (the host's stored WSL distro name) is wrong and is reported here as a host-state defect rather than a code defect, because the same stored name breaks the pre-existing browser geometry backend too.",
+  "status": "verified-through-the-real-launcher; blocked short of a fully deployed run by host state",
+  "session": "2026-10-03, deployed host C:\\MCP\\onshapescript at 1.5.1 (generation 13), repo master e43573c",
+  "verified": [
+    {
+      "id": "L1",
+      "what": "The deployed host assembles the exact intended argv and can read the STEP file.",
+      "evidence": "onshape_interference_check(dry_run=true, step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\overlap.step') returned verdict=planned, available=true, stepSha256=6c6b8aa2eec4a4d7298b23d1a3c3e9ea512a31ce390e6b69f92222f78f84bae9, and command=['C:\\\\Windows\\\\System32\\\\wsl.exe','-d','Ubuntu-24.04','--exec','/home/lijq/code/CadQ/.venv/bin/python','/home/lijq/code/onshapescript/fdm_analysis/conversion/cadquery_interference.py','--input','C:\\\\MCP\\\\...\\\\overlap.step','--output','-','--mode','boolean','--linear-tolerance-mm','0.05','--parts','','--max-pairs','4000']",
+      "note": "This is the 1.5.1 fallback at work on real host state: backend.owningMode=onshape_browser_mode, backend.fallback=true, because this mode's own config is disabled while the browser mode's is configured. The report is read from stdout, so the call writes nothing."
+    },
+    {
+      "id": "L2",
+      "what": "The real Windows launcher runs the converter on that exact argv (distro name corrected) and produces the analytic answer.",
+      "command": "/mnt/c/Windows/System32/wsl.exe -d Ubuntu --exec /home/lijq/code/CadQ/.venv/bin/python /home/lijq/code/onshapescript/fdm_analysis/conversion/cadquery_interference.py --input 'C:\\MCP\\onshapescript\\artifacts\\interference-acceptance\\<file>.step' --output - --mode boolean --linear-tolerance-mm 0.05 --parts '' --max-pairs 4000",
+      "overlap": {
+        "file": "overlap.step",
+        "exit": 0,
+        "counts": {"parts": 2, "selected_parts": 2, "candidate_pairs": 1, "checked_pairs": 1, "interfering": 1, "touching": 0, "pairs_truncated": false},
+        "pair": {"a": "solid_01", "b": "solid_02", "overlap_mm": [2.0000002, 3.0000002000000006, 4.000000200000001], "intersection_volume_mm3": 23.999999999999996, "zero_volume_contact": false},
+        "verdict": "interference",
+        "analytic": "two 10 mm boxes offset by (8, 7, 6) share a 2x3x4 mm region = 24.0 mm^3"
+      },
+      "interlock": {
+        "file": "interlock.step",
+        "exit": 0,
+        "counts": {"parts": 2, "selected_parts": 2, "candidate_pairs": 1, "checked_pairs": 1, "interfering": 0, "touching": 1, "pairs_truncated": false},
+        "pair": {"a": "solid_01", "b": "solid_02", "zero_volume_contact": true},
+        "verdict": "clean",
+        "analytic": "an L-shaped part and the block that fills its notch overlap as boxes (3x3x10 mm) while sharing zero volume, which is exactly the false positive a bounding-box-only check cannot resolve"
+      },
+      "note": "The converter mapped the Windows path argument to /mnt/c/... by itself, so the same argv works whether the STEP path arrives as Windows or POSIX form."
+    },
+    {
+      "id": "L3",
+      "what": "A failing backend can never be reported as a clean model.",
+      "evidence": "With the host's real (broken) config the deployed call returned verdict=indeterminate, failureClass=converter_failed, exitCode=4294967295, failures=['the interference converter exited 4294967295: '] at 1.5.1 -- a non-clean verdict with an empty reason. 1.5.2 fixes the empty reason by decoding the launcher's UTF-16 output and reporting a stdout tail.",
+      "note": "The verdict honesty held; the reason did not. That gap is the reason 1.5.2 exists."
+    }
+  ],
+  "host_state_defect": {
+    "summary": "The stored browser-mode geometry config names a WSL distribution that does not exist on this host, so every command assembled from it fails at the launcher.",
+    "stored_config": "C:\\MCP\\onshapescript\\onshape_browser_mode\\config\\geometry-backend.json -> executable C:\\Windows\\System32\\wsl.exe, argumentTemplate['-d','Ubuntu-24.04','--exec',...]",
+    "measured": [
+      "wsl.exe -l -v lists exactly one distribution: 'Ubuntu' (Running, WSL2, default)",
+      "wsl.exe -d Ubuntu-24.04 --exec /bin/echo OK -> 'Wsl/Service/WSL_E_DISTRO_NOT_FOUND', exit 255",
+      "wsl.exe -d Ubuntu --exec /bin/echo OK -> 'OK', exit 0"
+    ],
+    "discovery_agrees": "onshape_geometry_status on the host reports the WSL candidate da4a6b54820703d9b763 with distribution 'Ubuntu', i.e. live discovery knows the right name while the stored config keeps the wrong one.",
+    "impact": "Not specific to this feature: onshape_build_geometry_package and every other host-side user of the configured geometry backend fail the same way. browser.ready=true in that status is a CONFIG-level readiness and is not a probe that the command runs.",
+    "sanctioned_repair": "onshape_configure_geometry_backend(backend='rest', candidate_id='da4a6b54820703d9b763', confirm_mutation=true) after a dry_run preview. That writes only onshape_rest_api_mode/config/geometry-backend.json (operator state, never touched by an upgrade) and makes this mode's own config the primary for the interference check; the browser config is left alone.",
+    "authority": "A production configuration write needs the user's explicit approval, so it was NOT performed in this session. It is the only remaining step between the measured results above and a fully deployed live run."
+  },
+  "how_to_finish": [
+    "Get explicit approval for the sanctioned repair above (or accept the browser config's distro name being corrected by hand on the host).",
+    "Call onshape_interference_check(step_path='C:\\\\MCP\\\\onshapescript\\\\artifacts\\\\interference-acceptance\\\\overlap.step') and expect verdict=interference with intersection_volume_mm3 23.999999999999996.",
+    "Call the same for interlock.step and expect verdict=clean with zero_volume_contact true and interfering 0.",
+    "Append both raw results here and drop the fixtures from C:\\MCP\\onshapescript\\artifacts\\interference-acceptance."
+  ]
+}

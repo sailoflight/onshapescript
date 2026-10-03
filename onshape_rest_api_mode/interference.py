@@ -146,6 +146,42 @@ def _tolerance(config: dict[str, Any], value: Any) -> float:
     return resolved if resolved is not None else float(config["linearToleranceMm"])
 
 
+def _decode_output(raw: Any) -> str:
+    """Decode a converter's output, tolerating a Windows launcher's UTF-16.
+
+    A real Windows launcher (`wsl.exe`) prints its own failures in UTF-16LE, and
+    the report itself is UTF-8. Relying on the locale would both lose that reason
+    and mangle a report's non-ASCII part names on a Chinese-locale host, so the
+    bytes are decoded explicitly here.
+    """
+
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw
+    if raw.count(b"\x00") > max(1, len(raw) // 4):
+        return raw.decode("utf-16-le", errors="replace")
+    return raw.decode("utf-8", errors="replace")
+
+
+def _launcher_reason(returncode: int, stdout_tail: str, stderr_tail: str) -> str:
+    """Say why a converter failed, and never leave the reason empty.
+
+    A launcher can fail before the script runs (an unknown WSL distribution name
+    is the measured case) and then exit non-zero having written nothing to stderr;
+    an empty reason would hide exactly the state the caller has to act on.
+    """
+
+    detail = stderr_tail.strip() or stdout_tail.strip()
+    if detail:
+        return f"the interference converter exited {returncode}: {detail}"
+    return (
+        f"the interference converter exited {returncode} and printed nothing: check that the "
+        "configured executable can actually reach the interpreter, because a Windows launcher "
+        "fails before the script runs (an unknown distribution name does this)"
+    )
+
+
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -469,7 +505,7 @@ def run_interference_check(
     config_path: Path = CONFIG_PATH,
     fallback_config_paths: Sequence[Path] = (),
     repo_root: Path = REPO_ROOT,
-    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    runner: Callable[..., subprocess.CompletedProcess[Any]] = subprocess.run,
 ) -> dict[str, Any]:
     """Run one interference report and map it to an explicit verdict."""
 
@@ -516,7 +552,7 @@ def run_interference_check(
         process = runner(
             plan["command"],
             check=False,
-            text=True,
+            text=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=int(plan["backend"]["timeoutSeconds"] or 300),
@@ -556,7 +592,8 @@ def run_interference_check(
             "nextAction": {"kind": "fix_backend", "hint": _ENABLE_HINT},
         }
 
-    stderr_tail = (process.stderr or "")[-1000:]
+    stdout_tail = _decode_output(process.stdout)[-1000:]
+    stderr_tail = _decode_output(process.stderr)[-1000:]
     if process.returncode != 0:
         return {
             **base,
@@ -568,12 +605,12 @@ def run_interference_check(
             "checkedPairs": 0,
             "exitCode": process.returncode,
             "reportSha256": None,
-            "evidence": {"stderrTail": stderr_tail},
-            "failures": [f"the interference converter exited {process.returncode}: {stderr_tail}"],
+            "evidence": {"stdoutTail": stdout_tail, "stderrTail": stderr_tail},
+            "failures": [_launcher_reason(process.returncode, stdout_tail, stderr_tail)],
             "nextAction": {"kind": "fix_backend", "hint": _ENABLE_HINT},
         }
 
-    body = process.stdout or ""
+    body = _decode_output(process.stdout)
     if not body.strip():
         return {
             **base,
@@ -585,7 +622,7 @@ def run_interference_check(
             "checkedPairs": 0,
             "exitCode": process.returncode,
             "reportSha256": None,
-            "evidence": {"stderrTail": stderr_tail},
+            "evidence": {"stdoutTail": stdout_tail, "stderrTail": stderr_tail},
             "failures": ["the interference converter exited 0 but printed no report"],
             "nextAction": {"kind": "fix_backend", "hint": _ENABLE_HINT},
         }
@@ -606,7 +643,7 @@ def run_interference_check(
             "checkedPairs": 0,
             "exitCode": process.returncode,
             "reportSha256": None,
-            "evidence": {"stderrTail": stderr_tail},
+            "evidence": {"stdoutTail": stdout_tail, "stderrTail": stderr_tail},
             "failures": [f"the interference report could not be read: {error}"],
             "nextAction": {"kind": "fix_backend", "hint": _ENABLE_HINT},
         }
@@ -648,6 +685,7 @@ def run_interference_check(
             "reportSchema": payload.get("schema"),
             "reportToleranceMm": payload.get("tolerance_mm"),
             "reportMode": payload.get("mode"),
+            "stdoutTail": stdout_tail,
             "stderrTail": stderr_tail,
         },
         "failures": failures,

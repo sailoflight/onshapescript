@@ -25,7 +25,7 @@ from fdm_analysis.contracts import file_sha256  # noqa: E402
 
 #: MCP server version from ``mcp_main/win/mcp/identity.py`` (NOT the governance
 #: package release, which is a development-plane dependency).
-MCP_SERVER_VERSION = "1.5.1"
+MCP_SERVER_VERSION = "1.5.2"
 GOVERNANCE_RELEASE = "3.0.7"
 MANIFEST_NAME = "release-manifest.json"
 CHECKSUM_SIDECAR_NAME = "SHA256SUMS"

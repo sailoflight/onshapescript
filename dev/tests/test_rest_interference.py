@@ -383,6 +383,61 @@ class VerdictTest(unittest.TestCase):
         self.assertNotEqual(first["reportSha256"], other["reportSha256"])
 
 
+class LauncherOutputTest(unittest.TestCase):
+    """A launcher that fails before the script runs must still explain itself.
+
+    The measured shape of this is `wsl.exe` with an unknown distribution name: it
+    writes its error to STDOUT in UTF-16LE, writes nothing to stderr, and exits
+    non-zero. A failure with an empty reason would hide exactly the state the
+    caller has to act on, which is the one thing this tool must not do.
+    """
+
+    def setUp(self) -> None:
+        self.temp = Path(tempfile.mkdtemp(prefix="interference-launcher-"))
+        self.step = self.temp / "part.step"
+        self.step.write_text("ISO-10303-21;\n", encoding="utf-8")
+        self.config = _config(self.temp / "conf.json")
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp, ignore_errors=True)
+
+    def _run(self, stdout: bytes, returncode: int, stderr: bytes = b"") -> dict[str, object]:
+        def runner(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            return subprocess.CompletedProcess(command, returncode, stdout, stderr)
+
+        return interference.run_interference_check(
+            step_path=str(self.step), config_path=self.config, runner=runner
+        )
+
+    def test_utf16_launcher_error_is_decoded_not_lost(self) -> None:
+        message = "找不到指定的发行版: Wsl/Service/WSL_E_DISTRO_NOT_FOUND\r\n"
+        result = self._run(message.encode("utf-16-le"), 255)
+        self.assertEqual(result["verdict"], "indeterminate")
+        self.assertEqual(result["failureClass"], "converter_failed")
+        self.assertIn("WSL_E_DISTRO_NOT_FOUND", result["failures"][0])
+        self.assertIn("找不到指定的发行版", result["evidence"]["stdoutTail"])
+
+    def test_a_silent_failure_still_carries_an_actionable_reason(self) -> None:
+        result = self._run(b"", 255)
+        self.assertEqual(result["verdict"], "indeterminate")
+        reason = result["failures"][0]
+        self.assertIn("exited 255", reason)
+        self.assertIn("distribution name", reason)
+        self.assertEqual(result["evidence"]["stdoutTail"], "")
+        self.assertEqual(result["evidence"]["stderrTail"], "")
+
+    def test_a_utf8_report_survives_a_non_utf8_locale(self) -> None:
+        # The report is UTF-8 by contract, so it is decoded as UTF-8 rather than
+        # as whatever code page the host happens to use.
+        payload = _report(interfering=1)
+        payload["parts"] = [{"index": 1, "name": "支架"}, {"index": 2, "name": "插销"}]
+        payload["pairs"] = [{"a": "支架", "b": "插销", "volume_mm3": 24.0}]
+        result = self._run(json.dumps(payload, ensure_ascii=False).encode("utf-8"), 0)
+        self.assertEqual(result["verdict"], "interference")
+        self.assertEqual(result["parts"][0]["name"], "支架")
+        self.assertEqual(result["pairs"][0]["b"], "插销")
+
+
 class ConverterTest(unittest.TestCase):
     """The converter must be inspectable without CadQuery present."""
 
