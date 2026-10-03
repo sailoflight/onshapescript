@@ -265,7 +265,13 @@ class StlGeometryAnalyzer:
                     "is the part printable on a given machine (needs a declared envelope and a verdict the "
                     "consumer owns)",
                 ],
+                # Two different axes, per MeshQ 179 §4.1: `unknown` is "not computed here" (a gap, and it
+                # must carry a reason), while `visual` is "the evidence is a picture a human must read". A
+                # thickness reading that a future analyzer DOES compute belongs to `heuristic`: it commits
+                # to a method and its parameters, not to a verdict.
                 "unknown": ["minWallMm (no thickness analyzer is installed on this host)"],
+                "unknownMustCarryReason": True,
+                "futureThicknessGrade": "heuristic",
                 "vocabulary": "MeshQ inspection.grade_tiers (reliable/heuristic/visual/unknown)",
                 "gradeNote": ("reliable means derived from this artifact's bytes by the stated method, not "
                               "that the reading is the truth about the physical part"),

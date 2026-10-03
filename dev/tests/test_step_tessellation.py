@@ -245,6 +245,29 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(totals["triangleCount"], 24)
         self.assertEqual(totals["overhangTriangleRatio"], round(2 / 24, 12))
 
+    def test_each_tolerance_carries_the_measurement_that_derived_it(self):
+        """A tolerance derived from one side's own accuracy fails another CORRECT implementation.
+
+        MeshQ 179 §3: on byte-identical input the mesh area's reader spread measured 9.8e-13 / 4.99e-7 /
+        3.39e-6 across three implementations, so a 1e-6 area bound would adjudicate a correct reader as
+        wrong. Every bound therefore names the measurement it came from, and every identity quantity names
+        its algorithm and the precision actually demonstrated against an independent recomputation.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            rule = self._run(Path(tmp))["declaration"]["geometry"]["identity_rule"]
+        tolerances = rule["equivalence_tolerance"]
+        basis = rule["equivalence_tolerance_basis"]
+        self.assertEqual(sorted(tolerances), sorted(basis))
+        self.assertEqual(tolerances["areaMm2"], 1e-5)
+        self.assertIn("1e-6 bound would fail a correct reader", basis["areaMm2"])
+        self.assertIn("3.39e-6", basis["areaMm2"])
+        for key, entry in rule["readings_basis"].items():
+            self.assertIn("family", entry, key)
+            self.assertIn("algorithm", entry, key)
+            self.assertIn("achieved", entry, key)
+        self.assertIn("bitwise", rule["readings_basis"]["bounds_mm"]["achieved"])
+        self.assertIn("fsum", rule["readings_basis"]["volumeMm3"]["achieved"])
+
     def test_no_direction_derived_reading_lacks_its_direction(self):
         """Every reading that is a function of the face normals names the basis it was taken at.
 

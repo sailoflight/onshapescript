@@ -13022,7 +13022,7 @@
    "page": "interop-join-verification",
    "category": "verification",
    "path": "onshape_docs/verification/interop-join-vs-cadq-2026-10-03.md",
-   "sha256": "17c5d4b79fcb9a8dc120ea4b894ed5ea911d743b35368e7aa020a52858b8f676",
+   "sha256": "3f0bd3de67e55fa5638f3e0545c74cc15a03b6e080700edab2149dc81ab81b9a",
    "title": "Cross-plane join of the 70-piece handoff against CadQ's manifests (2026-10-03)",
    "sections": [
     {
@@ -13193,7 +13193,67 @@
     },
     {
      "level": 2,
-     "title": "4. What this record does not claim",
+     "title": "4. Third-party verdict on the readings (MeshQ, 2026-10-03)",
+     "blocks": [
+      {
+       "type": "para",
+       "text": "The meshes are byte-identical, so MeshQ recomputed the readings straight from the bytes (per-triangle double, math.fsum) and used its own result as the referee. Max relative difference over 70 pieces:"
+      },
+      {
+       "type": "table",
+       "rows": [
+        [
+         "Quantity",
+         "onshapescript",
+         "CadQ (tessellation)",
+         "MeshQ"
+        ],
+        [
+         "mesh area",
+         "9.8e-13 (1 ulp)",
+         "4.99e-07",
+         "3.39e-06 (self-reported; arithmetic, sign-mixed 30/70)"
+        ],
+        [
+         "mesh volume",
+         "1.08e-12",
+         "2.41e-06 (independently reproduced)",
+         "≤1.5e-10 (print precision)"
+        ],
+        [
+         "mesh bounds (absolute mm)",
+         "0.0, 70/70 bitwise",
+         "1.221e-05 (70/70 > 1e-6)",
+         "≤4.7e-07 (print precision)"
+        ]
+       ]
+      },
+      {
+       "type": "para",
+       "text": "Consequences applied in this repository:"
+      },
+      {
+       "type": "list",
+       "items": [
+        {
+         "text": "the question this record left open in §5 (\"which side is closer to the truth\") is answered: this repository's readings are the bytes' numbers, and the field that disagrees with the bytes is the one to fix;",
+         "depth": 0
+        },
+        {
+         "text": "the apparent 54/70 vs 70/70 bounds disagreement was only a threshold difference (>1e-6 vs ~1e-5), not a contradiction;",
+         "depth": 0
+        },
+        {
+         "text": "the mesh-volume difference is an arithmetic difference on identical geometry (MeshQ proved its own case by an import/export round trip with bitwise-identical vertices), and it moved the contract: tolerances are now derived from the measured spread across readers (areaMm2: 1e-5, because a 1e-6 bound would fail a correct implementation) and each quantity publishes its algorithm and demonstrated precision (readings_basis).",
+         "depth": 0
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "level": 2,
+     "title": "5. What this record does not claim",
      "blocks": [
       {
        "type": "list",

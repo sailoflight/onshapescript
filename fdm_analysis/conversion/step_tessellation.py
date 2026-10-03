@@ -319,7 +319,49 @@ def plan_step_tessellation(
             # an identity proof (see the two-directional refusal rule in the contract draft).
             "quanta": {"brepVolumeMm3": 1e-3, "bounds_mm": 1e-3},
             "compare": "quantized_absolute",
-            "equivalence_tolerance": {"brepVolumeMm3": 1e-6, "bounds_mm": 1e-3},
+            # TOLERANCES ARE DERIVED FROM THE MEASURED SPREAD ACROSS READERS, NOT FROM THIS SIDE'S OWN
+            # ACCURACY (MeshQ 179 §3; its referee table is the evidence). A bound that only fits the plane
+            # that wrote it fails another CORRECT plane: on byte-identical input the mesh area's reader
+            # spread measured 9.8e-13 (this repository, 1 ulp) / 4.99e-7 (CadQ) / 3.39e-6 (MeshQ, itself
+            # an arithmetic difference rather than geometry), so a 1e-6 area bound would adjudicate a
+            # correct implementation as wrong. Each entry therefore carries where its number came from.
+            "equivalence_tolerance": {
+                "brepVolumeMm3": 1e-6,
+                "bounds_mm": 1e-3,
+                "areaMm2": 1e-5,
+            },
+            "equivalence_tolerance_basis": {
+                "brepVolumeMm3": ("exact B-Rep volume agrees BIT-FOR-BIT across readers (delta 0.0 on "
+                                  "70/70); 1e-6 leaves six orders of margin"),
+                "bounds_mm": ("mesh-family boxes agree bitwise across readers (0.0 on 70/70); the "
+                              "cross-family method gap reaches 1.2e-5 mm, which is why this tolerance is "
+                              "for the DECLARED family only"),
+                "areaMm2": ("derived from the measured spread across three implementations on "
+                            "byte-identical input: 9.8e-13 (this repository) / 4.99e-7 (CadQ) / 3.39e-6 "
+                            "(MeshQ); 1e-5 admits all three, and a 1e-6 bound would fail a correct reader "
+                            "(MeshQ 179 §3)"),
+            },
+            # Per quantity: family, algorithm, and the precision actually demonstrated against an
+            # independent recomputation -- the third identity dimension MeshQ named ("not only who defined
+            # it, but who computed it and to how many digits").
+            "readings_basis": {
+                "volumeMm3": {
+                    "family": "tessellation_vertices(artifact_bytes)",
+                    "algorithm": "divergence theorem over welded triangles, float64 accumulation",
+                    "achieved": "1.08e-12 relative vs an independent per-triangle fsum recomputation "
+                                "(MeshQ 179, 2026-10-03)",
+                },
+                "surfaceAreaMm2": {
+                    "family": "tessellation_vertices(artifact_bytes)",
+                    "algorithm": "sum of per-triangle cross-product norms, float64 accumulation",
+                    "achieved": "9.8e-13 relative (1 ulp) against the same independent recomputation",
+                },
+                "bounds_mm": {
+                    "family": "tessellation_vertices(artifact_bytes)",
+                    "algorithm": "min/max over the artifact's float32 vertex records",
+                    "achieved": "0.000e+00 absolute: bitwise equal to the bytes on 70/70 pieces",
+                },
+            },
             "reference_point": INTEGRATION_REFERENCE,
             "bounds_family": "tessellation_vertices(artifact_bytes)",
         },
@@ -674,7 +716,9 @@ def tessellate_step(
                     "quanta": plan["identityRule"]["quanta"],
                     "compare": plan["identityRule"]["compare"],
                     "bounds_family": plan["identityRule"]["bounds_family"],
-                    "equivalence_tolerance": {"brepVolumeMm3": 1e-6, "bounds_mm": 1e-3},
+                    "equivalence_tolerance": plan["identityRule"]["equivalence_tolerance"],
+                    "equivalence_tolerance_basis": plan["identityRule"]["equivalence_tolerance_basis"],
+                    "readings_basis": plan["identityRule"]["readings_basis"],
                     "set_signature_sha256": _set_signature(records),
                     "note": ("parts are addressed by this rule, never by row order: a re-export can reorder "
                              "solids, and this file contains identical twins"),

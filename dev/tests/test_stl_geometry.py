@@ -141,6 +141,10 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
         self.assertEqual(tiers["heuristic"], [])
         self.assertTrue(any("slicer" in item for item in tiers["visual"]))
         self.assertTrue(any(item.startswith("minWallMm") for item in tiers["unknown"]))
+        # Two axes, not one (MeshQ 179 §4.1): `unknown` is "not computed here" and must carry a reason;
+        # a future computed thickness reading is `heuristic`, never `visual`.
+        self.assertTrue(tiers["unknownMustCarryReason"])
+        self.assertEqual(tiers["futureThicknessGrade"], "heuristic")
         self.assertIn("MeshQ", tiers["vocabulary"])
         # `outwardOriented` is the signed volume's own sign, and it says so (MeshQ 176 §2b / CadQ 171):
         # the name must not be read as an independent check that every face points outward.

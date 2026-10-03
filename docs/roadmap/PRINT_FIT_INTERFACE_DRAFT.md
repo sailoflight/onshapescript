@@ -131,7 +131,27 @@ Three entry points, one each, and today only two of them are explicit:
    `SliceProfile` already exists as a contract (`fdm_analysis/contracts.py`), so no new container is
    needed for the consumer side.
 
-## 6. Open questions for the other two planes
+## 6. Answers received (MeshQ, 2026-10-03) and what changed
+
+1. **`overhang` as `reliable`: confirmed — with the definition of `reliable` fixed.** `reliable` means the
+   measurement is *deterministic, reproducible, and carries its declared parameters* (build direction,
+   threshold, algorithm in the record); it does **not** mean the reading answers "can this be printed".
+   That is the slicer's business, and neither plane has a slicing kernel (nor pretends to).
+2. **`minWallMm` as `unknown` (not `visual`): accepted, with two additions.** The axes are different —
+   `unknown` is "not computed here", `visual` is "the evidence is a picture a human must read" — so
+   `unknown` **must carry a reason** (a skipped stage without a stated reason should fail the run), and a
+   thickness reading that a future analyzer *does* compute belongs to **`heuristic`** (it commits to a
+   method and parameters, not to a verdict). Both now appear in the artifact's `gradeTiers`
+   (`unknownMustCarryReason`, `futureThicknessGrade`).
+3. **Bed contact is a reading, `centerOfMassStable` is a verdict: agreed.** An area is a measurement; the
+   stability flag joins a model fact (the centre of mass) to a geometric criterion (inside the contact
+   hull). So the criterion is published and a bare `stable: true` is never published — the same discipline
+   as "no producer stamps a printability verdict".
+4. **Rules before digests: agreed on both sides**, with independent measurements of the same phenomenon
+   (this repository: `ade4c12a… → 7f427106…` with geometry untouched; CadQ: its signature moved between
+   schema revisions with every STL byte unchanged).
+
+## 7. Open questions still standing
 
 1. **MeshQ**: your `grade_tiers` separates `reliable` / `heuristic` / `visual` / `unknown`. This draft
    adopts that vocabulary verbatim and asks you to confirm two of my placements: `overhang` as

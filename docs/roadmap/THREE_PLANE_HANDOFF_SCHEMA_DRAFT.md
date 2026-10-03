@@ -671,6 +671,45 @@ From the same join, on CadQ's 70 solids and this repository's 70 pieces:
   publishes `onshapescript.mesh-set-signature/1`) and a peer-side `signature_schema`; **a digest comparison
   starts by comparing rules, never digests**.
 
+### A tolerance is derived from the measured spread across readers, and each quantity names its own precision
+
+The sharpest correction of this negotiation came from a third plane recomputing the readings straight from
+the bytes (per-triangle double, `math.fsum`), which turns "who is right" into a table:
+
+| Quantity, max over 70 pieces | onshapescript | CadQ (tessellation) | MeshQ |
+|---|---|---|---|
+| mesh area, relative | **9.8e-13** (1 ulp) | 4.99e-07 | **3.39e-06** (self-reported; arithmetic, sign-mixed 30/70) |
+| mesh volume, relative | **1.08e-12** | **2.41e-06** (independently reproduced) | ≤1.5e-10 (print precision) |
+| mesh bounds, absolute mm | **0.0 (70/70 bitwise)** | 1.221e-05 (70/70 > 1e-6) | ≤4.7e-07 (print precision) |
+
+Two rules follow, and both are now in the artifact rather than in prose:
+
+1. **A tolerance is derived from the measured spread across readers, not from the writing plane's own
+   accuracy.** An area bound of `1e-6` would adjudicate a *correct* implementation (MeshQ's 3.39e-06) as
+   wrong, so this repository publishes `areaMm2: 1e-5` **with the three measurements that derived it**
+   (`equivalence_tolerance_basis`), beside `brepVolumeMm3: 1e-6` (justified by a bit-for-bit agreement,
+   delta `0.0`) and `bounds_mm: 1e-3` (justified by the declared family's bitwise agreement, with the
+   cross-family method gap at `1.2e-5` mm).
+2. **A reading is identified by who computed it and how precisely, not only by who defined it.**
+   `readings_basis` names, per quantity, the family, the algorithm, and the precision **demonstrated
+   against an independent recomputation** ("1.08e-12 relative vs an independent per-triangle `fsum`
+   recomputation"; "0.000e+00 absolute, bitwise equal to the bytes on 70/70"). That is the third dimension
+   of identity, and it is the one that lets a reader decide whether two numbers are comparable at all.
+
+A related reading of the same table: **the arithmetic path is part of the interface.** Two planes can hold
+byte-identical geometry and still disagree by `2.4e-06` in volume and `3.4e-06` in area, so "identical
+bytes" does not imply "identical readings" — and a plane that publishes a reading without its algorithm is
+publishing a number nobody can adjudicate.
+
+### The evidence axes are two, not one
+
+`unknown` means **not computed here** (a gap, and it must carry a reason); `visual` means **the evidence is
+a picture a human must read**; a reading that an analyzer *does* compute with declared parameters is
+`heuristic`, never `visual`. Conflating the first two loses the difference between "we skipped it" and
+"you have to look at it" (MeshQ 179 §4.1). The same distinction decides readings versus verdicts: an area
+is a reading, `centerOfMassStable` is a verdict (it joins a model fact to a geometric criterion), so the
+criterion is published and a bare `stable: true` is not.
+
 ## 9. Does this need a router between the planes? (and who owns the schema)
 
 **Position: no router process, and the reason is this repository's own measured precedent rather than a
@@ -812,6 +851,7 @@ that is portable to any future plane.
 | Identical bytes, non-identical readings | Same bytes: mesh volume differs up to 2.41e-6 relative; exact B-Rep volume agrees bit-for-bit 70/70 (delta 0.0) |
 | Volume alone cannot address this assembly | 14 duplicate volume groups covering 60/70 pieces, largest group 8; the (volume, mesh bounds) tuple matches as a multiset 70/70 across producers |
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
+| A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
 | A retraction belongs in the artifact | MeshQ's `inspect` scratch-in-input-directory pollution (45/70 rows wrong) is recorded as a practice, not hidden; this repository's withdrawn ramp result is superseded in place |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |

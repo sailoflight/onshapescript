@@ -70,7 +70,31 @@ correction is recorded here rather than left in a message.)*
 Measured consequence for the contract: **the digest is not the identity and the volume is not an address**;
 the tuple is, and it is checkable by the consumer from the bytes it holds.
 
-## 4. What this record does not claim
+## 4. Third-party verdict on the readings (MeshQ, 2026-10-03)
+
+The meshes are byte-identical, so MeshQ recomputed the readings straight from the bytes (per-triangle
+double, `math.fsum`) and used its own result as the referee. Max relative difference over 70 pieces:
+
+| Quantity | onshapescript | CadQ (tessellation) | MeshQ |
+|---|---|---|---|
+| mesh area | **9.8e-13** (1 ulp) | 4.99e-07 | **3.39e-06** (self-reported; arithmetic, sign-mixed 30/70) |
+| mesh volume | **1.08e-12** | **2.41e-06** (independently reproduced) | ≤1.5e-10 (print precision) |
+| mesh bounds (absolute mm) | **0.0, 70/70 bitwise** | 1.221e-05 (70/70 > 1e-6) | ≤4.7e-07 (print precision) |
+
+Consequences applied in this repository:
+
+* the question this record left open in §5 ("which side is closer to the truth") is **answered**: this
+  repository's readings *are* the bytes' numbers, and the field that disagrees with the bytes is the one to
+  fix;
+* the apparent `54/70` vs `70/70` bounds disagreement was only a **threshold** difference (>1e-6 vs ~1e-5),
+  not a contradiction;
+* the mesh-volume difference is an **arithmetic** difference on identical geometry (MeshQ proved its own
+  case by an import/export round trip with bitwise-identical vertices), and it moved the contract: tolerances
+  are now derived from the measured spread across readers (`areaMm2: 1e-5`, because a `1e-6` bound would
+  fail a correct implementation) and each quantity publishes its algorithm and demonstrated precision
+  (`readings_basis`).
+
+## 5. What this record does not claim
 
 * Not a kernel-independence claim: both sides ran the same OCCT build (`cadquery+OCP 2.8.0+OCCT-7.9.3.1`),
   and both record `independent_kernel: false`. Agreement here proves **rule reproducibility**, which can
