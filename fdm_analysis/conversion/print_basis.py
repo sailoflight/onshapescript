@@ -12,6 +12,9 @@ either satisfies structurally (the `print` block and the per-piece `at` it now e
 * rule 3 — the acceptance gate belongs to the consumer: a producer-stamped envelope/verdict is refused;
 * rule 4 — a thickness reading claimed while the producer declares no analyzer is a contradiction,
   and an `unknown` grade without a reason is a silent gap (MeshQ 182 variant F);
+* rule 1 also owns the threshold's RANGE (``0 < threshold_deg <= 180``): outside it an overhang reading has
+  no meaning, and a guard that only asks for presence and finiteness admits `0`, `181`, `1e9` and `-45`
+  (measured against a peer that already enforces the range — MeshQ 189 §3);
 * and, across all of them, **an absent or null field must be as loud as a false one** — a rule that only
   fires when a field is present is not a gate (four of MeshQ's ten adversarial variants passed the first
   version of this guard exactly that way);
@@ -123,6 +126,16 @@ def check_print_basis(
             1, "declaration.print.threshold_deg",
             f"the overhang threshold is {block.get('threshold_deg')!r}, which is absent or not finite",
             "an overhang reading is a function of its threshold; publish the finite number it used"))
+    elif not 0.0 < declared_threshold <= 180.0:
+        # Measured against a peer that DOES enforce this range (MeshQ 189 §3): `0`, `181`, `1e9` and `-45`
+        # all passed the first version of this guard, which only asked that the threshold be present and
+        # finite. An overhang threshold outside (0, 180] is not a stricter or looser reading -- it is a
+        # reading with no meaning, and "an empty reading looks like a healthy certificate".
+        refusals.append(_refusal(
+            1, "declaration.print.threshold_deg",
+            f"the overhang threshold {declared_threshold!r} is outside the only range in which an overhang "
+            "reading means anything: 0 < threshold_deg <= 180",
+            "publish the angle the reading was actually taken at, in degrees from the build direction"))
     if block.get("reference_point") in (None, ""):
         refusals.append(_refusal(
             1, "declaration.print.reference_point",
@@ -162,6 +175,13 @@ def check_print_basis(
                 continue
             piece_direction = _direction(at.get("build_direction"))
             piece_threshold = _finite_number(at.get("threshold_deg"))
+            if piece_threshold is not None and not 0.0 < piece_threshold <= 180.0:
+                refusals.append(_refusal(
+                    1, f"parts[{index}].mesh.at",
+                    f"the per-piece overhang threshold {piece_threshold!r} is outside 0 < threshold_deg "
+                    "<= 180",
+                    "one range for one kind of reading: make the per-piece basis a real angle too"))
+                piece_threshold = None
             if piece_direction is None or piece_threshold is None:
                 refusals.append(_refusal(
                     1, f"parts[{index}].mesh.at",

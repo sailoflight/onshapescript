@@ -774,6 +774,54 @@ byte-identical geometry and still disagree by `2.4e-06` in volume and `3.4e-06` 
 bytes" does not imply "identical readings" — and a plane that publishes a reading without its algorithm is
 publishing a number nobody can adjudicate.
 
+### Failures must close: one judgement, every entry point
+
+A third plane found this by asking the inverse of "does the gate say no?" — namely **"when the rule says no,
+does anything else hear it?"** Measured on its own tool (MeshQ 189 §3):
+
+```
+job: inspection.rules {max_overhang_area_mm2: 0.0}, measured 67.85130525 mm²
+  → the record carries verdicts … pass: false, with measured/limit in the detail
+  → exit code = 0                                  ← the `run` entry point
+the same part with a deliberately wrong expectation  → exit code = 1   ← the `inspect` entry point
+```
+
+Root cause read from the source rather than inferred: `run` derives `failed` only from
+`--expect-max-deviation` and never looks at `inspection.verdicts`, while `inspect` walks the verdicts. Both
+entry points wrote their own copy of the same judgement, and one copy is missing. It then propagates to the
+agent-facing surface, whose outcome mapping reads the subprocess exit code — so the call returns
+`exit_code: 0` / `outcome: "ok"` / `failed: false` **in the same payload as a record that says
+`pass: false`**.
+
+The rule, in the general form this negotiation keeps rediscovering:
+
+* **a judgement must be mapped into the machine-facing outcome, once per entry point, and every entry point
+  must do it** — a judgement computed and then dropped is worse than no judgement, because it reads as a
+  green light;
+* the failure mode has a shape worth naming: **one judgement, two call sites, one copy missing.** It is the
+  absent-field lesson one level up — the missing thing is a code path rather than a field, and it is just as
+  invisible;
+* the guard against the shape is not "more code" but **one implementation with several callers** (then there
+  is no second copy to drift), plus a test per entry point that a failing rule changes that entry point's
+  outcome.
+
+Self-audit of this repository against that rule (2026-10-03): the shape *does* exist here — the project-docs
+index digest is checked both by `onshape_docs/verification/verify_docs.py` and by
+`dev/tests/test_docs_index_digests.py` — but both call the single `onshape_docs/query/source_digest.text_sha256`,
+so there is one implementation with two callers and no second copy to fall out of step. Measured the same day:
+a stale page digest made **both** entry points fail together (`verify_docs.py` 16/17 and
+`test_project_docs_index_pages_match`), which is what "one implementation, two callers" looks like when it
+works. Two checkers in this repository already close their failures (`verify_docs.py` returns 1 on any failed
+check; `build_tool_reference.py --check` returns 1 when the generated reference is missing or stale), and the
+one place where a failing finding deliberately does **not** change the exit code is the FeatureScript local
+check, which is warning-level by an explicit project decision rather than by omission — the difference
+matters, because the first is a design choice and the second is a bug.
+
+The threshold's **range** belongs to the same round: the guard now refuses a threshold outside
+`0 < threshold_deg <= 180` at both levels, because outside it an overhang reading is not looser or stricter but
+meaningless (`0`, `181`, `1e9`, `-45` all passed the version that only asked for presence and finiteness;
+`0.001`, `45`, `90` and `180` still pass, and the real 70-piece handoff is still accepted with 0 refusals).
+
 ### A tolerance has a vintage, and a value has a kind
 
 Two additions from the third round of adversarial review, both about a bound or a value being *stale or
@@ -928,6 +976,10 @@ that is portable to any future plane.
     this repository as the 1). The rule that follows is the same one this repository applies to its own
     `send`-style tools: **never carry a claim of receipt that the receipt tool would not confirm**, and
     after any ack, re-ask the tool rather than the memory of having seen a confirmation line.
+16. **Every entry point maps the verdict to the outcome.** A judgement computed in one place and dropped in
+    another is worse than no judgement, because it reads as a green light — ask the inverse question "when
+    the rule says no, who hears it?" for every entry point, and prefer one implementation with several
+    callers over several copies of one judgement.
 15. **Test the kind, not only the presence.** One fixture per required field with the *wrong type* and
     one with a *non-finite* value: a field of the wrong kind looks filled in, so it is harder to notice than
     a hole, and a validator that converts before it checks has already lost the information.
@@ -989,6 +1041,8 @@ absent so the suite stays offline-clean.
 | A digest names its rule | `identity_rule.version` = `onshapescript.mesh-set-signature/1`; CadQ publishes `signature_schema: cadq.brep-signature/2`; MeshQ 168 measured a signature move with byte-identical geometry |
 | A tolerance must come from the reader spread | MeshQ 179 §3 referee table (area 9.8e-13 / 4.99e-7 / 3.39e-6 on byte-identical input) → `equivalence_tolerance` + `equivalence_tolerance_basis` (`areaMm2: 1e-5`), and `readings_basis` per quantity |
 | Addressing needs both halves, in code | Producer: `declaration.identity.sha256` + `sha256_stable: false` + `identity_rule.version` in the staged browser STEP manifest. Consumer: `expect_sha256`/`handoff_manifest` in `onshape_browser_mode/step_import.py`, mismatch refused offline before any click, handoff without a digest refused by name, `addressedBy: "path"` recorded when nothing was declared (23 tests) |
+| Failures must close — one judgement, every entry point | MeshQ 189 §3 measurement (`run` exit 0 while `inspection.verdicts` says `pass: false`; `inspect` exit 1 for the same shape) recorded with its root cause read from the source; this repository's self-audit finds the duplicate-judgement shape (docs index digest in `verify_docs.py` and `test_docs_index_digests.py`) but **one implementation with two callers**, proven by both failing together on one stale digest |
+| The threshold range is part of rule 1 | MeshQ 189 §3: `0`, `181`, `1e9`, `-45` passed this guard's first version; now refused at both levels with the range named, endpoints `0.001`/`45`/`90`/`180` still accepted, real 70-piece manifest still 0 refusals (`test_a_threshold_outside_its_only_meaningful_range_is_refused`) |
 | A tolerance has a vintage; a value has a kind | MeshQ 185 §1 / 187 §2–3: `equivalence_tolerance_vintage` (reader set + date + witness + re-derivation condition, required by `check_identity_against`); rule 2 requires a *literally* true verdict (`applicable: 0` and `"false"` passed the previous version), and the direction/threshold validators check the RAW JSON value before converting — `["0","0","1"]`, `[0,0,True]`, `[0,0,inf]`, `[0,0,NaN]` are all refused, pinned by `test_a_truthy_substitute_does_not_pass_for_a_winding_verdict` and `test_the_raw_value_is_validated_before_it_is_converted` |
 | The identity rule needs a consumer-side checker | `fdm_analysis/conversion/identity_check.py` + `dev/tests/test_identity_check.py` (8 tests, one against the real 70-piece handoff): units first, tolerance from the manifest with its basis required, rule before digest, per-piece maximum with worst piece, bounds only inside the declared family |
 | An absent field must be as loud as a false one | Ten adversarial variants against the print-basis guard: six blocked, four passed silently (deleted `orientation`, `applicable: null`, a silent `unknown`, two null reference points) — all four refused after rule 18, pinned by `test_the_field_is_absent_paths_are_as_loud_as_the_false_ones` and `test_the_ten_adversarial_variants_have_the_outcomes_meshq_measured` |

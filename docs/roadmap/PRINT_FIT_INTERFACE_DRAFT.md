@@ -32,7 +32,12 @@ and `applicable: "false"` passed, because refusing absence/`null` in one branch 
 in another left everything in between reading as agreement — the rule inverted by a type, since a
 producer that meant "not applicable" got a pass. Rule 2 now requires a literally true verdict (an
 honest `false` still gets its own, accurate reason), and the direction/threshold validators check the
-RAW JSON value before converting, because validating after `float()` can never fail.
+RAW JSON value before converting, because validating after `float()` can never fail. A third round
+(189) retracted one earlier complaint as an unclean probe and found a real gap instead: the threshold's
+**range**. `0`, `181`, `1e9` and `-45` all passed a guard that only asked for presence and finiteness —
+outside `0 < threshold_deg <= 180` an overhang reading is not looser or stricter, it is meaningless, and
+"an empty reading looks like a healthy certificate". The range is now enforced at both levels, with the
+endpoints that do mean something (`0.001`, `45`, `90`, `180`) still accepted.
 **Owner of this file:** onshapescript. **Companion of:** `THREE_PLANE_HANDOFF_SCHEMA_DRAFT.md` (the
 geometry handoff) — this one is about the step after it: who turns a geometry handoff into a printability
 statement, and where the declarations that decide it enter.

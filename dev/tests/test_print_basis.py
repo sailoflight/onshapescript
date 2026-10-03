@@ -176,6 +176,37 @@ class PrintBasisGuardTest(unittest.TestCase):
         block["build_direction"] = [0, 0, 1]
         self.assertTrue(check_print_basis(manifest(block=block))["ok"])
 
+    def test_a_threshold_outside_its_only_meaningful_range_is_refused(self):
+        """MeshQ 189 §3: `0`, `181`, `1e9` and `-45` all passed the first version of this guard.
+
+        An overhang threshold is an angle from the build direction, so it lives in `(0, 180]`; outside that
+        the reading is not looser or stricter, it is meaningless — and "an empty reading looks like a healthy
+        certificate". The peer plane already enforced this; the guard now does too, at both levels.
+        """
+        for bad in (0, 181, 1e9, -45, 180.5, float("inf")):
+            with self.subTest(threshold=bad):
+                block = copy.deepcopy(manifest()["declaration"]["print"])
+                block["threshold_deg"] = bad
+                result = check_print_basis(manifest(block=block))
+                self.assertFalse(result["ok"], f"threshold {bad!r} must be refused")
+                self.assertIn("threshold", result["refusals"][0]["where"])
+
+        # The endpoints that DO mean something still pass.
+        for good in (0.001, 45, 90, 180):
+            with self.subTest(threshold=good):
+                block = copy.deepcopy(manifest()["declaration"]["print"])
+                block["threshold_deg"] = good
+                pieces = [piece(0)]
+                pieces[0]["mesh"]["at"]["threshold_deg"] = good
+                self.assertTrue(check_print_basis(manifest(block=block, pieces=pieces))["ok"])
+
+        # A per-piece threshold outside the range is refused as itself, not as a mismatch.
+        odd = piece(0)
+        odd["mesh"]["at"]["threshold_deg"] = 181
+        result = check_print_basis(manifest(pieces=[odd]))
+        self.assertFalse(result["ok"])
+        self.assertIn("one range for one kind of reading", result["refusals"][0]["required_fix"])
+
     def test_a_per_piece_basis_with_the_wrong_kind_of_value_is_refused_as_such(self):
         odd = piece(0)
         odd["mesh"]["at"]["build_direction"] = ["0", "0", "1"]
