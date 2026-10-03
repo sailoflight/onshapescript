@@ -80,6 +80,7 @@ class FakeTessellator:
                 "brepVolumeMm3": 1000.0 - index,
                 "brepBoundsMm": {"min": [0.0, 0.0, 0.0], "max": [10.0, 10.0, 10.0],
                                  "size": [10.0, 10.0, 10.0]},
+                "boundsAlgorithm": "occt_bnd_box(exact_geometry)",
             })
         return {
             "parts": parts,
@@ -244,13 +245,70 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(totals["triangleCount"], 24)
         self.assertEqual(totals["overhangTriangleRatio"], round(2 / 24, 12))
 
-    def test_the_mesh_is_cross_checked_against_the_exact_bounds(self):
+    def test_the_bounds_family_is_declared_and_not_mixed(self):
+        """One field name may not carry numbers computed by different methods (MeshQ 170 §3).
+
+        Three implementations published three boxes for one piece, to 3.19e-2 mm. So: `bounds_mm` is the
+        mesh-vertex family and says so; the exact B-Rep box travels beside it with its own algorithm; the
+        gap between the families is reported as a METHOD gap (a chord lies inside the surface, so a
+        gap up to the declared deflection is expected); and the same-family cross-run check is a separate
+        field, because only it can find a tessellation that did not reproduce.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._run(Path(tmp))
         piece = manifest["declaration"]["geometry"]["parts"][0]
-        self.assertEqual(piece["boundsDeltaMm"], 0.0)
-        self.assertEqual(piece["bounds_mm"], piece["brep"]["bounds_mm"])
+        self.assertEqual(piece["boundsAlgorithm"], "tessellation_vertices(artifact_bytes)")
+        self.assertEqual(piece["brep"]["boundsAlgorithm"], "occt_bnd_box(exact_geometry)")
+
+        class Silent(FakeTessellator):
+            def __call__(self, *args, **kwargs):
+                built = super().__call__(*args, **kwargs)
+                for part in built["parts"]:
+                    part.pop("boundsAlgorithm", None)
+                return built
+
+        with tempfile.TemporaryDirectory() as tmp:
+            undeclared = self._run(Path(tmp), tessellator=Silent())
+        self.assertEqual(undeclared["declaration"]["geometry"]["parts"][0]["brep"]["boundsAlgorithm"],
+                         "undeclared_by_tessellator")
+        self.assertEqual(piece["bounds_mm"]["size"], [10.0, 10.0, 10.0])
+        self.assertEqual(piece["boundsMethodGapMm"], 0.0)  # the fake returns the same numbers
+        self.assertEqual(piece["boundsCrossRunMm"], 0.0)
+        self.assertIn("chord", piece["boundsMethodGapNote"])
+        self.assertEqual(manifest["declaration"]["geometry"]["identity_rule"]["bounds_family"],
+                         "tessellation_vertices(artifact_bytes)")
+        self.assertEqual(manifest["declaration"]["geometry"]["identity_rule"]["quanta"],
+                         {"brepVolumeMm3": 1e-3, "bounds_mm": 1e-3})
         self.assertEqual(manifest["declaration"]["mesh"]["pieces"][0]["path"], "part-0000.stl")
+
+    def test_a_box_read_after_the_export_is_kept_as_evidence_not_hidden(self):
+        """CadQuery's STL export MUTATES the shape's cached box (measured: 380.0000001000 -> 380.0008703904)."""
+
+        class Mutating(FakeTessellator):
+            def __call__(self, *args, **kwargs):
+                built = super().__call__(*args, **kwargs)
+                for part in built["parts"]:
+                    part["boundsAfterTessellationMm"] = part["brepBoundsMm"]
+                    part["boundsMutatedByExport"] = False
+                return built
+
+        class MutatingMore(Mutating):
+            def __call__(self, *args, **kwargs):
+                built = super().__call__(*args, **kwargs)
+                for part in built["parts"]:
+                    after = {"min": list(part["brepBoundsMm"]["min"]),
+                             "max": list(part["brepBoundsMm"]["max"])}
+                    after["max"][1] += 0.0008703904
+                    after["size"] = [after["max"][i] - after["min"][i] for i in range(3)]
+                    part["boundsAfterTessellationMm"] = after
+                    part["boundsMutatedByExport"] = True
+                return built
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._run(Path(tmp), tessellator=MutatingMore())
+        piece = manifest["declaration"]["geometry"]["parts"][0]
+        self.assertTrue(piece["brep"]["boundsMutatedByExport"])
+        self.assertAlmostEqual(piece["brep"]["boundsAfterTessellationMm"]["max"][1] - 10.0, 0.0008703904, places=9)
 
     def test_an_empty_tessellation_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:

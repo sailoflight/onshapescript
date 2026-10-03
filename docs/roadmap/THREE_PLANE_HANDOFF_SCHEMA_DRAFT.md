@@ -451,6 +451,54 @@ Two consequences the schema has to carry, and both are now in the shape above:
 3. This run declares 0.1 rad for exactly this reason: 0.3 rad would have been honest (declared = used)
    and would have failed MeshQ's gate anyway.
 
+### One field name may not carry numbers computed by different methods
+
+`bounds_mm` had exactly that problem, and four readers produced **four** answers for one piece (MeshQ 170
+§3: max gap **3.19e-2 mm**, on 70/70 pieces):
+
+| Family | How it is read | Piece #0 `max` | Piece #2 `max` |
+|---|---|---|---|
+| Mesh vertices | the artifact's own bytes | `[7.0, 380.0, 86.0]` | `[220.699997, 348.0, 185.350006]` |
+| Exact B-Rep, read **before** tessellation | `Bnd_Box` over the exact geometry | `[7.0, 380.0000001, 86.0]` | `[220.7, 348.0, 185.35]` |
+| Exact B-Rep, read **after** exporting the STL | the same call, over a mutated cache | `[7.0000001, 380.0008704, 86.0000001]` | `[220.700488, 348.0000001, 185.381891]` |
+| MeshQ's own reader | its kernel over the same bytes | `[7.0, 380.0, 86.0]` | `[220.699997, 348.0, 185.350006]` |
+
+Measured root cause of the third row, and it is a real trap: **CadQuery's STL export mutates the shape's
+cached bounds.** Same shape, same process, before → after `cq.exporters.export(..., 'STL')`:
+`ymax 380.0000001000 → 380.0008703904` (#0) and `xmin 7.5000000000 → 7.4995117079` (#2). Reading the box
+after the export is how this repository published a number in no other implementation's family while its
+own self-comparison happily reported "no gap". Consequences now in the shape:
+
+* `bounds_mm` is the **mesh-vertex** family and declares it (`boundsAlgorithm`), because that is the one
+  any consumer can reproduce from the artifact bytes;
+* the exact box travels beside it with its own algorithm, and the post-export box is kept as
+  `boundsAfterTessellationMm` + `boundsMutatedByExport` (true on 70/70 pieces) so the mutation is visible
+  rather than hidden;
+* the mesh-vs-exact difference is a **method gap** (`boundsMethodGapMm`, up to the declared deflection,
+  because a chord lies inside the surface it approximates), while the same-family cross-run difference is
+  a **separate field** (`boundsCrossRunMm`, measured 0.0 on all 70 pieces) — only the second can find a
+  tessellation that did not reproduce, and comparing across families is a false-alarm generator;
+* the identity rule's tolerance is **per quantity** (`{volume: 1e-6, bounds: 1e-3}` with declared
+  quanta), because one number cannot govern a quantity that agrees to 1e-9 and one that differs by 3e-2
+  between families and by ~3e-6 between two implementations of the same family. Rounding does not remove
+  the risk of a straddled bin; it is declared, and the digest stays a convenience rather than a proof.
+
+### A cross-plane agreement must report the per-piece maximum and the worst piece
+
+MeshQ's upgrade of this repository's own note, and its own mistake: in one batch the **aggregate**
+relative difference was 1.31e-7 while the **per-piece maximum** was 3.39e-6 — a factor of 26, hidden by
+reporting the aggregate alone (cancellation flatters a sum). A cross-plane consistency claim therefore
+reports the per-piece maximum **and the worst piece's index**, never only the total.
+
+### The kernel string is canonicalized, and a binding claim carries its factor
+
+* `kernel.version` had two spellings for one kernel (`2.8.0+7.9.3.1` here, `2.8.0+OCCT-7.9.3.1` at CadQ),
+  and "can these two even be compared" hangs on the kernel identity: the convention is now
+  `<cadquery-version>+OCCT-<occt-version>`, published as `version_convention`.
+* "Linear does not bind" is only true **relative to a tightening factor**: 2.5× (0.05 → 0.02 mm) leaves
+  the triangle counts bit-identical, while 32× (0.05 → 0.0016 mm) does change them (CadQ 169 §1), so the
+  claim must name the factor it was measured at.
+
 ### A "which tolerance binds" claim must be derived, never asserted
 
 CadQ's manifest carried `binding: {linear: true, angular: null}` while its own measurement said the
@@ -506,6 +554,16 @@ producer wants to publish which tolerance binds, it must **publish the measureme
 
     A field that needlessly turns itself off costs the reader a number it could have used; a field that
     should have turned itself off and did not costs the reader a wrong one. Both are defects.
+16. A winding verdict (`mesh_orientation.consistent`) read without regard to whether the edge graph is
+    closed → refuse. **A consistent winding over a broken edge graph is VACUOUSLY consistent**: every
+    surviving shared edge can be used once in each direction while the mesh is open, non-manifold or
+    degenerate, so `consistent: true` there is not a verified winding. Measured while building the
+    flipped-piece probe (this repository, 2026-10-03): a degenerate triangle (two identical vertices,
+    from getting the binary-STL vertex offsets wrong) gave `watertight: false`, `nonManifoldEdges: 1`
+    **and `consistent: true`** — over a shredded edge graph, where the check proves nothing. A producer
+    must publish `applicable` beside `consistent` (with the reason), and a consumer must not read one
+    without the other. Same class as rule 15, and it arrived the same way: not from reasoning but from a
+    measurement that contradicted an assumption.
 
 Rule 5 ("asked to make a decision") is a rule for the **caller**, not a manifest check: the manifest
 cannot know what a consumer is about to do with it. Stated here so nobody implements a validator for a
@@ -567,6 +625,9 @@ copy drifts".
 | The v0.2 instance is generated, not written | `/tmp/draft_handoff_instance_v02.py` reads the real `step-manifest.json`, runs the real measurement, and emits the block above; the set signature is `6ba0265e063c7541…` |
 | Peer review of v0.1 | mailbox messages 120 (MeshQ) and 123 (CadQ), each ack'd against the id; `mail-delivery-receipt.sh` reported `found` for the outbound 116/117/118/119 |
 | Volume blindness is conditional, measured by the other plane | MeshQ message 151 §C: clean cube 8000.0; flipped bottom face in the z=0 plane 8000.0 (unchanged); the same mesh at +Z 50 mm 21333.333333, matching the closed form `8000 − 2·c_f` exactly |
+| A bounding box is not one measurement | MeshQ 170 §3 (four families, max gap 3.19e-2 mm) plus this repository's measurement of `cq.exporters.export` mutating the cached box (`ymax 380.0000001000 → 380.0008703904`) |
+| A consistent winding over a broken edge graph is vacuously consistent | `/tmp/three-plane-drop/onshapescript-degenerate-piece-probe/manifest.json` (degenerate triangle → `watertight: false`, `nonManifoldEdges: 1`, `consistent: true`) and its sibling `onshapescript-flipped-piece-probe/` (a real flipped winding: `consistent: false`, area unchanged at 464.320189554 mm², volume and overhang `null` with `applicable: false`) |
+| Per-piece max beats the aggregate | The same 70-piece batch: aggregate 1.31e-7 vs per-piece maximum 3.39e-6 (26×), worst piece #20 |
 | Path is not identity, digest is (for transfer) | MeshQ message 164 §4: the same 70 piece files read under two different directory names gave **70/70 identical digests**, so a renamed artifact is the same artifact; and the same message shows why a digest still cannot be content *identity* (the STEP header case) |
 | Winding-dependence is a property of the reading, not of the field name | MeshQ message 163 §B (three variants, `surface_area_mm2 = 2400.0` throughout) against this repository's retracted ramp (counted overhang area 0.0 → 565.192416792 on a winding flip) |
 | Declaration vs acceptance gate, measured on the real fixture | CadQ message 156: 0.3 rad → 0.103 % volume error (fails MeshQ's 0.05 % gate, 12/70 pieces), 0.1 rad → 0.012 % (passes), linear 0.05 → 0.02 mm bit-identical |

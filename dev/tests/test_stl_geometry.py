@@ -123,6 +123,9 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
             result["orientation"],
             {
                 "consistent": True,
+                # A closed cube: the winding check means something, so it says so.
+                "applicable": True,
+                "reason": None,
                 "inconsistentEdgePairs": 0,
                 "inconsistentFaceIndices": [],
                 "nonManifoldEdges": 0,
@@ -130,6 +133,33 @@ class StlGeometryAnalyzerTest(unittest.TestCase):
             },
         )
         self.assertTrue(result["outwardOriented"])
+
+    def test_a_broken_edge_graph_makes_the_winding_check_inapplicable(self):
+        """`consistent: true` on an open mesh is vacuous and must not be read as a verified winding.
+
+        Found on a real probe: a degenerate triangle (two identical vertices) left the mesh
+        `watertight: false` with `nonManifoldEdges: 1`, and the surviving edge pairs were all consistent,
+        so the reading said `consistent: true` -- over a shredded edge graph where that proves nothing.
+        """
+        cube = [
+            ((0, 0, 0), (0, 10, 0), (10, 10, 0)), ((0, 0, 0), (10, 10, 0), (10, 0, 0)),
+            ((0, 0, 10), (10, 10, 10), (0, 10, 10)), ((0, 0, 10), (10, 0, 10), (10, 10, 10)),
+            ((0, 0, 0), (10, 0, 0), (10, 0, 10)), ((0, 0, 0), (10, 0, 10), (0, 0, 10)),
+            ((10, 0, 0), (10, 10, 0), (10, 10, 10)), ((10, 0, 0), (10, 10, 10), (10, 0, 10)),
+            ((10, 10, 0), (0, 10, 0), (0, 10, 10)), ((10, 10, 0), (0, 10, 10), (10, 10, 10)),
+            ((0, 10, 0), (0, 0, 0), (0, 0, 0)),  # degenerate: the last two vertices are identical
+            ((0, 10, 0), (0, 0, 10), (0, 10, 10)), ((0, 0, 0), (0, 0, 10), (0, 0, 0)),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "degenerate.stl"
+            write_ascii_stl(path, cube)
+            result = StlGeometryAnalyzer().analyze(
+                self._mesh(path), orientation_matrix=(1, 0, 0, 0, 1, 0, 0, 0, 1)
+            )
+        self.assertFalse(result["watertight"])
+        self.assertFalse(result["orientation"]["applicable"])
+        self.assertIn("proves nothing", result["orientation"]["reason"])
+        self.assertGreaterEqual(result["orientation"]["nonManifoldEdges"], 1)
 
     def test_orientation_check_locates_an_inverted_face(self):
         """Watertight and outward are not the same as consistently wound.

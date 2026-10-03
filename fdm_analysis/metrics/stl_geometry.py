@@ -243,7 +243,19 @@ class StlGeometryAnalyzer:
             "bedContactTriangleCount": contact_triangles,
             "facesWithoutNormal": faces_without_normal,
             "orientation": {
+                # `consistent` is meaningful only on a closed edge graph: on an open or degenerate mesh
+                # every surviving shared edge can be used once in each direction while the graph is
+                # shredded, so `consistent: true` there is VACUOUSLY true and must not be read as a
+                # verified winding (measured on a real degenerate piece: watertight=false,
+                # nonManifoldEdges=1, consistent=true). `applicable` says whether this reading means
+                # anything at all; the counts are published either way so the reason is auditable.
                 "consistent": inconsistent_pairs == 0,
+                "applicable": watertight,
+                "reason": None if watertight else (
+                    "the edge graph is not a closed 2-manifold, so a winding check over it proves "
+                    "nothing: the surviving pairs can all be consistent while the mesh is open, "
+                    "non-manifold or degenerate"
+                ),
                 "inconsistentEdgePairs": inconsistent_pairs,
                 # Locatable, not just counted: a bare count cannot be acted on.
                 "inconsistentFaceIndices": sorted(inconsistent_faces),

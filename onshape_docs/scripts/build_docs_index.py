@@ -55,6 +55,7 @@ DOC_GROUPS: dict[str, dict[str, str]] = {
         "llm-experience-api": "onshape_docs/experience/rest-api.md",
         "browser-automation": "onshape_docs/experience/browser-automation.md",
         "browser-modeling": "onshape_docs/experience/browser-modeling.md",
+        "geometry-handoff": "onshape_docs/experience/geometry-handoff.md",
     },
     "verification": {
         "verification": "onshape_docs/verification/README.md",

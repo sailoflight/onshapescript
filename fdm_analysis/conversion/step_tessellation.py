@@ -91,12 +91,16 @@ def measure_stl(
     #     reject numbers that are still perfectly usable -- "a field that needlessly turns itself off is
     #     waste; one that should have turned itself off and did not is an error".
     signed_readable = bool(reading["watertight"]) and bool(orientation["consistent"])
-    direction_readable = bool(orientation["consistent"])
+    # A winding check on a non-closed edge graph is vacuous, so `applicable` (not `consistent`) is what
+    # gates the direction-derived readings too.
+    direction_readable = bool(orientation.get("applicable", True)) and bool(orientation["consistent"])
     reason = None
-    if not signed_readable:
-        reason = ("not watertight" if not reading["watertight"]
-                  else "the winding is inconsistent, so a signed or direction-derived quantity is not "
-                       "physically meaningful")
+    if not reading["watertight"]:
+        reason = ("not watertight: the edge graph is not a closed 2-manifold, so a signed quantity is not "
+                  "defined and a winding check over it would prove nothing")
+    elif not signed_readable:
+        reason = ("the winding is inconsistent, so a signed or direction-derived quantity is not "
+                  "physically meaningful")
     elif not direction_readable:  # pragma: no cover - unreachable while signed_readable implies it
         reason = "the winding is inconsistent"
     return {
@@ -151,9 +155,33 @@ def kernel_facts() -> dict[str, Any]:
             facts["occt"] = Standard_Version()
     except Exception:
         facts["occt"] = None
-    parts = [str(facts["cadquery"] or "unknown"), str(facts["occt"] or "OCCT-unknown")]
-    facts["version"] = "+".join(parts)
+    # One kernel, one spelling. CadQ wrote `2.8.0+OCCT-7.9.3.1`, this repository wrote
+    # `2.8.0+7.9.3.1` -- and "can these two be compared at all" hangs on the kernel identity, so the
+    # component is named: `<cadquery>+OCCT-<occt>`, with the prefix added when it is missing.
+    occt = str(facts["occt"] or "unknown")
+    occt = occt if occt.upper().startswith("OCCT") else f"OCCT-{occt}"
+    facts["version"] = f"{facts.get('cadquery') or 'unknown'}+{occt}"
+    facts["version_convention"] = "<cadquery-version>+OCCT-<occt-version>"
     return facts
+
+
+
+def shape_bounds(shape: Any) -> dict[str, Any]:
+    """One exact B-Rep bounding box, with the method it was read by.
+
+    A field name may not carry numbers computed by different methods, and `bounds_mm` had exactly that
+    problem: this repository, CadQ and MeshQ each published a different box for the same piece (max gap
+    3.19e-2 mm) because "the bounding box" is not one measurement. This helper pins the exact reading and
+    its algorithm so a consumer can tell a geometry difference from a method difference.
+    """
+    try:
+        box = shape.BoundingBox()
+        bounds = {"min": [box.xmin, box.ymin, box.zmin], "max": [box.xmax, box.ymax, box.zmax]}
+        bounds["size"] = _size(bounds)
+        return {"brepBoundsMm": bounds, "boundsAlgorithm": "occt_bnd_box(exact_geometry)"}
+    except Exception:  # pragma: no cover - a shape that cannot report a box is reported as such
+        return {"brepBoundsMm": None, "boundsAlgorithm": None}
+
 
 
 def cadquery_tessellator(
@@ -178,6 +206,12 @@ def cadquery_tessellator(
     parts: list[dict[str, Any]] = []
     for index, shape in enumerate(shapes):
         path = output_dir / f"{name_prefix}-{index:04d}.stl"
+        # MEASURED (2026-10-03): exporting the STL MUTATES the shape's cached bounds, so the exact
+        # reading must be taken BEFORE the export or it is not the exact reading. Same shape, same
+        # process: ymax 380.0000001000 -> 380.0008703904 (#0), xmin 7.5000000000 -> 7.4995117079 (#2).
+        # The post-export box is the mesh-influenced one MeshQ found in no other implementation's
+        # family; it is kept as `boundsAfterTessellationMm` so the mutation is visible, not hidden.
+        before = shape_bounds(shape)
         cq.exporters.export(
             shape,
             str(path),
@@ -187,20 +221,18 @@ def cadquery_tessellator(
         )
         if not path.is_file() or path.stat().st_size == 0:
             raise ValueError(f"STL export produced no artifact for solid {index}")
+        after = shape_bounds(shape)
         try:
             volume = float(shape.Volume())
         except Exception:
             volume = None
-        try:
-            box = shape.BoundingBox()
-            bounds = {
-                "min": [box.xmin, box.ymin, box.zmin],
-                "max": [box.xmax, box.ymax, box.zmax],
-            }
-            bounds["size"] = _size(bounds)
-        except Exception:
-            bounds = None
-        parts.append({"index": index, "path": str(path), "brepVolumeMm3": volume, "brepBoundsMm": bounds})
+        parts.append({
+            "index": index, "path": str(path), "brepVolumeMm3": volume,
+            "brepBoundsMm": before["brepBoundsMm"],
+            "boundsAlgorithm": before["boundsAlgorithm"],
+            "boundsAfterTessellationMm": after["brepBoundsMm"],
+            "boundsMutatedByExport": before["brepBoundsMm"] != after["brepBoundsMm"],
+        })
     return {
         "parts": parts,
         "kernel": kernel_facts(),
@@ -259,10 +291,18 @@ def plan_step_tessellation(
         "reproducibilityCheck": bool(reproducibility_check),
         "identityRule": {
             "sort_by": ["brepVolumeMm3", "bounds_mm"],
-            "compare": "relative",
-            "precision": 1e-6,
-            "equivalence_tolerance": 1e-6,
+            # Per-quantity quanta, because one tolerance cannot govern two quantities: the exact volume
+            # agrees to ~1e-9 between implementations while `bounds_mm` disagreed by 3.19e-2 mm between
+            # FAMILIES (and by ~3e-6 between two implementations of the SAME mesh family). The digest
+            # therefore reads the mesh-vertex box, whose family agrees to ~3e-6 mm, quantized to 1e-3 --
+            # three orders of margin. Rounding does not remove the risk of two implementations landing on
+            # opposite sides of a bin boundary; it is declared here, and the digest is a convenience, not
+            # an identity proof (see the two-directional refusal rule in the contract draft).
+            "quanta": {"brepVolumeMm3": 1e-3, "bounds_mm": 1e-3},
+            "compare": "quantized_absolute",
+            "equivalence_tolerance": {"brepVolumeMm3": 1e-6, "bounds_mm": 1e-3},
             "reference_point": INTEGRATION_REFERENCE,
+            "bounds_family": "tessellation_vertices(artifact_bytes)",
         },
         "refusalRules": [
             "no shapes in the STEP -> refuse, do not write an empty handoff",
@@ -286,29 +326,45 @@ def _piece_record(
     if second is not None:
         evidence.append(second["sha256"])
         same_bytes = second["sha256"] == measured["sha256"]
-    bounds = raw.get("brepBoundsMm") or measured.get("meshBoundsMm")
+    # `bounds_mm` is the MESH-VERTEX box, and it says so. Three implementations published three
+    # different boxes for one piece (max gap 3.19e-2 mm) because "the bounding box" is not one
+    # measurement: this repository read it AFTER exporting the STL, which MUTATES the cached box; CadQ
+    # read the exact B-Rep before tessellation; MeshQ read the mesh. The mesh family is the one any
+    # consumer can reproduce from the artifact bytes, so it is the one that travels; the exact box and
+    # the post-export box travel beside it, each with its own algorithm, and the gap between families is
+    # reported as a METHOD gap instead of being compared as if it were a geometric disagreement.
     mesh_bounds = measured.get("meshBoundsMm")
-    bounds_delta = None
-    if raw.get("brepBoundsMm") and mesh_bounds:
-        exact, tessellated = raw["brepBoundsMm"], mesh_bounds
-        bounds_delta = max(
-            abs(exact[side][axis] - tessellated[side][axis])
+    exact_bounds = raw.get("brepBoundsMm")
+    method_gap = None
+    if exact_bounds and mesh_bounds:
+        method_gap = max(
+            abs(exact_bounds[side][axis] - mesh_bounds[side][axis])
             for side in ("min", "max") for axis in range(3)
         )
     record: dict[str, Any] = {
         "index": raw["index"],
         "name": Path(raw["path"]).stem,
         "label": None,
-        "bounds_mm": bounds,
-        # An independent signal, not a formula: a mesh that does not span its exact bounds is a
-        # tessellation defect, and 0.0 is the expected value at any declared tolerance.
-        "boundsDeltaMm": bounds_delta,
-        "meshBoundsMm": mesh_bounds,
+        "bounds_mm": mesh_bounds,
+        "boundsAlgorithm": "tessellation_vertices(artifact_bytes)",
+        # NOT a defect signal, and deliberately not named as a delta between "the same" quantity: a
+        # chord cuts inside the true surface by up to the linear deflection, so a nonzero gap here is
+        # the expected method difference between mesh and exact B-Rep, not a geometric disagreement.
+        "boundsMethodGapMm": method_gap,
+        "boundsMethodGapNote": ("mesh vertices vs exact B-Rep read before tessellation; a gap up to the "
+                               "declared linear tolerance is expected, because a chord lies inside the "
+                               "surface it approximates"),
+        "boundsCrossRunMm": None,
         "volume_mm3": measured["volumeMm3"] if measured["applicable"]["volumeMm3"] else None,
         "area_mm2": measured["areaMm2"] if measured["applicable"]["areaMm2"] else None,
         "applicable": measured["applicable"],
         "brep": {"measure_kind": "brep_exact", "volume_mm3": raw.get("brepVolumeMm3"),
-                 "bounds_mm": raw.get("brepBoundsMm")},
+                 "bounds_mm": exact_bounds,
+                 # A tessellator that does not declare a family is reported as such rather than
+                 # inheriting the mesh family's name.
+                 "boundsAlgorithm": raw.get("boundsAlgorithm") or "undeclared_by_tessellator",
+                 "boundsAfterTessellationMm": raw.get("boundsAfterTessellationMm"),
+                 "boundsMutatedByExport": raw.get("boundsMutatedByExport")},
         "mesh": {
             "path": Path(measured["path"]).name,
             "media_type": "model/stl",
@@ -352,10 +408,21 @@ def _set_signature(records: list[dict[str, Any]], precision: int = 0) -> str:
     with a choice that is not part of the geometry. Digests are a fast path in both directions only.
     """
     canonical = [
-        {"brepVolumeMm3": record["brep"]["volume_mm3"], "bounds_mm": record["brep"]["bounds_mm"]}
+        {"brepVolumeMm3": record["brep"]["volume_mm3"], "bounds_mm": record["bounds_mm"]}
         for record in records
     ]
-    canonical.sort(key=lambda item: (str(item["brepVolumeMm3"]), json.dumps(item["bounds_mm"], sort_keys=True)))
+    # Quantize with the declared quanta before ordering and hashing, so a 3e-6 mm difference between two
+    # implementations of one mesh family does not move a piece in the order.
+    def _quantized(item: dict[str, Any]) -> tuple[str, ...]:
+        volume = item["brepVolumeMm3"]
+        bounds = item["bounds_mm"] or {}
+        parts = [f"{round(float(volume) / 1e-3):+d}" if volume is not None else "none"]
+        for side in ("min", "max"):
+            for value in bounds.get(side, []) or []:
+                parts.append(f"{round(float(value) / 1e-3):+d}")
+        return tuple(parts)
+
+    canonical.sort(key=_quantized)
     text = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return _sha256_bytes(text.encode("utf-8"))
 
@@ -426,9 +493,19 @@ def tessellate_step(
             second_measured = measure_stl(
                 twin["path"], overhang_from_vertical_degrees=overhang_from_vertical_degrees
             )
-        records.append(
-            _piece_record(raw, measured=measured, second=second_measured, export_id=export_id)
-        )
+        record = _piece_record(raw, measured=measured, second=second_measured, export_id=export_id)
+        # Same family on both sides (mesh vertices vs mesh vertices), which is the only comparison that
+        # can find a tessellation that does not reproduce. Comparing the mesh box with the exact box --
+        # what this field used to do -- is a method gap, and a method gap can never answer this question.
+        if second_measured is not None and second_measured.get("meshBoundsMm"):
+            first_bounds = measured.get("meshBoundsMm") or {}
+            second_bounds = second_measured["meshBoundsMm"]
+            record["boundsCrossRunMm"] = max(
+                abs(first_bounds[side][axis] - second_bounds[side][axis])
+                for side in ("min", "max") for axis in range(3)
+                if first_bounds.get(side) and second_bounds.get(side)
+            ) if first_bounds.get("min") and second_bounds.get("min") else None
+        records.append(record)
 
     used = first.get("used") or {}
     used_linear = used.get("linear_tolerance_mm", linear_tolerance_mm)
@@ -499,8 +576,17 @@ def tessellate_step(
             "identity": {
                 "sha256": _set_signature(records),
                 "sha256_stable": not unstable,
-                "sha256_stable_evidence": (None if unstable else
-                                           ["per-piece digests in mesh.sha256_evidence"]),
+                "sha256_stable_evidence": (None if unstable else {
+                    "kind": "per_piece_digests",
+                    # Inline the two digests AND name the exact path: a prose pointer that names a path
+                    # which does not exist is worse than no pointer, because a consumer follows it and
+                    # finds nothing (MeshQ read `mesh.sha256_evidence` at the top level; the real path is
+                    # `declaration.geometry.parts[].mesh.sha256_evidence`).
+                    "where": "declaration.geometry.parts[].mesh.sha256_evidence",
+                    "second_run_directory": str(Path(destination).parent / "reproducibility"),
+                    "digests": {str(record["index"]): record["mesh"]["sha256_evidence"]
+                                for record in records},
+                }),
                 "sha256_note": ("digests are a fast path in BOTH directions: a differing digest is not "
                                 "proof of different geometry, and an equal digest is not proof of "
                                 "identical geometry; only identity_rule + equivalence_tolerance decide"),
@@ -515,9 +601,10 @@ def tessellate_step(
                 "parts": records,
                 "identity_rule": {
                     "sort_by": plan["identityRule"]["sort_by"],
-                    "compare": "relative",
-                    "precision": 1e-6,
-                    "equivalence_tolerance": 1e-6,
+                    "quanta": plan["identityRule"]["quanta"],
+                    "compare": plan["identityRule"]["compare"],
+                    "bounds_family": plan["identityRule"]["bounds_family"],
+                    "equivalence_tolerance": {"brepVolumeMm3": 1e-6, "bounds_mm": 1e-3},
                     "set_signature_sha256": _set_signature(records),
                     "note": ("parts are addressed by this rule, never by row order: a re-export can reorder "
                              "solids, and this file contains identical twins"),
