@@ -180,8 +180,10 @@ def _report(result: dict[str, Any]) -> tuple[list[tuple[str, str, str]], int]:
                                        f"({[r.get('name') for r in same_name]}); the id, not the name, carried the verdict"))
         else:
             rows.append(("I5", "observed", f"the landed row carries element id {new_element.get('elementId')!r}, but no "
-                                           "same-named row existed before, so the id-vs-name rule was not exercised "
-                                           "(import the same file a second time to close this)"))
+                                           "same-named row existed before. Measured live 2026-10-03: Onshape "
+                                           "disambiguates a repeated import by RENAMING it (`model` -> `model (1)`), so "
+                                           "a same-name collision does not occur and the element id is the only identity "
+                                           "that can carry the verdict"))
     else:
         rows.append(("I5", "unproven", f"no landed element with an element id to reason about (reason={result.get('reason')})"))
 

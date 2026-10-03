@@ -1,6 +1,6 @@
 {
   "probe": "Pending live verification for the browser-leg STEP import (`onshape_browser_mode/step_import.py`). The module landed with 17 offline tests and no live run: the Import dialog has never been opened by this code, so its four selector constants are candidates, not observations. Nothing here is a finding against the code -- it is the list of facts a live session must supply before the entry point can be trusted. The VERDICT half does not depend on them: the landing proof reads the tab bar (`.os-tab-bar-tab`) and the Part Studio user-feature rows (`.os-list-item.ns-user-feature`), both live-observed, so an unverified entry point cannot manufacture a success.",
-  "status": "entry point measured and re-run live; submit and file input exercised; the landing judge was found defective by the second attempt and fixed -- the confirming re-run is pending",
+  "status": "live-confirmed for the entry route, the file input, the submit control and digest addressing; the landing judge was found defective by attempt 2, fixed, and confirmed by attempt 3; I4 (into-part-studio) is not exercised, I5 is answered by Onshape's rename-on-duplicate behaviour",
   "session": "2026-10-03 (offline implementation); the live run below is NOT yet done",
   "environment_when_implemented": {
     "repo": "onshapescript, see the commit that added this file",
@@ -379,6 +379,65 @@
         "CAD 导入 (CADImportBlobs) -- the internal bookkeeping row"
       ],
       "cleanup": "browser_delete_element can remove either tab if the document should go back to 10 tabs"
+    }
+  },
+  "third_live_import_attempt_2026-10-03": {
+    "call": "the confirming re-run after the judge fix (deployed revision 2f4fea7, bridge node generation 4), same source/handoff as before, mode new-tab, register_as 4u-box-roundtrip-2",
+    "outcome": {
+      "imported": true,
+      "reason": "new_tab_landed",
+      "spentQuota": 0,
+      "spentApiRequests": 0,
+      "newElement": {
+        "name": "model (1)",
+        "elementId": "7c67d0e3308cb6af15ca6fb1",
+        "group": false
+      },
+      "internalRows": [],
+      "beforeRowCount": 12,
+      "afterRowCount": 13,
+      "polls": {
+        "reads": 20,
+        "changed": true
+      },
+      "entry": {
+        "clicked": true,
+        "strategy": "page_js_dropdown_item",
+        "itemId": "upload-button",
+        "label": "导入…"
+      },
+      "fileAttach": {
+        "attached": true,
+        "selector": "input[type=file]"
+      },
+      "submit": {
+        "submitted": true,
+        "selector": ".modal button.btn-primary[type='submit'], .xenon-dialog button.btn-primary"
+      },
+      "registered": "outputs/step_imports/4u-box-roundtrip-2/import-manifest.json"
+    },
+    "what_it_confirms": [
+      "the corrected judge attributes a real 24-hex document element (7c67d0e3308cb6af15ca6fb1) instead of the bookkeeping row",
+      "the before-list ALREADY contained the internal group row (`CAD 导入` / `CADImportBlobs`, group=true) and it was not counted as a new row -- the filter works on a live page, not only against the fakes",
+      "translation latency measured: the element needed 20 polls at the 500 ms interval (~10 s) to appear, so an early read is not evidence of a failed import"
+    ],
+    "measured_byproduct": "Onshape disambiguates a repeated import by RENAMING it (`model` -> `model (1)`), so a same-name collision does not occur; element identity has to come from the element id, and the ledger's I5 question is answered that way rather than by a name collision",
+    "checks_after_this_attempt": {
+      "I1": "pass (entry route measured: page_js_dropdown_item on #upload-button, label 导入…)",
+      "I2": "pass (input[type=file])",
+      "I3": "pass (submit clicked; exactly one new DOCUMENT ELEMENT, attributed by element id)",
+      "I4": "not exercised (mode=new-tab)",
+      "I5": "observed, and answered by the byproduct above: Onshape renames duplicates, so the verdict must carry the element id -- a name match is not merely risky, it is unavailable",
+      "I6": "pass (addressed by sha256, matchesExpected true, digest echoed into the registered manifest)"
+    },
+    "document_state_after": {
+      "tabCount": 13,
+      "addedByAllThreeAttempts": [
+        "model (c29f29f7528d07d5b290421c) -- the real element from attempt 2",
+        "CAD 导入 (CADImportBlobs) -- the internal bookkeeping row",
+        "model (1) (7c67d0e3308cb6af15ca6fb1) -- the real element from attempt 3"
+      ],
+      "cleanup": "browser_delete_element can remove any of them if the document should go back to 10 tabs"
     }
   }
 }

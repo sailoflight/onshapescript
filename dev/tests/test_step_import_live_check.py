@@ -78,7 +78,7 @@ class ReportLabellingTest(unittest.TestCase):
         self.assertEqual(rows["I6"], "unproven",
                          "a run with no declared digest may not report the addressing check as passed")
 
-    def test_a_repeat_import_is_what_closes_the_id_versus_name_rule(self):
+    def test_a_same_named_row_before_makes_the_id_the_only_carrier(self):
         result = landed_result(
             before={"ok": True, "error": None, "rows": [{"name": "handoff",
                                                          "elementId": "9f9f9f9f9f9f9f9f9f9f9f9f"}]},
